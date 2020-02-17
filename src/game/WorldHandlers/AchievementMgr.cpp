@@ -276,6 +276,15 @@ void AchievementMgr::LoadFromDB(QueryResult* achievementResult, QueryResult* cri
             progress.timedCriteriaFailed = false;
 
             AchievementEntry const* achievement = sAchievementStore.LookupEntry(criteria->referredAchievement);
+
+            if (!achievement)
+            {
+                // we will remove nonexistent referred achievement for all characters
+                sLog.outError("Nonexistent achievement criteria %u (referred achievement %u) data removed from table `character_achievement_progress`.",id, criteria->referredAchievement);
+                CharacterDatabase.PExecute("DELETE FROM character_achievement_progress WHERE criteria = %u",id);
+                continue;
+            }
+
             // Checked in LoadAchievementCriteriaList
 
             // A failed achievement will be removed on next tick - TODO: Possible that timer 2 is reseted
@@ -317,6 +326,10 @@ void AchievementMgr::SendAchievementEarned(AchievementEntry const* achievement)
     }
 
     DEBUG_FILTER_LOG(LOG_FILTER_ACHIEVEMENT_UPDATES, "AchievementMgr::SendAchievementEarned(%u)", achievement->ID);
+
+    // Not broadcast a hidden achievement
+    if(achievement->flags & ACHIEVEMENT_FLAG_HIDDEN)
+        return;
 
     if (Guild* guild = sGuildMgr.GetGuildById(GetPlayer()->GetGuildId()))
     {

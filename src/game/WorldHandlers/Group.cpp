@@ -2592,8 +2592,10 @@ InstanceGroupBind* Group::BindToInstance(DungeonPersistentState* state, bool per
         bind.state = state;
         bind.perm = permanent;
         if (!load)
+        {
             DEBUG_LOG("Group::BindToInstance: Group (Id: %d) is now bound to map %d, instance %d, difficulty %d",
                       GetId(), state->GetMapId(), state->GetInstanceId(), state->GetDifficulty());
+        }
         return &bind;
     }
     else
