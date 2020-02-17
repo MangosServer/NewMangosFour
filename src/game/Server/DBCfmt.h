@@ -74,7 +74,7 @@ const char GtOCTBaseMPByClassfmt[]="df";                            // 5.3.0 Che
 const char GtOCTClassCombatRatingScalarfmt[] = "df";                // 5.3.0 Checked
 
 const char GtOCTHpPerStaminafmt[]="df";                             // 5.3.0 Checked
-const char GtOCTRegenHPfmt[]="xf";
+//const char GtOCTRegenHPfmt[]="xf";
 const char GtRegenHPPerSptfmt[]="xf";
 const char GtRegenMPPerSptfmt[]="xf";                               // 5.3.0 Checked
 const char GtSpellScalingfmt[]="df";                                // 5.3.0 Checked
