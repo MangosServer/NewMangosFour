@@ -207,7 +207,7 @@ enum OpcodesList
     CMSG_GUILD_QUERY_RANKS                                = 0x1026, // 4.3.4 15595
     SMSG_GUILD_QUERY_RANKS_RESULT                         = 0x30B4, // 4.3.4 15595
     UMSG_UPDATE_GUILD                                     = 0x1095,
-    CMSG_MESSAGECHAT_ADDON_BATTLEGROUND                   = 0x05D3, // 5.1.0 16357
+    CMSG_MESSAGECHAT_ADDON_INSTANCE                       = 0x05D3, // 5.1.0 16357
     CMSG_MESSAGECHAT_ADDON_GUILD                          = 0x0544, // 4.3.4 15595
     CMSG_MESSAGECHAT_ADDON_OFFICER                        = 0x3954, // 4.3.4 15595
     CMSG_MESSAGECHAT_ADDON_PARTY                          = 0x0546, // 4.3.4 15595
