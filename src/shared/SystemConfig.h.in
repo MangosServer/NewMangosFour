@@ -28,7 +28,7 @@
 #include "Platform/Define.h"
 
 #ifndef MANGOS_PACKAGENAME
-#define MANGOS_PACKAGENAME "MaNGOS Three"
+#define MANGOS_PACKAGENAME "MaNGOS Four"
 #endif
 
 #ifndef MANGOS_VERSION
