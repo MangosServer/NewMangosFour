@@ -678,7 +678,18 @@ void WorldSession::HandleListInventoryOpcode(WorldPacket& recv_data)
 {
     ObjectGuid guid;
 
+#if defined (CATA)
     recv_data >> guid;
+#elif defined (MISTS)
+    guid[1] = recv_data.ReadBit();
+    guid[3] = recv_data.ReadBit();
+    guid[7] = recv_data.ReadBit();
+    guid[6] = recv_data.ReadBit();
+    guid[5] = recv_data.ReadBit();
+    guid[2] = recv_data.ReadBit();
+    guid[0] = recv_data.ReadBit();
+    guid[4] = recv_data.ReadBit();
+#endif
 
     if (!GetPlayer()->IsAlive())
     {
@@ -1916,4 +1927,3 @@ void WorldSession::HandleReforgeItemOpcode(WorldPacket& recvData)
         player->ApplyReforgeEnchantment(item, true);
     }
 }
-
