@@ -734,7 +734,7 @@ bool Player::UpdateFishingSkill()
 // levels sync. with spell requirement for skill levels to learn
 // bonus abilities in sSkillLineAbilityStore
 // Used only to avoid scan DBC at each skill grow
-static uint32 bonusSkillLevels[] = {75, 150, 225, 300, 375, 450, 525};
+static uint32 bonusSkillLevels[] = {75, 150, 225, 300, 375, 450, 525, 600};
 
 /**
  * @brief Attempts to increase a skill using an explicit percentage chance.
