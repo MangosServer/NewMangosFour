@@ -638,10 +638,10 @@ void Aura::HandleModStealth(bool apply, bool Real)
         {
             target->SetStandFlags(UNIT_STAND_FLAGS_CREEP);
 
-            if (target->GetTypeId() == TYPEID_PLAYER)
-            {
-                target->SetByteFlag(PLAYER_FIELD_BYTES2, 3, PLAYER_FIELD_BYTE2_STEALTH);
-            }
+            //if (target->GetTypeId() == TYPEID_PLAYER)
+            //{
+            //    target->SetByteFlag(PLAYER_FIELD_BYTES2, 3, PLAYER_FIELD_BYTE2_STEALTH);
+            //}
 
             // apply only if not in GM invisibility (and overwrite invisibility state)
             if (target->GetVisibility() != VISIBILITY_OFF)
@@ -682,10 +682,10 @@ void Aura::HandleModStealth(bool apply, bool Real)
             {
                 target->RemoveStandFlags(UNIT_STAND_FLAGS_CREEP);
 
-                if (target->GetTypeId() == TYPEID_PLAYER)
-                {
-                    target->RemoveByteFlag(PLAYER_FIELD_BYTES2, 3, PLAYER_FIELD_BYTE2_STEALTH);
-                }
+                //if (target->GetTypeId() == TYPEID_PLAYER)
+                //{
+                //    target->RemoveByteFlag(PLAYER_FIELD_BYTES2, 3, PLAYER_FIELD_BYTE2_STEALTH);
+                //}
 
                 // restore invisibility if any
                 if (target->HasAuraType(SPELL_AURA_MOD_INVISIBILITY))
@@ -738,14 +738,14 @@ void Aura::HandleInvisibility(bool apply, bool Real)
 
         target->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_IMMUNE_OR_LOST_SELECTION);
 
-        if (Real && target->GetTypeId() == TYPEID_PLAYER)
-        {
-            if (((Player*)target)->GetMover() == NULL) // check if the player doesnt have a mover, when player is hidden during MC of creature
-            {
-                // apply glow vision
-                target->SetByteFlag(PLAYER_FIELD_BYTES2, 1, PLAYER_FIELD_BYTE2_INVISIBILITY_GLOW);
-            }
-        }
+        //if (Real && target->GetTypeId() == TYPEID_PLAYER)
+        //{
+        //    if (((Player*)target)->GetMover() == NULL) // check if the player doesnt have a mover, when player is hidden during MC of creature
+        //    {
+        //        // apply glow vision
+        //        target->SetByteFlag(PLAYER_FIELD_BYTES2, 1, PLAYER_FIELD_BYTE2_INVISIBILITY_GLOW);
+        //    }
+        //}
 
         // apply only if not in GM invisibility and not stealth
         if (target->GetVisibility() == VISIBILITY_ON)
@@ -769,10 +769,10 @@ void Aura::HandleInvisibility(bool apply, bool Real)
         if (Real && target->m_invisibilityMask == 0)
         {
             // remove glow vision
-            if (target->GetTypeId() == TYPEID_PLAYER)
-            {
-                target->RemoveByteFlag(PLAYER_FIELD_BYTES2, 3, PLAYER_FIELD_BYTE2_INVISIBILITY_GLOW);
-            }
+            //if (target->GetTypeId() == TYPEID_PLAYER)
+            //{
+            //    target->RemoveByteFlag(PLAYER_FIELD_BYTES2, 3, PLAYER_FIELD_BYTE2_INVISIBILITY_GLOW);
+            //}
 
             // apply only if not in GM invisibility & not stealthed while invisible
             if (target->GetVisibility() != VISIBILITY_OFF)
@@ -830,7 +830,7 @@ void Aura::HandleInvisibilityDetect(bool apply, bool Real)
  */
 void Aura::HandleDetectAmore(bool apply, bool /*real*/)
 {
-    GetTarget()->ApplyModByteFlag(PLAYER_FIELD_BYTES2, 3, (PLAYER_FIELD_BYTE2_DETECT_AMORE_0 << m_modifier.m_amount), apply);
+    //GetTarget()->ApplyModByteFlag(PLAYER_FIELD_BYTES2, 3, (PLAYER_FIELD_BYTE2_DETECT_AMORE_0 << m_modifier.m_amount), apply);
 }
 
 /**

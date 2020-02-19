@@ -1717,19 +1717,19 @@ bool Player::SatisfyQuestDay(Quest const* qInfo, bool msg) const
     }
 
     bool have_slot = false;
-    for (uint32 quest_daily_idx = 0; quest_daily_idx < PLAYER_MAX_DAILY_QUESTS; ++quest_daily_idx)
-    {
-        uint32 id = GetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx);
-        if (qInfo->GetQuestId() == id)
-        {
-            return false;
-        }
+    //for (uint32 quest_daily_idx = 0; quest_daily_idx < PLAYER_MAX_DAILY_QUESTS; ++quest_daily_idx)
+    //{
+    //    uint32 id = GetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx);
+    //    if (qInfo->GetQuestId() == id)
+    //    {
+    //        return false;
+    //    }
 
-        if (!id)
-        {
-            have_slot = true;
-        }
-    }
+    //    if (!id)
+    //    {
+    //        have_slot = true;
+    //    }
+    //}
 
     if (!have_slot)
     {
@@ -3108,15 +3108,15 @@ void Player::UpdateForQuestWorldObjects()
 
 void Player::SetDailyQuestStatus(uint32 quest_id)
 {
-    for (uint32 quest_daily_idx = 0; quest_daily_idx < PLAYER_MAX_DAILY_QUESTS; ++quest_daily_idx)
-    {
-        if (!GetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx))
-        {
-            SetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx, quest_id);
-            m_DailyQuestChanged = true;
-            break;
-        }
-    }
+    //for (uint32 quest_daily_idx = 0; quest_daily_idx < PLAYER_MAX_DAILY_QUESTS; ++quest_daily_idx)
+    //{
+    //    if (!GetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx))
+    //    {
+    //        SetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx, quest_id);
+    //        m_DailyQuestChanged = true;
+    //        break;
+    //    }
+    //}
 }
 
 void Player::SetWeeklyQuestStatus(uint32 quest_id)
@@ -3133,10 +3133,10 @@ void Player::SetMonthlyQuestStatus(uint32 quest_id)
 
 void Player::ResetDailyQuestStatus()
 {
-    for (uint32 quest_daily_idx = 0; quest_daily_idx < PLAYER_MAX_DAILY_QUESTS; ++quest_daily_idx)
-    {
-        SetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx, 0);
-    }
+    //for (uint32 quest_daily_idx = 0; quest_daily_idx < PLAYER_MAX_DAILY_QUESTS; ++quest_daily_idx)
+    //{
+    //    SetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx, 0);
+    //}
 
     // DB data deleted in caller
     m_DailyQuestChanged = false;
