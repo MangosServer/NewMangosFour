@@ -1,0 +1,56 @@
+https://github.com/billy1arm/MangosFour-M3
+
+
+d19d9fd43 Added some minor updates
+41cd698e5 Fixed the extraction so far on Mangos0 to Mangos4
+8b33bdbde Update Eluna module and adjust Gossip function name to match
+9a70e6109 Attempt to fix Linux build
+f57eb1597 Added some more documentation and fixed some warnings
+d497c9a71 Added some documentation to movement and fixed some warnings
+089297fee Added some documentation to BG and fixed some warnings
+9b63aeed7 Fix delegating Eluna non-coded gossip select callbacks
+14c995611 Added comments to game/vmap and fix some warnings
+8da011884 Fix Docker Build (#205)
+556f70689 Fix a warning 'passed by const reference.'
+67277ea2d Fixed trailing spaces
+ae001608e Fix crash points associated with LFG. (#199)
+85158f570 Add remaining code to prevent lua dynamic menu script crashes
+461003225 [Extractors] Updated Map Extractor
+f56407290 [DEP] Updated Loadlib
+b2548d5aa Fixed string support in prepared statements
+b9b22aedf [SD3] Added latest updates
+32aa0342c Remove obsolete Vmap-extractor project
+15edd4de2 Fixed some warnings in files related to playerbot
+868c26f2b fix a compiler warning
+40fc53d1e Some comments population
+fd236ba19 Fixed warnings and added comments
+dec542eb2 remove class specifiers in loadlib to make Unix happy. Thank @i-am-fyre for assistance
+a7e19ba12 some refactoring to simplify function calls
+324d2bb47 Refactored some functions in ExtractorCommon
+629884132 Update map version for this current release
+9ce8e8533 Fixed crash during ADT processing
+61f44b4bb [Build] Updated build system to not build game when only building tools
+7267dde3d Attempt to trap, unexpected exit
+bc3f12a8d expand the display of displayname
+11d4c0037 Remove some unused folders
+cab447b68 Updated vmaps files to keep in sync with map editor
+b1ae68831 Updated mapextractor to load vmap source files
+5367d1aed Added comments and warnings fixes to main game files
+f8b754c65 Remove unused file
+d851610ec Untangling complete
+e314f3ec7 sync files with map extractor
+df901eff8 More vmap untangling
+56bc59ded Fix a dep file changed in error
+f1cacb1d3 More vmap untangling
+854a44570 more Vmap merge
+c6720515a more Vmap merge
+a2efed19b Initial Vmap merge
+7479f848c Added final .map changes
+bccfa1a09 Fix warning in spell.cpp
+3c0a6a157 Fix up some loadlib warnings
+4b6baf1ac M4 changes + New Map Exractor prototype
+adfa0ff24 More M4 Fixup
+724331695 fixed Map Extractor for m4
+f642be54b modify loadlib for m4
+58306fca2 Correct SD3 for m4
+abb6ab6e4 Base changes to define as MOP
