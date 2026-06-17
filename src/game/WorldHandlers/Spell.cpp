@@ -449,21 +449,21 @@ Spell::Spell(Unit* caster, SpellEntry const* info, bool triggered, ObjectGuid or
     MANGOS_ASSERT(caster != NULL && info != NULL);
     MANGOS_ASSERT(info == sSpellStore.LookupEntry(info->Id) && "`info` must be pointer to sSpellStore element");
 
-    if (info->SpellDifficultyId && caster->IsInWorld() && caster->GetMap()->IsDungeon())
-    {
-        if (SpellEntry const* spellEntry = GetSpellEntryByDifficulty(info->SpellDifficultyId, caster->GetMap()->GetDifficulty(), caster->GetMap()->IsRaid()))
-        {
-            m_spellInfo = spellEntry;
-        }
-        else
-        {
-            m_spellInfo = info;
-        }
-    }
-    else
-    {
+    //if (info->SpellDifficultyId && caster->IsInWorld() && caster->GetMap()->IsDungeon())
+    //{
+    //    if (SpellEntry const* spellEntry = GetSpellEntryByDifficulty(info->GetSpellDifficulty(), caster->GetMap()->GetDifficulty(), caster->GetMap()->IsRaid()))
+    //    {
+    //        m_spellInfo = spellEntry;
+    //    }
+    //    else
+    //    {
+    //        m_spellInfo = info;
+    //    }
+    //}
+    //else
+    //{
         m_spellInfo = info;
-    }
+    //}
 
     m_triggeredBySpellInfo = triggeredBy;
 
@@ -781,8 +781,8 @@ void Spell::UpdatePointers()
  */
 bool Spell::IsNeedSendToClient() const
 {
-    return m_spellInfo->SpellVisual[0] || m_spellInfo->SpellVisual[1] || IsChanneledSpell(m_spellInfo) ||
-           m_spellInfo->speed > 0.0f || (!m_triggeredByAuraSpell && !m_IsTriggeredSpell);
+    return m_spellInfo->GetSpellVisual(0) || m_spellInfo->GetSpellVisual(1) || IsChanneledSpell(m_spellInfo) ||
+           m_spellInfo->GetSpeed() > 0.0f || (!m_triggeredByAuraSpell && !m_IsTriggeredSpell);
 }
 
 /**
@@ -1281,7 +1281,7 @@ void Spell::GetSpellRangeAndRadius(SpellEffectEntry const* spellEffect, float& r
     }
     else
     {
-        radius = GetSpellMaxRange(sSpellRangeStore.LookupEntry(m_spellInfo->rangeIndex));
+        radius = GetSpellMaxRange(sSpellRangeStore.LookupEntry(m_spellInfo->GetRangeIndex()));
     }
 
     if (Unit* realCaster = GetAffectiveCaster())
@@ -1523,7 +1523,7 @@ void Spell::GetSpellRangeAndRadius(SpellEffectEntry const* spellEffect, float& r
         case SPELLFAMILY_WARRIOR:
         {
             // Sunder Armor (main spell)
-            if (m_spellInfo->IsFitToFamilyMask(UI64LIT(0x0000000000004000), 0x00000000) && m_spellInfo->SpellVisual[0] == 406)
+            if (m_spellInfo->IsFitToFamilyMask(UI64LIT(0x0000000000004000), 0x00000000) && m_spellInfo->GetSpellVisual(0) == 406)
             {
                 if (m_caster->HasAura(58387))               // Glyph of Sunder Armor
                 {
@@ -1543,7 +1543,7 @@ void Spell::GetSpellRangeAndRadius(SpellEffectEntry const* spellEffect, float& r
         }
         case SPELLFAMILY_DEATHKNIGHT:
         {
-            if (m_spellInfo->SpellIconID == 1737)           // Corpse Explosion // TODO - spell 50445?
+            if (m_spellInfo->GetSpellIconID() == 1737)           // Corpse Explosion // TODO - spell 50445?
             {
                 unMaxTargets = 1;
             }

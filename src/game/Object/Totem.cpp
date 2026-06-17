@@ -279,7 +279,7 @@ void Totem::SetTypeBySummonSpell(SpellEntry const* spellProto)
             m_type = TOTEM_ACTIVE;
         }
     }
-    if (spellProto->SpellIconID == 2056)
+    if (spellProto->GetSpellIconID() == 2056)
     {
         m_type = TOTEM_STATUE;                               // Jewelery statue
     }

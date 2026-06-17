@@ -5,7 +5,7 @@
 # Written By: Ryan Ashley                                                     #
 # Updated By: Cedric Servais                                                  #
 # Updated By: Pysis                                                           #
-# Copyright (C) 2014-2025 MaNGOS https://www.getmangos.eu/                        #
+# Copyright (C) 2014-2026 MaNGOS https://www.getmangos.eu/                        #
 #                                                                             #
 # This program is free software; you can redistribute it and/or modify        #
 # it under the terms of the GNU General Public License as published by        #
@@ -59,7 +59,7 @@
   {
     P_TOOLS="0"
 
-    P_ELUNA="1"
+    P_ELUNA="0"
     P_SD3="1"
     P_BOTS="0"
     P_SOAP="0"

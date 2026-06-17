@@ -451,7 +451,7 @@ void Spell::EffectSummonType(SpellEffectEntry const* effect)
                     if (prop_id == 61)                      // mixed guardians, totems, statues
                     {
                         // * Stone Statue, etc  -- fits much better totem AI
-                        if (m_spellInfo->SpellIconID == 2056)
+                        if (m_spellInfo->GetSpellIconID() == 2056)
                         {
                             summonResult = DoSummonTotem(effect);
                         }

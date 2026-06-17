@@ -177,7 +177,7 @@ void ScriptMgr::CollectPossibleEventIds(std::set<uint32>& eventIds)
         {
             for (int j = 0; j < MAX_EFFECT_INDEX; ++j)
             {
-#if defined (CATA)
+#if defined (CATA) || defined (MISTS)
                 SpellEffectEntry const* spellEffect = spell->GetSpellEffect(SpellEffectIndex(j));
                 if (!spellEffect)
                 {

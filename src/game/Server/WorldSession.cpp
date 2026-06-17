@@ -983,13 +983,107 @@ void WorldSession::SendAuthWaitQue(uint32 position)
     else
     {
         WorldPacket packet(SMSG_AUTH_RESPONSE, 1 + 4 + 1);
-        packet.WriteBit(true);      // has queue
-        packet.WriteBit(false);     // unk queue-related
-        packet.WriteBit(false);     // has account info
+        packet.WriteBit(false);
+        packet.WriteBit(true);
+        packet.WriteBit(false);
         packet << uint8(AUTH_WAIT_QUEUE);
         packet << uint32(position);
         SendPacket(&packet);
     }
+}
+struct ExpansionInfoStrunct
+{
+    uint8 raceOrClass;
+    uint8 expansion;
+};
+
+ExpansionInfoStrunct classExpansionInfo[MAX_CLASSES - 1] =
+{
+    { 1, 0 },
+    { 2, 0 },
+    { 3, 0 },
+    { 4, 0 },
+    { 5, 0 },
+    { 6, 2 },
+    { 7, 0 },
+    { 8, 0 },
+    { 9, 0 },
+    { 10, 4 },
+    { 11, 0 }
+};
+
+ExpansionInfoStrunct raceExpansionInfo[MAX_PLAYABLE_RACES] =
+{
+    { 1, 0 },
+    { 2, 0 },
+    { 3, 0 },
+    { 4, 0 },
+    { 5, 0 },
+    { 6, 0 },
+    { 7, 0 },
+    { 8, 0 },
+    { 9, 3 },
+    { 10, 1 },
+    { 11, 1 },
+    { 22, 3 },
+    { 24, 4 },
+    { 25, 4 },
+    { 26, 4 }
+};
+
+void WorldSession::SendAuthResponse(uint8 code, bool queued, uint32 queuePos)
+{
+    bool hasAccountData = true;
+
+    WorldPacket packet(SMSG_AUTH_RESPONSE, 1 /*bits*/ + 4 + 1 + 4 + 1 + 4 + 1 + 1 + (queued ? 4 : 0));
+    packet << uint8(code);
+    packet.WriteBit(queued);                            // IsInQueue
+    if (queued)
+    {
+        packet.WriteBit(1);                             // unk
+    }
+
+    packet.WriteBit(hasAccountData);
+
+    if (hasAccountData)
+    {
+        packet.WriteBits(MAX_CLASSES - 1, 23);
+        packet.WriteBits(0, 21);
+        packet.WriteBit(0);
+        packet.WriteBit(0);
+        packet.WriteBit(0);
+        packet.WriteBit(0);
+        packet.WriteBits(MAX_PLAYABLE_RACES, 23);
+        packet.WriteBit(0);
+
+        for (uint8 i = 0; i < MAX_PLAYABLE_RACES; ++i)
+        {
+            packet << uint8(raceExpansionInfo[i].expansion);
+            packet << uint8(raceExpansionInfo[i].raceOrClass);
+        }
+
+        for (uint8 i = 0; i < MAX_CLASSES - 1; ++i)
+        {
+            packet << uint8(classExpansionInfo[i].raceOrClass);
+            packet << uint8(classExpansionInfo[i].expansion);
+        }
+
+        packet << uint32(0);
+        packet << uint8(Expansion());
+        packet << uint32(Expansion());
+        packet << uint32(0);
+        packet << uint8(Expansion());
+        packet << uint32(0);
+        packet << uint32(0);
+        packet << uint32(0);
+    }
+
+    if (queued)
+    {
+        packet << uint32(queuePos);
+    }
+
+    SendPacket(&packet);
 }
 
 void WorldSession::LoadGlobalAccountData()
@@ -1087,17 +1181,16 @@ void WorldSession::SetAccountData(AccountDataType type, time_t time_, const std:
 
 void WorldSession::SendAccountDataTimes(uint32 mask)
 {
-    WorldPacket data(SMSG_ACCOUNT_DATA_TIMES, 4 + 1 + 4 + 8 * 4); // changed in WotLK
-    data << uint32(time(NULL));                             // unix time of something
-    data << uint8(1);
-    data << uint32(mask);                                   // type mask
+    WorldPacket data(SMSG_ACCOUNT_DATA_TIMES, 4 + 1 + 4 + NUM_ACCOUNT_DATA_TYPES * 4);
+
+    data.WriteBit(1);
+
     for (uint32 i = 0; i < NUM_ACCOUNT_DATA_TYPES; ++i)
     {
-        if (mask & (1 << i))
-        {
-            data << uint32(GetAccountData(AccountDataType(i))->Time);// also unix time
-        }
+        data << uint32(GetAccountData(AccountDataType(i))->Time);// also unix time
     }
+    data << uint32(mask);                                   // type mask
+    data << uint32(time(NULL));                             // unix time of something
     SendPacket(&data);
 }
 

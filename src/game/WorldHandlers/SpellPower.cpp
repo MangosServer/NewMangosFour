@@ -164,7 +164,7 @@ void Spell::TakePower()
     bool hit = true;
     if (m_caster->GetTypeId() == TYPEID_PLAYER)
     {
-        if (m_spellInfo->powerType == POWER_RAGE || m_spellInfo->powerType == POWER_ENERGY || m_spellInfo->powerType == POWER_HOLY_POWER)
+        if (m_spellInfo->GetPowerType() == POWER_RAGE || m_spellInfo->GetPowerType() == POWER_ENERGY || m_spellInfo->GetPowerType() == POWER_HOLY_POWER)
         {
             ObjectGuid targetGuid = m_targets.getUnitTargetGuid();
             if (!targetGuid.IsEmpty())
@@ -189,20 +189,20 @@ void Spell::TakePower()
     }
 
     // health as power used
-    if (m_spellInfo->powerType == POWER_HEALTH)
+    if (m_spellInfo->GetPowerType() == POWER_HEALTH)
     {
         m_caster->ModifyHealth(-(int32)m_powerCost);
         m_caster->SendSpellNonMeleeDamageLog(m_caster, m_spellInfo->Id, m_powerCost, GetSpellSchoolMask(m_spellInfo), 0, 0, false, 0, false);
         return;
     }
 
-    if (m_spellInfo->powerType >= MAX_POWERS)
+    if (m_spellInfo->GetPowerType() >= MAX_POWERS)
     {
-        sLog.outError("Spell::TakePower: Unknown power type '%d'", m_spellInfo->powerType);
+        sLog.outError("Spell::TakePower: Unknown power type '%d'", m_spellInfo->GetPowerType());
         return;
     }
 
-    Powers powerType = Powers(m_spellInfo->powerType);
+    Powers powerType = Powers(m_spellInfo->GetPowerType());
 
     if (powerType == POWER_HOLY_POWER)
     {

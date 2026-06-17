@@ -336,7 +336,7 @@ SpellCastResult Spell::CheckCast(bool strict)
 
             // Fire Shield
             if (classOptions && classOptions->SpellFamilyName == SPELLFAMILY_WARLOCK &&
-                m_spellInfo->SpellIconID == 16)
+                m_spellInfo->GetSpellIconID() == 16)
             {
                 return SPELL_FAILED_BAD_TARGETS;
             }
@@ -493,7 +493,7 @@ SpellCastResult Spell::CheckCast(bool strict)
             }
 
         // Must be behind the target.
-        if (m_spellInfo->AttributesEx2 == SPELL_ATTR_EX2_FACING_TARGETS_BACK && m_spellInfo->HasAttribute(SPELL_ATTR_EX_FACING_TARGET) && target->HasInArc(M_PI_F, m_caster))
+        if (m_spellInfo->GetAttributesEx2() == SPELL_ATTR_EX2_FACING_TARGETS_BACK && m_spellInfo->HasAttribute(SPELL_ATTR_EX_FACING_TARGET) && target->HasInArc(M_PI_F, m_caster))
         {
             // Exclusion for Pounce: Facing Limitation was removed in 2.0.1, but it still uses the same, old Ex-Flags
             // Exclusion for Mutilate:Facing Limitation was removed in 2.0.1 and 3.0.3, but they still use the same, old Ex-Flags
@@ -508,7 +508,7 @@ SpellCastResult Spell::CheckCast(bool strict)
         }
 
         // Target must be facing you.
-        if ((m_spellInfo->Attributes == (SPELL_ATTR_ABILITY | SPELL_ATTR_NOT_SHAPESHIFT | SPELL_ATTR_DONT_AFFECT_SHEATH_STATE | SPELL_ATTR_STOP_ATTACK_TARGET)) && !target->HasInArc(M_PI_F, m_caster))
+        if ((m_spellInfo->GetAttributes() == (SPELL_ATTR_ABILITY | SPELL_ATTR_NOT_SHAPESHIFT | SPELL_ATTR_DONT_AFFECT_SHEATH_STATE | SPELL_ATTR_STOP_ATTACK_TARGET)) && !target->HasInArc(M_PI_F, m_caster))
         {
             SendInterrupted(2);
             return SPELL_FAILED_NOT_INFRONT;
@@ -609,7 +609,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                     }
                 }
 
-                SpellRangeEntry const* srange = sSpellRangeStore.LookupEntry(m_spellInfo->rangeIndex);
+                SpellRangeEntry const* srange = sSpellRangeStore.LookupEntry(m_spellInfo->GetRangeIndex());
                 float range = GetSpellMaxRange(srange);
 
                 // override range with default when it's not provided
@@ -881,7 +881,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                 {
                     UnitList targets;
 
-                    float radius = GetSpellMaxRange(sSpellRangeStore.LookupEntry(m_spellInfo->rangeIndex));
+                    float radius = GetSpellMaxRange(sSpellRangeStore.LookupEntry(m_spellInfo->GetRangeIndex()));
 
                     MaNGOS::AnyUnfriendlyVisibleUnitInObjectRangeCheck unitCheck(m_caster, m_caster, radius);
                     MaNGOS::UnitListSearcher<MaNGOS::AnyUnfriendlyVisibleUnitInObjectRangeCheck> checker(targets, unitCheck);
@@ -903,7 +903,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                         return SPELL_FAILED_SPELL_UNAVAILABLE;
                     }
                 }
-                else if (m_spellInfo->SpellIconID == 156)   // Holy Shock
+                else if (m_spellInfo->GetSpellIconID() == 156)   // Holy Shock
                 {
                     // spell different for friends and enemies
                     // hart version required facing
@@ -913,7 +913,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                     }
                 }
                 // Fire Nova
-                if (m_spellInfo->GetSpellFamilyName() == SPELLFAMILY_SHAMAN && m_spellInfo->SpellIconID == 33)
+                if (m_spellInfo->GetSpellFamilyName() == SPELLFAMILY_SHAMAN && m_spellInfo->GetSpellIconID() == 33)
                 {
                     // fire totems slot
                     if (!m_caster->GetTotemGuid(TOTEM_SLOT_FIRE))
@@ -948,7 +948,7 @@ SpellCastResult Spell::CheckCast(bool strict)
             case SPELL_EFFECT_SCHOOL_DAMAGE:
             {
                 // Hammer of Wrath
-                if (m_spellInfo->SpellVisual[0] == 7250)
+                if (m_spellInfo->GetSpellVisual(0) == 7250)
                 {
                     if (!m_targets.getUnitTarget())
                     {
@@ -2060,7 +2060,7 @@ SpellCastResult Spell::CheckCasterAuras() const
     if (unitflag & UNIT_FLAG_STUNNED)
     {
         // Pain Suppression (have SPELL_ATTR_EX5_USABLE_WHILE_STUNNED that must be used only with glyph)
-        if (m_spellInfo->GetSpellFamilyName() == SPELLFAMILY_PRIEST && m_spellInfo->SpellIconID == 2178)
+        if (m_spellInfo->GetSpellFamilyName() == SPELLFAMILY_PRIEST && m_spellInfo->GetSpellIconID() == 2178)
         {
             if (!m_caster->HasAura(63248))                  // Glyph of Pain Suppression
             {
@@ -2269,7 +2269,7 @@ SpellCastResult Spell::CheckRange(bool strict)
     Unit* target = m_targets.getUnitTarget();
 
     // special range cases
-    switch (m_spellInfo->rangeIndex)
+    switch (m_spellInfo->GetRangeIndex())
     {
         // self cast doesn't need range checking -- also for Starshards fix
         // spells that can be cast anywhere also need no check
@@ -2303,7 +2303,7 @@ SpellCastResult Spell::CheckRange(bool strict)
     // add radius of caster and ~5 yds "give" for non stricred (landing) check
     float range_mod = strict ? 1.25f : 6.25;
 
-    SpellRangeEntry const* srange = sSpellRangeStore.LookupEntry(m_spellInfo->rangeIndex);
+    SpellRangeEntry const* srange = sSpellRangeStore.LookupEntry(m_spellInfo->GetRangeIndex());
     bool friendly = target ? target->IsFriendlyTo(m_caster) : false;
     float max_range = GetSpellMaxRange(srange, friendly) + range_mod;
     float min_range = GetSpellMinRange(srange, friendly);
@@ -2316,7 +2316,7 @@ SpellCastResult Spell::CheckRange(bool strict)
     if (target && target != m_caster)
     {
         // distance from target in checks
-        float dist = m_caster->GetCombatDistance(target, m_spellInfo->rangeIndex == SPELL_RANGE_IDX_COMBAT);
+        float dist = m_caster->GetCombatDistance(target, m_spellInfo->GetRangeIndex() == SPELL_RANGE_IDX_COMBAT);
 
         if (dist > max_range)
         {
@@ -2368,16 +2368,16 @@ uint32 Spell::CalculatePowerCost(SpellEntry const* spellInfo, Unit* caster, Spel
     if (spellInfo->HasAttribute(SPELL_ATTR_EX_DRAIN_ALL_POWER))
     {
         // If power type - health drain all
-        if (spellInfo->powerType == POWER_HEALTH)
+        if (spellInfo->GetPowerType() == POWER_HEALTH)
         {
             return caster->GetHealth();
         }
         // Else drain all power
-        if (spellInfo->powerType < MAX_POWERS)
+        if (spellInfo->GetPowerType() < MAX_POWERS)
         {
-            return caster->GetPower(Powers(spellInfo->powerType));
+            return caster->GetPower(Powers(spellInfo->GetPowerType()));
         }
-        sLog.outError("Spell::CalculateManaCost: Unknown power type '%d' in spell %d", spellInfo->powerType, spellInfo->Id);
+        sLog.outError("Spell::CalculateManaCost: Unknown power type '%d' in spell %d", spellInfo->GetPowerType(), spellInfo->Id);
         return 0;
     }
 
@@ -2386,7 +2386,7 @@ uint32 Spell::CalculatePowerCost(SpellEntry const* spellInfo, Unit* caster, Spel
     // PCT cost from total amount
     if (uint32 manaCostPct = spellInfo->GetManaCostPercentage())
     {
-        switch (spellInfo->powerType)
+        switch (spellInfo->GetPowerType())
         {
                 // health as power used
             case POWER_HEALTH:
@@ -2398,14 +2398,14 @@ uint32 Spell::CalculatePowerCost(SpellEntry const* spellInfo, Unit* caster, Spel
             case POWER_RAGE:
             case POWER_FOCUS:
             case POWER_ENERGY:
-                powerCost += manaCostPct * caster->GetMaxPower(Powers(spellInfo->powerType)) / 100;
+                powerCost += manaCostPct * caster->GetMaxPower(Powers(spellInfo->GetPowerType())) / 100;
                 break;
             case POWER_RUNE:
             case POWER_RUNIC_POWER:
-                powerCost += manaCostPct * caster->GetMaxPower(Powers(spellInfo->powerType)) / 100;
+                powerCost += manaCostPct * caster->GetMaxPower(Powers(spellInfo->GetPowerType())) / 100;
                 break;
             default:
-                sLog.outError("Spell::CalculateManaCost: Unknown power type '%d' in spell %d", spellInfo->powerType, spellInfo->Id);
+                sLog.outError("Spell::CalculateManaCost: Unknown power type '%d' in spell %d", spellInfo->GetPowerType(), spellInfo->Id);
                 return 0;
         }
     }
@@ -2416,7 +2416,7 @@ uint32 Spell::CalculatePowerCost(SpellEntry const* spellInfo, Unit* caster, Spel
     for (Unit::AuraList::const_iterator itr = pwrCostAuras.begin(); itr != pwrCostAuras.end(); ++itr)
     {
         if (((*itr)->GetModifier()->m_miscvalue & schoolMask) &&
-            (!(*itr)->GetSpellEffect()->EffectMiscValueB || (*itr)->GetSpellEffect()->EffectMiscValueB & (1 << spellInfo->powerType)))
+            (!(*itr)->GetSpellEffect()->EffectMiscValueB || (*itr)->GetSpellEffect()->EffectMiscValueB & (1 << spellInfo->GetPowerType())))
             powerCost += (*itr)->GetModifier()->m_amount;
     }
 
@@ -2444,7 +2444,7 @@ uint32 Spell::CalculatePowerCost(SpellEntry const* spellInfo, Unit* caster, Spel
     for (Unit::AuraList::const_iterator itr = pwrCostPctAuras.begin(); itr != pwrCostPctAuras.end(); ++itr)
     {
         if (((*itr)->GetModifier()->m_miscvalue & schoolMask) &&
-            (!(*itr)->GetSpellEffect()->EffectMiscValueB || (*itr)->GetSpellEffect()->EffectMiscValueB & (1 << spellInfo->powerType)))
+            (!(*itr)->GetSpellEffect()->EffectMiscValueB || (*itr)->GetSpellEffect()->EffectMiscValueB & (1 << spellInfo->GetPowerType())))
             pctCostMultiplier += (*itr)->GetModifier()->m_amount / 100.0f;
     }
 
@@ -2482,7 +2482,7 @@ SpellCastResult Spell::CheckPower()
     }
 
     // health as power used - need check health amount
-    if (m_spellInfo->powerType == POWER_HEALTH)
+    if (m_spellInfo->GetPowerType() == POWER_HEALTH)
     {
         if (m_caster->GetHealth() <= m_powerCost)
         {
@@ -2492,14 +2492,14 @@ SpellCastResult Spell::CheckPower()
     }
 
     // Check valid power type
-    if (m_spellInfo->powerType >= MAX_POWERS)
+    if (m_spellInfo->GetPowerType() >= MAX_POWERS)
     {
-        sLog.outError("Spell::CheckMana: Unknown power type '%d'", m_spellInfo->powerType);
+        sLog.outError("Spell::CheckMana: Unknown power type '%d'", m_spellInfo->GetPowerType());
         return SPELL_FAILED_UNKNOWN;
     }
 
     // check rune cost only if a spell has PowerType == POWER_RUNE
-    if (m_spellInfo->powerType == POWER_RUNE)
+    if (m_spellInfo->GetPowerType() == POWER_RUNE)
     {
         SpellCastResult failReason = CheckRunePower();
         if (failReason != SPELL_CAST_OK)
@@ -2509,7 +2509,7 @@ SpellCastResult Spell::CheckPower()
     }
 
     // Check power amount
-    Powers powerType = Powers(m_spellInfo->powerType);
+    Powers powerType = Powers(m_spellInfo->GetPowerType());
     if (m_caster->GetPower(powerType) < m_powerCost)
     {
         return SPELL_FAILED_NO_POWER;

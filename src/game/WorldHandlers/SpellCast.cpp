@@ -385,7 +385,7 @@ void Spell::cast(bool skipCheck)
                 AddTriggeredSpell(73422);
             }
             // Weak Alcohol
-            else if (m_spellInfo->SpellIconID == 1306 && m_spellInfo->SpellVisual[0] == 11359)
+            else if (m_spellInfo->GetSpellIconID() == 1306 && m_spellInfo->GetSpellVisual(0) == 11359)
             {
                 AddTriggeredSpell(51655);                   // BOTM - Create Empty Brew Bottle
             }
@@ -652,7 +652,7 @@ void Spell::cast(bool skipCheck)
     }
 
     // Okay, everything is prepared. Now we need to distinguish between immediate and evented delayed spells
-    float speed = m_spellInfo->speed == 0.0f && m_triggeredBySpellInfo ? m_triggeredBySpellInfo->speed : m_spellInfo->speed;
+    float speed = m_spellInfo->GetSpeed() == 0.0f && m_triggeredBySpellInfo ? m_triggeredBySpellInfo->GetSpeed() : m_spellInfo->GetSpeed();
     if (speed > 0.0f)
     {
         // Remove used for cast item if need (it can be already NULL after TakeReagents call

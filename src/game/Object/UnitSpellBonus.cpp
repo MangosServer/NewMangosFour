@@ -348,7 +348,7 @@ uint32 Unit::SpellDamageBonusDone(Unit* pVictim, SpellEntry const* spellProto, u
             case 7277:
             {
                 // Merciless Combat
-                if ((*i)->GetSpellProto()->SpellIconID == 2656)
+                if ((*i)->GetSpellProto()->GetSpellIconID() == 2656)
                 {
                     if (pVictim->HasAuraState(AURA_STATE_HEALTHLESS_35_PERCENT))
                     {
@@ -407,7 +407,7 @@ uint32 Unit::SpellDamageBonusDone(Unit* pVictim, SpellEntry const* spellProto, u
         case SPELLFAMILY_MAGE:
         {
             // Ice Lance
-            if (spellProto->SpellIconID == 186)
+            if (spellProto->GetSpellIconID() == 186)
             {
                 if (pVictim->IsFrozen() || IsIgnoreUnitState(spellProto, IGNORE_UNIT_TARGET_NON_FROZEN))
                 {
@@ -432,7 +432,7 @@ uint32 Unit::SpellDamageBonusDone(Unit* pVictim, SpellEntry const* spellProto, u
                 Unit::AuraList const& ttw = GetAurasByType(SPELL_AURA_DUMMY);
                 for (Unit::AuraList::const_iterator i = ttw.begin(); i != ttw.end(); ++i)
                 {
-                    if ((*i)->GetSpellProto()->SpellIconID == 3263)
+                    if ((*i)->GetSpellProto()->GetSpellIconID() == 3263)
                     {
                         DoneTotalMod *= ((*i)->GetModifier()->m_amount + 100.0f) / 100.0f;
                         break;
@@ -493,7 +493,7 @@ uint32 Unit::SpellDamageBonusDone(Unit* pVictim, SpellEntry const* spellProto, u
                     Unit::AuraList const& improvedSwarm = GetAurasByType(SPELL_AURA_DUMMY);
                     for (Unit::AuraList::const_iterator iter = improvedSwarm.begin(); iter != improvedSwarm.end(); ++iter)
                     {
-                        if ((*iter)->GetSpellProto()->SpellIconID == 1771)
+                        if ((*iter)->GetSpellProto()->GetSpellIconID() == 1771)
                         {
                             DoneTotalMod *= ((*iter)->GetModifier()->m_amount + 100.0f) / 100.0f;
                             break;
@@ -583,7 +583,7 @@ uint32 Unit::SpellDamageBonusTaken(Unit* pCaster, SpellEntry const* spellProto, 
         return pdamage;
     }
 
-    uint32 schoolMask = spellProto->SchoolMask;
+    uint32 schoolMask = spellProto->GetSchoolMask();
 
     // Taken total percent damage auras
     float TakenTotalMod = 1.0f;
@@ -873,7 +873,7 @@ bool Unit::IsSpellCrit(Unit* pVictim, SpellEntry const* spellProto, SpellSchoolM
                     case SPELLFAMILY_MAGE:
                     {
                         // Fire Blast
-                        if (spellProto->IsFitToFamilyMask(UI64LIT(0x0000000000000002)) && spellProto->SpellIconID == 12)
+                        if (spellProto->IsFitToFamilyMask(UI64LIT(0x0000000000000002)) && spellProto->GetSpellIconID() == 12)
                         {
                             // Glyph of Fire Blast
                             if (pVictim->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_STUNNED) || pVictim->IsInRoots())
@@ -897,7 +897,7 @@ bool Unit::IsSpellCrit(Unit* pVictim, SpellEntry const* spellProto, SpellSchoolM
                             {
                                 // Improved Flash Heal
                                 if ((*i)->GetSpellProto()->GetSpellFamilyName() == SPELLFAMILY_PRIEST &&
-                                    (*i)->GetSpellProto()->SpellIconID == 2542)
+                                    (*i)->GetSpellProto()->GetSpellIconID() == 2542)
                                 {
                                     crit_chance += (*i)->GetModifier()->m_amount;
                                     break;
@@ -915,7 +915,7 @@ bool Unit::IsSpellCrit(Unit* pVictim, SpellEntry const* spellProto, SpellSchoolM
                                 Unit::AuraList const& improvedSwarm = GetAurasByType(SPELL_AURA_DUMMY);
                                 for (Unit::AuraList::const_iterator iter = improvedSwarm.begin(); iter != improvedSwarm.end(); ++iter)
                                 {
-                                    if ((*iter)->GetSpellProto()->SpellIconID == 1771)
+                                    if ((*iter)->GetSpellProto()->GetSpellIconID() == 1771)
                                     {
                                         crit_chance += (*iter)->GetModifier()->m_amount;
                                         break;
@@ -1558,7 +1558,7 @@ uint32 Unit::MeleeDamageBonusDone(Unit* pVictim, uint32 pdamage, WeaponAttackTyp
     bool isWeaponDamageBasedSpell = !(spellProto && (damagetype == DOT || IsSpellHaveEffect(spellProto, SPELL_EFFECT_SCHOOL_DAMAGE)));
     Item*  pWeapon          = GetTypeId() == TYPEID_PLAYER ? ((Player*)this)->GetWeaponForAttack(attType, true, false) : NULL;
     uint32 creatureTypeMask = pVictim->GetCreatureTypeMask();
-    uint32 schoolMask       = spellProto ? spellProto->SchoolMask : uint32(GetMeleeDamageSchoolMask());
+    uint32 schoolMask       = spellProto ? spellProto->GetSchoolMask() : uint32(GetMeleeDamageSchoolMask());
 
     // FLAT damage bonus auras
     // =======================
@@ -1696,7 +1696,7 @@ uint32 Unit::MeleeDamageBonusDone(Unit* pVictim, uint32 pdamage, WeaponAttackTyp
                 case 7277:
                 {
                     // Merciless Combat
-                    if ((*i)->GetSpellProto()->SpellIconID == 2656)
+                    if ((*i)->GetSpellProto()->GetSpellIconID() == 2656)
                     {
                         if (pVictim->HasAuraState(AURA_STATE_HEALTHLESS_35_PERCENT))
                         {
@@ -1877,7 +1877,7 @@ uint32 Unit::MeleeDamageBonusTaken(Unit* pCaster, uint32 pdamage, WeaponAttackTy
 
     // differentiate for weapon damage based spells
     bool isWeaponDamageBasedSpell = !(spellProto && (damagetype == DOT || IsSpellHaveEffect(spellProto, SPELL_EFFECT_SCHOOL_DAMAGE)));
-    uint32 schoolMask       = spellProto ? spellProto->SchoolMask : uint32(GetMeleeDamageSchoolMask());
+    uint32 schoolMask       = spellProto ? spellProto->GetSchoolMask() : uint32(GetMeleeDamageSchoolMask());
     uint32 mechanicMask     = spellProto ? GetAllSpellMechanicMask(spellProto) : 0;
 
     // Shred also have bonus as MECHANIC_BLEED damages

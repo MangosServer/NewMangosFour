@@ -113,7 +113,7 @@ void Aura::HandleAddModifier(bool apply, bool Real)
 
         SpellClassOptionsEntry const * opt = spellProto->GetSpellClassOptions();
         // Everlasting Affliction, overwrite wrong data, if will need more better restore support of spell_affect table
-        if (opt && spellProto->GetSpellFamilyName() == SPELLFAMILY_WARLOCK && spellProto->SpellIconID == 3169)
+        if (opt && spellProto->GetSpellFamilyName() == SPELLFAMILY_WARLOCK && spellProto->GetSpellIconID() == 3169)
         {
             // Corruption and Unstable Affliction
             const_cast<SpellClassOptionsEntry*>(opt)->SpellFamilyFlags = ClassFamilyMask(UI64LIT(0x0000010000000002));

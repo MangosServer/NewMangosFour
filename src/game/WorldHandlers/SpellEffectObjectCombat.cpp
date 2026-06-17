@@ -1473,6 +1473,6 @@ void Spell::EffectPlayerPull(SpellEffectEntry const* effect)
     // Try to normalize Z coord because GetContactPoint do nothing with Z axis
     unitTarget->UpdateAllowedPositionZ(x, y, z);
 
-    float speed = m_spellInfo->speed ? m_spellInfo->speed : 27.0f;
+    float speed = m_spellInfo->GetSpeed() ? m_spellInfo->GetSpeed() : 27.0f;
     unitTarget->GetMotionMaster()->MoveJump(x, y, z, speed, 2.5f);
 }

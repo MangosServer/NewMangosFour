@@ -128,6 +128,12 @@ enum CharacterCustomizeFlags
     CHAR_CUSTOMIZE_FLAG_RACE            = 0x00100000        // name, gender, race, etc...
 };
 
+// corpse reclaim times
+#define DEATH_EXPIRE_STEP (5*MINUTE)
+#define MAX_DEATH_COUNT 3
+
+static const uint32 corpseReclaimDelay[MAX_DEATH_COUNT] = {30, 60, 120};
+
 //== TradeData =================================================
 
 TradeData* TradeData::GetTraderData() const
@@ -4990,7 +4996,7 @@ uint32 Player::GetResurrectionSpellId()
     for (AuraList::const_iterator itr = dummyAuras.begin(); itr != dummyAuras.end(); ++itr)
     {
         // Soulstone Resurrection                           // prio: 3 (max, non death persistent)
-        if (prio < 2 && (*itr)->GetSpellProto()->SpellVisual[0] == 99 && (*itr)->GetSpellProto()->SpellIconID == 92)
+        if (prio < 2 && (*itr)->GetSpellProto()->GetSpellVisual(0) == 99 && (*itr)->GetSpellProto()->GetSpellIconID() == 92)
         {
             switch ((*itr)->GetId())
             {

@@ -234,7 +234,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* pCaster, SpellSchoolMask schoolM
             {
                 SpellEntry const* itr_spellProto = (*itr)->GetSpellProto();
                 // Frost Warding (chance full absorb)
-                if (itr_spellProto->GetSpellFamilyName() == SPELLFAMILY_MAGE && itr_spellProto->SpellIconID == 501)
+                if (itr_spellProto->GetSpellFamilyName() == SPELLFAMILY_MAGE && itr_spellProto->GetSpellIconID() == 501)
                 {
                     // chance stored in next dummy effect
                     chance = itr_spellProto->CalculateSimpleValue(EFFECT_INDEX_1);
@@ -290,7 +290,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* pCaster, SpellSchoolMask schoolM
             case SPELLFAMILY_GENERIC:
             {
                 // Astral Shift
-                if (spellProto->SpellIconID == 3066)
+                if (spellProto->GetSpellIconID() == 3066)
                 {
                     // reduces all damage taken while stun, fear or silence
                     if (unitflag & (UNIT_FLAG_STUNNED | UNIT_FLAG_FLEEING | UNIT_FLAG_SILENCED))
@@ -300,7 +300,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* pCaster, SpellSchoolMask schoolM
                     continue;
                 }
                 // Nerves of Steel
-                if (spellProto->SpellIconID == 2115)
+                if (spellProto->GetSpellIconID() == 2115)
                 {
                     // while affected by Stun and Fear
                     if (unitflag & (UNIT_FLAG_STUNNED | UNIT_FLAG_FLEEING))
@@ -310,7 +310,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* pCaster, SpellSchoolMask schoolM
                     continue;
                 }
                 // Spell Deflection
-                if (spellProto->SpellIconID == 3006)
+                if (spellProto->GetSpellIconID() == 3006)
                 {
                     // You have a chance equal to your Parry chance
                     if (damagetype == SPELL_DIRECT_DAMAGE &&// Only for direct spell damage
@@ -350,7 +350,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* pCaster, SpellSchoolMask schoolM
             case SPELLFAMILY_DRUID:
             {
                 // Primal Tenacity
-                if (spellProto->SpellIconID == 2253)
+                if (spellProto->GetSpellIconID() == 2253)
                 {
                     // reduces all damage taken while Stunned and in Cat Form
                     if (GetShapeshiftForm() == FORM_CAT && (unitflag & UNIT_FLAG_STUNNED))
@@ -374,7 +374,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* pCaster, SpellSchoolMask schoolM
             case SPELLFAMILY_ROGUE:
             {
                 // Cheat Death (make less prio with Guardian Spirit case)
-                if (spellProto->SpellIconID == 2109)
+                if (spellProto->GetSpellIconID() == 2109)
                 {
                     if (!preventDeathSpell &&
                             GetTypeId() == TYPEID_PLAYER && // Only players
@@ -393,7 +393,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* pCaster, SpellSchoolMask schoolM
             case SPELLFAMILY_PRIEST:
             {
                 // Guardian Spirit
-                if (spellProto->SpellIconID == 2873)
+                if (spellProto->GetSpellIconID() == 2873)
                 {
                     preventDeathSpell = (*i)->GetSpellProto();
                     preventDeathAmount = (*i)->GetModifier()->m_amount;
@@ -441,7 +441,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* pCaster, SpellSchoolMask schoolM
             case SPELLFAMILY_SHAMAN:
             {
                 // Astral Shift
-                if (spellProto->SpellIconID == 3066)
+                if (spellProto->GetSpellIconID() == 3066)
                 {
                     // reduces all damage taken while stun, fear or silence
                     if (unitflag & (UNIT_FLAG_STUNNED | UNIT_FLAG_FLEEING | UNIT_FLAG_SILENCED))
@@ -455,7 +455,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* pCaster, SpellSchoolMask schoolM
             case SPELLFAMILY_DEATHKNIGHT:
             {
                 // Shadow of Death
-                if (spellProto->SpellIconID == 1958)
+                if (spellProto->GetSpellIconID() == 1958)
                 {
                     // TODO: absorb only while transform
                     continue;
@@ -627,7 +627,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* pCaster, SpellSchoolMask schoolM
 
             // Incanter's Absorption
             if (itr_spellProto->GetSpellFamilyName() == SPELLFAMILY_GENERIC &&
-                itr_spellProto->SpellIconID == 2941)
+                itr_spellProto->GetSpellIconID() == 2941)
             {
                 int32 amount = int32(incanterAbsorption * (*itr)->GetModifier()->m_amount / 100);
 
@@ -688,7 +688,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* pCaster, SpellSchoolMask schoolM
             case SPELLFAMILY_ROGUE:
             {
                 // Cheat Death
-                if (preventDeathSpell->SpellIconID == 2109)
+                if (preventDeathSpell->GetSpellIconID() == 2109)
                 {
                     CastSpell(this, 31231, true);
                     ((Player*)this)->AddSpellCooldown(31231, 0, time(NULL) + 60);
@@ -702,7 +702,7 @@ void Unit::CalculateDamageAbsorbAndResist(Unit* pCaster, SpellSchoolMask schoolM
             case SPELLFAMILY_PRIEST:
             {
                 // Guardian Spirit
-                if (preventDeathSpell->SpellIconID == 2873)
+                if (preventDeathSpell->GetSpellIconID() == 2873)
                 {
                     int32 healAmount = GetMaxHealth() * preventDeathAmount / 100;
                     CastCustomSpell(this, 48153, &healAmount, NULL, NULL, true);

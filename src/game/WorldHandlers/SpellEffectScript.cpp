@@ -3325,7 +3325,7 @@ void Spell::EffectScriptEffect(SpellEffectEntry const* effect)
                     for (Unit::AuraList::const_iterator i = auras.begin(); i != auras.end(); ++i)
                     {
                         // Invigoration (master talent)
-                        if ((*i)->GetModifier()->m_miscvalue == 8 && (*i)->GetSpellProto()->SpellIconID == 3487)
+                        if ((*i)->GetModifier()->m_miscvalue == 8 && (*i)->GetSpellProto()->GetSpellIconID() == 3487)
                         {
                             if (roll_chance_i((*i)->GetModifier()->m_amount))
                             {

@@ -1369,7 +1369,7 @@ uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDa
             AuraList const& vDummyAuras = pVictim->GetAurasByType(SPELL_AURA_DUMMY);
             for (AuraList::const_iterator itr = vDummyAuras.begin(); itr != vDummyAuras.end(); ++itr)
             {
-                if ((*itr)->GetSpellProto()->SpellIconID == 1654)
+                if ((*itr)->GetSpellProto()->GetSpellIconID() == 1654)
                 {
                     spiritOfRedemtionTalentReady = *itr;
                     break;
@@ -2172,7 +2172,7 @@ void Unit::CastSpell(float x, float y, float z, SpellEntry const* spellInfo, boo
 uint32 Unit::SpellNonMeleeDamageLog(Unit* pVictim, uint32 spellID, uint32 damage)
 {
     SpellEntry const* spellInfo = sSpellStore.LookupEntry(spellID);
-    SpellNonMeleeDamage damageInfo(this, pVictim, spellInfo->Id, SpellSchoolMask(spellInfo->SchoolMask));
+    SpellNonMeleeDamage damageInfo(this, pVictim, spellInfo->Id, SpellSchoolMask(spellInfo->GetSchoolMask()));
     CalculateSpellDamage(&damageInfo, damage, spellInfo);
     damageInfo.target->CalculateAbsorbResistBlock(this, &damageInfo, spellInfo);
     DealDamageMods(damageInfo.target, damageInfo.damage, &damageInfo.absorb);
@@ -2730,7 +2730,7 @@ void Unit::DealMeleeDamage(CalcDamageInfo* damageInfo, bool durabilityLoss)
                 data << uint32(i_spellProto->Id);
                 data << uint32(damage);                  // Damage
                 data << uint32(overkill);                // Overkill
-                data << uint32(i_spellProto->SchoolMask);
+                data << uint32(i_spellProto->GetSchoolMask());
                 data << uint32(resist);                  // Resist
                 pVictim->SendMessageToSet(&data, true);
 
@@ -5300,25 +5300,25 @@ int32 Unit::CalculateSpellDamage(Unit const* target, SpellEntry const* spellProt
 
     SpellScalingEntry const* scalingEntry = spellProto->GetSpellScaling();
     GtSpellScalingEntry const* gtScalingEntry = NULL;
-    if (scalingEntry && scalingEntry->IsScalableEffect(effect_index))
-    {
-        if (target && IsAuraApplyEffect(spellProto, effect_index) && IsPositiveEffect(spellProto, effect_index))
-        {
-            level = target->getLevel();
-        }
+    //if (scalingEntry && scalingEntry->IsScalableEffect(effect_index))
+    //{
+    //    if (target && IsAuraApplyEffect(spellProto, effect_index) && IsPositiveEffect(spellProto, effect_index))
+    //    {
+    //        level = target->getLevel();
+    //    }
 
-        uint32 gtSpellScalingId = level - 1;
-        if (scalingEntry->playerClass == -1)
-        {
-            gtSpellScalingId += (MAX_CLASSES - 1) * GT_MAX_LEVEL;
-        }
-        else
-        {
-            gtSpellScalingId += (scalingEntry->playerClass - 1) * GT_MAX_LEVEL;
-        }
+    //    uint32 gtSpellScalingId = level - 1;
+    //    if (scalingEntry->playerClass == -1)
+    //    {
+    //        gtSpellScalingId += (MAX_CLASSES - 1) * GT_MAX_LEVEL;
+    //    }
+    //    else
+    //    {
+    //        gtSpellScalingId += (scalingEntry->playerClass - 1) * GT_MAX_LEVEL;
+    //    }
 
-        gtScalingEntry = sGtSpellScalingStore.LookupEntry(gtSpellScalingId);
-    }
+    //    gtScalingEntry = sGtSpellScalingStore.LookupEntry(gtSpellScalingId);
+    //}
 
     if (gtScalingEntry)
     {
@@ -5327,15 +5327,15 @@ int32 Unit::CalculateSpellDamage(Unit const* target, SpellEntry const* spellProt
         {
             Scale *= float(scalingEntry->castTimeMin + float(level - 1) * (scalingEntry->castTimeMax - scalingEntry->castTimeMin) / (scalingEntry->castScalingMaxLevel - 1)) / float(scalingEntry->castTimeMax);
         }
-        if (uint32(scalingEntry->coefLevelBase) > level)
-        {
-            Scale *= (1.0f - scalingEntry->coefBase) * (level - 1) / (scalingEntry->coefLevelBase - 1) + scalingEntry->coefBase;
-        }
+        //if (uint32(scalingEntry->coefLevelBase) > level)
+        //{
+        //    Scale *= (1.0f - scalingEntry->coefBase) * (level - 1) / (scalingEntry->coefLevelBase - 1) + scalingEntry->coefBase;
+        //}
 
-        basePoints = int32(scalingEntry->coeff1[effect_index] * Scale);
-        int32 randomPoints = int32(scalingEntry->coeff1[effect_index] * Scale * scalingEntry->coeff2[effect_index]);
-        basePoints += irand(-randomPoints, randomPoints) / 2;
-        comboDamage = uint32(scalingEntry->coeff3[effect_index] * Scale);
+        //basePoints = int32(scalingEntry->coeff1[effect_index] * Scale);
+        //int32 randomPoints = int32(scalingEntry->coeff1[effect_index] * Scale * scalingEntry->coeff2[effect_index]);
+        //basePoints += irand(-randomPoints, randomPoints) / 2;
+        //comboDamage = uint32(scalingEntry->coeff3[effect_index] * Scale);
     }
     else
     {
@@ -5399,7 +5399,7 @@ int32 Unit::CalculateSpellDamage(Unit const* target, SpellEntry const* spellProt
         }
     }
 
-    if (!gtScalingEntry && spellProto->Attributes & SPELL_ATTR_LEVEL_DAMAGE_CALCULATION && spellLevel &&
+    if (!gtScalingEntry && spellProto->GetAttributes() & SPELL_ATTR_LEVEL_DAMAGE_CALCULATION && spellLevel &&
             spellEffect->Effect != SPELL_EFFECT_WEAPON_PERCENT_DAMAGE &&
             spellEffect->Effect != SPELL_EFFECT_KNOCK_BACK &&
             (spellEffect->Effect != SPELL_EFFECT_APPLY_AURA || spellEffect->EffectApplyAuraName != SPELL_AURA_MOD_DECREASE_SPEED))
@@ -5460,7 +5460,7 @@ int32 Unit::CalculateAuraDuration(SpellEntry const* spellProto, uint32 effectMas
         {
             case SPELLFAMILY_DRUID:
                 // Thorns
-                if (spellProto->SpellIconID == 53 && spellProto->IsFitToFamilyMask(UI64LIT(0x0000000000000100)))
+                if (spellProto->GetSpellIconID() == 53 && spellProto->IsFitToFamilyMask(UI64LIT(0x0000000000000100)))
                 {
                     // Glyph of Thorns
                     if (Aura* aur = GetAura(57862, EFFECT_INDEX_0))
@@ -5471,7 +5471,7 @@ int32 Unit::CalculateAuraDuration(SpellEntry const* spellProto, uint32 effectMas
                 break;
             case SPELLFAMILY_PALADIN:
                 // Blessing of Might
-                if (spellProto->SpellIconID == 298 && spellProto->IsFitToFamilyMask(UI64LIT(0x0000000000000002)))
+                if (spellProto->GetSpellIconID() == 298 && spellProto->IsFitToFamilyMask(UI64LIT(0x0000000000000002)))
                 {
                     // Glyph of Blessing of Might
                     if (Aura* aur = GetAura(57958, EFFECT_INDEX_0))
@@ -5480,7 +5480,7 @@ int32 Unit::CalculateAuraDuration(SpellEntry const* spellProto, uint32 effectMas
                     }
                 }
                 // Blessing of Wisdom
-                else if (spellProto->SpellIconID == 306 && spellProto->IsFitToFamilyMask(UI64LIT(0x0000000000010000)))
+                else if (spellProto->GetSpellIconID() == 306 && spellProto->IsFitToFamilyMask(UI64LIT(0x0000000000010000)))
                 {
                     // Glyph of Blessing of Wisdom
                     if (Aura* aur = GetAura(57979, EFFECT_INDEX_0))

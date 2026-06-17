@@ -243,7 +243,7 @@ void Spell::SendSpellStart()
 
     if ((m_caster->GetTypeId() == TYPEID_PLAYER ||
         m_caster->GetTypeId() == TYPEID_UNIT && ((Creature*)m_caster)->IsPet()) &&
-        m_spellInfo->powerType != POWER_HEALTH)
+        m_spellInfo->GetPowerType() != POWER_HEALTH)
         castFlags |= CAST_FLAG_PREDICTED_POWER;
 
     if (m_casttime && (IsSpellHaveEffect(m_spellInfo, SPELL_EFFECT_HEAL) || IsSpellHaveEffect(m_spellInfo, SPELL_EFFECT_HEAL_PCT)) ||
@@ -273,7 +273,7 @@ void Spell::SendSpellStart()
 
     if (castFlags & CAST_FLAG_PREDICTED_POWER)              // predicted power
     {
-        data << uint32(m_caster->GetPower(Powers(m_spellInfo->powerType)));
+        data << uint32(m_caster->GetPower(Powers(m_spellInfo->GetPowerType())));
     }
 
     if (castFlags & CAST_FLAG_PREDICTED_RUNES)              // predicted runes
@@ -355,7 +355,7 @@ void Spell::SendSpellGo()
 
     if ((m_caster->GetTypeId() == TYPEID_PLAYER ||
         m_caster->GetTypeId() == TYPEID_UNIT && ((Creature*)m_caster)->IsPet()) &&
-        m_spellInfo->powerType != POWER_HEALTH)
+        m_spellInfo->GetPowerType() != POWER_HEALTH)
         castFlags |= CAST_FLAG_PREDICTED_POWER;
 
     if (m_caster->GetTypeId() == TYPEID_PLAYER && m_caster->getClass() == CLASS_DEATH_KNIGHT && m_spellInfo->runeCostID)
@@ -388,7 +388,7 @@ void Spell::SendSpellGo()
 
     if (castFlags & CAST_FLAG_PREDICTED_POWER)              // predicted power
     {
-        data << uint32(m_caster->GetPower(Powers(m_spellInfo->powerType)));
+        data << uint32(m_caster->GetPower(Powers(m_spellInfo->GetPowerType())));
     }
 
     if (castFlags & CAST_FLAG_PREDICTED_RUNES)              // predicted runes

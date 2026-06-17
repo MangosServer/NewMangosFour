@@ -131,7 +131,7 @@ void Spell::DoAllEffectOnTarget(TargetInfo* target)
         procVictim   = PROC_FLAG_NONE;
     }
 
-    float speed = m_spellInfo->speed == 0.0f && m_triggeredBySpellInfo ? m_triggeredBySpellInfo->speed : m_spellInfo->speed;
+    float speed = m_spellInfo->GetSpeed() == 0.0f && m_triggeredBySpellInfo ? m_triggeredBySpellInfo->GetSpeed() : m_spellInfo->GetSpeed();
     if (speed > 0.0f)
     {
         // mark effects that were already handled in Spell::HandleDelayedSpellLaunch on spell launch as processed
@@ -255,7 +255,7 @@ void Spell::DoAllEffectOnTarget(TargetInfo* target)
         // Haunt (NOTE: for avoid use additional field damage stored in dummy value (replace unused 100%)
         // apply before deal damage because aura can be removed at target kill
         SpellClassOptionsEntry const *classOpt = m_spellInfo->GetSpellClassOptions();
-        if (classOpt && classOpt->SpellFamilyName == SPELLFAMILY_WARLOCK && m_spellInfo->SpellIconID == 3172 &&
+        if (classOpt && classOpt->SpellFamilyName == SPELLFAMILY_WARLOCK && m_spellInfo->GetSpellIconID() == 3172 &&
             (classOpt->SpellFamilyFlags & UI64LIT(0x0004000000000000)))
         {
             if (Aura* dummy = unitTarget->GetDummyAura(m_spellInfo->Id))
@@ -352,7 +352,7 @@ void Spell::DoSpellHitOnUnit(Unit* unit, uint32 effectMask)
     Unit* realCaster = GetAffectiveCaster();
 
     // Recheck immune (only for delayed spells)
-    float speed = m_spellInfo->speed == 0.0f && m_triggeredBySpellInfo ? m_triggeredBySpellInfo->speed : m_spellInfo->speed;
+    float speed = m_spellInfo->GetSpeed() == 0.0f && m_triggeredBySpellInfo ? m_triggeredBySpellInfo->GetSpeed() : m_spellInfo->GetSpeed();
     if (speed && (
                 unit->IsImmunedToDamage(GetSpellSchoolMask(m_spellInfo)) ||
                 unit->IsImmuneToSpell(m_spellInfo, unit == realCaster)))

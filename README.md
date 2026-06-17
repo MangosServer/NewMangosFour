@@ -1,35 +1,35 @@
 [<img src='https://www.getmangos.eu/!assets_mangos/currentlogo.gif' width="48" border=0>][8]
 [<img src='https://www.getmangos.eu/!assets_mangos/logo2.png' border=0>][3]
-[<img alt="Latest GitHub release" src="https://img.shields.io/github/release/mangosthree/server.svg?style=flat-square" border=0 valign="top"/>][60]
-[<img src="https://img.shields.io/github/last-commit/mangosthree/server.svg?style=flat-square&logo=github&logoColor=white"
+[<img alt="Latest GitHub release" src="https://img.shields.io/github/release/mangosfour/server.svg?style=flat-square" border=0 valign="top"/>][60]
+[<img src="https://img.shields.io/github/last-commit/mangosfour/server.svg?style=flat-square&logo=github&logoColor=white"
 alt="GitHub last commit" border=0 valign="top"/>][61]
-[<img alt="Downloads on GitHub" src="https://img.shields.io/github/downloads/mangosthree/server/total.svg?style=flat-square" border=0 valign="top"/>][61]
+[<img alt="Downloads on GitHub" src="https://img.shields.io/github/downloads/mangosfour/server/total.svg?style=flat-square" border=0 valign="top"/>][61]
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<B>Build Status:</b>
  Linux/MAC: [<img src='https://github.com/mangosthree/server/actions/workflows/core_linux_build.yml/badge.svg' border=0 valign="middle">][10]
- Windows: [<img src='https://ci.appveyor.com/api/projects/status/github/mangosthree/server?branch=master&svg=true' border=0 valign="middle">][11]
+ Windows: [<img src='https://ci.appveyor.com/api/projects/status/github/mangosfour/server?branch=master&svg=true' border=0 valign="middle">][11]
  <br><b>Repository Status:</b>
 [<img src='https://api.codacy.com/project/badge/Grade/d54b4c8fec4746498fd05f84a4e7e5d4' border=0 valign="middle"/>][12]
-[<img src='https://www.codefactor.io/repository/github/mangosthree/server/badge' border=0 valign="middle"/>][13]
+[<img src='https://www.codefactor.io/repository/github/mangosfour/server/badge' border=0 valign="middle"/>][13]
 [<img src='https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat' border=0 valign="middle"/>][14]
 [<img src='https://img.shields.io/discord/286167585270005763.svg' border=0 valign="middle"/>][9]
 
 ---
 
-[<img src="https://www.getmangos.eu/!assets_mangos/Mangos3.png" width="48" valign="middle"/>][8]
- **MangosThree - Cataclysm WoW server**
+[<img src="https://www.getmangos.eu/!assets_mangos/Mangos4.png" width="48" valign="middle"/>][8]
+ **MangosFour - Mists of Pandaria WoW server**
 ===
 
 **Mangos** is an open source project written in [C++][7]. It's fast, runs on multiple
 platforms and stores game data in [MySQL][40] or [MariaDB][41]. It also has
 optional support for SOAP.
 
-If you liked the fourth incarnation of [World of Warcraft][2] and still want to play it,
+If you liked the fifth incarnation of [World of Warcraft][2] and still want to play it,
 this is the branch for you. We provide an authentication server where you can manage your users,
 and a world server which serves game content just like the original did back then.
 
-It aims to be 100% compatible with the final version of CATA [World of Warcraft][2],
-namely [patch 4.3.4][4].
+It aims to be 100% compatible with the final version of MOP [World of Warcraft][2],
+namely [patch 5.4.8][4].
 
 On top of that each update is automatically built by [Travis CI][10] (Linux/MAC) and [AppVeyor][11] (Windows)
 as you can see by the images in the heading above! We do love green builds, and working things.
@@ -171,17 +171,17 @@ World of Warcraft, and all related art, images, and lore are copyright [Blizzard
 [1]: http://blizzard.com/ "Blizzard Entertainment Inc. - We love you!"
 [2]: https://worldofwarcraft.com/ "World of Warcraft"
 [3]: https://www.getmangos.eu "Main MaNGOS Website"
-[4]: http://www.wowpedia.org/Patch_4.3.4 "Cataclysm - Patch 4.3.4 release notes"
+[4]: http://www.wowpedia.org/Patch_5.4.8 "Cataclysm - Patch 5.4.8 release notes"
 [7]: http://www.cppreference.com/ "C / C++ reference"
 [8]: https://github.com/mangos/MaNGOS/blob/master/mangosFamily.md "The MaNGOS family of Icons"
 [9]: https://discord.gg/fPxMjHS8xs "Our community hub on Discord"
-[10]: https://github.com/mangosthree/server/actions/workflows/core_build.yml "Github Actions - Linux/MAC build status"
-[11]: https://ci.appveyor.com/project/MaNGOS/server-wtbhv/history "AppVeyor Scan - Windows build status"
-[12]: https://app.codacy.com/gh/mangosthree/server/dashboard "Codacy Code Status"
-[13]: https://www.codefactor.io/repository/github/mangosthree/server "Codefactor Code Status"
+[10]: https://github.com/mangosfour/server/actions/workflows/core_build.yml "Github Actions - Linux/MAC build status"
+[11]: https://ci.appveyor.com/project/MaNGOS/server/history "AppVeyor Scan - Windows build status"
+[12]: https://app.codacy.com/gh/mangosfour/server/dashboard "Codacy Code Status"
+[13]: https://www.codefactor.io/repository/github/mangosfour/server "Codefactor Code Status"
 [14]: http://makeapullrequest.com "Show PR's Welcome Icon"
 [15]: https://www.getmangos.eu/wiki "Mangos Wiki"
-[16]: https://www.getmangos.eu/bug-tracker/mangos-three/ "Mangos Online tracker"
+[16]: https://www.getmangos.eu/bug-tracker/mangos-four/ "Mangos Online tracker"
 [17]: https://www.getmangos.eu/wiki/documentation/installation-guides/ "Installation Guides"
 [19]: http://www.cmake.org/ "CMake - Cross Platform Make"
 [20]: http://windows.microsoft.com/ "Microsoft Windows"
@@ -207,6 +207,6 @@ World of Warcraft, and all related art, images, and lore are copyright [Blizzard
 [53]: http://www.zlib.net/ "Zlib"
 [54]: http://www.bzip.org/ "Bzip2"
 [55]: http://slproweb.com/products/Win32OpenSSL.html "OpenSSL for Windows"
-[60]: https://github.com/mangosthree/server/releases/latest
-[61]: https://github.com/mangosthree/server/releases
-[62]: https://github.com/mangosthree/server/commits/master
+[60]: https://github.com/mangosfour/server/releases/latest
+[61]: https://github.com/mangosfour/server/releases
+[62]: https://github.com/mangosfour/server/commits/master

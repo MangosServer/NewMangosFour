@@ -689,17 +689,17 @@ void Spell::EffectEnchantItemTmp(SpellEffectEntry const* effect)
         duration = 1800;                                    // 30 mins
     }
     // other cases with this SpellVisual already selected
-    else if (m_spellInfo->SpellVisual[0] == 215)
+    else if (m_spellInfo->GetSpellVisual(0) == 215)
     {
         duration = 1800;                                    // 30 mins
     }
     // some fishing pole bonuses
-    else if (m_spellInfo->SpellVisual[0] == 563)
+    else if (m_spellInfo->GetSpellVisual(0) == 563)
     {
         duration = 600;                                     // 10 mins
     }
     // shaman rockbiter enchantments
-    else if (m_spellInfo->SpellVisual[0] == 0)
+    else if (m_spellInfo->GetSpellVisual(0) == 0)
     {
         duration = 1800;                                    // 30 mins
     }
@@ -1124,7 +1124,7 @@ void Spell::EffectWeaponDmg(SpellEffectEntry const* effect)
         case SPELLFAMILY_WARRIOR:
         {
             // Devastate
-            if (m_spellInfo->SpellVisual[0] == 12295 && m_spellInfo->SpellIconID == 1508)
+            if (m_spellInfo->GetSpellVisual(0) == 12295 && m_spellInfo->GetSpellIconID() == 1508)
             {
                 // Sunder Armor
                 Aura* sunder = unitTarget->GetAura(SPELL_AURA_MOD_RESISTANCE_PCT, SPELLFAMILY_WARRIOR, UI64LIT(0x0000000000004000), 0x00000000, m_caster->GetObjectGuid());
@@ -1253,7 +1253,7 @@ void Spell::EffectWeaponDmg(SpellEffectEntry const* effect)
         {
             // Blood Strike, Heart Strike, Obliterate
             // Blood-Caked Strike
-            if (m_spellInfo->SpellIconID == 1736)
+            if (m_spellInfo->GetSpellIconID() == 1736)
             {
                 uint32 count = 0;
                 Unit::SpellAuraHolderMap const& auras = unitTarget->GetSpellAuraHolderMap();
@@ -1267,17 +1267,17 @@ void Spell::EffectWeaponDmg(SpellEffectEntry const* effect)
                 if (count)
                 {
                     // Effect 1(for Blood-Caked Strike)/3(other) damage is bonus
-                    float bonus = count * CalculateDamage(m_spellInfo->SpellIconID == 1736 ? EFFECT_INDEX_0 : EFFECT_INDEX_2, unitTarget) / 100.0f;
+                    float bonus = count * CalculateDamage(m_spellInfo->GetSpellIconID() == 1736 ? EFFECT_INDEX_0 : EFFECT_INDEX_2, unitTarget) / 100.0f;
                     // Blood Strike, Blood-Caked Strike and Obliterate store bonus*2
                     if ((classOptions && classOptions->SpellFamilyFlags & UI64LIT(0x0002000000400000)) ||
-                        m_spellInfo->SpellIconID == 1736)
+                        m_spellInfo->GetSpellIconID() == 1736)
                         bonus /= 2.0f;
 
                     totalDamagePercentMod *= 1.0f + bonus;
                 }
 
                 // Heart Strike secondary target
-                if (m_spellInfo->SpellIconID == 3145)
+                if (m_spellInfo->GetSpellIconID() == 3145)
                     if (m_targets.getUnitTarget() != unitTarget)
                     {
                         weaponDamagePercentMod /= 2.0f;
