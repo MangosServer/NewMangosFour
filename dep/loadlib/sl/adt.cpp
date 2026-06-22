@@ -40,12 +40,18 @@ bool ADT_file::prepareLoadedData()
 {
     // Check parent
     if (!FileLoader::prepareLoadedData())
+    {
+        printf("Debug: ADT file version check failed\n");
         return false;
+    }
 
     // Check and prepare MHDR
     a_grid = (adt_MHDR*)(GetData() + 8 + version->size);
     if (!a_grid->prepareLoadedData())
+    {
+        printf("Debug: MHDR chunk check failed\n");
         return false;
+    }
 
     // funny offsets calculations because there is no mapping for them and they have variable lengths
     uint8* ptr = (uint8*)a_grid + a_grid->size + 8;
@@ -66,7 +72,10 @@ bool ADT_file::prepareLoadedData()
     }
 
     if (mcnk_count != ADT_CELLS_PER_GRID * ADT_CELLS_PER_GRID)
+    {
+        printf("Debug: MCNK count mismatch: found %u, expected %u\n", mcnk_count, ADT_CELLS_PER_GRID * ADT_CELLS_PER_GRID);
         return false;
+    }
 
     return true;
 }

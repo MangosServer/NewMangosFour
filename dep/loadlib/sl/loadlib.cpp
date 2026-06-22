@@ -53,7 +53,8 @@ bool ChunkedFile::prepareLoadedData()
     file_MVER* version = chunk->As<file_MVER>();
     if (version->fcc != MverMagic.fcc)
         return false;
-    if (version->ver != FILE_FORMAT_VERSION)
+    // Support version 17 (TBC), 18 (WOTLK, Cata), 19 (MoP), and 20 (WoD)
+    if (version->ver < 17 || version->ver > 20)
         return false;
     return true;
 }
@@ -299,7 +300,8 @@ bool FileLoader::prepareLoadedData()
     version = (file_MVER*) data;
     if (version->fcc != 'MVER')
         return false;
-    if (version->ver != FILE_FORMAT_VERSION)
+    // Support version 17 (TBC), 18 (WOTLK, Cata), 19 (MoP), and 20 (WoD)
+    if (version->ver < 17 || version->ver > 20)
         return false;
     return true;
 }
