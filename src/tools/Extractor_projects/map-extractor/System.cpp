@@ -1594,9 +1594,18 @@ void LoadBaseMPQFiles()
     HANDLE worldMpqHandle;
 
     printf("Loaded MPQ files for map extraction:\n");
+    sprintf(filename, "%s/Data/world.MPQ", input_path);
+    printf("%s\n", filename);
+
+    if (!OpenArchive(filename, &worldMpqHandle))
+    {
+        printf("Error open archive: %s\n\n", filename);
+    //    return;
+    }
+
     for (int i = 1; i <= WORLD_COUNT; i++)
     {
-        sprintf(filename, "%s/Data/World%s.MPQ", input_path, (i == 2 ? "2" : ""));
+        sprintf(filename, "%s/Data/expansion%s.MPQ", input_path, (i == 4 ? "4" : ""));
         printf("%s\n", filename);
 
         if (!OpenArchive(filename, &worldMpqHandle))
