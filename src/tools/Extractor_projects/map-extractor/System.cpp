@@ -737,6 +737,16 @@ bool ConvertADT(char* filename, char* filename2, uint32 build)
             {
                 continue;
             }
+            // Guard against an out-of-bounds MCVT offset in a malformed/truncated
+            // ADT: the loops below read 145 floats from v->height_map, so the whole
+            // adt_MCVT must lie inside the loaded file buffer. Without this check a
+            // bad offset caused an out-of-bounds read / access violation (e.g. the
+            // ScarletSanctuaryArmoryAndLibrary_30_30 tile).
+            if ((uint8*)v < adt.GetData() ||
+                (uint8*)v + sizeof(adt_MCVT) > adt.GetData() + adt.GetDataSize())
+            {
+                continue;
+            }
             // get V9 height map
             for (int y = 0; y <= ADT_CELL_SIZE; y++)
             {
@@ -909,6 +919,13 @@ bool ConvertADT(char* filename, char* filename2, uint32 build)
             adt_MCLQ* liquid = cell->getMCLQ();
             int count = 0;
             if (!liquid || cell->sizeMCLQ <= 8)
+            {
+                continue;
+            }
+            // Same out-of-bounds guard as for MCVT: the MCLQ data must lie fully
+            // within the loaded file buffer before we read its liquid/flags arrays.
+            if ((uint8*)liquid < adt.GetData() ||
+                (uint8*)liquid + sizeof(adt_MCLQ) > adt.GetData() + adt.GetDataSize())
             {
                 continue;
             }
@@ -1603,27 +1620,23 @@ void LoadBaseMPQFiles()
     //    return;
     }
 
-    for (int i = 1; i <= WORLD_COUNT; i++)
-    {
-        sprintf(filename, "%s/Data/expansion%s.MPQ", input_path, (i == 4 ? "4" : ""));
-        printf("%s\n", filename);
-
-        if (!OpenArchive(filename, &worldMpqHandle))
-        {
-            printf("Error open archive: %s\n\n", filename);
-            return;
-        }
-    }
-
+    // NOTE: a previous "WORLD_COUNT" loop here built the malformed name
+    // "Data/expansion.MPQ" (the old TBC archive name) and returned on its
+    // inevitable failure, so the expansion1-4 loop below never executed. That
+    // left only world.MPQ mounted, so the expansion-archive continents
+    // (Outland/Northrend/Cataclysm zones/Pandaria) produced no terrain. The
+    // loop below mounts the correct MoP archives (expansion1.MPQ .. expansion4.MPQ).
     for (int i = 1; i <= EXPANSION_COUNT; i++)
     {
         sprintf(filename, "%s/Data/Expansion%i.MPQ", input_path, i);
         printf("%s\n", filename);
 
+        // Non-fatal: a missing expansion archive should not abort loading the
+        // rest (mirrors the world.MPQ handling above), it just means some
+        // continents may be skipped.
         if (!OpenArchive(filename, &worldMpqHandle))
         {
             printf("Error open archive: %s\n\n", filename);
-            return;
         }
     }
 
@@ -1635,44 +1648,33 @@ void LoadBaseMPQFiles()
         if (!OpenArchive(filename, &worldMpqHandle))
         {
             printf("Error open archive: %s\n\n", filename);
-            return;
         }
     }
 
-    // prepare sorted list patches in Data root
-    Updates updates;
-    // now update to newer view, root -base
-    AppendPatchMPQFilesToList(NULL, NULL, "base", updates);
-    // now update to newer view, root -base
-    AppendPatchMPQFilesToList(NULL, "base", NULL, updates);
-
-    // wow-update-base
-    for (Updates::const_iterator itr = updates.begin(); itr != updates.end(); ++itr)
+    // Add alternate.MPQ (alternate / phased terrain; a base archive in Cata/MoP).
+    sprintf(filename, "%s/Data/alternate.MPQ", input_path);
+    if (FileExists(filename)==true)
     {
-        sprintf(filename, "%s/Data/%s", input_path, itr->second.first.c_str());
-
         printf("%s\n", filename);
-
         if (!OpenArchive(filename, &worldMpqHandle))
         {
-            printf("Error open patch archive: %s\n\n", filename);
-            return;
+            printf("Error open archive: %s\n\n", filename);
         }
     }
 
-    // ./Data/Cache patch-base files
-    for (int i = 0; Builds[i] && Builds[i] <= CONF_TargetBuild; ++i)
-    {
-        sprintf(filename, "%s/Data/Cache/patch-base-%u.MPQ", input_path, Builds[i]);
-
-        printf("\nPatching : %s\n", filename);
-
-        //if (!OpenArchive(filename))
-        if (!SFileOpenPatchArchive(worldMpqHandle, filename, "", 0))
-        {
-            printf("Error open patch archive: %s\n\n", filename);
-        }
-    }
+    // NOTE: the wow-update-base-*.MPQ and Data/Cache patch archives are
+    // intentionally NOT opened here. They store their contents as incremental
+    // MPQ patches (PTCH) that can only be reconstructed when applied as a
+    // StormLib *patch chain* onto their base archive. The previous code opened
+    // them as standalone peer archives via OpenArchive(); OpenNewestFile()
+    // (newest-first) then resolved world ADTs to those patch entries, and
+    // SFileReadFile() failed to read the incremental data with no base to apply
+    // against -- causing essentially every world-map ADT to fail to load. The
+    // base archives above (world.MPQ + expansion1-4 + alternate.MPQ) already
+    // contain readable, final terrain for map extraction, which matches the
+    // reference extractor's base-archive-only approach for Cata/MoP. (DBC
+    // patching is handled separately and correctly via SFileOpenPatchArchive in
+    // LoadLocaleMPQFiles.)
 }
 
 /**

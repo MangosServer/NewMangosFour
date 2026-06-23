@@ -73,8 +73,14 @@ bool ADT_file::prepareLoadedData()
         return false;
     }
 
-    // Check and prepare MHDR
+    uint8* dataEnd = GetData() + GetDataSize();
+
+    // Check and prepare MHDR (validate it lies within the file buffer first)
     a_grid = (adt_MHDR*)(GetData() + 8 + version->size);
+    if ((uint8*)a_grid + 8 > dataEnd || (uint8*)a_grid + a_grid->size + 8 > dataEnd)
+    {
+        return false;
+    }
     if (!a_grid->prepareLoadedData())
     {
         return false;
@@ -84,14 +90,32 @@ bool ADT_file::prepareLoadedData()
     uint8* ptr = (uint8*)a_grid + a_grid->size + 8;
     uint32 mcnk_count = 0;
     memset(cells, 0, ADT_CELLS_PER_GRID * ADT_CELLS_PER_GRID * sizeof(adt_MCNK*));
-    while (ptr < GetData() + GetDataSize())
+    // NOTE: header (4) + size (4) must be readable before dereferencing, so the
+    // loop guard requires 8 bytes to remain. The MCNK count is capped at the
+    // fixed cells[16][16] size and the chunk size is validated against the
+    // remaining buffer; a malformed ADT (e.g. the ScarletSanctuaryArmoryAndLibrary
+    // tile) previously walked past cells[][] / off the buffer and crashed with an
+    // access violation. Such files now fail to load gracefully instead.
+    while (ptr + 8 <= dataEnd)
     {
         uint32 header = *(uint32*)ptr;
         uint32 size = *(uint32*)(ptr + 4);
         if (header == 'MCNK')
         {
+            if (mcnk_count >= ADT_CELLS_PER_GRID * ADT_CELLS_PER_GRID)
+            {
+                printf("Warning: ADT contains more than %u MCNK chunks - malformed/unsupported file, skipping\n",
+                       (uint32)(ADT_CELLS_PER_GRID * ADT_CELLS_PER_GRID));
+                return false;
+            }
             cells[mcnk_count / ADT_CELLS_PER_GRID][mcnk_count % ADT_CELLS_PER_GRID] = (adt_MCNK*)ptr;
             ++mcnk_count;
+        }
+
+        // guard against a corrupt chunk size that would advance past the buffer
+        if (size > (uint32)(dataEnd - (ptr + 8)))
+        {
+            break;
         }
 
         // move to next chunk
