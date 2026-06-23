@@ -70,6 +70,8 @@ HANDLE LocaleMpq = NULL;
 char const* CONF_mpq_list[] =
 {
     "world.MPQ",
+    "model.MPQ",        // M2 doodad/object models -- needed for M2 collision; without
+                        // it thousands of "Could not find file of model ...m2" appear.
     "misc.MPQ",
     "expansion1.MPQ",
     "expansion2.MPQ",
@@ -207,84 +209,30 @@ bool LoadLocaleMPQFile(int const locale)
 {
     char filename[512];
 
-    // first base old version of dbc files
-    sprintf(filename, "%s/misc.MPQ", input_path);
+    // LocaleMpq is the locale archive (Data/<locale>/locale-<locale>.MPQ): it holds
+    // Map.dbc (read later for the model-placement pass) and is how the locale is
+    // detected -- a non-shipped locale's archive is simply absent. LiquidType.dbc is
+    // NOT here; it lives in misc.MPQ and is read separately in ReadLiquidTypeTableDBC.
+    // NOTE: the original code opened "%s/misc.MPQ" here (wrong path -- missing Data/ --
+    // and misc.MPQ has no Map.dbc), which broke locale detection / the model pass.
+    sprintf(filename, "%s/Data/%s/locale-%s.MPQ", input_path, Locales[locale], Locales[locale]);
 
     if (!OpenArchive(filename, &LocaleMpq))
     {
-        printf("Error open archive: %s\n\n", filename);
+        // Missing locale (one the client does not ship) is expected; the caller
+        // skips it quietly via the ERROR_FILE_NOT_FOUND check.
         return false;
     }
 
-    // prepare sorted list patches in locale dir and Data root
-    Updates updates;
-    // now update to newer view, locale
-    AppendPatchMPQFilesToList(Locales[locale], Locales[locale], NULL, updates);
-    // now update to newer view, root
-    AppendPatchMPQFilesToList(NULL, NULL, Locales[locale], updates);
-
-    // ./Data wow-update-base files
-    for (int i = 0; Builds[i] && Builds[i] <= CONF_TargetBuild; ++i)
-    {
-        sprintf(filename, "%s/Data/wow-update-base-%u.MPQ", input_path, Builds[i]);
-
-        printf("\nPatching : %s\n", filename);
-
-        //if (!OpenArchive(filename))
-        if (!SFileOpenPatchArchive(LocaleMpq, filename, "", 0))
-        {
-            printf("Error open patch archive: %s\n\n", filename);
-        }
-    }
-
-    for (Updates::const_iterator itr = updates.begin(); itr != updates.end(); ++itr)
-    {
-        if (!itr->second.second)
-        {
-            sprintf(filename, "%s/Data/%s/%s", input_path, Locales[locale], itr->second.first.c_str());
-        }
-        else
-        {
-            sprintf(filename, "%s/Data/%s", input_path, itr->second.first.c_str());
-        }
-
-        printf("\nPatching : %s\n", filename);
-
-        //if (!OpenArchive(filename))
-        if (!SFileOpenPatchArchive(LocaleMpq, filename, itr->second.second ? itr->second.second : "", 0))
-        {
-            printf("Error open patch archive: %s\n\n", filename);
-        }
-    }
-
-    // ./Data/Cache patch-base files
-    for (int i = 0; Builds[i] && Builds[i] <= CONF_TargetBuild; ++i)
-    {
-        sprintf(filename, "%s/Data/Cache/patch-base-%u.MPQ", input_path, Builds[i]);
-
-        printf("\nPatching : %s\n", filename);
-
-        //if (!OpenArchive(filename))
-        if (!SFileOpenPatchArchive(LocaleMpq, filename, "", 0))
-        {
-            printf("Error open patch archive: %s\n\n", filename);
-        }
-    }
-
-    // ./Data/Cache/<locale> patch files
-    for (int i = 0; Builds[i] && Builds[i] <= CONF_TargetBuild; ++i)
-    {
-        sprintf(filename, "%s/Data/Cache/%s/patch-%s-%u.MPQ", input_path, Locales[locale], Locales[locale], Builds[i]);
-
-        printf("\nPatching : %s\n", filename);
-
-        //if (!OpenArchive(filename))
-        if (!SFileOpenPatchArchive(LocaleMpq, filename, "", 0))
-        {
-            printf("Error open patch archive: %s\n\n", filename);
-        }
-    }
-
+    // NOTE: LocaleMpq is used ONLY to read LiquidType.dbc (see ReadLiquidTypeTableDBC).
+    // The base locale archive already contains a complete, readable LiquidType.dbc --
+    // the map-extractor reads it the same way from an unpatched handle. Applying the
+    // wow-update / Cache patch chain onto this handle made SFileOpenFileEx for
+    // LiquidType.dbc fail (the patches store files as incremental PTCH data that does
+    // not reconstruct cleanly through this chain), which killed the run with
+    // "Fatal error: Could not read LiquidType.dbc!". Patches are therefore not applied
+    // to this DBC-only locale handle. (World/WMO geometry is read from WorldMpq in
+    // LoadCommonMPQFiles, which is unaffected.)
     return true;
 }
 
@@ -431,7 +379,17 @@ void strToLower(char* str)
 void ReadLiquidTypeTableDBC()
 {
     printf(" Reading liquid types from LiquidType.dbc...");
-    DBCFile dbc(LocaleMpq, "DBFilesClient\\LiquidType.dbc");
+    // LiquidType.dbc lives in misc.MPQ in this client layout (the map-extractor reads
+    // it from misc.MPQ too), not in the locale archive -- open misc.MPQ directly.
+    HANDLE miscMpq = NULL;
+    char miscName[512];
+    sprintf(miscName, "%s/Data/misc.MPQ", input_path);
+    if (!OpenArchive(miscName, &miscMpq))
+    {
+        printf("Fatal error: Could not open misc.MPQ for LiquidType.dbc!\n");
+        exit(1);
+    }
+    DBCFile dbc(miscMpq, "DBFilesClient\\LiquidType.dbc");
     if (!dbc.open())
     {
         printf("Fatal error: Could not read LiquidType.dbc!\n");

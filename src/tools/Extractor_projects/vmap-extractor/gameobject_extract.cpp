@@ -41,12 +41,30 @@ bool ExtractSingleModel(std::string& origPath, std::string& fixedName, StringSet
 }
 
 extern HANDLE LocaleMpq;
+extern char input_path[1024];
 
 void ExtractGameobjectModels()
 {
     printf("\n");
     printf("Extracting GameObject models...\n");
-    DBCFile dbc(LocaleMpq, "DBFilesClient\\GameObjectDisplayInfo.dbc");
+    // GameObjectDisplayInfo.dbc is locale-independent and, in this client's MPQ
+    // layout, lives in misc.MPQ (like LiquidType.dbc) rather than the locale archive.
+    // Try the locale handle first, then fall back to misc.MPQ.
+    HANDLE dbcMpq = LocaleMpq;
+    {
+        DBCFile probe(LocaleMpq, "DBFilesClient\\GameObjectDisplayInfo.dbc");
+        if (!probe.open())
+        {
+            char miscName[512];
+            sprintf(miscName, "%s/Data/misc.MPQ", input_path);
+            HANDLE miscMpq = NULL;
+            if (SFileOpenArchive(miscName, 0, MPQ_OPEN_READ_ONLY, &miscMpq))
+            {
+                dbcMpq = miscMpq;
+            }
+        }
+    }
+    DBCFile dbc(dbcMpq, "DBFilesClient\\GameObjectDisplayInfo.dbc");
     if (!dbc.open())
     {
         printf("Fatal error: Invalid GameObjectDisplayInfo.dbc file format!\n");
