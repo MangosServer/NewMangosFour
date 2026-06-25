@@ -208,10 +208,10 @@ enum OpcodesList
     SMSG_GUILD_QUERY_RANKS_RESULT                         = 0x30B4, // 4.3.4 15595
     UMSG_UPDATE_GUILD                                     = 0x1095,
     CMSG_MESSAGECHAT_ADDON_INSTANCE                       = 0x05D3, // 5.1.0 16357
-    CMSG_MESSAGECHAT_ADDON_GUILD                          = 0x0544, // 4.3.4 15595
-    CMSG_MESSAGECHAT_ADDON_OFFICER                        = 0x3954, // 4.3.4 15595
-    CMSG_MESSAGECHAT_ADDON_PARTY                          = 0x0546, // 4.3.4 15595
-    CMSG_MESSAGECHAT_ADDON_RAID                           = 0x1D56, // 4.3.4 15595
+    CMSG_MESSAGECHAT_ADDON_GUILD                          = 0x0E3B, // 5.4.8 18414
+    CMSG_MESSAGECHAT_ADDON_OFFICER                        = 0x180B, // 5.4.8 18414
+    CMSG_MESSAGECHAT_ADDON_PARTY                          = 0x028E, // 5.4.8 18414
+    CMSG_MESSAGECHAT_ADDON_RAID                           = 0x009A, // 5.4.8 18414
     CMSG_MESSAGECHAT_ADDON_WHISPER                        = 0x2146, // 4.3.4 15595
     CMSG_MESSAGECHAT_AFK                                  = 0x0267, // 5.1.0 16357
     CMSG_MESSAGECHAT_BATTLEGROUND                         = 0x2156, // 4.3.4 15595
@@ -583,7 +583,7 @@ enum OpcodesList
     CMSG_GM_NUKE                                          = 0x11FB,
     MSG_RANDOM_ROLL                                       = 0x0905, // 4.3.4 15595
     SMSG_ENVIRONMENTALDAMAGELOG                           = 0x6C05, // 4.3.4 15595
-    CMSG_CHANGEPLAYER_DIFFICULTY                          = 0x6107, // 4.3.4 15595
+    CMSG_CHANGEPLAYER_DIFFICULTY                          = 0x1F8E, // 5.4.8 18414
     SMSG_RWHOIS                                           = 0x11FF,
     SMSG_LFG_PLAYER_REWARD                                = 0x0E90, // 5.3.0 17128
     SMSG_LFG_TELEPORT_DENIED                              = 0x049D, // 5.3.0 17128
@@ -653,7 +653,7 @@ enum OpcodesList
     CMSG_TAXICLEARNODE                                    = 0x1242,
     CMSG_TAXIENABLENODE                                   = 0x1243,
     CMSG_ITEM_TEXT_QUERY                                  = 0x2406, // 4.3.4 15595
-    SMSG_ITEM_TEXT_QUERY_RESPONSE                         = 0x2725, // 4.3.4 15595
+    SMSG_ITEM_TEXT_QUERY_RESPONSE                         = 0x1134, // 5.4.8 18414
     CMSG_MAIL_TAKE_MONEY                                  = 0x4034, // 4.3.4 15595
     CMSG_MAIL_TAKE_ITEM                                   = 0x2B06, // 4.3.4 15595
     CMSG_MAIL_MARK_AS_READ                                = 0x0C07, // 4.3.4 15595
@@ -720,7 +720,7 @@ enum OpcodesList
     CMSG_AUTOBANK_ITEM                                    = 0x2537, // 4.3.4 15595
     MSG_QUERY_NEXT_MAIL_TIME                              = 0x0F04, // 4.3.4 15595
     SMSG_RECEIVED_MAIL                                    = 0x2924, // 4.3.4 15595
-    SMSG_RAID_GROUP_ONLY                                  = 0x0837, // 4.3.4 15595
+    SMSG_RAID_GROUP_ONLY                                  = 0x0D82, // 5.4.8 18414
     CMSG_SET_DURABILITY_CHEAT                             = 0x1288,
     CMSG_SET_PVP_RANK_CHEAT                               = 0x1289,
     CMSG_ADD_PVP_MEDAL_CHEAT                              = 0x128A,
@@ -729,11 +729,11 @@ enum OpcodesList
     SMSG_PVP_CREDIT                                       = 0x6015, // 4.3.4 15595
     SMSG_AUCTION_REMOVED_NOTIFICATION                     = 0x2334, // 4.3.4 15595
     CMSG_GROUP_RAID_CONVERT                               = 0x6E27, // 4.3.4 15595
-    CMSG_GROUP_REQUEST_JOIN_UPDATES                       = 0x2583, // 4.3.4 15595
+    CMSG_GROUP_REQUEST_JOIN_UPDATES                       = 0x178A, // 5.4.8 18414
     CMSG_GROUP_ASSISTANT_LEADER                           = 0x6025, // 4.3.4 15595
     CMSG_BUYBACK_ITEM                                     = 0x07D7, // 5.4.7 18019
     SMSG_SERVER_MESSAGE                                   = 0x6C04, // 4.3.4 15595
-    CMSG_SET_SAVED_INSTANCE_EXTEND                        = 0x6706, // 4.3.4 15595
+    CMSG_SET_SAVED_INSTANCE_EXTEND                        = 0x0C68, // 5.4.8 18414
     SMSG_LFG_OFFER_CONTINUE                               = 0x12C4, // 5.3.0 17128
     CMSG_TEST_DROP_RATE                                   = 0x1295,
     SMSG_TEST_DROP_RATE_RESULT                            = 0x1296,
@@ -750,7 +750,7 @@ enum OpcodesList
     CMSG_LOOT_ROLL                                        = 0x6934, // 4.3.4 15595
     SMSG_LOOT_START_ROLL                                  = 0x10C8, // 5.3.0 17128
     SMSG_LOOT_ROLL                                        = 0x158C, // 5.3.0 17128
-    CMSG_LOOT_MASTER_GIVE                                 = 0x4F35, // 4.3.4 15595
+    CMSG_LOOT_MASTER_GIVE                                 = 0x1DE1, // 5.4.8 18414
     SMSG_LOOT_MASTER_LIST                                 = 0x0325, // 4.3.4 15595
     SMSG_SET_FORCED_REACTIONS                             = 0x069D, // 5.3.0 17128
     SMSG_SPELL_FAILED_OTHER                               = 0x4535, // 4.3.4 15595
@@ -968,7 +968,7 @@ enum OpcodesList
     SMSG_TITLE_EARNED                                     = 0x02D0, // 5.3.0 17128
     CMSG_SET_TITLE                                        = 0x2117, // 4.3.4 15595
     CMSG_CANCEL_MOUNT_AURA                                = 0x0635, // 4.3.4 15595
-    SMSG_ARENA_ERROR                                      = 0x2D17, // 4.3.4 15595
+    SMSG_ARENA_ERROR                                      = 0x04BA, // 5.4.8 18414
     MSG_INSPECT_ARENA_TEAMS                               = 0x2704, // 4.3.4 15595
     SMSG_DEATH_RELEASE_LOC                                = 0x2F07, // 4.3.4 15595
     CMSG_CANCEL_TEMP_ENCHANTMENT                          = 0x6C37, // 4.3.4 15595
@@ -1154,7 +1154,7 @@ enum OpcodesList
     SMSG_BARBER_SHOP_RESULT                               = 0x6125, // 4.3.4 15595
     CMSG_CALENDAR_GET_CALENDAR                            = 0x2814, // 4.3.4 15595
     CMSG_CALENDAR_GET_EVENT                               = 0x142B,
-    CMSG_CALENDAR_GUILD_FILTER                            = 0x142C,
+    CMSG_CALENDAR_GUILD_FILTER                            = 0x04E3, // 5.4.8 18414
     CMSG_CALENDAR_ARENA_TEAM                              = 0x142D,
     CMSG_CALENDAR_ADD_EVENT                               = 0x0726, // 4.3.4 15595
     CMSG_CALENDAR_UPDATE_EVENT                            = 0x142F,
@@ -1212,7 +1212,7 @@ enum OpcodesList
     CMSG_UPDATE_MISSILE_TRAJECTORY                        = 0x781E, // 4.3.4 15595
     SMSG_UPDATE_ACCOUNT_DATA_COMPLETE                     = 0x2015, // 4.3.4 15595
     SMSG_TRIGGER_MOVIE                                    = 0x1198, // 5.3.0 17128
-    CMSG_COMPLETE_MOVIE                                   = 0x4136, // 4.3.4 15595
+    CMSG_COMPLETE_MOVIE                                   = 0x1362, // 5.4.8 18414
     CMSG_SET_GLYPH_SLOT                                   = 0x1467,
     CMSG_SET_GLYPH                                        = 0x1468,
     SMSG_ACHIEVEMENT_EARNED                               = 0x4405, // 4.3.4 15595
@@ -1453,6 +1453,20 @@ enum OpcodesList
     SMSG_REFORGE_RESULT                                   = 0x58A4, // 4.3.4 15595
     CMSG_LOAD_SCREEN                                      = 0x1DBD, // 5.4.8 18414
     SMSG_START_TIMER                                      = 0x0988, // 5.3.0 17128
+    CMSG_ENABLE_NAGLE                                     = 0x00B3, // 5.4.8 18414
+    CMSG_GUILD_ACHIEVEMENT_MEMBERS                        = 0x1470, // 5.4.8 18414
+    CMSG_BATTLEMASTER_JOIN_RATED                          = 0x0674, // 5.4.8 18414
+    CMSG_CLEAR_RAID_MARKER                                = 0x1443, // 5.4.8 18414
+    SMSG_ARENA_UNIT_DESTROYED                             = 0x000F, // 5.4.8 18414
+    CMSG_LF_GUILD_POST_REQUEST                            = 0x1450, // 5.4.8 18414
+    CMSG_QUERY_GUILD_MEMBERS_FOR_RECIPE                   = 0x0CFA, // 5.4.8 18414
+    CMSG_QUERY_GUILD_MEMBER_RECIPES                       = 0x04F0, // 5.4.8 18414
+    CMSG_QUERY_GUILD_RECIPES                              = 0x0478, // 5.4.8 18414
+    CMSG_SET_PET_SLOT                                     = 0x10A7, // 5.4.8 18414
+    CMSG_UNLEARN_SPECIALIZATION                           = 0x1841, // 5.4.8 18414
+    SMSG_MULTIPLE_PACKETS                                 = 0x1168, // 5.4.8 18414
+    SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT                   = 0x0332, // 5.4.8 18414
+    CMSG_BATTLEFIELD_MGR_QUEUE_REQUEST                    = 0x1283, // 5.4.8 18414
 };
 
 // Don't forget to change this value and add opcode name to Opcodes.cpp when you add new opcode!
