@@ -6,10 +6,10 @@ alt="GitHub last commit" border=0 valign="top"/>][61]
 [<img alt="Downloads on GitHub" src="https://img.shields.io/github/downloads/mangosfour/server/total.svg?style=flat-square" border=0 valign="top"/>][61]
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<B>Build Status:</b>
- Linux/MAC: [<img src='https://github.com/mangosthree/server/actions/workflows/core_linux_build.yml/badge.svg' border=0 valign="middle">][10]
+ Linux/MAC: [<img src='https://github.com/mangosfour/server/actions/workflows/core_linux_build.yml/badge.svg' border=0 valign="middle">][10]
  Windows: [<img src='https://ci.appveyor.com/api/projects/status/github/mangosfour/server?branch=master&svg=true' border=0 valign="middle">][11]
  <br><b>Repository Status:</b>
-[<img src='https://api.codacy.com/project/badge/Grade/d54b4c8fec4746498fd05f84a4e7e5d4' border=0 valign="middle"/>][12]
+[<img src='https://api.codacy.com/project/badge/Grade/24c2748fb6164216878f28ab4f6cb0f9' border=0 valign="middle"/>][12]
 [<img src='https://www.codefactor.io/repository/github/mangosfour/server/badge' border=0 valign="middle"/>][13]
 [<img src='https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat' border=0 valign="middle"/>][14]
 [<img src='https://img.shields.io/discord/286167585270005763.svg' border=0 valign="middle"/>][9]
@@ -171,7 +171,7 @@ World of Warcraft, and all related art, images, and lore are copyright [Blizzard
 [1]: http://blizzard.com/ "Blizzard Entertainment Inc. - We love you!"
 [2]: https://worldofwarcraft.com/ "World of Warcraft"
 [3]: https://www.getmangos.eu "Main MaNGOS Website"
-[4]: http://www.wowpedia.org/Patch_5.4.8 "Cataclysm - Patch 5.4.8 release notes"
+[4]: http://www.wowpedia.org/Patch_5.4.8 "Mists of Pandaria - Patch 5.4.8 release notes"
 [7]: http://www.cppreference.com/ "C / C++ reference"
 [8]: https://github.com/mangos/MaNGOS/blob/master/mangosFamily.md "The MaNGOS family of Icons"
 [9]: https://discord.gg/fPxMjHS8xs "Our community hub on Discord"
