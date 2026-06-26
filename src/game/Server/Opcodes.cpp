@@ -368,9 +368,9 @@ void InitializeOpcodes()
     //OPCODE(SMSG_SPLINE_MOVE_SET_PITCH_RATE,              STATUS_NEVER,    PROCESS_INPLACE,      &WorldSession::Handle_ServerSide               );
     //OPCODE(CMSG_TRIGGER_CINEMATIC_CHEAT,                 STATUS_NEVER,    PROCESS_INPLACE,      &WorldSession::Handle_NULL                     );
     //OPCODE(CMSG_OPENING_CINEMATIC,                       STATUS_NEVER,    PROCESS_INPLACE,      &WorldSession::Handle_NULL                     );
-    //OPCODE(SMSG_TRIGGER_CINEMATIC,                       STATUS_NEVER,    PROCESS_INPLACE,      &WorldSession::Handle_ServerSide               );
-    //OPCODE(CMSG_NEXT_CINEMATIC_CAMERA,                   STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleNextCinematicCamera       );
-    //OPCODE(CMSG_COMPLETE_CINEMATIC,                      STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleCompleteCinematic         );
+    OPCODE(SMSG_TRIGGER_CINEMATIC,                       STATUS_NEVER,    PROCESS_INPLACE,      &WorldSession::Handle_ServerSide               );
+    OPCODE(CMSG_NEXT_CINEMATIC_CAMERA,                    STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleNextCinematicCamera       );
+    OPCODE(CMSG_COMPLETE_CINEMATIC,                      STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleCompleteCinematic         );
     OPCODE(SMSG_TUTORIAL_FLAGS,                          STATUS_NEVER,    PROCESS_INPLACE,      &WorldSession::Handle_ServerSide               );
     //OPCODE(CMSG_TUTORIAL_FLAG,                           STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTutorialFlagOpcode        );
     //OPCODE(CMSG_TUTORIAL_CLEAR,                          STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTutorialClearOpcode       );

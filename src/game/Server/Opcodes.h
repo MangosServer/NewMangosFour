@@ -328,7 +328,7 @@ enum OpcodesList
     CMSG_TRIGGER_CINEMATIC_CHEAT                          = 0x10F9,
     CMSG_OPENING_CINEMATIC                                = 0x10FA,
     SMSG_TRIGGER_CINEMATIC                                = 0x6C27, // 4.3.4 15595
-    CMSG_NEXT_CINEMATIC_CAMERA                            = 0x10FC,
+    CMSG_NEXT_CINEMATIC_CAMERA                            = 0x2014, // 4.3.4 15595
     CMSG_COMPLETE_CINEMATIC                               = 0x2116, // 4.3.4 15595
     SMSG_TUTORIAL_FLAGS                                   = 0x1B90, // 5.4.8 18414
     CMSG_TUTORIAL_FLAG                                    = 0x6C26, // 4.3.4 15595
