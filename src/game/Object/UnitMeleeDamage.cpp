@@ -474,7 +474,11 @@ void Unit::DealMeleeDamage(CalcDamageInfo* damageInfo, bool durabilityLoss)
                 data << uint32(i_spellProto->Id);
                 data << uint32(damage);                  // Damage
                 data << uint32(overkill);                // Overkill
+#if !defined (MISTS)
                 data << uint32(i_spellProto->SchoolMask);
+#else
+                data << uint32(i_spellProto->GetSchoolMask());
+#endif
                 data << uint32(resist);                  // Resist
                 pVictim->SendMessageToSet(&data, true);
 
