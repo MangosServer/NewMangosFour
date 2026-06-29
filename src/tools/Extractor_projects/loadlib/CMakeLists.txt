@@ -8,17 +8,14 @@
 # WITHOUT ANY WARRANTY, to the extent permitted by law; without even the
 # implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-
-# Since the different tools from mpqlib and StormLib are fairly different, so is the loadlib.
-# Therefore, I have temporarily split the lib into two versions depending on which toolset is compiled.
-# These can definitely be merged at some point, however we need to document and understand the differences to do so.
-
+# mangos's own ADT/WDT/MPQ client-format reader. Lives with the extractors that
+# use it (not in dep/, which is third-party libraries).
 
 add_library(loadlib STATIC
-  sl/loadlib.cpp
-  sl/adt.cpp
-  sl/wdt.cpp
-  sl/mpq.cpp)
+  loadlib.cpp
+  adt.cpp
+  wdt.cpp
+  mpq.cpp)
 
 target_include_directories(loadlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
