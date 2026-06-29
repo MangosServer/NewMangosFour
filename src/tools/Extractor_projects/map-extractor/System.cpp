@@ -1373,8 +1373,8 @@ void ExtractMapsFromMpq(uint32 build, const int locale)
 		}
 	}
 	printf("\n\nMap extraction complete!\n");
-	printf("Successfully converted: %u maps\n", success_count);
-	printf("Failed to convert: %u maps\n", failed_count);
+	printf("Successfully converted: %u tiles\n", success_count);
+	printf("Failed to convert: %u tiles\n", failed_count);
     delete [] areas;
     delete [] map_ids;
 }
