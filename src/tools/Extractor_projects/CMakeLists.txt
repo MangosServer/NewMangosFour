@@ -26,6 +26,10 @@ set(SHARED_SRCS
     shared/ExtractorCommon.h
 )
 
+# mangos's own ADT/WDT/MPQ client-format reader, used by all extractors.
+# Relocated out of dep/ (third-party only) into the extractor tree.
+add_subdirectory(loadlib)
+
 #=======================================================#
 #map-extractor
 #=======================================================#
