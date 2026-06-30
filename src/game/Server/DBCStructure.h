@@ -625,19 +625,21 @@ struct BarberShopStyleEntry
 
 struct BattlemasterListEntry
 {
-    uint32  id;                                             // 0        m_ID
-    int32   mapid[8];                                       // 1-8      m_mapID[8]
-    uint32  type;                                           // 9        m_instanceType
-    //uint32 canJoinAsGroup;                                // 10       m_groupsAllowed
-    DBCString name;                                         // 11       m_name_lang
-    uint32 maxGroupSize;                                    // 12       m_maxGroupSize
-    uint32 HolidayWorldStateId;                             // 13       m_holidayWorldState
-    uint32 minLevel;                                        // 14,      m_minlevel (sync with PvPDifficulty.dbc content)
-    uint32 maxLevel;                                        // 15,      m_maxlevel (sync with PvPDifficulty.dbc content)
-    uint32 maxGroupSizeRated;                               // 16       4.0.1
-    uint32 minPlayers;                                      // 17       4.0.6.13596
-    uint32 maxPlayers;                                      // 18       4.0.1
-    uint32 rated;                                           // 19       4.0.3, value 2 for Rated Battlegrounds
+	uint32  id;                                             // 0
+	int32   mapid[16];                                      // 1-16 mapid
+	uint32  type;                                           // 17 (3 - BG, 4 - arena)
+	//char* unkName;                                        // 18
+	DBCString name;                                             // 19
+	uint32 maxGroupSize;                                    // 20 maxGroupSize, used for checking if queue as group
+	uint32 HolidayWorldStateId;                             // 21 new 3.1
+	uint32 minLevel;                                        // 22, min level (sync with PvPDifficulty.dbc content)
+	uint32 maxLevel;                                        // 23, max level (sync with PvPDifficulty.dbc content)
+	//uint32 maxGroupSizeRated;                             // 24 4.0.1
+	//uint32 unk;                                           // 25 - 4.0.6.13596
+	//uint32 maxPlayers;                                    // 26 4.0.1
+	//uint32 unk1;                                          // 27 4.0.3, value 2 for Rated Battlegrounds
+	//uint32 unk2                                           // 28 - Pandaria
+	//char* strType;                                        // 29 - Pandaria
 };
 
 /*struct Cfg_CategoriesEntry

@@ -542,7 +542,6 @@ void LoadDBCStores(const std::string& dataPath)
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sAuctionHouseStore,        dbcPath, "AuctionHouse.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sBankBagSlotPricesStore,   dbcPath, "BankBagSlotPrices.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sBattlemasterListStore,    dbcPath, "BattlemasterList.dbc");
-    LoadDBC(availableDbcLocales,bar,bad_dbc_files,sBattlemasterListStore,       dbcPath,"BattleMasterList.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sBarberShopStyleStore,     dbcPath, "BarberShopStyle.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sCharStartOutfitStore,     dbcPath, "CharStartOutfit.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sCharTitlesStore,          dbcPath, "CharTitles.dbc");
