@@ -26,8 +26,8 @@ set(SHARED_SRCS
     shared/ExtractorCommon.h
 )
 
-# mangos's own ADT/WDT/MPQ client-format reader, used by all extractors.
-# Relocated out of dep/ (third-party only) into the extractor tree.
+# Cata-specific ADT/WDT/MPQ reader (formerly dep/loadlib/sl); extractor-only,
+# kept here so dep/ can be the shared mangosDeps submodule.
 add_subdirectory(loadlib)
 
 #=======================================================#

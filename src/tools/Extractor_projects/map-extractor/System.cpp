@@ -1356,18 +1356,17 @@ void ExtractMapsFromMpq(uint32 build, const int locale)
         WDT_file wdt;
         if (!wdt.loadFile(mpq_map_name, false))
         {
-			printf("Warning: Failed to load WDT file for map: %s\n", map_ids[z].name);
-			++failed_count;
+            printf("Warning: Failed to load WDT file for map: %s\n", map_ids[z].name);
+            ++failed_count;
             continue;
         }
 
-		// Debug: Check if WDT was parsed correctly
-		if (!wdt.main)
-		{
-			printf("Error: WDT main chunk is NULL for map: %s\n", map_ids[z].name);
-			++failed_count;
-			continue;
-		}
+        if (!wdt.main)
+        {
+            printf("Error: WDT main chunk is NULL for map: %s\n", map_ids[z].name);
+            ++failed_count;
+            continue;
+        }
 
         uint32 adt_count = 0;
         uint32 adt_exist_in_wdt = 0;

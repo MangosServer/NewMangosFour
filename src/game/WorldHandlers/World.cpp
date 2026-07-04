@@ -577,6 +577,7 @@ void World::SetInitialWorldSettings()
     sAchievementMgr.LoadRewards();
     sAchievementMgr.LoadRewardLocales();
     sAchievementMgr.LoadCompletedAchievements();
+    sAchievementMgr.CleanupOrphanedCriteriaProgress();
     sLog.outString(">>> Achievements loaded");
     sLog.outString();
 
@@ -822,6 +823,9 @@ void World::SetInitialWorldSettings()
 
     sLog.outString("Calculate random battleground reset time...");
     InitRandomBGResetTime();
+
+    sLog.outString("Calculate next currency reset time...");
+    InitCurrencyResetTime();
 
     sLog.outString("Starting Game Event system...");
     uint32 nextGameEvent = sGameEventMgr.Initialize();
@@ -1087,6 +1091,24 @@ void World::Update(uint32 diff)
     if (m_gameTime > m_NextDailyQuestReset)
     {
         ResetDailyQuests();
+    }
+
+    /// Handle weekly quests reset time
+    if (m_gameTime > m_NextWeeklyQuestReset)
+    {
+        ResetWeeklyQuests();
+    }
+
+    /// Handle monthly quests reset time
+    if (m_gameTime > m_NextMonthlyQuestReset)
+    {
+        ResetMonthlyQuests();
+    }
+
+    /// Handle weekly currency cap reset time
+    if (m_gameTime > m_NextCurrencyReset)
+    {
+        ResetCurrencyWeekCounts();
     }
 
     /// <ul><li> Handle auctions when the timer has passed
