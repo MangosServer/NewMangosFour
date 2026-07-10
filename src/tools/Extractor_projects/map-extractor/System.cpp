@@ -451,9 +451,7 @@ void ReadAreaTableDBC(int const locale)
 void ReadLiquidTypeTableDBC(int const locale)
 {
     HANDLE localeFile;
-    HANDLE localeFile2;
     char localMPQ[512];
-    char localMPQ2[512];
 
     sprintf(localMPQ, "%s/Data/misc.MPQ", input_path);//, langs[locale], langs[locale]);
     if (FileExists(localMPQ)==false)
@@ -470,11 +468,8 @@ void ReadLiquidTypeTableDBC(int const locale)
     HANDLE dbcFile;
     if (!SFileOpenFileEx(localeFile, "DBFilesClient\\LiquidType.dbc", SFILE_OPEN_FROM_MPQ, &dbcFile))
     {
-        if (!SFileOpenFileEx(localeFile2, "DBFilesClient\\LiquidType.dbc", SFILE_OPEN_FROM_MPQ, &dbcFile))
-        {
-            printf("Fatal error: Cannot find LiquidType.dbc in archive!\n");
-            exit(1);
-        }
+        printf("Fatal error: Cannot find LiquidType.dbc in archive!\n");
+        exit(1);
     }
 
     DBCFile dbc(dbcFile);
