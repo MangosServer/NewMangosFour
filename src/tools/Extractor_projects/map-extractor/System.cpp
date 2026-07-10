@@ -1625,8 +1625,17 @@ void LoadLocaleMPQFiles(int const locale)
     char filename[512];
     HANDLE localeMpqHandle;
 
-    // first base old version of dbc files
-    sprintf(filename, "%s/Data/%s/locale-%s.MPQ", input_path, Locales[locale], Locales[locale]);
+    // Base archive = misc.MPQ; the localized DBFilesClient (locale-<loc>.MPQ) and every
+    // wow-update-*/Cache archive are layered onto it as a StormLib PATCH CHAIN, so a table
+    // updated by a later patch (e.g. AreaTable/BattleMasterList gaining fields at a build
+    // between the locale base and CONF_TargetBuild) is read at its final build-target
+    // layout -- matching the reference extractor and what the client itself loads.
+    //
+    // Previously locale-<loc>.MPQ was opened as a separate PEER archive (OpenArchive), then
+    // localeMpqHandle was overwritten by misc.MPQ; the patch chain therefore attached to
+    // misc while ExtractFile()'s gOpenArchives reverse-scan resolved DBCs from the UNPATCHED
+    // locale archive -- yielding stale pre-patch layouts for the 16 late-patched tables.
+    sprintf(filename,"%s/Data/misc.MPQ", input_path);
     if (FileExists(filename)==true)
     {
         if (!OpenArchive(filename, &localeMpqHandle))
@@ -1636,13 +1645,12 @@ void LoadLocaleMPQFiles(int const locale)
         }
     }
 
-    sprintf(filename,"%s/Data/misc.MPQ", input_path);//, langs[locale], langs[locale]);
+    sprintf(filename, "%s/Data/%s/locale-%s.MPQ", input_path, Locales[locale], Locales[locale]);
     if (FileExists(filename)==true)
     {
-        if (!OpenArchive(filename, &localeMpqHandle))
+        if (!SFileOpenPatchArchive(localeMpqHandle, filename, "", 0))
         {
-            printf("Error open archive: %s\n\n", filename);
-            return;
+            printf("Error patching locale archive onto base: %s\n\n", filename);
         }
     }
 
