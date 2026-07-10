@@ -1508,6 +1508,7 @@ void ExtractDBCFiles(int locale, bool basicLocale)
 
     // extract DBCs
     int count = 0;
+    int zeroByteCount = 0;
     for (std::set<std::string>::iterator iter = dbcfiles.begin(); iter != dbcfiles.end(); ++iter)
     {
         std::string filename = path;
@@ -1516,9 +1517,29 @@ void ExtractDBCFiles(int locale, bool basicLocale)
         if (ExtractFile(iter->c_str(), filename))
         {
             ++count;
+
+            // Guard against the incomplete-patch-chain failure mode: a table resolved
+            // through a broken/short chain can be written as a 0-byte file. Flag any
+            // empty output so a wrong-build extraction is obvious without post-checks.
+            if (FILE* chk = fopen(filename.c_str(), "rb"))
+            {
+                fseek(chk, 0, SEEK_END);
+                if (ftell(chk) == 0)
+                {
+                    ++zeroByteCount;
+                    printf("  WARNING: 0-byte output %s\n", iter->c_str() + strlen("DBFilesClient\\"));
+                }
+                fclose(chk);
+            }
         }
     }
-    printf("Extracted %u DBC/DB2 files\n\n", count);
+    printf("Extracted %u DBC/DB2 files\n", count);
+    if (zeroByteCount)
+    {
+        printf(" *** %d file(s) came out 0 bytes -- the MPQ patch chain is likely incomplete for\n", zeroByteCount);
+        printf(" *** the target build; verify Builds[]/CONF_TargetBuild in ExtractorCommon.h.\n");
+    }
+    printf("\n");
 }
 
 typedef std::pair < std::string /*full_filename*/, char const* /*locale_prefix*/ > UpdatesPair;
