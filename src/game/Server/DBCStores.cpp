@@ -744,6 +744,7 @@ void LoadDBCStores(const std::string& dataPath)
         }
     }
 
+    uint32 oobSpellEffectIndex = 0;
     for(uint32 i = 1; i < sSpellEffectStore.GetNumRows(); ++i)
     {
         if (SpellEffectEntry const *spellEffect = sSpellEffectStore.LookupEntry(i))
@@ -759,12 +760,19 @@ void LoadDBCStores(const std::string& dataPath)
                     break;
             }
 
-            sSpellEffectMap[spellEffect->EffectSpellId].effects[spellEffect->EffectIndex] = spellEffect;
-            if (spellEffect->EffectSpellId < MAX_EFFECT_INDEX && spellEffect->Difficulty == 0)
+            if (spellEffect->EffectIndex >= MAX_SPELL_EFFECTS_MOP)
             {
-                sSpellEffectMap[spellEffect->EffectSpellId].effects[spellEffect->EffectIndex] = spellEffect;
+                ++oobSpellEffectIndex;
+                continue;
             }
+
+            sSpellEffectMap[spellEffect->EffectSpellId].effects[spellEffect->EffectIndex] = spellEffect;
         }
+    }
+
+    if (oobSpellEffectIndex)
+    {
+        sLog.outErrorDb("SpellEffect.dbc: skipped %u records with EffectIndex >= %u", oobSpellEffectIndex, MAX_SPELL_EFFECTS_MOP);
     }
 
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sSpellEquippedItemsStore,  dbcPath,"SpellEquippedItems.dbc");
@@ -1114,6 +1122,11 @@ TalentSpellPos const* GetTalentSpellPos(uint32 spellId)
 
 SpellEffectEntry const* GetSpellEffectEntry(uint32 spellId, SpellEffectIndex effect)
 {
+    if (effect >= MAX_SPELL_EFFECTS_MOP)
+    {
+        return NULL;
+    }
+
     SpellEffectMap::const_iterator itr = sSpellEffectMap.find(spellId);
     if (itr == sSpellEffectMap.end())
     {

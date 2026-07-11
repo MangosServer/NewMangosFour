@@ -600,6 +600,11 @@ enum SpellEffectIndex
 
 #define MAX_EFFECT_INDEX 21
 
+// 5.4.8.18414: SpellEffect.dbc EffectIndex ranges 0..31 (client data, all 32 values occur).
+// Bounds ONLY the SpellEffect::effects[] lookup array — MAX_EFFECT_INDEX (21) stays the
+// core-wide spell-effect iteration bound.
+#define MAX_SPELL_EFFECTS_MOP 32
+
 enum SpellFamily
 {
     SPELLFAMILY_GENERIC     = 0,
