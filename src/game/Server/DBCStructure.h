@@ -1409,58 +1409,58 @@ struct MailTemplateEntry
 
 struct MapEntry
 {
-    uint32      MapID;                                          // 0        m_ID
-    DBCString   internalname;                                   // 1        unused
-    uint32      map_type;                                       // 2        m_InstanceType
-    uint32      mapFlags;                                       // 3        m_Flags (0x100 - CAN_CHANGE_PLAYER_DIFFICULTY)
-    uint32      isPvP;                                          // 4        m_PVP 0 or 1 for battlegrounds (not arenas)
-    DBCString   name;                                           // 5        m_MapName_lang
-    uint32      linked_zone;                                    // 6        m_areaTableID
-    DBCString   hordeIntro;                                     // 7        m_MapDescription0_lang
-    DBCString   allianceIntro;                                  // 8        m_MapDescription1_lang
-    uint32      multimap_id;                                    // 9        m_LoadingScreenID (LoadingScreens.dbc)
-    float       BattlefieldMapIconScale;                        // 10       m_minimapIconScale
-    int32       ghost_entrance_map;                             // 11       m_corpseMapID map_id of entrance map in ghost mode (continent always and in most cases = normal entrance)
+    uint32      ID;                                          // 0        m_ID
+    DBCString   Directory;                                   // 1        unused
+    uint32      InstanceType;                                       // 2        m_InstanceType
+    uint32      Flags;                                       // 3        m_Flags (0x100 - CAN_CHANGE_PLAYER_DIFFICULTY)
+    uint32      MapType;                                          // 4        m_PVP 0 or 1 for battlegrounds (not arenas)
+    DBCString   MapName_lang;                                           // 5        m_MapName_lang
+    uint32      AreaTableID;                                    // 6        m_areaTableID
+    DBCString   MapDescription0_lang;                                     // 7        m_MapDescription0_lang
+    DBCString   MapDescription1_lang;                                  // 8        m_MapDescription1_lang
+    uint32      LoadingScreenID;                                    // 9        m_LoadingScreenID (LoadingScreens.dbc)
+    float       MinimapIconScale;                        // 10       m_minimapIconScale
+    int32       CorpseMapID;                             // 11       m_corpseMapID map_id of entrance map in ghost mode (continent always and in most cases = normal entrance)
     float       ghost_entrance_x;                               // 12       m_corpseX entrance x coordinate in ghost mode  (in most cases = normal entrance)
     float       ghost_entrance_y;                               // 13       m_corpseY entrance y coordinate in ghost mode  (in most cases = normal entrance)
-    uint32      timeOfDayOverride;                              // 14       m_timeOfDayOverride
-    uint32      addon;                                          // 15       m_expansionID
-    uint32      unkTime;                                        // 16       m_raidOffset
-    uint32      maxPlayers;                                     // 17       m_maxPlayers
-    int32       rootPhaseMap;                                   // 18       map with base phasing
+    uint32      TimeOfDayOverride;                              // 14       m_timeOfDayOverride
+    uint32      ExpansionID;                                          // 15       m_expansionID
+    uint32      RaidOffset;                                        // 16       m_raidOffset
+    uint32      MaxPlayers;                                     // 17       m_maxPlayers
+    int32       RootPhaseMap;                                   // 18       map with base phasing
 
     // Helpers
-    uint32 Expansion() const { return addon; }
+    uint32 Expansion() const { return ExpansionID; }
 
-    bool IsDungeon() const { return map_type == MAP_INSTANCE || map_type == MAP_RAID || map_type == MAP_SCENARIO; }
-    bool IsNonRaidDungeon() const { return map_type == MAP_INSTANCE || map_type == MAP_SCENARIO; }
-    bool Instanceable() const { return map_type == MAP_INSTANCE || map_type == MAP_RAID || map_type == MAP_BATTLEGROUND || map_type == MAP_ARENA || map_type == MAP_SCENARIO; }
-    bool IsScenario() const { return map_type == MAP_SCENARIO; }
-    bool IsRaid() const { return map_type == MAP_RAID; }
-    bool IsBattleGround() const { return map_type == MAP_BATTLEGROUND; }
-    bool IsBattleArena() const { return map_type == MAP_ARENA; }
-    bool IsBattleGroundOrArena() const { return map_type == MAP_BATTLEGROUND || map_type == MAP_ARENA; }
+    bool IsDungeon() const { return InstanceType == MAP_INSTANCE || InstanceType == MAP_RAID || InstanceType == MAP_SCENARIO; }
+    bool IsNonRaidDungeon() const { return InstanceType == MAP_INSTANCE || InstanceType == MAP_SCENARIO; }
+    bool Instanceable() const { return InstanceType == MAP_INSTANCE || InstanceType == MAP_RAID || InstanceType == MAP_BATTLEGROUND || InstanceType == MAP_ARENA || InstanceType == MAP_SCENARIO; }
+    bool IsScenario() const { return InstanceType == MAP_SCENARIO; }
+    bool IsRaid() const { return InstanceType == MAP_RAID; }
+    bool IsBattleGround() const { return InstanceType == MAP_BATTLEGROUND; }
+    bool IsBattleArena() const { return InstanceType == MAP_ARENA; }
+    bool IsBattleGroundOrArena() const { return InstanceType == MAP_BATTLEGROUND || InstanceType == MAP_ARENA; }
 
     bool IsMountAllowed() const
     {
         return !IsDungeon() ||
-               MapID == 209 || MapID == 269 || MapID == 309 || // TanarisInstance, CavernsOfTime, Zul'gurub
-               MapID == 509 || MapID == 534 || MapID == 560 || // AhnQiraj, HyjalPast, HillsbradPast
-               MapID == 568 || MapID == 580 || MapID == 595 || // ZulAman, Sunwell Plateau, Culling of Stratholme
-               MapID == 603 || MapID == 615 || MapID == 616 || // Ulduar, The Obsidian Sanctum, The Eye Of Eternity
-               MapID == 631 ||                                 // Icecrown Citadel,
-               MapID == 654 || MapID == 655 || MapID == 656 || // Gilneas, Gilneas Phase 1, Gilneas Phase 2
-               MapID == 658 || MapID == 720 || MapID == 724 || // Pit of Saron, Firelands, Ruby Sanctum
-               MapID == 644 || MapID == 721 || MapID == 734 || // Halls of Origination, Firelands, ?????????
-               MapID == 754 || MapID == 755 || MapID == 859 || // Throne of Four Winds, Lost City of Tol'Vir, Zul'Gurub
-               MapID == 861 || MapID == 938 || MapID == 939 || // Firelands Dailies, End Time, Well of Eternity
-               MapID == 940 || MapID == 962 || MapID == 967 || // Hour of Twilight, Gate of Setting Sun, Dragon Soul
-               MapID == 996 || MapID == 1007 || MapID == 1011;     // Endless Spring, New Scholomance, Niuzao Temple
+               ID == 209 || ID == 269 || ID == 309 || // TanarisInstance, CavernsOfTime, Zul'gurub
+               ID == 509 || ID == 534 || ID == 560 || // AhnQiraj, HyjalPast, HillsbradPast
+               ID == 568 || ID == 580 || ID == 595 || // ZulAman, Sunwell Plateau, Culling of Stratholme
+               ID == 603 || ID == 615 || ID == 616 || // Ulduar, The Obsidian Sanctum, The Eye Of Eternity
+               ID == 631 ||                                 // Icecrown Citadel,
+               ID == 654 || ID == 655 || ID == 656 || // Gilneas, Gilneas Phase 1, Gilneas Phase 2
+               ID == 658 || ID == 720 || ID == 724 || // Pit of Saron, Firelands, Ruby Sanctum
+               ID == 644 || ID == 721 || ID == 734 || // Halls of Origination, Firelands, ?????????
+               ID == 754 || ID == 755 || ID == 859 || // Throne of Four Winds, Lost City of Tol'Vir, Zul'Gurub
+               ID == 861 || ID == 938 || ID == 939 || // Firelands Dailies, End Time, Well of Eternity
+               ID == 940 || ID == 962 || ID == 967 || // Hour of Twilight, Gate of Setting Sun, Dragon Soul
+               ID == 996 || ID == 1007 || ID == 1011;     // Endless Spring, New Scholomance, Niuzao Temple
     }
 
     bool IsContinent() const
     {
-        return MapID == 0 || MapID == 1 || MapID == 530 || MapID == 571 || MapID == 860 || MapID == 870;
+        return ID == 0 || ID == 1 || ID == 530 || ID == 571 || ID == 860 || ID == 870;
     }
 
     bool IsTransport() const
@@ -1469,7 +1469,7 @@ struct MapEntry
         {
             return false;
         }
-        return map_type == MAP_COMMON && mapFlags == MAP_FLAG_INSTANCEABLE;
+        return InstanceType == MAP_COMMON && Flags == MAP_FLAG_INSTANCEABLE;
     }
 };
 
