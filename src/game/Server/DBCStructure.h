@@ -962,17 +962,17 @@ struct EmotesTextEntry
 struct FactionEntry
 {
     uint32      ID;                                         // 0        m_ID
-    int32       reputationListID;                           // 1        m_reputationIndex
-    uint32      BaseRepRaceMask[4];                         // 2-5      m_reputationRaceMask
-    uint32      BaseRepClassMask[4];                        // 6-9      m_reputationClassMask
-    int32       BaseRepValue[4];                            // 10-13    m_reputationBase
+    int32       ReputationIndex;                           // 1        m_reputationIndex
+    uint32      ReputationRaceMask[4];                         // 2-5      m_reputationRaceMask
+    uint32      ReputationClassMask[4];                        // 6-9      m_reputationClassMask
+    int32       ReputationBase[4];                            // 10-13    m_reputationBase
     uint32      ReputationFlags[4];                         // 14-17    m_reputationFlags
-    uint32      team;                                       // 18       m_parentFactionID
+    uint32      ParentFactionID;                                       // 18       m_parentFactionID
     float       spilloverRateIn;                            // 19       m_parentFactionMod[2] Faction gains incoming rep * spilloverRateIn
     float       spilloverRateOut;                           // 20       Faction outputs rep * spilloverRateOut as spillover reputation
-    uint32      spilloverMaxRankIn;                         // 21       m_parentFactionCap[2] The highest rank the faction will profit from incoming spillover
+    uint32      ParentFactionCap;                         // 21       m_parentFactionCap[2] The highest rank the faction will profit from incoming spillover
     //uint32    spilloverRank_unk;                          // 22       It does not seem to be the max standing at which a faction outputs spillover ...so no idea
-    DBCString name;                                         // 23       m_name_lang
+    DBCString Name_lang;                                         // 23       m_name_lang
     //char*     description;                                // 24       m_description_lang
     //uint32                                                // 25
     //uint32                                                // 26       5.4.1
@@ -984,8 +984,8 @@ struct FactionEntry
     {
         for (int i = 0; i < 4; ++i)
         {
-            if ((BaseRepRaceMask[i] == 0 || (BaseRepRaceMask[i] & raceMask)) &&
-                    (BaseRepClassMask[i] == 0 || (BaseRepClassMask[i] & classMask)))
+            if ((ReputationRaceMask[i] == 0 || (ReputationRaceMask[i] & raceMask)) &&
+                    (ReputationClassMask[i] == 0 || (ReputationClassMask[i] & classMask)))
                 return i;
         }
 
