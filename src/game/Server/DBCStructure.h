@@ -823,7 +823,7 @@ struct CreatureFamilyEntry
 
 struct CreatureModelDataEntry
 {
-    uint32 Id;                                              // 0
+    uint32 ID;                                              // 0
     //uint32 Flags;                                         // 1
     //char* ModelPath                                       // 2
     //uint32 InhabitType;                                   // 3 model inhabit type
