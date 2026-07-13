@@ -1120,7 +1120,7 @@ struct GtChanceToMeleeCritBaseEntry
 struct GtChanceToMeleeCritEntry
 {
     //uint32 level;
-    float    ratio;
+    float    Data;
 };
 
 struct GtChanceToSpellCritBaseEntry
