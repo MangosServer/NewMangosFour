@@ -2736,11 +2736,11 @@ struct WorldMapOverlayEntry
 struct WorldSafeLocsEntry
 {
     uint32    ID;                                           // 0        m_ID
-    uint32    map_id;                                       // 1        m_continent
-    float     x;                                            // 2        m_locX
-    float     y;                                            // 3        m_locY
-    float     z;                                            // 4        m_locZ
-    //float                                                 // 5        5.x
+    uint32    Continent;                                       // 1        m_continent
+    float     Pos_X;                                            // 2        m_locX
+    float     Pos_Y;                                            // 3        m_locY
+    float     Pos_Z;                                            // 4        m_locZ
+    //float                                                 // 5        5.Pos_X
     //char*   name;                                         // 6        m_AreaName_lang
 };
 
