@@ -228,7 +228,7 @@ bool ChatHandler::HandleLookupAchievementCommand(char* args)
         }
 
         int loc = GetSessionDbcLocale();
-        std::string name = achEntry->name[loc];
+        std::string name = achEntry->Title_lang[loc];
         if (name.empty())
         {
             continue;
@@ -244,7 +244,7 @@ bool ChatHandler::HandleLookupAchievementCommand(char* args)
                     continue;
                 }
 
-                name = achEntry->name[loc];
+                name = achEntry->Title_lang[loc];
                 if (name.empty())
                 {
                     continue;
@@ -457,7 +457,7 @@ bool ChatHandler::HandleLookupFactionCommand(char* args)
         if (factionEntry)
         {
             int loc = GetSessionDbcLocale();
-            std::string name = factionEntry->name[loc];
+            std::string name = factionEntry->Name_lang[loc];
             if (name.empty())
             {
                 continue;
@@ -473,7 +473,7 @@ bool ChatHandler::HandleLookupFactionCommand(char* args)
                         continue;
                     }
 
-                    name = factionEntry->name[loc];
+                    name = factionEntry->Name_lang[loc];
                     if (name.empty())
                     {
                         continue;
@@ -950,7 +950,7 @@ bool ChatHandler::HandleLookupItemSetCommand(char* args)
         if (set)
         {
             int loc = GetSessionDbcLocale();
-            std::string name = set->name[loc];
+            std::string name = set->Name_lang[loc];
             if (name.empty())
             {
                 continue;
@@ -966,7 +966,7 @@ bool ChatHandler::HandleLookupItemSetCommand(char* args)
                         continue;
                     }
 
-                    name = set->name[loc];
+                    name = set->Name_lang[loc];
                     if (name.empty())
                     {
                         continue;

@@ -3335,12 +3335,12 @@ void Spell::EffectDummy(SpellEffectEntry const* effect)
 
                     for (int s = 0; s < 3; ++s)
                     {
-                        if (pEnchant->type[s] != ITEM_ENCHANTMENT_TYPE_COMBAT_SPELL)
+                        if (pEnchant->Effect[s] != ITEM_ENCHANTMENT_TYPE_COMBAT_SPELL)
                         {
                             continue;
                         }
 
-                        SpellEntry const* combatEntry = sSpellStore.LookupEntry(pEnchant->spellid[s]);
+                        SpellEntry const* combatEntry = sSpellStore.LookupEntry(pEnchant->EffectArg[s]);
                         if (!combatEntry || combatEntry->GetDispel() != DISPEL_POISON)
                         {
                             continue;

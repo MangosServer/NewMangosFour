@@ -35,7 +35,7 @@ void GlyphMgr::InitGlyphsForLevel()
     for (uint32 i = 0; i < sGlyphSlotStore.GetNumRows() && slot < MAX_GLYPH_SLOT_INDEX; ++i)
         if (GlyphSlotEntry const* gs = sGlyphSlotStore.LookupEntry(i))
         {
-            m_owner->SetGlyphSlot(slot++, gs->Id);
+            m_owner->SetGlyphSlot(slot++, gs->ID);
         }
 
     uint32 level = m_owner->getLevel();

@@ -627,9 +627,9 @@ void LoadDBCStores(const std::string& dataPath)
     for (uint32 i = 0; i < sFactionStore.GetNumRows(); ++i)
     {
         FactionEntry const* faction = sFactionStore.LookupEntry(i);
-        if (faction && faction->team)
+        if (faction && faction->ParentFactionID)
         {
-            SimpleFactionsList& flist = sFactionTeamMap[faction->team];
+            SimpleFactionsList& flist = sFactionTeamMap[faction->ParentFactionID];
             flist.push_back(i);
         }
     }
@@ -794,7 +794,7 @@ void LoadDBCStores(const std::string& dataPath)
             continue;
         }
 
-        SpellEntry const* spellInfo = sSpellStore.LookupEntry(skillLine->spellId);
+        SpellEntry const* spellInfo = sSpellStore.LookupEntry(skillLine->Spell);
         //if (spellInfo && (spellInfo->Attributes & (SPELL_ATTR_ABILITY | SPELL_ATTR_PASSIVE | SPELL_ATTR_UNK7 | SPELL_ATTR_UNK8)) == (SPELL_ATTR_ABILITY | SPELL_ATTR_PASSIVE | SPELL_ATTR_UNK7 | SPELL_ATTR_UNK8))
         if (spellInfo && (spellInfo->GetAttributes() & (SPELL_ATTR_ABILITY | SPELL_ATTR_PASSIVE | SPELL_ATTR_UNK7 | SPELL_ATTR_UNK8)) == (SPELL_ATTR_ABILITY | SPELL_ATTR_PASSIVE | SPELL_ATTR_UNK7 | SPELL_ATTR_UNK8))
         {
@@ -806,7 +806,7 @@ void LoadDBCStores(const std::string& dataPath)
                     continue;
                 }
 
-                if (skillLine->skillId != cFamily->SkillLine[0] && skillLine->skillId != cFamily->SkillLine[1])
+                if (skillLine->SkillLine != cFamily->SkillLine[0] && skillLine->SkillLine != cFamily->SkillLine[1])
                 {
                     continue;
                 }
@@ -1231,7 +1231,7 @@ AreaTableEntry const* GetAreaEntryByAreaFlagAndMap(uint32 area_flag, uint32 map_
 
     if (MapEntry const* mapEntry = sMapStore.LookupEntry(map_id))
     {
-        return GetAreaEntryByAreaID(mapEntry->linked_zone);
+        return GetAreaEntryByAreaID(mapEntry->AreaTableID);
     }
 
     return NULL;
@@ -1307,7 +1307,7 @@ ChatChannelsEntry const* GetChannelEntryFor(uint32 channel_id)
     for (uint32 i = 0; i < sChatChannelsStore.GetNumRows(); ++i)
     {
         ChatChannelsEntry const* ch = sChatChannelsStore.LookupEntry(i);
-        if (ch && ch->ChannelID == channel_id)
+        if (ch && ch->ID == channel_id)
         {
             return ch;
         }
@@ -1403,9 +1403,9 @@ ContentLevels GetContentLevelsForMapAndZone(uint32 mapId, uint32 zoneId)
         return CONTENT_1_60;
     }
 
-    if (mapEntry->rootPhaseMap != -1)
+    if (mapEntry->RootPhaseMap != -1)
     {
-        mapId = mapEntry->rootPhaseMap;
+        mapId = mapEntry->RootPhaseMap;
     }
 
     switch (mapId)

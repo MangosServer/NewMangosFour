@@ -181,7 +181,7 @@ GroupJoinBattlegroundResult Group::CanJoinBattleGroundQueue(BattleGround const* 
         return ERR_ARENA_TEAM_PARTY_SIZE;
     }
 
-    if (memberscount > bgEntry->maxGroupSize)               // no MinPlayerCount for battlegrounds
+    if (memberscount > bgEntry->MaxGroupSize)               // no MinPlayerCount for battlegrounds
     {
         return ERR_BATTLEGROUND_NONE;                       // ERR_GROUP_JOIN_BATTLEGROUND_TOO_MANY handled on client side
     }
@@ -364,7 +364,7 @@ void Group::ResetInstances(InstanceResetMethod method, bool isRaid, Player* Send
         if (method == INSTANCE_RESET_ALL)
         {
             // the "reset all instances" method can only reset normal maps
-            if (entry->map_type == MAP_RAID || diff == DUNGEON_DIFFICULTY_HEROIC)
+            if (entry->InstanceType == MAP_RAID || diff == DUNGEON_DIFFICULTY_HEROIC)
             {
                 ++itr;
                 continue;

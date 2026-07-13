@@ -4840,7 +4840,7 @@ int32 Unit::CalculateSpellDamage(Unit const* target, SpellEntry const* spellProt
         case SPELL_AURA_MOUNTED:
             if (MountCapabilityEntry const* mountCapability = GetMountCapability(uint32(spellEffect->EffectMiscValueB)))
             {
-                return int32(mountCapability->Id);
+                return int32(mountCapability->ID);
             }
             break;
         default:

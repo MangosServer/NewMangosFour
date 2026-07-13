@@ -878,7 +878,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
         do
         {
             // most often fast case
-            if (instance_map == targetMapEntry->MapID)
+            if (instance_map == targetMapEntry->ID)
             {
                 break;
             }

@@ -1529,7 +1529,7 @@ bool Player::BuildEnumData(QueryResult* result, ByteBuffer* data, ByteBuffer* bu
 
         *buffer << uint8(proto->InventoryType);
         *buffer << uint32(proto->DisplayInfoID);
-        *buffer << uint32(enchant ? enchant->aura_id : 0);
+        *buffer << uint32(enchant ? enchant->ItemVisual : 0);
     }
 
     for (int32 i = 0; i < 4; i++)
@@ -4814,39 +4814,39 @@ bool Player::IsSpellFitByClassAndRace(uint32 spell_id, uint32* pReqlevel /*= NUL
     {
         SkillLineAbilityEntry const* abilityEntry = _spell_idx->second;
         // skip wrong race skills
-        if (abilityEntry->racemask && (abilityEntry->racemask & racemask) == 0)
+        if (abilityEntry->RaceMask && (abilityEntry->RaceMask & racemask) == 0)
         {
             continue;
         }
 
         // skip wrong class skills
-        if (abilityEntry->classmask && (abilityEntry->classmask & classmask) == 0)
+        if (abilityEntry->ClassMask && (abilityEntry->ClassMask & classmask) == 0)
         {
             continue;
         }
 
-        SkillRaceClassInfoMapBounds raceBounds = sSpellMgr.GetSkillRaceClassInfoMapBounds(abilityEntry->skillId);
+        SkillRaceClassInfoMapBounds raceBounds = sSpellMgr.GetSkillRaceClassInfoMapBounds(abilityEntry->SkillLine);
         for (SkillRaceClassInfoMap::const_iterator itr = raceBounds.first; itr != raceBounds.second; ++itr)
         {
             SkillRaceClassInfoEntry const* skillRCEntry = itr->second;
-            if ((skillRCEntry->raceMask & racemask) && (skillRCEntry->classMask & classmask))
+            if ((skillRCEntry->RaceMask & racemask) && (skillRCEntry->ClassMask & classmask))
             {
-                if (skillRCEntry->flags & ABILITY_SKILL_NONTRAINABLE)
+                if (skillRCEntry->Flags & ABILITY_SKILL_NONTRAINABLE)
                 {
                     return false;
                 }
 
                 if (pReqlevel)                              // show trainers list case
                 {
-                    if (skillRCEntry->reqLevel)
+                    if (skillRCEntry->Availability)
                     {
-                        *pReqlevel = skillRCEntry->reqLevel;
+                        *pReqlevel = skillRCEntry->Availability;
                         return true;
                     }
                 }
                 else                                        // check availble case at train
                 {
-                    if (skillRCEntry->reqLevel && getLevel() < skillRCEntry->reqLevel)
+                    if (skillRCEntry->Availability && getLevel() < skillRCEntry->Availability)
                     {
                         return false;
                     }
@@ -5531,8 +5531,8 @@ bool Player::HasTitle(uint32 bitIndex) const
 
 void Player::SetTitle(CharTitlesEntry const* title, bool lost)
 {
-    uint32 fieldIndexOffset = title->bit_index / 32;
-    uint32 flag = 1 << (title->bit_index % 32);
+    uint32 fieldIndexOffset = title->Mask_ID / 32;
+    uint32 flag = 1 << (title->Mask_ID % 32);
 
     if (lost)
     {
@@ -5554,7 +5554,7 @@ void Player::SetTitle(CharTitlesEntry const* title, bool lost)
     }
 
     WorldPacket data(SMSG_TITLE_EARNED, 4 + 4);
-    data << uint32(title->bit_index);
+    data << uint32(title->Mask_ID);
     data << uint32(lost ? 0 : 1);                           // 1 - earned, 0 - lost
     GetSession()->SendPacket(&data);
 }
@@ -5989,7 +5989,7 @@ InventoryResult Player::CanEquipUniqueItem(Item* pItem, uint8 eslot, uint32 limi
             continue;
         }
 
-        ItemPrototype const* pGem = ObjectMgr::GetItemPrototype(enchantEntry->GemID);
+        ItemPrototype const* pGem = ObjectMgr::GetItemPrototype(enchantEntry->Src_itemID);
         if (!pGem)
         {
             continue;
