@@ -935,7 +935,7 @@ struct DurabilityCostsEntry
 
 struct DurabilityQualityEntry
 {
-    uint32    Id;                                           // 0        m_ID
+    uint32    ID;                                           // 0        m_ID
     float     quality_mod;                                  // 1        m_data
 };
 
