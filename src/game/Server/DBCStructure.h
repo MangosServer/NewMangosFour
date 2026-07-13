@@ -1786,17 +1786,17 @@ struct SkillLineEntry
 
 struct SkillLineAbilityEntry
 {
-    uint32    id;                                           // 0        m_ID
-    uint32    skillId;                                      // 1        m_skillLine
-    uint32    spellId;                                      // 2        m_spell
-    uint32    racemask;                                     // 3        m_raceMask
-    uint32    classmask;                                    // 4        m_classMask
-    uint32    req_skill_value;                              // 5        m_minSkillLineRank
-    uint32    forward_spellid;                              // 6        m_supercededBySpell
-    uint32    learnOnGetSkill;                              // 7        m_acquireMethod
-    uint32    max_value;                                    // 8        m_trivialSkillLineRankHigh
-    uint32    min_value;                                    // 9        m_trivialSkillLineRankLow
-    uint32    characterPoints;                              // 10       m_numSkillUps
+    uint32    ID;                                           // 0        m_ID
+    uint32    SkillLine;                                      // 1        m_skillLine
+    uint32    Spell;                                      // 2        m_spell
+    uint32    RaceMask;                                     // 3        m_raceMask
+    uint32    ClassMask;                                    // 4        m_classMask
+    uint32    MinSkillLineRank;                              // 5        m_minSkillLineRank
+    uint32    SupercedesSpell;                              // 6        m_supercededBySpell
+    uint32    AcquireMethod;                              // 7        m_acquireMethod
+    uint32    TrivialSkillLineRankHigh;                                    // 8        m_trivialSkillLineRankHigh
+    uint32    TrivialSkillLineRankLow;                                    // 9        m_trivialSkillLineRankLow
+    uint32    NumSkillUps;                              // 10       m_numSkillUps
     //uint32  uniqueBit;                                    // 11       m_uniqueBit (not read)
     //uint32  tradeSkillCategoryId;                         // 12       m_tradeSkillCategoryID (not read)
 };
