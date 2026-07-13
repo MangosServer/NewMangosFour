@@ -173,7 +173,7 @@ uint32 Unit::SpellDamageBonusDone(Unit* pVictim, SpellEntry const* spellProto, u
         if (((*i)->GetModifier()->m_miscvalue & GetSpellSchoolMask(spellProto)) &&
             (!spellEquip || spellEquip->EquippedItemClass == -1 &&
             // -1 == any item class (not wand then)
-            spellEquip->EquippedItemInventoryTypeMask == 0))
+            spellEquip->EquippedItemInvTypes == 0))
             // 0 == any inventory type (not wand then)
         {
             DoneTotalMod *= ((*i)->GetModifier()->m_amount + 100.0f) / 100.0f;
@@ -688,7 +688,7 @@ int32 Unit::SpellBaseDamageBonusDone(SpellSchoolMask schoolMask)
         SpellEquippedItemsEntry const* spellEquip = (*i)->GetSpellProto()->GetSpellEquippedItems();
         if (((*i)->GetModifier()->m_miscvalue & schoolMask) != 0 &&
             (!spellEquip || spellEquip->EquippedItemClass == -1 &&      // -1 == any item class (not wand then)
-            spellEquip->EquippedItemInventoryTypeMask == 0))            //  0 == any inventory type (not wand then)
+            spellEquip->EquippedItemInvTypes == 0))            //  0 == any inventory type (not wand then)
                 DoneAdvertisedBenefit += (*i)->GetModifier()->m_amount;
     }
 
@@ -1516,7 +1516,7 @@ bool Unit::IsImmuneToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex i
             }
     }
 
-    if (uint32 aura = spellEffect->EffectApplyAuraName)
+    if (uint32 aura = spellEffect->EffectAura)
     {
         SpellImmuneList const& list = m_spellImmune[IMMUNITY_STATE];
         for (SpellImmuneList::const_iterator itr = list.begin(); itr != list.end(); ++itr)

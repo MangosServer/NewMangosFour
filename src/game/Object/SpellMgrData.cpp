@@ -266,7 +266,7 @@ void SpellMgr::LoadSpellBonuses()
             }
 
             // DoTs/HoTs
-            switch(spellEffect->EffectApplyAuraName)
+            switch(spellEffect->EffectAura)
             {
                 case SPELL_AURA_PERIODIC_DAMAGE:
                 case SPELL_AURA_PERIODIC_DAMAGE_PERCENT:
@@ -305,7 +305,7 @@ void SpellMgr::LoadSpellBonuses()
                 }
                 // Heals (Also count Mana Shield and Absorb effects as heals)
                 if (spellEffect->Effect == SPELL_EFFECT_HEAL || spellEffect->Effect == SPELL_EFFECT_HEAL_MAX_HEALTH ||
-                    (spellEffect->Effect == SPELL_EFFECT_APPLY_AURA && (spellEffect->EffectApplyAuraName == SPELL_AURA_SCHOOL_ABSORB || spellEffect->EffectApplyAuraName == SPELL_AURA_PERIODIC_HEAL)) )
+                    (spellEffect->Effect == SPELL_EFFECT_APPLY_AURA && (spellEffect->EffectAura == SPELL_AURA_SCHOOL_ABSORB || spellEffect->EffectAura == SPELL_AURA_PERIODIC_HEAL)) )
                 {
                     isHeal = true;
                     break;
@@ -329,7 +329,7 @@ void SpellMgr::LoadSpellBonuses()
                     continue;
                 }
                 // Periodic Heals
-                if (spellEffect->Effect == SPELL_EFFECT_APPLY_AURA && spellEffect->EffectApplyAuraName == SPELL_AURA_PERIODIC_HEAL)
+                if (spellEffect->Effect == SPELL_EFFECT_APPLY_AURA && spellEffect->EffectAura == SPELL_AURA_PERIODIC_HEAL)
                 {
                     isHeal = true;
                     break;

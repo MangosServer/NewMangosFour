@@ -1702,7 +1702,7 @@ void Aura::HandleModDamageDone(bool apply, bool Real)
         return;
     }
 
-    if ( equippedItems && (equippedItems->EquippedItemClass != -1 || equippedItems->EquippedItemInventoryTypeMask != 0) )
+    if ( equippedItems && (equippedItems->EquippedItemClass != -1 || equippedItems->EquippedItemInvTypes != 0) )
     {
         // wand magic case (skip generic to all item spell bonuses)
         // done in Player::_ApplyWeaponDependentAuraMods
@@ -1801,7 +1801,7 @@ void Aura::HandleModDamagePercentDone(bool apply, bool Real)
         return;
     }
 
-    if ( equippedItems && (equippedItems->EquippedItemClass != -1 || equippedItems->EquippedItemInventoryTypeMask != 0) )
+    if ( equippedItems && (equippedItems->EquippedItemClass != -1 || equippedItems->EquippedItemInvTypes != 0) )
     {
         // wand magic case (skip generic to all item spell bonuses)
         // done in Player::_ApplyWeaponDependentAuraMods

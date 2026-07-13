@@ -210,7 +210,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
         return;
     }
 
-    uint32 EffectChainTarget = spellEffect ? spellEffect->EffectChainTarget : 0;
+    uint32 EffectChainTarget = spellEffect ? spellEffect->EffectChainTargets : 0;
     uint32 unMaxTargets = m_spellInfo->GetMaxAffectedTargets();
 
     float radius;
@@ -1693,7 +1693,7 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                     }
                     break;
                 case SPELL_EFFECT_APPLY_AURA:
-                    switch(spellEffect->EffectApplyAuraName)
+                    switch(spellEffect->EffectAura)
                     {
                         case SPELL_AURA_ADD_FLAT_MODIFIER:  // some spell mods auras have 0 target modes instead expected TARGET_SELF(1) (and present for other ranks for same spell for example)
                         case SPELL_AURA_ADD_PCT_MODIFIER:

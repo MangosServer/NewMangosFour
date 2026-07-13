@@ -218,7 +218,7 @@ GroupJoinBattlegroundResult Group::CanJoinBattleGroundQueue(BattleGround const* 
             return ERR_BATTLEGROUND_JOIN_TIMED_OUT;
         }
         // not in the same battleground level bracket, don't let join
-        PvPDifficultyEntry const* memberBracketEntry = GetBattlegroundBracketByLevel(bracketEntry->mapId, member->getLevel());
+        PvPDifficultyEntry const* memberBracketEntry = GetBattlegroundBracketByLevel(bracketEntry->MapID, member->getLevel());
         if (memberBracketEntry != bracketEntry)
         {
             return ERR_BATTLEGROUND_JOIN_RANGE_INDEX;

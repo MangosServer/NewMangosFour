@@ -104,7 +104,7 @@ void Spell::EffectApplyAura(SpellEffectEntry const* effect)
         }
     }
 
-    DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell: Aura is: %u", effect->EffectApplyAuraName);
+    DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell: Aura is: %u", effect->EffectAura);
 
     Aura* aur = CreateAura(m_spellInfo, SpellEffectIndex(effect->EffectIndex), &m_currentBasePoints[effect->EffectIndex], m_spellAuraHolder, unitTarget, caster, m_CastItem);
     m_spellAuraHolder->AddAura(aur, SpellEffectIndex(effect->EffectIndex));
@@ -184,7 +184,7 @@ void Spell::EffectPowerDrain(SpellEffectEntry const* effect)
     // Don`t restore from self drain
     if (drain_power == POWER_MANA && m_caster != unitTarget)
     {
-        float manaMultiplier = effect->EffectMultipleValue;
+        float manaMultiplier = effect->EffectAmplitude;
         if (manaMultiplier==0)
         {
             manaMultiplier = 1;
@@ -267,7 +267,7 @@ void Spell::EffectPowerBurn(SpellEffectEntry const* effect)
     int32 new_damage = (curPower < power) ? curPower : power;
 
     unitTarget->ModifyPower(powertype, -new_damage);
-    float multiplier = effect->EffectMultipleValue;
+    float multiplier = effect->EffectAmplitude;
 
     if (Player* modOwner = m_caster->GetSpellModOwner())
     {
@@ -360,7 +360,7 @@ void Spell::EffectHeal(SpellEffectEntry const* /*effect*/)
             while(idx < 3)
             {
                 targetSpellEffect = targetAura->GetSpellProto()->GetSpellEffect(SpellEffectIndex(idx));
-                if (targetSpellEffect && targetSpellEffect->EffectApplyAuraName == SPELL_AURA_PERIODIC_HEAL)
+                if (targetSpellEffect && targetSpellEffect->EffectAura == SPELL_AURA_PERIODIC_HEAL)
                 {
                     break;
                 }
@@ -492,7 +492,7 @@ void Spell::EffectHealthLeech(SpellEffectEntry const* effect)
         damage = curHealth;
     }
 
-    float multiplier = effect->EffectMultipleValue;
+    float multiplier = effect->EffectAmplitude;
 
     if (Player* modOwner = m_caster->GetSpellModOwner())
     {

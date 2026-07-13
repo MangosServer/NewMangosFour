@@ -141,7 +141,7 @@ SpellMiscEntry const* SpellEntry::GetSpellMisc() const
 uint32 SpellEntry::GetManaCost() const
 {
     SpellPowerEntry const* power = GetSpellPower();
-    return power ? power->manaCost : 0;
+    return power ? power->ManaCost : 0;
 }
 
 uint32 SpellEntry::GetPreventionType() const
@@ -189,7 +189,7 @@ uint32 SpellEntry::GetStartRecoveryCategory() const
 uint32 SpellEntry::GetSpellLevel() const
 {
     SpellLevelsEntry const* levels = GetSpellLevels();
-    return levels ? levels->spellLevel : 0;
+    return levels ? levels->SpellLevel : 0;
 }
 
 int32 SpellEntry::GetEquippedItemClass() const
@@ -225,31 +225,31 @@ uint32 SpellEntry::GetMaxAffectedTargets() const
 uint32 SpellEntry::GetStackAmount() const
 {
     SpellAuraOptionsEntry const* aura = GetSpellAuraOptions();
-    return aura ? aura->StackAmount : 0;
+    return aura ? aura->CumulativeAura : 0;
 }
 
 uint32 SpellEntry::GetManaCostPercentage() const
 {
     SpellPowerEntry const* power = GetSpellPower();
-    return power ? power->ManaCostPercentage : 0;
+    return power ? power->ManaPerSecond : 0;
 }
 
 uint32 SpellEntry::GetProcCharges() const
 {
     SpellAuraOptionsEntry const* aura = GetSpellAuraOptions();
-    return aura ? aura->procCharges : 0;
+    return aura ? aura->ProcCharges : 0;
 }
 
 uint32 SpellEntry::GetProcChance() const
 {
     SpellAuraOptionsEntry const* aura = GetSpellAuraOptions();
-    return aura ? aura->procChance : 0;
+    return aura ? aura->ProcChance : 0;
 }
 
 uint32 SpellEntry::GetMaxLevel() const
 {
     SpellLevelsEntry const* levels = GetSpellLevels();
-    return levels ? levels->maxLevel : 0;
+    return levels ? levels->MaxLevel : 0;
 }
 
 uint32 SpellEntry::GetTargetAuraState() const
@@ -261,7 +261,7 @@ uint32 SpellEntry::GetTargetAuraState() const
 uint32 SpellEntry::GetManaPerSecond() const
 {
     SpellPowerEntry const* power = GetSpellPower();
-    return power ? power->manaPerSecond : 0;
+    return power ? power->PowerDisplayID : 0;
 }
 
 uint32 SpellEntry::GetRequiresSpellFocus() const
@@ -303,7 +303,7 @@ uint32 SpellEntry::GetFacingCasterFlags() const
 uint32 SpellEntry::GetBaseLevel() const
 {
     SpellLevelsEntry const* levels = GetSpellLevels();
-    return levels ? levels->baseLevel : 0;
+    return levels ? levels->BaseLevel : 0;
 }
 
 uint32 SpellEntry::GetInterruptFlags() const
@@ -327,19 +327,19 @@ int32 SpellEntry::GetEffectMiscValue(SpellEffectIndex index) const
 uint32 SpellEntry::GetStances() const
 {
     SpellShapeshiftEntry const* ss = GetSpellShapeshift();
-    return ss ? ss->Stances : 0;
+    return ss ? ss->ShapeshiftMask : 0;
 }
 
 uint32 SpellEntry::GetStancesNot() const
 {
     SpellShapeshiftEntry const* ss = GetSpellShapeshift();
-    return ss ? ss->StancesNot : 0;
+    return ss ? ss->ShapeshiftExclude : 0;
 }
 
 uint32 SpellEntry::GetProcFlags() const
 {
     SpellAuraOptionsEntry const* aura = GetSpellAuraOptions();
-    return aura ? aura->procFlags : 0;
+    return aura ? aura->ProcTypeMask : 0;
 }
 
 uint32 SpellEntry::GetChannelInterruptFlags() const
@@ -351,7 +351,7 @@ uint32 SpellEntry::GetChannelInterruptFlags() const
 uint32 SpellEntry::GetManaCostPerLevel() const
 {
     SpellPowerEntry const* power = GetSpellPower();
-    return power ? power->manaCostPerlevel : 0;
+    return power ? power->ManaCostPerLevel : 0;
 }
 
 uint32 SpellEntry::GetCasterAuraState() const
@@ -369,7 +369,7 @@ uint32 SpellEntry::GetTargets() const
 uint32 SpellEntry::GetEffectApplyAuraNameByIndex(SpellEffectIndex index) const
 {
     SpellEffectEntry const* effect = GetSpellEffect(index);
-    return effect ? effect->EffectApplyAuraName : 0;
+    return effect ? effect->EffectAura : 0;
 }
 uint32 SpellEntry::GetAttributes() const
 {
@@ -506,6 +506,6 @@ uint32 SpellEntry::GetSchoolMask() const
 uint32 SpellEntry::GetPowerType() const
 {
     SpellPowerEntry const* power = GetSpellPower();
-    return power ? power->powerType : 0;
+    return power ? power->PowerType : 0;
 }
 

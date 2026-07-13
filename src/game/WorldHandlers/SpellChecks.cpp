@@ -167,20 +167,20 @@ SpellCastResult Spell::CheckCast(bool strict)
     {
         return SPELL_FAILED_CASTER_AURASTATE;
     }
-    if (auraRestrictions && auraRestrictions->CasterAuraStateNot && m_caster->HasAuraState(AuraState(auraRestrictions->CasterAuraStateNot)))
+    if (auraRestrictions && auraRestrictions->ExcludeCasterAuraState && m_caster->HasAuraState(AuraState(auraRestrictions->ExcludeCasterAuraState)))
     {
         return SPELL_FAILED_CASTER_AURASTATE;
     }
 
     // Caster aura req check if need
-    if (auraRestrictions && auraRestrictions->casterAuraSpell && !m_caster->HasAura(auraRestrictions->casterAuraSpell))
+    if (auraRestrictions && auraRestrictions->CasterAuraSpell && !m_caster->HasAura(auraRestrictions->CasterAuraSpell))
     {
         return SPELL_FAILED_CASTER_AURASTATE;
     }
-    if (auraRestrictions && auraRestrictions->excludeCasterAuraSpell)
+    if (auraRestrictions && auraRestrictions->ExcludeCasterAuraSpell)
     {
         // Special cases of non existing auras handling
-        if (auraRestrictions->excludeCasterAuraSpell == 61988)
+        if (auraRestrictions->ExcludeCasterAuraSpell == 61988)
         {
             // Avenging Wrath Marker
             if (m_caster->HasAura(61987))
@@ -188,7 +188,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                 return SPELL_FAILED_CASTER_AURASTATE;
             }
         }
-        else if (m_caster->HasAura(auraRestrictions->excludeCasterAuraSpell))
+        else if (m_caster->HasAura(auraRestrictions->ExcludeCasterAuraSpell))
         {
             return SPELL_FAILED_CASTER_AURASTATE;
         }
@@ -224,7 +224,7 @@ SpellCastResult Spell::CheckCast(bool strict)
     if (Unit *target = m_targets.getUnitTarget())
     {
         // target state requirements (not allowed state), apply to self also
-        if (auraRestrictions && auraRestrictions->TargetAuraStateNot && target->HasAuraState(AuraState(auraRestrictions->TargetAuraStateNot)))
+        if (auraRestrictions && auraRestrictions->ExcludeTargetAuraState && target->HasAuraState(AuraState(auraRestrictions->ExcludeTargetAuraState)))
         {
             return SPELL_FAILED_TARGET_AURASTATE;
         }
@@ -235,15 +235,15 @@ SpellCastResult Spell::CheckCast(bool strict)
         }
 
         // Target aura req check if need
-        if (auraRestrictions && auraRestrictions->targetAuraSpell && !target->HasAura(auraRestrictions->targetAuraSpell))
+        if (auraRestrictions && auraRestrictions->TargetAuraSpell && !target->HasAura(auraRestrictions->TargetAuraSpell))
         {
             return SPELL_FAILED_CASTER_AURASTATE;
         }
 
-        if (auraRestrictions && auraRestrictions->excludeTargetAuraSpell)
+        if (auraRestrictions && auraRestrictions->ExcludeTargetAuraSpell)
         {
             // Special cases of non existing auras handling
-            if (auraRestrictions->excludeTargetAuraSpell == 61988)
+            if (auraRestrictions->ExcludeTargetAuraSpell == 61988)
             {
                 // Avenging Wrath Marker
                 if (target->HasAura(61987))
@@ -251,7 +251,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                     return SPELL_FAILED_CASTER_AURASTATE;
                 }
             }
-            else if (target->HasAura(auraRestrictions->excludeTargetAuraSpell))
+            else if (target->HasAura(auraRestrictions->ExcludeTargetAuraSpell))
             {
                 return SPELL_FAILED_CASTER_AURASTATE;
             }
@@ -1553,7 +1553,7 @@ SpellCastResult Spell::CheckCast(bool strict)
         // Possible Unit-target for the spell
         Unit* expectedTarget = GetPrefilledUnitTargetOrUnitTarget(SpellEffectIndex(i));
 
-        switch (spellEffect->EffectApplyAuraName)
+        switch (spellEffect->EffectAura)
         {
             case SPELL_AURA_DUMMY:
             {
@@ -2026,19 +2026,19 @@ SpellCastResult Spell::CheckCasterAuras() const
             {
                 continue;
             }
-            if (spellEffect->EffectApplyAuraName == SPELL_AURA_SCHOOL_IMMUNITY)
+            if (spellEffect->EffectAura == SPELL_AURA_SCHOOL_IMMUNITY)
             {
                 school_immune |= uint32(spellEffect->EffectMiscValue);
             }
-            else if (spellEffect->EffectApplyAuraName == SPELL_AURA_MECHANIC_IMMUNITY)
+            else if (spellEffect->EffectAura == SPELL_AURA_MECHANIC_IMMUNITY)
             {
                 mechanic_immune |= 1 << uint32(spellEffect->EffectMiscValue-1);
             }
-            else if (spellEffect->EffectApplyAuraName == SPELL_AURA_MECHANIC_IMMUNITY_MASK)
+            else if (spellEffect->EffectAura == SPELL_AURA_MECHANIC_IMMUNITY_MASK)
             {
                 mechanic_immune |= uint32(spellEffect->EffectMiscValue);
             }
-            else if (spellEffect->EffectApplyAuraName == SPELL_AURA_DISPEL_IMMUNITY)
+            else if (spellEffect->EffectAura == SPELL_AURA_DISPEL_IMMUNITY)
             {
                 dispel_immune |= GetDispellMask(DispelType(spellEffect->EffectMiscValue));
             }

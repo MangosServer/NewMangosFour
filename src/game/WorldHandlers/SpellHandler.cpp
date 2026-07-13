@@ -561,8 +561,8 @@ void WorldSession::HandleCancelAuraOpcode(WorldPacket& recvPacket)
             for (int k = 0; k < MAX_EFFECT_INDEX; ++k)
             {
                 SpellEffectEntry const* spellEffect = spellInfo->GetSpellEffect(SpellEffectIndex(k));
-                if (spellEffect && (spellEffect->EffectApplyAuraName == SPELL_AURA_MOD_POSSESS ||
-                    spellEffect->EffectApplyAuraName == SPELL_AURA_MOD_POSSESS_PET))
+                if (spellEffect && (spellEffect->EffectAura == SPELL_AURA_MOD_POSSESS ||
+                    spellEffect->EffectAura == SPELL_AURA_MOD_POSSESS_PET))
                 {
                     allow = true;
                     break;

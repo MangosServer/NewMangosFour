@@ -176,7 +176,7 @@ void Spell::SendCastResult(Player* caster, SpellEntry const* spellInfo, uint8 ca
             {
                 SpellEquippedItemsEntry const* eqItems = spellInfo->GetSpellEquippedItems();
                 data << uint32(eqItems ? eqItems->EquippedItemClass : -1);
-                data << uint32(eqItems ? eqItems->EquippedItemSubClassMask : 0);
+                data << uint32(eqItems ? eqItems->EquippedItemSubclass : 0);
                 //data << uint32(eqItems ? eqItems->EquippedItemInventoryTypeMask : 0);
             }
             break;
@@ -185,7 +185,7 @@ void Spell::SendCastResult(Player* caster, SpellEntry const* spellInfo, uint8 ca
         {
             SpellEquippedItemsEntry const* eqItems = spellInfo->GetSpellEquippedItems();
             data << uint32(eqItems ? eqItems->EquippedItemClass : -1);
-            data << uint32(eqItems ? eqItems->EquippedItemSubClassMask : 0);
+            data << uint32(eqItems ? eqItems->EquippedItemSubclass : 0);
             break;
         }
         case SPELL_FAILED_PREVENTED_BY_MECHANIC:
@@ -197,7 +197,7 @@ void Spell::SendCastResult(Player* caster, SpellEntry const* spellInfo, uint8 ca
         case SPELL_FAILED_NEED_EXOTIC_AMMO:
         {
             SpellEquippedItemsEntry const* eqItems = spellInfo->GetSpellEquippedItems();
-            data << uint32(eqItems ? eqItems->EquippedItemSubClassMask : 0);// seems correct...
+            data << uint32(eqItems ? eqItems->EquippedItemSubclass : 0);// seems correct...
             break;
         }
         case SPELL_FAILED_REAGENTS:

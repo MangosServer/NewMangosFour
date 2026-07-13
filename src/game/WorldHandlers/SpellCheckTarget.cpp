@@ -171,11 +171,11 @@ bool Spell::CheckTarget(Unit* target, SpellEffectIndex eff)
     SpellAuraRestrictionsEntry const* auraRestrictions = m_spellInfo->GetSpellAuraRestrictions();
     if (auraRestrictions)
     {
-        if (auraRestrictions->targetAuraSpell && !target->HasAura(auraRestrictions->targetAuraSpell))
+        if (auraRestrictions->TargetAuraSpell && !target->HasAura(auraRestrictions->TargetAuraSpell))
         {
             return false;
         }
-        if (auraRestrictions->excludeTargetAuraSpell && target->HasAura(auraRestrictions->excludeTargetAuraSpell))
+        if (auraRestrictions->ExcludeTargetAuraSpell && target->HasAura(auraRestrictions->ExcludeTargetAuraSpell))
         {
             return false;
         }

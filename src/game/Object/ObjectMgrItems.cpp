@@ -204,9 +204,9 @@ void ObjectMgr::LoadItemPrototypes()
             }
             */
 
-            if (proto->Unk0 != dbcitem->Unk0)
+            if (proto->Unk0 != dbcitem->SoundOverrideSubclass)
             {
-                sLog.outErrorDb("Item (Entry: %u) not correct %i Unk0, must be %i (still using DB value).", i, proto->Unk0, dbcitem->Unk0);
+                sLog.outErrorDb("Item (Entry: %u) not correct %i Unk0, must be %i (still using DB value).", i, proto->Unk0, dbcitem->SoundOverrideSubclass);
                 // It safe let use Unk0 from DB
             }
 
@@ -222,15 +222,15 @@ void ObjectMgr::LoadItemPrototypes()
                 // It safe let use InventoryType from DB
             }
 
-            if (proto->DisplayInfoID != dbcitem->DisplayId)
+            if (proto->DisplayInfoID != dbcitem->DisplayInfoID)
             {
-                sLog.outErrorDb("Item (Entry: %u) not correct %u display id, must be %u (using it).", i, proto->DisplayInfoID, dbcitem->DisplayId);
-                const_cast<ItemPrototype*>(proto)->DisplayInfoID = dbcitem->DisplayId;
+                sLog.outErrorDb("Item (Entry: %u) not correct %u display id, must be %u (using it).", i, proto->DisplayInfoID, dbcitem->DisplayInfoID);
+                const_cast<ItemPrototype*>(proto)->DisplayInfoID = dbcitem->DisplayInfoID;
             }
-            if (proto->Sheath != dbcitem->Sheath)
+            if (proto->Sheath != dbcitem->SheatheType)
             {
-                sLog.outErrorDb("Item (Entry: %u) not correct %u sheath, must be %u  (using it).", i, proto->Sheath, dbcitem->Sheath);
-                const_cast<ItemPrototype*>(proto)->Sheath = dbcitem->Sheath;
+                sLog.outErrorDb("Item (Entry: %u) not correct %u sheath, must be %u  (using it).", i, proto->Sheath, dbcitem->SheatheType);
+                const_cast<ItemPrototype*>(proto)->Sheath = dbcitem->SheatheType;
             }
         }
         else
@@ -794,12 +794,12 @@ void ObjectMgr::LoadItemPrototypes()
 
         for (int j = 0; j < MAX_OUTFIT_ITEMS; ++j)
         {
-            if (entry->ItemId[j] <= 0)
+            if (entry->ItemID[j] <= 0)
             {
                 continue;
             }
 
-            uint32 item_id = entry->ItemId[j];
+            uint32 item_id = entry->ItemID[j];
 
             if (!GetItemPrototype(item_id))
                 if (item_id != 40582)                       // nonexistent item by default but referenced in DBC, skip it from errors

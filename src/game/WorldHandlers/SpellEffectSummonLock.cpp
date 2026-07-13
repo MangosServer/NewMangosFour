@@ -287,14 +287,14 @@ void Spell::EffectProficiency(SpellEffectEntry const* /*effect*/)
         return;
     }
 
-    if (eqItems->EquippedItemClass == ITEM_CLASS_WEAPON && !(p_target->GetWeaponProficiency() & eqItems->EquippedItemSubClassMask))
+    if (eqItems->EquippedItemClass == ITEM_CLASS_WEAPON && !(p_target->GetWeaponProficiency() & eqItems->EquippedItemSubclass))
     {
-        p_target->AddWeaponProficiency(eqItems->EquippedItemSubClassMask);
+        p_target->AddWeaponProficiency(eqItems->EquippedItemSubclass);
         p_target->SendProficiency(ITEM_CLASS_WEAPON, p_target->GetWeaponProficiency());
     }
-    if (eqItems->EquippedItemClass == ITEM_CLASS_ARMOR && !(p_target->GetArmorProficiency() & eqItems->EquippedItemSubClassMask))
+    if (eqItems->EquippedItemClass == ITEM_CLASS_ARMOR && !(p_target->GetArmorProficiency() & eqItems->EquippedItemSubclass))
     {
-        p_target->AddArmorProficiency(eqItems->EquippedItemSubClassMask);
+        p_target->AddArmorProficiency(eqItems->EquippedItemSubclass);
         p_target->SendProficiency(ITEM_CLASS_ARMOR, p_target->GetArmorProficiency());
     }
 }
@@ -1050,7 +1050,7 @@ bool Spell::DoSummonPet(SpellEffectEntry const* effect)
         return false;
     }
 
-    uint32 level = std::max(m_caster->getLevel() + effect->EffectMultipleValue, 1.0f);
+    uint32 level = std::max(m_caster->getLevel() + effect->EffectAmplitude, 1.0f);
 
     spawnCreature->SetRespawnCoord(pos);
 

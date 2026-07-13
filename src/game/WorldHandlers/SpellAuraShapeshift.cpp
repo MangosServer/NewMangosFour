@@ -449,9 +449,9 @@ void Aura::HandleAuraModShapeshift(bool apply, bool Real)
         {
             for (uint32 i = 0; i < 8; ++i)
             {
-                if (ssEntry->spellId[i])
+                if (ssEntry->PresetSpellID[i])
                 {
-                    ((Player*)target)->addSpell(ssEntry->spellId[i], true, false, false, false);
+                    ((Player*)target)->addSpell(ssEntry->PresetSpellID[i], true, false, false, false);
                 }
             }
         }
@@ -496,9 +496,9 @@ void Aura::HandleAuraModShapeshift(bool apply, bool Real)
         {
             for (uint32 i = 0; i < 8; ++i)
             {
-                if (ssEntry->spellId[i])
+                if (ssEntry->PresetSpellID[i])
                 {
-                    ((Player*)target)->removeSpell(ssEntry->spellId[i], false, false, false);
+                    ((Player*)target)->removeSpell(ssEntry->PresetSpellID[i], false, false, false);
                 }
             }
         }

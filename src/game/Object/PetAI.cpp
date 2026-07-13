@@ -339,7 +339,7 @@ void PetAI::UpdateAI(const uint32 diff)
                 {
                     int32 duration = GetSpellDuration(spellInfo);
                     SpellPowerEntry const* spellPower = spellInfo->GetSpellPower();
-                    if (spellPower && (spellPower->manaCost || spellPower->ManaCostPercentage || spellPower->manaPerSecond) && duration > 0)
+                    if (spellPower && (spellPower->ManaCost || spellPower->ManaPerSecond || spellPower->PowerDisplayID) && duration > 0)
                     {
                         continue;
                     }

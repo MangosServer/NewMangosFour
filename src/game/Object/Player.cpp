@@ -831,12 +831,12 @@ bool Player::Create(uint32 guidlow, const std::string& name, uint8 race, uint8 c
     {
         for (int j = 0; j < MAX_OUTFIT_ITEMS; ++j)
         {
-            if (oEntry->ItemId[j] <= 0)
+            if (oEntry->ItemID[j] <= 0)
             {
                 continue;
             }
 
-            uint32 item_id = oEntry->ItemId[j];
+            uint32 item_id = oEntry->ItemID[j];
 
             // Just skip, reported in ObjectMgr::LoadItemPrototypes
             ItemPrototype const* iProto = ObjectMgr::GetItemPrototype(item_id);
@@ -4418,10 +4418,10 @@ void Player::InitDataForForm(bool reapplyMods)
     ShapeshiftForm form = GetShapeshiftForm();
 
     SpellShapeshiftFormEntry const* ssEntry = sSpellShapeshiftFormStore.LookupEntry(form);
-    if (ssEntry && ssEntry->attackSpeed)
+    if (ssEntry && ssEntry->CombatRoundTime)
     {
-        SetAttackTime(BASE_ATTACK, ssEntry->attackSpeed);
-        SetAttackTime(OFF_ATTACK, ssEntry->attackSpeed);
+        SetAttackTime(BASE_ATTACK, ssEntry->CombatRoundTime);
+        SetAttackTime(OFF_ATTACK, ssEntry->CombatRoundTime);
         SetAttackTime(RANGED_ATTACK, BASE_ATTACK_TIME);
     }
     else
@@ -6228,7 +6228,7 @@ bool Player::IsImmuneToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex
             default:
                 break;
         }
-        switch(spellEffect->EffectApplyAuraName)
+        switch(spellEffect->EffectAura)
         {
             case SPELL_AURA_MOD_TAUNT:
                 return true;
@@ -6461,7 +6461,7 @@ bool Player::FitArmorSpecializationRules(SpellEntry const * spellProto) const
     if (SpellEquippedItemsEntry const * itemsEntry = spellProto->GetSpellEquippedItems())
     {
         // there spells check items with inventory types which are in EquippedItemInventoryTypeMask
-        uint32 inventoryTypeMask = itemsEntry->EquippedItemInventoryTypeMask;
+        uint32 inventoryTypeMask = itemsEntry->EquippedItemInvTypes;
         // get slots that should be check for item presence and SpellEquippedItemsEntry match
         uint32 slotMask = 0;
         uint8 slots[4];
@@ -6497,7 +6497,7 @@ bool Player::FitArmorSpecializationRules(SpellEntry const * spellProto) const
                     return false;
                 }
 
-                if (((1 << item->GetProto()->SubClass) & itemsEntry->EquippedItemSubClassMask) == 0)
+                if (((1 << item->GetProto()->SubClass) & itemsEntry->EquippedItemSubclass) == 0)
                 {
                     return false;
                 }
@@ -6519,7 +6519,7 @@ float Player::GetCollisionHeight(bool mounted) const
             return GetCollisionHeight(false);
         }
 
-        CreatureModelDataEntry const* mountModelData = sCreatureModelDataStore.LookupEntry(mountDisplayInfo->ModelId);
+        CreatureModelDataEntry const* mountModelData = sCreatureModelDataStore.LookupEntry(mountDisplayInfo->ModelID);
         if (!mountModelData)
         {
             return GetCollisionHeight(false);
@@ -6532,10 +6532,10 @@ float Player::GetCollisionHeight(bool mounted) const
             return 0;
         }
 
-        CreatureModelDataEntry const* modelData = sCreatureModelDataStore.LookupEntry(displayInfo->ModelId);
+        CreatureModelDataEntry const* modelData = sCreatureModelDataStore.LookupEntry(displayInfo->ModelID);
         if (!modelData)
         {
-            sLog.outError("GetCollisionHeight::Unable to find CreatureModelDataEntry for %u", displayInfo->ModelId);
+            sLog.outError("GetCollisionHeight::Unable to find CreatureModelDataEntry for %u", displayInfo->ModelID);
             return 0;
         }
 
@@ -6553,10 +6553,10 @@ float Player::GetCollisionHeight(bool mounted) const
             return 0;
         }
 
-        CreatureModelDataEntry const* modelData = sCreatureModelDataStore.LookupEntry(displayInfo->ModelId);
+        CreatureModelDataEntry const* modelData = sCreatureModelDataStore.LookupEntry(displayInfo->ModelID);
         if (!modelData)
         {
-            sLog.outError("GetCollisionHeight::Unable to find CreatureModelDataEntry for %u", displayInfo->ModelId);
+            sLog.outError("GetCollisionHeight::Unable to find CreatureModelDataEntry for %u", displayInfo->ModelID);
             return 0;
         }
 

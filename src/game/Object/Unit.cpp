@@ -1261,7 +1261,7 @@ uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDa
 
         // if damage is done by another shared aura, then skip to avoid circular reference (aura 300 is only applied on effect_idx_0
         if (spellEffect && spellEffect->Effect == SPELL_EFFECT_APPLY_AURA &&
-            spellEffect->EffectApplyAuraName == SPELL_AURA_SHARE_DAMAGE_PCT)
+            spellEffect->EffectAura == SPELL_AURA_SHARE_DAMAGE_PCT)
             break;
 
         if (Unit* shareTarget = (*itr)->GetCaster())
@@ -3491,7 +3491,7 @@ bool Unit::CanAttackByItself() const
         {
             if (VehicleSeatEntry const* seatEntry = sVehicleSeatStore.LookupEntry(seatId))
             {
-                if (seatEntry->m_flags & SEAT_FLAG_CAN_CONTROL)
+                if (seatEntry->Flags & SEAT_FLAG_CAN_CONTROL)
                 {
                     return false;
                 }
@@ -4835,7 +4835,7 @@ int32 Unit::CalculateSpellDamage(Unit const* target, SpellEntry const* spellProt
         return 0;
     }
 
-    switch (spellEffect->EffectApplyAuraName)
+    switch (spellEffect->EffectAura)
     {
         case SPELL_AURA_MOUNTED:
             if (MountCapabilityEntry const* mountCapability = GetMountCapability(uint32(spellEffect->EffectMiscValueB)))
@@ -4899,10 +4899,10 @@ int32 Unit::CalculateSpellDamage(Unit const* target, SpellEntry const* spellProt
 
     if (gtScalingEntry)
     {
-        float Scale = gtScalingEntry->value;
-        if (uint32(scalingEntry->castTimeMax) > 0 && uint32(scalingEntry->castScalingMaxLevel) > level)
+        float Scale = gtScalingEntry->Data;
+        if (uint32(scalingEntry->CastTimeMax) > 0 && uint32(scalingEntry->CastTimeMaxLevel) > level)
         {
-            Scale *= float(scalingEntry->castTimeMin + float(level - 1) * (scalingEntry->castTimeMax - scalingEntry->castTimeMin) / (scalingEntry->castScalingMaxLevel - 1)) / float(scalingEntry->castTimeMax);
+            Scale *= float(scalingEntry->CastTimeMin + float(level - 1) * (scalingEntry->CastTimeMax - scalingEntry->CastTimeMin) / (scalingEntry->CastTimeMaxLevel - 1)) / float(scalingEntry->CastTimeMax);
         }
         //if (uint32(scalingEntry->coefLevelBase) > level)
         //{
@@ -4931,7 +4931,7 @@ int32 Unit::CalculateSpellDamage(Unit const* target, SpellEntry const* spellProt
         basePoints = effBasePoints ? *effBasePoints - 1 : spellEffect->EffectBasePoints;
         basePoints += int32(level * basePointsPerLevel);
         int32 randomPoints = int32(spellEffect->EffectDieSides);
-        comboDamage = spellEffect->EffectPointsPerComboPoint;
+        comboDamage = spellEffect->EffectPointsPerResource;
 
         switch (randomPoints)
         {
@@ -4979,7 +4979,7 @@ int32 Unit::CalculateSpellDamage(Unit const* target, SpellEntry const* spellProt
     if (!gtScalingEntry && spellProto->GetAttributes() & SPELL_ATTR_LEVEL_DAMAGE_CALCULATION && spellLevel &&
             spellEffect->Effect != SPELL_EFFECT_WEAPON_PERCENT_DAMAGE &&
             spellEffect->Effect != SPELL_EFFECT_KNOCK_BACK &&
-            (spellEffect->Effect != SPELL_EFFECT_APPLY_AURA || spellEffect->EffectApplyAuraName != SPELL_AURA_MOD_DECREASE_SPEED))
+            (spellEffect->Effect != SPELL_EFFECT_APPLY_AURA || spellEffect->EffectAura != SPELL_AURA_MOD_DECREASE_SPEED))
     {
         value = int32(value * 0.25f * exp(level * (70 - spellLevel) / 1000.0f));
     }
@@ -5116,9 +5116,9 @@ uint32 Unit::GetCreatureType() const
     if (GetTypeId() == TYPEID_PLAYER)
     {
         SpellShapeshiftFormEntry const* ssEntry = sSpellShapeshiftFormStore.LookupEntry(GetShapeshiftForm());
-        if (ssEntry && ssEntry->creatureType > 0)
+        if (ssEntry && ssEntry->CreatureType > 0)
         {
-            return ssEntry->creatureType;
+            return ssEntry->CreatureType;
         }
         else
         {
@@ -5958,7 +5958,7 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit* pTarget, uint32 procFlag, 
                     }
                 }
 
-                SpellAuraProcResult procResult = (*this.*AuraProcHandler[spellEffect->EffectApplyAuraName])(pTarget, damage, triggeredByAura, procSpell, procFlag, procExtra, cooldown);
+                SpellAuraProcResult procResult = (*this.*AuraProcHandler[spellEffect->EffectAura])(pTarget, damage, triggeredByAura, procSpell, procFlag, procExtra, cooldown);
                 switch (procResult)
                 {
                     case SPELL_AURA_PROC_CANT_TRIGGER:

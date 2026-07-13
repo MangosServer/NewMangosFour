@@ -911,7 +911,7 @@ void Spell::EffectSummonPet(SpellEffectEntry const* effect)
     NewSummon->SetRespawnCoord(pos);
 
     // Level of pet summoned
-    uint32 level = std::max(m_caster->getLevel() + effect->EffectMultipleValue, 1.0f);
+    uint32 level = std::max(m_caster->getLevel() + effect->EffectAmplitude, 1.0f);
 
     NewSummon->GetCharmInfo()->SetReactState(REACT_DEFENSIVE);
     NewSummon->SetOwnerGuid(m_caster->GetObjectGuid());

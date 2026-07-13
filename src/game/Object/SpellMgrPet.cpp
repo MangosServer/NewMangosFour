@@ -96,7 +96,7 @@ void SpellMgr::LoadSpellPetAuras()
             SpellEffectEntry const* spellEffect = spellInfo->GetSpellEffect(eff);
             if (!spellEffect || spellEffect->Effect != SPELL_EFFECT_DUMMY &&
                (spellEffect->Effect != SPELL_EFFECT_APPLY_AURA ||
-                spellEffect->EffectApplyAuraName != SPELL_AURA_DUMMY))
+                spellEffect->EffectAura != SPELL_AURA_DUMMY))
             {
                 sLog.outError("Spell %u listed in `spell_pet_auras` does not have dummy aura or dummy effect", spell);
                 continue;
@@ -144,8 +144,8 @@ void SpellMgr::LoadPetLevelupSpellMap()
                 continue;
             }
 
-            if (skillLine->skillId != creatureFamily->skillLine[0] &&
-                    (!creatureFamily->skillLine[1] || skillLine->skillId != creatureFamily->skillLine[1]))
+            if (skillLine->skillId != creatureFamily->SkillLine[0] &&
+                    (!creatureFamily->SkillLine[1] || skillLine->skillId != creatureFamily->SkillLine[1]))
                 continue;
 
             if (skillLine->learnOnGetSkill != ABILITY_LEARNED_ON_GET_RACE_OR_CLASS_SKILL)
@@ -259,7 +259,7 @@ void SpellMgr::LoadPetDefaultSpells()
         PetDefaultSpellsEntry petDefSpells;
         for (int j = 0; j < MAX_CREATURE_SPELL_DATA_SLOT; ++j)
         {
-            petDefSpells.spellid[j] = spellDataEntry->spellId[j];
+            petDefSpells.spellid[j] = spellDataEntry->Spells[j];
         }
 
         if (LoadPetDefaultSpells_helper(cInfo, petDefSpells))

@@ -580,14 +580,14 @@ void LoadDBCStores(const std::string& dataPath)
             continue;
         }
 
-        MANGOS_ASSERT(entry->classId < MAX_CLASSES && "MAX_CLASSES not updated");
-        MANGOS_ASSERT(entry->power < MAX_POWERS && "MAX_POWERS not updated");
+        MANGOS_ASSERT(entry->ClassID < MAX_CLASSES && "MAX_CLASSES not updated");
+        MANGOS_ASSERT(entry->PowerType < MAX_POWERS && "MAX_POWERS not updated");
 
         uint32 index = 0;
 
         for (uint32 j = 0; j < MAX_POWERS; ++j)
         {
-            if (sChrClassXPowerTypesStore[entry->classId][j] != INVALID_POWER_INDEX)
+            if (sChrClassXPowerTypesStore[entry->ClassID][j] != INVALID_POWER_INDEX)
             {
                 ++index;
             }
@@ -596,17 +596,17 @@ void LoadDBCStores(const std::string& dataPath)
         {
             uint32 index = 0;
             for (uint32 j = 0; j < MAX_POWERS; ++j)
-                if (PowersByClass[power->classId][j] != MAX_POWERS)
+                if (PowersByClass[power->ClassID][j] != MAX_POWERS)
                 {
                     ++index;
                 }
 
-            PowersByClass[power->classId][power->power] = index;
+            PowersByClass[power->ClassID][power->PowerType] = index;
         }
         MANGOS_ASSERT(index < MAX_STORED_POWERS && "MAX_STORED_POWERS not updated");
 
-        sChrClassXPowerTypesStore[entry->classId][entry->power] = index;
-        sChrClassXPowerIndexStore[entry->classId][index] = entry->power;
+        sChrClassXPowerTypesStore[entry->ClassID][entry->PowerType] = index;
+        sChrClassXPowerIndexStore[entry->ClassID][index] = entry->PowerType;
     }
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sChrRacesStore,            dbcPath,"ChrRaces.dbc");
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sCinematicSequencesStore,  dbcPath,"CinematicSequences.dbc");
@@ -704,7 +704,7 @@ void LoadDBCStores(const std::string& dataPath)
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sPvPDifficultyStore,       dbcPath, "PvpDifficulty.dbc");
     for (uint32 i = 0; i < sPvPDifficultyStore.GetNumRows(); ++i)
         if (PvPDifficultyEntry const* entry = sPvPDifficultyStore.LookupEntry(i))
-            if (entry->bracketId > MAX_BATTLEGROUND_BRACKETS)
+            if (entry->RangeIndex > MAX_BATTLEGROUND_BRACKETS)
             {
                 MANGOS_ASSERT(false && "Need update MAX_BATTLEGROUND_BRACKETS by DBC data");
             }
@@ -749,7 +749,7 @@ void LoadDBCStores(const std::string& dataPath)
     {
         if (SpellEffectEntry const *spellEffect = sSpellEffectStore.LookupEntry(i))
         {
-            switch (spellEffect->EffectApplyAuraName)
+            switch (spellEffect->EffectAura)
             {
                 case SPELL_AURA_MOD_INCREASE_ENERGY:
                 case SPELL_AURA_MOD_INCREASE_ENERGY_PERCENT:
@@ -766,7 +766,7 @@ void LoadDBCStores(const std::string& dataPath)
                 continue;
             }
 
-            sSpellEffectMap[spellEffect->EffectSpellId].effects[spellEffect->EffectIndex] = spellEffect;
+            sSpellEffectMap[spellEffect->SpellID].effects[spellEffect->EffectIndex] = spellEffect;
         }
     }
 
@@ -806,7 +806,7 @@ void LoadDBCStores(const std::string& dataPath)
                     continue;
                 }
 
-                if (skillLine->skillId != cFamily->skillLine[0] && skillLine->skillId != cFamily->skillLine[1])
+                if (skillLine->skillId != cFamily->SkillLine[0] && skillLine->skillId != cFamily->SkillLine[1])
                 {
                     continue;
                 }
@@ -1265,7 +1265,7 @@ uint32 GetVirtualMapForMapAndZone(uint32 mapid, uint32 zoneId)
 
     if (WorldMapAreaEntry const* wma = sWorldMapAreaStore.LookupEntry(zoneId))
     {
-        return wma->virtual_map_id >= 0 ? wma->virtual_map_id : wma->map_id;
+        return wma->DisplayMapID >= 0 ? wma->DisplayMapID : wma->MapID;
     }
 
     return mapid;
@@ -1358,14 +1358,14 @@ bool Zone2MapCoordinates(float& x, float& y, uint32 zone)
     WorldMapAreaEntry const* maEntry = sWorldMapAreaStore.LookupEntry(zone);
 
     // if not listed then map coordinates (instance)
-    if (!maEntry || maEntry->x2 == maEntry->x1 || maEntry->y2 == maEntry->y1)
+    if (!maEntry || maEntry->LocBottom == maEntry->LocTop || maEntry->LocRight == maEntry->LocLeft)
     {
         return false;
     }
 
     std::swap(x, y);                                        // at client map coords swapped
-    x = x * ((maEntry->x2 - maEntry->x1) / 100) + maEntry->x1;
-    y = y * ((maEntry->y2 - maEntry->y1) / 100) + maEntry->y1; // client y coord from top to down
+    x = x * ((maEntry->LocBottom - maEntry->LocTop) / 100) + maEntry->LocTop;
+    y = y * ((maEntry->LocRight - maEntry->LocLeft) / 100) + maEntry->LocLeft; // client y coord from top to down
 
     return true;
 }
@@ -1383,13 +1383,13 @@ bool Map2ZoneCoordinates(float& x, float& y, uint32 zone)
     WorldMapAreaEntry const* maEntry = sWorldMapAreaStore.LookupEntry(zone);
 
     // if not listed then map coordinates (instance)
-    if (!maEntry || maEntry->x2 == maEntry->x1 || maEntry->y2 == maEntry->y1)
+    if (!maEntry || maEntry->LocBottom == maEntry->LocTop || maEntry->LocRight == maEntry->LocLeft)
     {
         return false;
     }
 
-    x = (x - maEntry->x1) / ((maEntry->x2 - maEntry->x1) / 100);
-    y = (y - maEntry->y1) / ((maEntry->y2 - maEntry->y1) / 100); // client y coord from top to down
+    x = (x - maEntry->LocTop) / ((maEntry->LocBottom - maEntry->LocTop) / 100);
+    y = (y - maEntry->LocLeft) / ((maEntry->LocRight - maEntry->LocLeft) / 100); // client y coord from top to down
     std::swap(x, y);                                        // client have map coords swapped
 
     return true;
@@ -1459,19 +1459,19 @@ PvPDifficultyEntry const* GetBattlegroundBracketByLevel(uint32 mapid, uint32 lev
         if (PvPDifficultyEntry const* entry = sPvPDifficultyStore.LookupEntry(i))
         {
             // skip unrelated and too-high brackets
-            if (entry->mapId != mapid || entry->minLevel > level)
+            if (entry->MapID != mapid || entry->MinLevel > level)
             {
                 continue;
             }
 
             // exactly fit
-            if (entry->maxLevel >= level)
+            if (entry->MaxLevel >= level)
             {
                 return entry;
             }
 
             // remember for possible out-of-range case (search higher from existed)
-            if (!maxEntry || maxEntry->maxLevel < entry->maxLevel)
+            if (!maxEntry || maxEntry->MaxLevel < entry->MaxLevel)
             {
                 maxEntry = entry;
             }
@@ -1485,7 +1485,7 @@ PvPDifficultyEntry const* GetBattlegroundBracketById(uint32 mapid, BattleGroundB
 {
     for (uint32 i = 0; i < sPvPDifficultyStore.GetNumRows(); ++i)
         if (PvPDifficultyEntry const* entry = sPvPDifficultyStore.LookupEntry(i))
-            if (entry->mapId == mapid && entry->GetBracketId() == id)
+            if (entry->MapID == mapid && entry->GetBracketId() == id)
             {
                 return entry;
             }

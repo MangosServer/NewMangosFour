@@ -234,7 +234,7 @@ inline bool IsPeriodicRegenerateEffect(SpellEntry const* spellInfo, SpellEffectI
         return false;
     }
 
-    switch (AuraType(effectEntry->EffectApplyAuraName))
+    switch (AuraType(effectEntry->EffectAura))
     {
         case SPELL_AURA_PERIODIC_ENERGIZE:
         case SPELL_AURA_PERIODIC_HEAL:
@@ -252,7 +252,7 @@ inline bool IsSpellHaveAura(SpellEntry const* spellInfo, AuraType aura, uint32 e
     for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
         if (effectMask & (1 << i))
             if (SpellEffectEntry const* effectEntry = spellInfo->GetSpellEffect(SpellEffectIndex(i)))
-                if (AuraType(effectEntry->EffectApplyAuraName) == aura)
+                if (AuraType(effectEntry->EffectAura) == aura)
                 {
                     return true;
                 }
@@ -264,7 +264,7 @@ inline bool IsSpellLastAuraEffect(SpellEntry const* spellInfo, SpellEffectIndex 
     for (int i = effecIdx + 1; i < MAX_EFFECT_INDEX; ++i)
     {
         if (SpellEffectEntry const* effectEntry = spellInfo->GetSpellEffect(SpellEffectIndex(i)))
-            if (effectEntry->EffectApplyAuraName)
+            if (effectEntry->EffectAura)
             {
                 return false;
             }
@@ -361,7 +361,7 @@ inline bool IsSpellRemoveAllMovementAndControlLossEffects(SpellEntry const* spel
         return false;
     }
 
-    return spellEffect0->EffectApplyAuraName == SPELL_AURA_MECHANIC_IMMUNITY &&
+    return spellEffect0->EffectAura == SPELL_AURA_MECHANIC_IMMUNITY &&
         spellEffect0->EffectMiscValue == 1 &&
         spellProto->GetEffectApplyAuraNameByIndex(EFFECT_INDEX_1) == SPELL_AURA_NONE &&
         spellProto->GetEffectApplyAuraNameByIndex(EFFECT_INDEX_2) == SPELL_AURA_NONE &&
@@ -706,7 +706,7 @@ inline bool IsNeedCastSpellAtFormApply(SpellEntry const* spellInfo, ShapeshiftFo
     }
 
     // passive spells with SPELL_ATTR_EX2_NOT_NEED_SHAPESHIFT are already active without shapeshift, do no recast!
-    return (shapeShift->Stances & (1<<(form-1)) && !(spellInfo->GetAttributesEx2() & SPELL_ATTR_EX2_NOT_NEED_SHAPESHIFT));
+    return (shapeShift->ShapeshiftMask & (1<<(form-1)) && !(spellInfo->GetAttributesEx2() & SPELL_ATTR_EX2_NOT_NEED_SHAPESHIFT));
 }
 
 inline bool IsNeedCastSpellAtOutdoor(SpellEntry const* spellInfo)

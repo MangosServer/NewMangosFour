@@ -818,7 +818,7 @@ bool ChatHandler::HandleLearnAllMyPetTalentsCommand(char* /*args*/)
         return false;
     }
 
-    if (pet_family->petTalentType < 0)                      // not hunter pet
+    if (pet_family->PetTalentType < 0)                      // not hunter pet
     {
         SendSysMessage(LANG_WRONG_PET_TYPE);
         SetSentErrorMessage(true);
@@ -840,7 +840,7 @@ bool ChatHandler::HandleLearnAllMyPetTalentsCommand(char* /*args*/)
         }
 
         // prevent learn talent for different family (cheating)
-        if (((1 << pet_family->petTalentType) & talentTabInfo->petTalentMask) == 0)
+        if (((1 << pet_family->PetTalentType) & talentTabInfo->petTalentMask) == 0)
         {
             continue;
         }

@@ -403,7 +403,7 @@ bool IsCastEndProcModifierAura(SpellEntry const* spellInfo, SpellEffectIndex eff
     }
 
     // modifier auras that can proc on cast end
-    switch (AuraType(spellEffect->EffectApplyAuraName))
+    switch (AuraType(spellEffect->EffectAura))
     {
         case SPELL_AURA_ADD_FLAT_MODIFIER:
         case SPELL_AURA_ADD_PCT_MODIFIER:

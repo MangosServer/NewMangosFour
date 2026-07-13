@@ -537,7 +537,7 @@ bool Unit::IsTriggeredAtSpellProcEvent(Unit* pVictim, SpellAuraHolder* holder, S
                 item = ((Player*)this)->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_RANGED);
             }
 
-            if (!item || item->IsBroken() || item->GetProto()->Class != ITEM_CLASS_WEAPON || !((1<<item->GetProto()->SubClass) & eqItems->EquippedItemSubClassMask))
+            if (!item || item->IsBroken() || item->GetProto()->Class != ITEM_CLASS_WEAPON || !((1<<item->GetProto()->SubClass) & eqItems->EquippedItemSubclass))
             {
                 return false;
             }
@@ -546,7 +546,7 @@ bool Unit::IsTriggeredAtSpellProcEvent(Unit* pVictim, SpellAuraHolder* holder, S
         {
             // Check if player is wearing shield
             Item *item = ((Player*)this)->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND);
-            if (!item || item->IsBroken() || !CanUseEquippedWeapon(OFF_ATTACK) || item->GetProto()->Class != ITEM_CLASS_ARMOR || !((1<<item->GetProto()->SubClass) & eqItems->EquippedItemSubClassMask))
+            if (!item || item->IsBroken() || !CanUseEquippedWeapon(OFF_ATTACK) || item->GetProto()->Class != ITEM_CLASS_ARMOR || !((1<<item->GetProto()->SubClass) & eqItems->EquippedItemSubclass))
             {
                 return false;
             }
@@ -756,7 +756,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 damage, Aura
                      ? ((Player*)this)->GetItemByGuid(triggeredByAura->GetCastItemGuid()) : NULL;
 
     // some dummy spells have trigger spell in spell data already (from 3.0.3)
-    uint32 triggered_spell_id = dummySpellEffect->EffectApplyAuraName == SPELL_AURA_DUMMY ? dummySpellEffect->EffectTriggerSpell : 0;
+    uint32 triggered_spell_id = dummySpellEffect->EffectAura == SPELL_AURA_DUMMY ? dummySpellEffect->EffectTriggerSpell : 0;
     Unit* target = pVictim;
     int32  basepoints[MAX_EFFECT_INDEX] = {0, 0, 0};
 
@@ -3005,7 +3005,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 damage, Aura
                         // select proper aura for format aura type in spell proto
                         SpellEffectEntry const* itrSpellEffect = (*i)->GetSpellProto()->GetSpellEffect((*i)->GetEffIndex());
                         SpellClassOptionsEntry const* itrClassOptions = (*i)->GetSpellProto()->GetSpellClassOptions();
-                        if ((*i)->GetTarget()==totem && itrSpellEffect && itrSpellEffect->EffectApplyAuraName == SPELL_AURA_MOD_HEALING_DONE &&
+                        if ((*i)->GetTarget()==totem && itrSpellEffect && itrSpellEffect->EffectAura == SPELL_AURA_MOD_HEALING_DONE &&
                             itrClassOptions && itrClassOptions->SpellFamilyName == SPELLFAMILY_SHAMAN && itrClassOptions->SpellFamilyFlags & UI64LIT(0x0000000004000000))
                         {
                             basepoints[0] = triggerAmount * (*i)->GetModifier()->m_amount / 100;
@@ -4502,7 +4502,7 @@ SpellAuraProcResult Unit::HandleProcTriggerSpellAuraProc(Unit* pVictim, uint32 d
         case 35095:
         {
             SpellPowerEntry const* spellPower = procSpell->GetSpellPower();
-            if (!spellPower || !procSpell || procSpell->GetPowerType()!=POWER_MANA || spellPower->manaCost==0 && spellPower->ManaCostPercentage==0 && spellPower->manaCostPerlevel==0)
+            if (!spellPower || !procSpell || procSpell->GetPowerType()!=POWER_MANA || spellPower->ManaCost==0 && spellPower->ManaPerSecond==0 && spellPower->ManaCostPerLevel==0)
             {
                 return SPELL_AURA_PROC_FAILED;
             }
