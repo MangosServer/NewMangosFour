@@ -1214,7 +1214,10 @@ struct ItemArmorTotalEntry
 {
   uint32    ID;                                             // 0 item level
   uint32    ItemLevel;                                            // 1 item level  (was Id2)
-  float     Value[4];                                       // 2-5 multiplier for armor types (cloth...plate)
+  float     Cloth;                                          // 2 multiplier for cloth armor
+  float     Leather;                                        // 3 multiplier for leather armor
+  float     Mail;                                           // 4 multiplier for mail armor
+  float     Plate;                                          // 5 multiplier for plate armor
 };
 
 struct ItemBagFamilyEntry

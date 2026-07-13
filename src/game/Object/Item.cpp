@@ -359,19 +359,19 @@ uint32 ItemPrototype::GetArmor() const
     switch (SubClass)
     {
         case ITEM_SUBCLASS_ARMOR_CLOTH:
-            iatMult = iat->Value[0];
+            iatMult = iat->Cloth;
             alMult = al->Value[0];
             break;
         case ITEM_SUBCLASS_ARMOR_LEATHER:
-            iatMult = iat->Value[1];
+            iatMult = iat->Leather;
             alMult = al->Value[1];
             break;
         case ITEM_SUBCLASS_ARMOR_MAIL:
-            iatMult = iat->Value[2];
+            iatMult = iat->Mail;
             alMult = al->Value[2];
             break;
         case ITEM_SUBCLASS_ARMOR_PLATE:
-            iatMult = iat->Value[3];
+            iatMult = iat->Plate;
             alMult = al->Value[3];
             break;
         default:
