@@ -272,7 +272,7 @@ SpellCastResult Spell::CheckRunePower()
     int32 runeCost[NUM_RUNE_TYPES];                         // blood, frost, unholy, death
     for (uint32 i = 0; i < RUNE_DEATH; ++i)
     {
-        runeCost[i] = src->RuneCost[i];
+        runeCost[i] = src->RuneCostByIndex(i);
         if (Player* modOwner = m_caster->GetSpellModOwner())
         {
             modOwner->ApplySpellMod(m_spellInfo->Id, SPELLMOD_COST, runeCost[i]);
@@ -336,7 +336,7 @@ void Spell::TakeRunePower(bool hit)
     int32 runeCost[NUM_RUNE_TYPES];                         // blood, frost, unholy, death
     for (uint32 i = 0; i < RUNE_DEATH; ++i)
     {
-        runeCost[i] = src->RuneCost[i];
+        runeCost[i] = src->RuneCostByIndex(i);
         if (Player* modOwner = m_caster->GetSpellModOwner())
         {
             modOwner->ApplySpellMod(m_spellInfo->Id, SPELLMOD_COST, runeCost[i]);

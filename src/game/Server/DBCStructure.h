@@ -2381,11 +2381,27 @@ struct SpellRangeEntry
 struct SpellRuneCostEntry
 {
     uint32  ID;                                             // 0        m_ID
-    uint32  RuneCost[3];                                    // 1-3      m_blood m_unholy m_frost (0=blood, 1=frost, 2=unholy)
-    //uint32                                                // 4        5.x
+    uint32  Blood;                                          // 1        m_blood
+    uint32  Unholy;                                         // 2        m_unholy
+    uint32  Frost;                                          // 3        m_frost
+    //uint32                                                // 4        5.x (m_chromatic, unread)
     uint32  RunicPower;                                  // 5        m_runicPower  (was runePowerGain)
 
-    bool NoRuneCost() const { return RuneCost[0] == 0 && RuneCost[1] == 0 && RuneCost[2] == 0; }
+    // Rune-type-indexed accessor: index order (0=Blood,1=Unholy,2=Frost) matches
+    // RuneType enum order (RUNE_BLOOD=0, RUNE_UNHOLY=1, RUNE_FROST=2) used by every
+    // dynamic-index consumer (Spell::CheckRunePower/TakeRunePower loop over RuneType).
+    uint32 RuneCostByIndex(uint32 idx) const
+    {
+        switch (idx)
+        {
+            case 0: return Blood;
+            case 1: return Unholy;
+            case 2: return Frost;
+            default: return 0;
+        }
+    }
+
+    bool NoRuneCost() const { return Blood == 0 && Unholy == 0 && Frost == 0; }
     bool NoRunicPowerGain() const { return RunicPower == 0; }
 };
 
