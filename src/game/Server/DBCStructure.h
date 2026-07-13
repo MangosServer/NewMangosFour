@@ -2557,8 +2557,8 @@ struct TotemCategoryEntry
 struct TransportAnimationEntry
 {
     //uint32    id;                                         // 0
-    uint32    transportEntry;                               // 1
-    uint32    timeFrame;                                    // 2
+    uint32    TransportEntry;                               // 1
+    uint32    TimeIndex;                                    // 2
     //float     xOffs;                                      // 3
     //float     yOffs;                                      // 4
     //float     zOffs;                                      // 5
