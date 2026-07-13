@@ -1579,10 +1579,10 @@ struct QuestXPLevel
 
 struct RandomPropertiesPointsEntry
 {
-    uint32    itemLevel;                                    // 0        m_ItemLevel
-    uint32    EpicPropertiesPoints[5];                      // 1-5      m_Epic
-    uint32    RarePropertiesPoints[5];                      // 6-10     m_Superior
-    uint32    UncommonPropertiesPoints[5];                  // 11-15    m_Good
+    uint32    ID;                                    // 0        m_ItemLevel
+    uint32    Epic[5];                      // 1-5      m_Epic
+    uint32    Superior[5];                      // 6-10     m_Superior
+    uint32    Good[5];                  // 11-15    m_Good
 };
 
 struct ScalingStatDistributionEntry
