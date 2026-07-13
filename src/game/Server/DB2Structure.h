@@ -99,7 +99,7 @@ struct SceneScriptEntry
     uint32 ID;                                               // 0         m_ID
     //char* name;                                            // 1         m_name
     //char* script;                                          // 2         m_script
-    uint32 prevScriptPartID;                                 // 3         m_prevScriptPartID - Prev Script Part Id From Chain
-    uint32 nextScriptPartID;                                 // 4         m_nextScriptPartID - Next Script Part Id From Chain
+    uint32 FirstSceneScriptID;                                 // 3         m_prevScriptPartID - Prev Script Part Id From Chain
+    uint32 NextSceneScriptID;                                 // 4         m_nextScriptPartID - Next Script Part Id From Chain
 };
 #endif
