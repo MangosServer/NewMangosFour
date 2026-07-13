@@ -1160,7 +1160,7 @@ struct GtSpellScalingEntry
 
 struct GtOCTBaseHPByClassEntry
 {
-    float ratio;
+    float Data;
 };
 
 struct GtOCTBaseMPByClassEntry
