@@ -1531,7 +1531,7 @@ struct OverrideSpellDataEntry
 
 struct PhaseEntry
 {
-    uint32 Id;                                              // 0
+    uint32 ID;                                              // 0
     uint32 PhaseShift;                                      // 1
     uint32 Flags;                                           // 2 - 0x0, 0x4, 0x8
 };
