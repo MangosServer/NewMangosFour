@@ -1910,8 +1910,8 @@ struct SpellCategoriesEntry
                                                             // 1        5.x
                                                             // 2        5.x
     uint32    Category;                                     // 3        m_category
-    uint32    DmgClass;                                     // 4        m_defenseType
-    uint32    Dispel;                                       // 5        m_dispelType
+    uint32    DefenseType;                                     // 4        m_defenseType
+    uint32    DispelType;                                       // 5        m_dispelType
     uint32    Mechanic;                                     // 6        m_mechanic
     uint32    PreventionType;                               // 7        m_preventionType
     uint32    StartRecoveryCategory;                        // 8        m_startRecoveryCategory
