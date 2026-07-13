@@ -1495,7 +1495,7 @@ struct MovieEntry
 
 struct MountCapabilityEntry
 {
-    uint32 Id;
+    uint32 ID;
     uint32 Flags;
     uint32 RequiredRidingSkill;
     uint32 RequiredArea;
