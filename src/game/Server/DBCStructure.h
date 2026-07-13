@@ -1165,7 +1165,7 @@ struct GtOCTBaseHPByClassEntry
 
 struct GtOCTBaseMPByClassEntry
 {
-    float    ratio;
+    float    Data;
 };
 
 /*struct HolidayDescriptionsEntry
