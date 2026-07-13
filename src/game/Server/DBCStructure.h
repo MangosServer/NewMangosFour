@@ -1509,7 +1509,7 @@ struct MountCapabilityEntry
 
 struct MountTypeEntry
 {
-    uint32 Id;
+    uint32 ID;
     uint32 MountCapability[MAX_MOUNT_CAPABILITIES];
 };
 
