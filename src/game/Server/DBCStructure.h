@@ -1549,14 +1549,14 @@ struct PowerDisplayEntry
 struct PvPDifficultyEntry
 {
     //uint32      id;                                       // 0        m_ID
-    uint32      mapId;                                      // 1        m_mapID
-    uint32      bracketId;                                  // 2        m_rangeIndex
-    uint32      minLevel;                                   // 3        m_minLevel
-    uint32      maxLevel;                                   // 4        m_maxLevel
-    uint32      difficulty;                                 // 5        m_difficulty
+    uint32      MapID;                                      // 1        m_mapID
+    uint32      RangeIndex;                                  // 2        m_rangeIndex
+    uint32      MinLevel;                                   // 3        m_minLevel
+    uint32      MaxLevel;                                   // 4        m_maxLevel
+    uint32      Difficulty;                                 // 5        m_difficulty
 
     // helpers
-    BattleGroundBracketId GetBracketId() const { return BattleGroundBracketId(bracketId); }
+    BattleGroundBracketId GetBracketId() const { return BattleGroundBracketId(RangeIndex); }
 };
 
 struct QuestFactionRewardEntry
