@@ -869,14 +869,14 @@ struct CreatureTypeEntry
 struct CurrencyTypesEntry
 {
     uint32  ID;                                             // 0
-    uint32 Category;                                        // 1
-    DBCString name;                                         // 2
+    uint32 CategoryID;                                        // 1
+    DBCString Name_lang;                                         // 2
     //char* iconName;                                       // 3
     //char* iconName2;                                      // 4
     //uint32 unk5;                                          // 5
     //uint32 unk6;                                          // 6
-    uint32 TotalCap;                                        // 7
-    uint32 WeekCap;                                         // 8
+    uint32 MaxQty;                                        // 7
+    uint32 MaxEarnablePerWeek;                                         // 8
     uint32 Flags;                                           // 9
     //uint32                                                // 10       5.4.1
     //DBCString description;                                // 11
