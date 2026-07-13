@@ -2129,7 +2129,7 @@ struct SpellTargetRestrictionsEntry
 struct SpellTotemsEntry
 {
     //uint32    Id;                                           // 0        m_ID
-    uint32    TotemCategory[MAX_SPELL_TOTEM_CATEGORIES];    // 162-163  m_requiredTotemCategoryID
+    uint32    RequiredTotemCategoryID[MAX_SPELL_TOTEM_CATEGORIES];    // 162-163  m_requiredTotemCategoryID
     uint32    Totem[MAX_SPELL_TOTEMS];                      // 52-53    m_totem
 };
 
