@@ -1791,15 +1791,14 @@ struct SkillLineAbilityEntry
     uint32    spellId;                                      // 2        m_spell
     uint32    racemask;                                     // 3        m_raceMask
     uint32    classmask;                                    // 4        m_classMask
-    //uint32    racemaskNot;                                // 5        m_excludeRace
-    //uint32    classmaskNot;                               // 6        m_excludeClass
-    uint32    req_skill_value;                              // 7        m_minSkillLineRank
-    uint32    forward_spellid;                              // 8        m_supercededBySpell
-    uint32    learnOnGetSkill;                              // 9        m_acquireMethod
-    uint32    max_value;                                    // 10       m_trivialSkillLineRankHigh
-    uint32    min_value;                                    // 11       m_trivialSkillLineRankLow
-    uint32    characterPoints;                              // 12       4.0.0
-    //uint32                                                // 13       4.0.0
+    uint32    req_skill_value;                              // 5        m_minSkillLineRank
+    uint32    forward_spellid;                              // 6        m_supercededBySpell
+    uint32    learnOnGetSkill;                              // 7        m_acquireMethod
+    uint32    max_value;                                    // 8        m_trivialSkillLineRankHigh
+    uint32    min_value;                                    // 9        m_trivialSkillLineRankLow
+    uint32    characterPoints;                              // 10       m_numSkillUps
+    //uint32  uniqueBit;                                    // 11       m_uniqueBit (not read)
+    //uint32  tradeSkillCategoryId;                         // 12       m_tradeSkillCategoryID (not read)
 };
 
 struct SoundEntriesEntry
