@@ -1481,7 +1481,7 @@ struct MapDifficultyEntry
     DBCString   Message_lang;                            // 3        m_message_lang (text showed when transfer to map failed)  (was areaTriggerText)
     uint32      RaidDuration;                                  // 4,       m_raidDuration in secs, 0 if no fixed reset time  (was resetTime)
     uint32      MaxPlayers;                                 // 5,       m_maxPlayers some heroic versions have 0 when expected same amount as in normal version
-    DBCString   difficultyString;                           // 6        m_difficultystring
+    uint32      LockID;                                     // 6        registry: LockID (fk Lock::ID), was DBCString difficultyString
 };
 
 struct MovieEntry
