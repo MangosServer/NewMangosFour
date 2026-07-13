@@ -668,7 +668,7 @@ struct CharStartOutfitEntry
     uint8 ClassID;                                          // 2        m_classID
     uint8 SexID;                                            // 3        m_sexID
     // uint8 OutfitID;                                      // 4        m_outfitID (always 0, fmt 'X')
-    int32 ItemId[MAX_OUTFIT_ITEMS];                         // 5-28     m_ItemID
+    int32 ItemID[MAX_OUTFIT_ITEMS];                         // 5-28     m_ItemID
     // int32 ItemDisplayId[MAX_OUTFIT_ITEMS];               // 29-52    not required at server side
     // int32 ItemInventorySlot[MAX_OUTFIT_ITEMS];           // 53-76    not required at server side
     // uint32 PetDisplayId;                                 // 77       not required at server side
