@@ -1573,8 +1573,8 @@ struct QuestSortEntry
 
 struct QuestXPLevel
 {
-    uint32      questLevel;                                 // 0        m_ID
-    uint32      xpIndex[10];                                // 1-10     m_difficulty[10]
+    uint32      ID;                                 // 0        m_ID
+    uint32      Exp[10];                                // 1-10     m_difficulty[10]
 };
 
 struct RandomPropertiesPointsEntry
