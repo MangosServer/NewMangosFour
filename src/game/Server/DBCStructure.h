@@ -1292,7 +1292,7 @@ struct ItemRandomSuffixEntry
 
 struct ItemReforgeEntry
 {
-    uint32 Id;                                              // 0
+    uint32 ID;                                              // 0
     uint32 SourceStat;                                      // 1
     float SourceMultiplier;                                 // 2
     uint32 FinalStat;                                       // 3
