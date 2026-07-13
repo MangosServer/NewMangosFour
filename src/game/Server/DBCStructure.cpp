@@ -30,7 +30,7 @@
 
 int32 SpellEntry::CalculateSimpleValue(SpellEffectIndex eff) const
 {
-    if (SpellEffectEntry const* effectEntry = GetSpellEffectEntry(Id, eff))
+    if (SpellEffectEntry const* effectEntry = GetSpellEffectEntry(ID, eff))
     {
         return effectEntry->CalculateSimpleValue();
     }
@@ -39,7 +39,7 @@ int32 SpellEntry::CalculateSimpleValue(SpellEffectIndex eff) const
 
 ClassFamilyMask const& SpellEntry::GetEffectSpellClassMask(SpellEffectIndex eff) const
 {
-    if (SpellEffectEntry const* effectEntry = GetSpellEffectEntry(Id, eff))
+    if (SpellEffectEntry const* effectEntry = GetSpellEffectEntry(ID, eff))
     {
         return effectEntry->EffectSpellClassMask;
     }
@@ -51,52 +51,52 @@ ClassFamilyMask const& SpellEntry::GetEffectSpellClassMask(SpellEffectIndex eff)
 
 SpellAuraOptionsEntry const* SpellEntry::GetSpellAuraOptions() const
 {
-    return SpellAuraOptionsId ? sSpellAuraOptionsStore.LookupEntry(SpellAuraOptionsId) : NULL;
+    return AuraOptionsID ? sSpellAuraOptionsStore.LookupEntry(AuraOptionsID) : NULL;
 }
 
 SpellAuraRestrictionsEntry const* SpellEntry::GetSpellAuraRestrictions() const
 {
-    return SpellAuraRestrictionsId ? sSpellAuraRestrictionsStore.LookupEntry(SpellAuraRestrictionsId) : NULL;
+    return AuraRestrictionsID ? sSpellAuraRestrictionsStore.LookupEntry(AuraRestrictionsID) : NULL;
 }
 
 SpellCastingRequirementsEntry const* SpellEntry::GetSpellCastingRequirements() const
 {
-    return SpellCastingRequirementsId ? sSpellCastingRequirementsStore.LookupEntry(SpellCastingRequirementsId) : NULL;
+    return CastingRequirementsID ? sSpellCastingRequirementsStore.LookupEntry(CastingRequirementsID) : NULL;
 }
 
 SpellCategoriesEntry const* SpellEntry::GetSpellCategories() const
 {
-    return SpellCategoriesId ? sSpellCategoriesStore.LookupEntry(SpellCategoriesId) : NULL;
+    return CategoriesID ? sSpellCategoriesStore.LookupEntry(CategoriesID) : NULL;
 }
 
 SpellClassOptionsEntry const* SpellEntry::GetSpellClassOptions() const
 {
-    return SpellClassOptionsId ? sSpellClassOptionsStore.LookupEntry(SpellClassOptionsId) : NULL;
+    return ClassOptionsID ? sSpellClassOptionsStore.LookupEntry(ClassOptionsID) : NULL;
 }
 
 SpellCooldownsEntry const* SpellEntry::GetSpellCooldowns() const
 {
-    return SpellCooldownsId ? sSpellCooldownsStore.LookupEntry(SpellCooldownsId) : NULL;
+    return CooldownsID ? sSpellCooldownsStore.LookupEntry(CooldownsID) : NULL;
 }
 
 SpellEffectEntry const* SpellEntry::GetSpellEffect(SpellEffectIndex eff) const
 {
-    return GetSpellEffectEntry(Id, eff);
+    return GetSpellEffectEntry(ID, eff);
 }
 
 SpellEquippedItemsEntry const* SpellEntry::GetSpellEquippedItems() const
 {
-    return SpellEquippedItemsId ? sSpellEquippedItemsStore.LookupEntry(SpellEquippedItemsId) : NULL;
+    return EquippedItemsID ? sSpellEquippedItemsStore.LookupEntry(EquippedItemsID) : NULL;
 }
 
 SpellInterruptsEntry const* SpellEntry::GetSpellInterrupts() const
 {
-    return SpellInterruptsId ? sSpellInterruptsStore.LookupEntry(SpellInterruptsId) : NULL;
+    return InterruptsID ? sSpellInterruptsStore.LookupEntry(InterruptsID) : NULL;
 }
 
 SpellLevelsEntry const* SpellEntry::GetSpellLevels() const
 {
-    return SpellLevelsId ? sSpellLevelsStore.LookupEntry(SpellLevelsId) : NULL;
+    return LevelsID ? sSpellLevelsStore.LookupEntry(LevelsID) : NULL;
 }
 
 SpellPowerEntry const* SpellEntry::GetSpellPower() const
@@ -104,38 +104,38 @@ SpellPowerEntry const* SpellEntry::GetSpellPower() const
 #if defined(CATA)
     return SpellPowerId ? sSpellPowerStore.LookupEntry(SpellPowerId) : NULL;
 #elif defined(MISTS)
-    return sSpellPowerStore.LookupEntry(Id);
+    return sSpellPowerStore.LookupEntry(ID);
 #endif
 }
 
 SpellReagentsEntry const* SpellEntry::GetSpellReagents() const
 {
-    return SpellReagentsId ? sSpellReagentsStore.LookupEntry(SpellReagentsId) : NULL;
+    return ReagentsID ? sSpellReagentsStore.LookupEntry(ReagentsID) : NULL;
 }
 
 SpellScalingEntry const* SpellEntry::GetSpellScaling() const
 {
-    return SpellScalingId ? sSpellScalingStore.LookupEntry(SpellScalingId) : NULL;
+    return ScalingID ? sSpellScalingStore.LookupEntry(ScalingID) : NULL;
 }
 
 SpellShapeshiftEntry const* SpellEntry::GetSpellShapeshift() const
 {
-    return SpellShapeshiftId ? sSpellShapeshiftStore.LookupEntry(SpellShapeshiftId) : NULL;
+    return ShapeshiftID ? sSpellShapeshiftStore.LookupEntry(ShapeshiftID) : NULL;
 }
 
 SpellTargetRestrictionsEntry const* SpellEntry::GetSpellTargetRestrictions() const
 {
-    return SpellTargetRestrictionsId ? sSpellTargetRestrictionsStore.LookupEntry(SpellTargetRestrictionsId) : NULL;
+    return TargetRestrictionsID ? sSpellTargetRestrictionsStore.LookupEntry(TargetRestrictionsID) : NULL;
 }
 
 SpellTotemsEntry const* SpellEntry::GetSpellTotems() const
 {
-    return SpellTotemsId ? sSpellTotemsStore.LookupEntry(SpellTotemsId) : NULL;
+    return TotemsID ? sSpellTotemsStore.LookupEntry(TotemsID) : NULL;
 }
 
 SpellMiscEntry const* SpellEntry::GetSpellMisc() const
 {
-    return SpellMiscId ? sSpellMiscStore.LookupEntry(SpellMiscId) : NULL;
+    return MiscID ? sSpellMiscStore.LookupEntry(MiscID) : NULL;
 }
 
 uint32 SpellEntry::GetManaCost() const
