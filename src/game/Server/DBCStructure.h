@@ -1114,7 +1114,7 @@ struct GtCombatRatingsEntry
 struct GtChanceToMeleeCritBaseEntry
 {
     //uint32 level;
-    float    base;
+    float    Data;
 };
 
 struct GtChanceToMeleeCritEntry
