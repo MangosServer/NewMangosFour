@@ -2415,8 +2415,10 @@ struct SpellDifficultyEntry
 
 struct SpellDurationEntry
 {
-    uint32    ID;                                           //          m_ID
-    int32     Duration[3];                                  //          m_duration, m_durationPerLevel, m_maxDuration
+    uint32    ID;                                           // 0        m_ID
+    int32     Duration;                                     // 1        m_duration
+    int32     DurationPerLevel;                              // 2        m_durationPerLevel
+    int32     MaxDuration;                                  // 3        m_maxDuration
 };
 
 struct SpellItemEnchantmentEntry

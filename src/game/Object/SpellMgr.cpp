@@ -99,7 +99,7 @@ int32 GetSpellDuration(SpellEntry const* spellInfo)
     {
         return 0;
     }
-    return (du->Duration[0] == -1) ? -1 : abs(du->Duration[0]);
+    return (du->Duration == -1) ? -1 : abs(du->Duration);
 }
 
 /**
@@ -119,7 +119,7 @@ int32 GetSpellMaxDuration(SpellEntry const* spellInfo)
     {
         return 0;
     }
-    return (du->Duration[2] == -1) ? -1 : abs(du->Duration[2]);
+    return (du->MaxDuration == -1) ? -1 : abs(du->MaxDuration);
 }
 
 /**
