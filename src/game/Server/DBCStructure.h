@@ -679,9 +679,9 @@ struct CharTitlesEntry
 {
     uint32  ID;                                             // 0,       m_ID
     // uint32      unk1;                                    // 1        m_Condition_ID
-    DBCString name;                                         // 2        m_name_lang
+    DBCString Name_lang;                                         // 2        m_name_lang
     //char*       name2;                                    // 3        m_name1_lang
-    uint32  bit_index;                                      // 4        m_mask_ID used in PLAYER_CHOSEN_TITLE and 1<<index in PLAYER__FIELD_KNOWN_TITLES
+    uint32  Mask_ID;                                      // 4        m_mask_ID used in PLAYER_CHOSEN_TITLE and 1<<index in PLAYER__FIELD_KNOWN_TITLES
     //uint32                                                // 5
 };
 
