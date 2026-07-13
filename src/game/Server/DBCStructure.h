@@ -565,9 +565,9 @@ struct AreaTableEntry
 
 struct AreaGroupEntry
 {
-    uint32  AreaGroupId;                                    // 0        m_ID
+    uint32  ID;                                    // 0        m_ID
     uint32  AreaId[6];                                      // 1-6      m_areaID
-    uint32  nextGroup;                                      // 7        m_nextAreaID
+    uint32  NextGroup;                                      // 7        m_nextAreaID
 };
 
 struct AreaTriggerEntry
