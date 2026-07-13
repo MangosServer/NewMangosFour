@@ -699,7 +699,7 @@ bool Player::Create(uint32 guidlow, const std::string& name, uint8 race, uint8 c
     SetMap(sMapMgr.CreateMap(info->mapId, this));
 
     // Set player's power type based on class
-    uint8 powertype = cEntry->powerType;
+    uint8 powertype = cEntry->DisplayPower;
 
     // Set player's faction based on race
     setFactionForRace(race);
@@ -3267,7 +3267,7 @@ TrainerSpellState Player::GetTrainerSpellState(TrainerSpell const* trainer_spell
     }
 
     // check primary prof. limit
-    if (sSpellMgr.IsPrimaryProfessionFirstRankSpell(spell->Id) && GetFreePrimaryProfessionPoints() == 0)
+    if (sSpellMgr.IsPrimaryProfessionFirstRankSpell(spell->ID) && GetFreePrimaryProfessionPoints() == 0)
     {
         return TRAINER_SPELL_GREEN_DISABLED;
     }
@@ -3790,13 +3790,13 @@ Team Player::TeamForRace(uint8 race)
         return ALLIANCE;
     }
 
-    switch (rEntry->TeamID)
+    switch (rEntry->BaseLanguage)
     {
         case 7: return ALLIANCE;
         case 1: return HORDE;
     }
 
-    sLog.outError("Race %u have wrong teamid %u in DBC: wrong DBC files?", uint32(race), rEntry->TeamID);
+    sLog.outError("Race %u have wrong teamid %u in DBC: wrong DBC files?", uint32(race), rEntry->BaseLanguage);
     return TEAM_NONE;
 }
 
@@ -4450,9 +4450,9 @@ void Player::InitDataForForm(bool reapplyMods)
         default:                                            // 0, for example
         {
             ChrClassesEntry const* cEntry = sChrClassesStore.LookupEntry(getClass());
-            if (cEntry && cEntry->powerType < MAX_POWERS && uint32(GetPowerType()) != cEntry->powerType)
+            if (cEntry && cEntry->DisplayPower < MAX_POWERS && uint32(GetPowerType()) != cEntry->DisplayPower)
             {
-                SetPowerType(Powers(cEntry->powerType));
+                SetPowerType(Powers(cEntry->DisplayPower));
             }
             break;
         }
@@ -4776,12 +4776,12 @@ float Player::GetReputationPriceDiscount(Creature const* pCreature) const
 
 float Player::GetReputationPriceDiscount(FactionTemplateEntry const* factionTemplate) const
 {
-    if (!factionTemplate || !factionTemplate->faction)
+    if (!factionTemplate || !factionTemplate->Faction)
     {
         return 1.0f;
     }
 
-    ReputationRank rank = GetReputationRank(factionTemplate->faction);
+    ReputationRank rank = GetReputationRank(factionTemplate->Faction);
     if (rank <= REP_NEUTRAL)
     {
         return 1.0f;
@@ -5834,12 +5834,12 @@ void Player::_LoadSkills(QueryResult* result)
             SetUInt16Value(PLAYER_SKILL_LINEID_0 + field, offset, skill);
             uint16 step = 0;
 
-            if (pSkill->categoryId == SKILL_CATEGORY_SECONDARY)
+            if (pSkill->CategoryID == SKILL_CATEGORY_SECONDARY)
             {
                 step = max / 75;
             }
 
-            if (pSkill->categoryId == SKILL_CATEGORY_PROFESSION)
+            if (pSkill->CategoryID == SKILL_CATEGORY_PROFESSION)
             {
                 step = max / 75;
 
@@ -6403,15 +6403,15 @@ void Player::UpdateArmorSpecializations()
         // remove if base passive is unlearned
         if (!HasSpell(specPassive))
         {
-            RemoveAurasDueToSpell(spellProto->Id);
+            RemoveAurasDueToSpell(spellProto->ID);
             continue;
         }
 
-        SpellAuraHolder* holder = GetSpellAuraHolder(spellProto->Id);
+        SpellAuraHolder* holder = GetSpellAuraHolder(spellProto->ID);
         if (!holder)
         {
             // cast absent spells that may be missing due to shapeshift form dependency
-            CastSpell(this, spellProto->Id, true);
+            CastSpell(this, spellProto->ID, true);
             continue;
         }
 
@@ -6438,7 +6438,7 @@ bool Player::FitArmorSpecializationRules(SpellEntry const * spellProto) const
     int i = 0;
     for (; i < MAX_ARMOR_SPECIALIZATION_SPELLS; ++i)
     {
-        if (spellProto->Id == armorSpecToTab[i].spellId)
+        if (spellProto->ID == armorSpecToTab[i].spellId)
         {
             if (!armorSpecToTab[i].tab && m_talentsPrimaryTree[m_activeSpec] == 0 ||
                 armorSpecToTab[i].tab && armorSpecToTab[i].tab != m_talentsPrimaryTree[m_activeSpec])

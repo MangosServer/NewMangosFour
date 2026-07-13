@@ -291,7 +291,7 @@ inline bool IsElementalShield(SpellEntry const* spellInfo)
 {
     SpellClassOptionsEntry const* classOptions = spellInfo->GetSpellClassOptions();
     // family flags 10 (Lightning), 42 (Earth), 37 (Water), proc shield from T2 8 pieces bonus
-    return (classOptions && classOptions->SpellFamilyFlags & UI64LIT(0x42000000400)) || spellInfo->Id == 23552;
+    return (classOptions && classOptions->SpellFamilyFlags & UI64LIT(0x42000000400)) || spellInfo->ID == 23552;
 }
 
 inline bool IsExplicitDiscoverySpell(SpellEntry const* spellInfo)
@@ -301,7 +301,7 @@ inline bool IsExplicitDiscoverySpell(SpellEntry const* spellInfo)
     return ((spellEffect0 && (spellEffect0->Effect == SPELL_EFFECT_CREATE_RANDOM_ITEM ||
         spellEffect0->Effect == SPELL_EFFECT_CREATE_ITEM_2) &&
         (spellEffect1 && spellEffect1->Effect == SPELL_EFFECT_SCRIPT_EFFECT)) ||
-        spellInfo->Id == 64323);                         // Book of Glyph Mastery (Effect0==SPELL_EFFECT_SCRIPT_EFFECT without any other data)
+        spellInfo->ID == 64323);                         // Book of Glyph Mastery (Effect0==SPELL_EFFECT_SCRIPT_EFFECT without any other data)
 }
 
 inline bool IsLootCraftingSpell(SpellEntry const* spellInfo)
@@ -317,7 +317,7 @@ inline bool IsLootCraftingSpell(SpellEntry const* spellInfo)
     return ((spellEffect0->Effect == SPELL_EFFECT_CREATE_RANDOM_ITEM) ||
         // different random cards from Inscription (121==Virtuoso Inking Set category) or without explicit item or explicit spells
         ((spellEffect0->Effect == SPELL_EFFECT_CREATE_ITEM_2) && ((totems && totems->RequiredTotemCategoryID[0] != 0) || (spellEffect0->EffectItemType == 0))) ||
-        (spellInfo->Id == 62941));
+        (spellInfo->ID == 62941));
 }
 
 /**
@@ -373,7 +373,7 @@ inline bool IsSpellRemoveAllMovementAndControlLossEffects(SpellEntry const* spel
 
 inline bool IsDeathOnlySpell(SpellEntry const* spellInfo)
 {
-    return spellInfo->HasAttribute(SPELL_ATTR_EX3_CAST_ON_DEAD) || spellInfo->Id == 2584;
+    return spellInfo->HasAttribute(SPELL_ATTR_EX3_CAST_ON_DEAD) || spellInfo->ID == 2584;
 }
 
 inline bool IsDeathPersistentSpell(SpellEntry const* spellInfo)
@@ -1234,7 +1234,7 @@ class SpellMgr
                 return 1.0f;
             }
 
-            if (SpellThreatEntry const* entry = GetSpellThreatEntry(spellInfo->Id))
+            if (SpellThreatEntry const* entry = GetSpellThreatEntry(spellInfo->ID))
             {
                 return entry->multiplier;
             }
@@ -1375,7 +1375,7 @@ class SpellMgr
         bool canStackSpellRanksInSpellBook(SpellEntry const* spellInfo) const;
         bool IsRankedSpellNonStackableInSpellBook(SpellEntry const* spellInfo) const
         {
-            return !canStackSpellRanksInSpellBook(spellInfo) && GetSpellRank(spellInfo->Id) != 0;
+            return !canStackSpellRanksInSpellBook(spellInfo) && GetSpellRank(spellInfo->ID) != 0;
         }
 
         // return true if spell1 can affect spell2

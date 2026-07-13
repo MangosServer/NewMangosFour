@@ -536,12 +536,12 @@ void LoadDBCStores(const std::string& dataPath)
         if (AreaTableEntry const* area = sAreaStore.LookupEntry(i))
         {
             // fill AreaId->DBC records
-            sAreaFlagByAreaID.insert(AreaFlagByAreaID::value_type(uint16(area->ID), area->exploreFlag));
+            sAreaFlagByAreaID.insert(AreaFlagByAreaID::value_type(uint16(area->ID), area->AreaBit));
 
             // fill MapId->DBC records ( skip sub zones and continents )
-            if (area->zone == 0 && area->mapid != 0 && area->mapid != 1 && area->mapid != 530 && area->mapid != 571 && area->mapid != 860 && area->mapid != 870)
+            if (area->ParentAreaID == 0 && area->ContinentID != 0 && area->ContinentID != 1 && area->ContinentID != 530 && area->ContinentID != 571 && area->ContinentID != 860 && area->ContinentID != 870)
             {
-                sAreaFlagByMapID.insert(AreaFlagByMapID::value_type(area->mapid, area->exploreFlag));
+                sAreaFlagByMapID.insert(AreaFlagByMapID::value_type(area->ContinentID, area->AreaBit));
             }
         }
     }
@@ -811,7 +811,7 @@ void LoadDBCStores(const std::string& dataPath)
                     continue;
                 }
 
-                sPetFamilySpellsStore[i].insert(spellInfo->Id);
+                sPetFamilySpellsStore[i].insert(spellInfo->ID);
             }
         }
     }
@@ -895,7 +895,7 @@ void LoadDBCStores(const std::string& dataPath)
     for (uint32 i = 1; i < sTaxiPathStore.GetNumRows(); ++i)
         if (TaxiPathEntry const* entry = sTaxiPathStore.LookupEntry(i))
         {
-            sTaxiPathSetBySource[entry->from][entry->to] = TaxiPathBySourceAndDestination(entry->ID, entry->price);
+            sTaxiPathSetBySource[entry->FromTaxiNode][entry->ToTaxiNode] = TaxiPathBySourceAndDestination(entry->ID, entry->Cost);
         }
     uint32 pathCount = sTaxiPathStore.GetNumRows();
 
@@ -907,9 +907,9 @@ void LoadDBCStores(const std::string& dataPath)
     for (uint32 i = 1; i < sTaxiPathNodeStore.GetNumRows(); ++i)
         if (TaxiPathNodeEntry const* entry = sTaxiPathNodeStore.LookupEntry(i))
         {
-            if (pathLength[entry->path] < entry->index + 1)
+            if (pathLength[entry->PathID] < entry->NodeIndex + 1)
             {
-                pathLength[entry->path] = entry->index + 1;
+                pathLength[entry->PathID] = entry->NodeIndex + 1;
             }
         }
     // Set path length
@@ -922,7 +922,7 @@ void LoadDBCStores(const std::string& dataPath)
     for (uint32 i = 1; i < sTaxiPathNodeStore.GetNumRows(); ++i)
         if (TaxiPathNodeEntry const* entry = sTaxiPathNodeStore.LookupEntry(i))
         {
-            sTaxiPathNodesByPath[entry->path].set(entry->index, entry);
+            sTaxiPathNodesByPath[entry->PathID].set(entry->NodeIndex, entry);
         }
 
     // Initialize global taxinodes mask
@@ -990,7 +990,7 @@ void LoadDBCStores(const std::string& dataPath)
             }
 
             // old continent node (+ nodes virtually at old continents, check explicitly to avoid loading map files for zone info)
-            if (node->map_id < 2 || i == 82 || i == 83 || i == 93 || i == 94)
+            if (node->ContinentID < 2 || i == 82 || i == 83 || i == 93 || i == 94)
             {
                 sOldContinentsNodesMask[field] |= submask;
             }
@@ -1555,16 +1555,16 @@ uint32 GetTalentTreeRolesMask(uint32 talentTree)
  */
 bool IsPointInAreaTriggerZone(AreaTriggerEntry const* atEntry, uint32 mapid, float x, float y, float z, float delta)
 {
-    if (mapid != atEntry->mapid)
+    if (mapid != atEntry->ContinentID)
     {
         return false;
     }
 
-    if (atEntry->radius > 0)
+    if (atEntry->Radius > 0)
     {
         // if we have radius check it
         float dist2 = (x - atEntry->x) * (x - atEntry->x) + (y - atEntry->y) * (y - atEntry->y) + (z - atEntry->z) * (z - atEntry->z);
-        if (dist2 > (atEntry->radius + delta) * (atEntry->radius + delta))
+        if (dist2 > (atEntry->Radius + delta) * (atEntry->Radius + delta))
         {
             return false;
         }
@@ -1577,7 +1577,7 @@ bool IsPointInAreaTriggerZone(AreaTriggerEntry const* atEntry, uint32 mapid, flo
         // is-in-cube check and we have to calculate only one point instead of 4
 
         // 2PI = 360, keep in mind that ingame orientation is counter-clockwise
-        double rotation = 2 * M_PI - atEntry->box_orientation;
+        double rotation = 2 * M_PI - atEntry->Box_yaw;
         double sinVal = sin(rotation);
         double cosVal = cos(rotation);
 
@@ -1591,9 +1591,9 @@ bool IsPointInAreaTriggerZone(AreaTriggerEntry const* atEntry, uint32 mapid, flo
         float dz = z - atEntry->z;
         float dx = rotPlayerX - atEntry->x;
         float dy = rotPlayerY - atEntry->y;
-        if ((fabs(dx) > atEntry->box_x / 2 + delta) ||
-                (fabs(dy) > atEntry->box_y / 2 + delta) ||
-                (fabs(dz) > atEntry->box_z / 2 + delta))
+        if ((fabs(dx) > atEntry->Box_length / 2 + delta) ||
+                (fabs(dy) > atEntry->Box_width / 2 + delta) ||
+                (fabs(dz) > atEntry->Box_height / 2 + delta))
         {
             return false;
         }

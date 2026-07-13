@@ -438,7 +438,7 @@ void Player::_LoadAuras(QueryResult* result, uint32 timediff)
                 }
 
                 AddSpellAuraHolder(holder);
-                DETAIL_LOG("Added auras from spellid %u", spellproto->Id);
+                DETAIL_LOG("Added auras from spellid %u", spellproto->ID);
             }
             else
             {

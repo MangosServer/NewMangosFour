@@ -149,7 +149,7 @@ void Aura::HandleAuraMounted(bool apply, bool Real)
         }
 
         CreatureInfo const* ci = ObjectMgr::GetCreatureTemplate(m_modifier.m_miscvalue);
-        if (ci && target->IsVehicle() && ci->VehicleTemplateId == target->GetVehicleInfo()->GetVehicleEntry()->m_ID)
+        if (ci && target->IsVehicle() && ci->VehicleTemplateId == target->GetVehicleInfo()->GetVehicleEntry()->ID)
         {
             if (target->GetTypeId() == TYPEID_PLAYER)
             {
@@ -318,7 +318,7 @@ void Aura::HandleAuraModShapeshift(bool apply, bool Real)
                 }
 
                 // All OK, remove aura now
-                target->RemoveAurasDueToSpellByCancel(aurSpellInfo->Id);
+                target->RemoveAurasDueToSpellByCancel(aurSpellInfo->ID);
                 iter = slowingAuras.begin();
             }
 
@@ -837,7 +837,7 @@ void Aura::HandleAuraTransform(bool apply, bool Real)
             for (Unit::AuraList::const_iterator i = otherTransforms.begin(); i != otherTransforms.end(); ++i)
             {
                 // negative auras are preferred
-                if (!IsPositiveSpell((*i)->GetSpellProto()->Id))
+                if (!IsPositiveSpell((*i)->GetSpellProto()->ID))
                 {
                     handledAura = *i;
                     break;

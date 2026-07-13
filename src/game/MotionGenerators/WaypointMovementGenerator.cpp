@@ -810,11 +810,11 @@ uint32 FlightPathMovementGenerator::GetPathAtMapEnd() const
         return i_path->size();
     }
 
-    uint32 curMapId = (*i_path)[i_currentNode].mapid;
+    uint32 curMapId = (*i_path)[i_currentNode].ContinentID;
 
     for (uint32 i = i_currentNode; i < i_path->size(); ++i)
     {
-        if ((*i_path)[i].mapid != curMapId)
+        if ((*i_path)[i].ContinentID != curMapId)
         {
             return i;
         }
@@ -941,11 +941,11 @@ void FlightPathMovementGenerator::SetCurrentNodeAfterTeleport()
         return;
     }
 
-    uint32 map0 = (*i_path)[0].mapid;
+    uint32 map0 = (*i_path)[0].ContinentID;
 
     for (size_t i = 1; i < i_path->size(); ++i)
     {
-        if ((*i_path)[i].mapid != map0)
+        if ((*i_path)[i].ContinentID != map0)
         {
             i_currentNode = i;
             return;
@@ -955,9 +955,9 @@ void FlightPathMovementGenerator::SetCurrentNodeAfterTeleport()
 
 void FlightPathMovementGenerator::DoEventIfAny(Player& player, TaxiPathNodeEntry const& node, bool departure)
 {
-    if (uint32 eventid = departure ? node.departureEventID : node.arrivalEventID)
+    if (uint32 eventid = departure ? node.DepartureEventID : node.ArrivalEventID)
     {
-        DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS, "Taxi %s event %u of node %u of path %u for player %s", departure ? "departure" : "arrival", eventid, node.index, node.path, player.GetName());
+        DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS, "Taxi %s event %u of node %u of path %u for player %s", departure ? "departure" : "arrival", eventid, node.NodeIndex, node.PathID, player.GetName());
         StartEvents_Event(player.GetMap(), eventid, &player, &player, departure);
     }
 }

@@ -496,7 +496,7 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                         // Unrelenting Assault
                         if ((*itr)->GetSpellProto()->GetSpellFamilyName()==SPELLFAMILY_WARRIOR && (*itr)->GetSpellProto()->GetSpellIconID() == 2775)
                         {
-                            switch ((*itr)->GetSpellProto()->Id)
+                            switch ((*itr)->GetSpellProto()->ID)
                             {
                                 case 46859:                 // Unrelenting Assault, rank 1
                                     target->CastSpell(target, 64849, true, NULL, (*itr));

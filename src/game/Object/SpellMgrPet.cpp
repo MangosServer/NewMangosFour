@@ -165,7 +165,7 @@ void SpellMgr::LoadPetLevelupSpellMap()
                 ++family_count;
             }
 
-            spellSet.insert(PetLevelupSpellSet::value_type(spell->GetSpellLevel(),spell->Id));
+            spellSet.insert(PetLevelupSpellSet::value_type(spell->GetSpellLevel(),spell->ID));
             count++;
         }
     }

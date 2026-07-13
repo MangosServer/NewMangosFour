@@ -506,7 +506,7 @@ void Spell::prepareDataForTriggerSystem()
             }
             break;
         default:
-            if (IsPositiveSpell(m_spellInfo->Id))           // Check for positive spell
+            if (IsPositiveSpell(m_spellInfo->ID))           // Check for positive spell
             {
                 m_procAttacker = PROC_FLAG_SUCCESSFUL_POSITIVE_SPELL;
                 m_procVictim   = PROC_FLAG_TAKEN_POSITIVE_SPELL;

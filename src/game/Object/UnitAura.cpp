@@ -405,7 +405,7 @@ bool Unit::AddSpellAuraHolder(SpellAuraHolder* holder)
     // passive and persistent auras can stack with themselves any number of times
     if ((!holder->IsPassive() && !holder->IsPersistent()) || holder->IsAreaAura())
     {
-        SpellAuraHolderBounds spair = GetSpellAuraHolderBounds(aurSpellInfo->Id);
+        SpellAuraHolderBounds spair = GetSpellAuraHolderBounds(aurSpellInfo->ID);
 
         // take out same spell
         for (SpellAuraHolderMap::iterator iter = spair.first; iter != spair.second; ++iter)
@@ -450,7 +450,7 @@ bool Unit::AddSpellAuraHolder(SpellAuraHolder* holder)
                                 }
                                 else
                                 {
-                                    DEBUG_LOG("Holder (spell %u) on target (lowguid: %u) doesn't have aura on effect index %u. skipping.", aurSpellInfo->Id, holder->GetTarget()->GetGUIDLow(), i);
+                                    DEBUG_LOG("Holder (spell %u) on target (lowguid: %u) doesn't have aura on effect index %u. skipping.", aurSpellInfo->ID, holder->GetTarget()->GetGUIDLow(), i);
                                 }
                             }
                         }
@@ -548,7 +548,7 @@ bool Unit::AddSpellAuraHolder(SpellAuraHolder* holder)
                             // remove from target if target found
                             if (Unit* itr_target = GetMap()->GetUnit(itr_targetGuid))
                             {
-                                itr_target->RemoveAurasDueToSpell(itr_spellEntry->Id);  // TODO AURA_REMOVE_BY_TRACKING (might require additional work elsewhere)
+                                itr_target->RemoveAurasDueToSpell(itr_spellEntry->ID);  // TODO AURA_REMOVE_BY_TRACKING (might require additional work elsewhere)
                             }
                             else                            // Normally the tracking will be removed by the AuraRemoval
                             {
@@ -574,7 +574,7 @@ bool Unit::AddSpellAuraHolder(SpellAuraHolder* holder)
                             // remove from target if target found
                             if (Unit* itr_target = GetMap()->GetUnit(itr_targetGuid))
                             {
-                                itr_target->RemoveAurasByCasterSpell(itr_spellEntry->Id, caster->GetObjectGuid(), AURA_REMOVE_BY_TRACKING);
+                                itr_target->RemoveAurasByCasterSpell(itr_spellEntry->ID, caster->GetObjectGuid(), AURA_REMOVE_BY_TRACKING);
                             }
                             else                            // Normally the tracking will be removed by the AuraRemoval
                             {
@@ -737,7 +737,7 @@ bool Unit::RemoveNoStackAurasDueToAuraHolder(SpellAuraHolder* holder)
             continue;
         }
 
-        uint32 i_spellId = i_spellProto->Id;
+        uint32 i_spellId = i_spellProto->ID;
 
         // early checks that spellId is passive non stackable spell
         if (IsPassiveSpell(i_spellProto))
@@ -756,8 +756,8 @@ bool Unit::RemoveNoStackAurasDueToAuraHolder(SpellAuraHolder* holder)
         }
 
         // prevent triggering aura of removing aura that triggered it
-        if (((*i).second->GetTriggeredBy() && (*i).second->GetTriggeredBy()->Id == spellId)
-            || (holder->GetTriggeredBy() && holder->GetTriggeredBy()->Id == i_spellId))
+        if (((*i).second->GetTriggeredBy() && (*i).second->GetTriggeredBy()->ID == spellId)
+            || (holder->GetTriggeredBy() && holder->GetTriggeredBy()->ID == i_spellId))
         {
             continue;
         }
@@ -837,7 +837,7 @@ bool Unit::RemoveNoStackAurasDueToAuraHolder(SpellAuraHolder* holder)
                 continue;
             }
 
-            if (sSpellMgr.IsNoStackSpellDueToSpell(spellProto->Id, i_spellProto->Id))
+            if (sSpellMgr.IsNoStackSpellDueToSpell(spellProto->ID, i_spellProto->ID))
             {
                 // Its a parent aura (create this aura in ApplyModifier)
                 if ((*i).second->IsInUse())
@@ -1155,7 +1155,7 @@ void Unit::RemoveAurasWithDispelType(DispelType type, ObjectGuid casterGuid)
         if (((1<<spell->GetDispel()) & dispelMask) && (!casterGuid || casterGuid == itr->second->GetCasterGuid()))
         {
             // Dispel aura
-            RemoveAurasDueToSpell(spell->Id);
+            RemoveAurasDueToSpell(spell->ID);
             itr = auras.begin();
         }
         else
@@ -1389,7 +1389,7 @@ void Unit::RemoveNotOwnTrackedTargetAuras(uint32 newPhase)
                     // remove from target if target found
                     if (Unit* itr_target = GetMap()->GetUnit(itr_targetGuid))
                     {
-                        itr_target->RemoveAurasByCasterSpell(itr_spellEntry->Id, GetObjectGuid());
+                        itr_target->RemoveAurasByCasterSpell(itr_spellEntry->ID, GetObjectGuid());
                     }
 
                     itr = scTargets.begin();                // list can be changed at remove aura
@@ -1405,7 +1405,7 @@ void Unit::RemoveNotOwnTrackedTargetAuras(uint32 newPhase)
                         // remove from target if target found
                         if (itr_target)
                         {
-                            itr_target->RemoveAurasByCasterSpell(itr_spellEntry->Id, GetObjectGuid());
+                            itr_target->RemoveAurasByCasterSpell(itr_spellEntry->ID, GetObjectGuid());
                         }
 
                         itr = scTargets.begin();            // list can be changed at remove aura

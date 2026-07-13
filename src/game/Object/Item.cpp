@@ -107,7 +107,7 @@ void AddItemsSetItem(Player* player, Item* item)
 
         uint32 z = 0;
         for (; z < 8; ++z)
-            if (eff->spells[z] && eff->spells[z]->Id == set->SetSpellID[x])
+            if (eff->spells[z] && eff->spells[z]->ID == set->SetSpellID[x])
             {
                 break;
             }
@@ -190,7 +190,7 @@ void RemoveItemsSetItem(Player* player, ItemPrototype const* proto)
 
         for (uint32 z = 0; z < 8; ++z)
         {
-            if (eff->spells[z] && eff->spells[z]->Id == set->SetSpellID[x])
+            if (eff->spells[z] && eff->spells[z]->ID == set->SetSpellID[x])
             {
                 // spell can be not active if not fit form requirement
                 player->ApplyEquipSpell(eff->spells[z], NULL, false);
@@ -600,7 +600,7 @@ void Item::SetItemRandomProperties(int32 randomPropId)
             }
             for (uint32 i = PROP_ENCHANTMENT_SLOT_1; i < PROP_ENCHANTMENT_SLOT_4; ++i)
             {
-                SetEnchantment(EnchantmentSlot(i), item_rand->enchant_id[i - PROP_ENCHANTMENT_SLOT_1], 0, 0);
+                SetEnchantment(EnchantmentSlot(i), item_rand->Enchantment[i - PROP_ENCHANTMENT_SLOT_1], 0, 0);
             }
         }
     }
@@ -619,7 +619,7 @@ void Item::SetItemRandomProperties(int32 randomPropId)
 
             for (uint32 i = PROP_ENCHANTMENT_SLOT_0; i < PROP_ENCHANTMENT_SLOT_4; ++i)
             {
-                SetEnchantment(EnchantmentSlot(i), item_rand->enchant_id[i - PROP_ENCHANTMENT_SLOT_0], 0, 0);
+                SetEnchantment(EnchantmentSlot(i), item_rand->Enchantment[i - PROP_ENCHANTMENT_SLOT_0], 0, 0);
             }
         }
     }
@@ -1371,9 +1371,9 @@ int32 Item::GetReforgableStat(ItemModType statType) const
                     {
                         for (int k = 0; k < 5; ++k)
                         {
-                            if (randomSuffix->enchant_id[k] == enchant->ID)
+                            if (randomSuffix->Enchantment[k] == enchant->ID)
                             {
-                                return int32((randomSuffix->prefix[k] * GetItemSuffixFactor()) / 10000);
+                                return int32((randomSuffix->AllocationPct[k] * GetItemSuffixFactor()) / 10000);
                             }
                         }
                     }
@@ -1399,7 +1399,7 @@ int32 Item::GetReforgableStat(ItemModType statType) const
                     {
                         for (int k = 0; k < 3; ++k)
                         {
-                            if (randomProp->enchant_id[k] == enchant->ID)
+                            if (randomProp->Enchantment[k] == enchant->ID)
                             {
                                 return int32(enchant->EffectPointsMin[k]);
                             }

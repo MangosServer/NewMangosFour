@@ -289,7 +289,7 @@ void Aura::HandleAuraPeriodicDummy(bool apply, bool Real)
     {
         case SPELLFAMILY_ROGUE:
         {
-            switch(GetSpellProto()->Id)
+            switch(GetSpellProto()->ID)
             {
                 // Master of Subtlety
                 case 31666:
@@ -573,7 +573,7 @@ void Aura::HandlePeriodicDamage(bool apply, bool Real)
     else
     {
         // Parasitic Shadowfiend - handle summoning of two Shadowfiends on DoT expire
-        if (spellProto->Id == 41917)
+        if (spellProto->ID == 41917)
         {
             target->CastSpell(target, 41915, true);
         }
