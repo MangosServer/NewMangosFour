@@ -1883,12 +1883,12 @@ struct SpellAuraRestrictionsEntry
                                                             // 2        5.x
     uint32    CasterAuraState;                              // 21       m_casterAuraState
     uint32    TargetAuraState;                              // 22       m_targetAuraState
-    uint32    CasterAuraStateNot;                           // 23       m_excludeCasterAuraState
-    uint32    TargetAuraStateNot;                           // 24       m_excludeTargetAuraState
-    uint32    casterAuraSpell;                              // 25       m_casterAuraSpell
-    uint32    targetAuraSpell;                              // 26       m_targetAuraSpell
-    uint32    excludeCasterAuraSpell;                       // 27       m_excludeCasterAuraSpell
-    uint32    excludeTargetAuraSpell;                       // 28       m_excludeTargetAuraSpell
+    uint32    ExcludeCasterAuraState;                           // 23       m_excludeCasterAuraState
+    uint32    ExcludeTargetAuraState;                           // 24       m_excludeTargetAuraState
+    uint32    CasterAuraSpell;                              // 25       m_casterAuraSpell
+    uint32    TargetAuraSpell;                              // 26       m_targetAuraSpell
+    uint32    ExcludeCasterAuraSpell;                       // 27       m_excludeCasterAuraSpell
+    uint32    ExcludeTargetAuraSpell;                       // 28       m_excludeTargetAuraSpell
 };
 
 // SpellCastingRequirements.dbc
