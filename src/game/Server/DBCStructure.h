@@ -2018,8 +2018,8 @@ struct SpellEquippedItemsEntry
                                                             // 1        unk 5.1.0
                                                             // 2        unk 5.1.0
     int32     EquippedItemClass;                            // 3        m_equippedItemClass (value)
-    int32     EquippedItemInventoryTypeMask;                // 4        m_equippedItemInvTypes (mask)
-    int32     EquippedItemSubClassMask;                     // 5        m_equippedItemSubclass (mask)
+    int32     EquippedItemInvTypes;                // 4        m_equippedItemInvTypes (mask)
+    int32     EquippedItemSubclass;                     // 5        m_equippedItemSubclass (mask)
 };
 
 // SpellInterrupts.dbc
