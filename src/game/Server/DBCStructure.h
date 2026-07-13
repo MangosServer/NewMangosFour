@@ -1969,21 +1969,21 @@ struct SpellCooldownsEntry
 struct SpellEffectEntry
 {
     //uint32    Id;                                         // 0        m_ID
-    uint32    Difficulty;                                   // 1        m_difficulty
+    uint32    DifficultyID;                                   // 1        m_difficulty
     uint32    Effect;                                       // 2        m_effect
-    float     EffectMultipleValue;                          // 3        m_effectAmplitude
-    uint32    EffectApplyAuraName;                          // 4        m_effectAura
-    uint32    EffectAmplitude;                              // 5        m_effectAuraPeriod
+    float     EffectAuraPeriod;                          // 3        m_effectAmplitude
+    uint32    EffectAura;                          // 4        m_effectAura
+    uint32    EffectAuraPeriod;                              // 5        m_effectAuraPeriod
     int32     EffectBasePoints;                             // 6        m_effectBasePoints (don't must be used in spell/auras explicitly, must be used cached Spell::m_currentBasePoints)
     //float   unk_320_4;                                    // 7        3.2.0
-    float     EffectDamageMultiplier;                       // 8        m_effectChainAmplitude
-    uint32    EffectChainTarget;                            // 9        m_effectChainTargets
+    float     EffectChainAmplitude;                       // 8        m_effectChainAmplitude
+    uint32    EffectChainTargets;                            // 9        m_effectChainTargets
     int32     EffectDieSides;                               // 10       m_effectDieSides
     uint32    EffectItemType;                               // 11       m_effectItemType
     uint32    EffectMechanic;                               // 12       m_effectMechanic
     int32     EffectMiscValue;                              // 13       m_effectMiscValue
     int32     EffectMiscValueB;                             // 14       m_effectMiscValueB
-    float     EffectPointsPerComboPoint;                    // 15       m_effectPointsPerCombo
+    float     EffectPointsPerResource;                    // 15       m_effectPointsPerCombo
     uint32    EffectRadiusIndex;                            // 16       m_effectRadiusIndex - spellradius.dbc
     uint32    EffectRadiusMaxIndex;                         // 17       4.0.0
     float     EffectRealPointsPerLevel;                     // 18       m_effectRealPointsPerLevel
@@ -1992,7 +1992,7 @@ struct SpellEffectEntry
     uint32    EffectTriggerSpell;                           // 23       m_effectTriggerSpell
     uint32    EffectImplicitTargetA;                        // 24       m_implicitTargetA
     uint32    EffectImplicitTargetB;                        // 25       m_implicitTargetB
-    uint32    EffectSpellId;                                // 26       new 4.0.0
+    uint32    SpellID;                                // 26       new 4.0.0
     uint32    EffectIndex;                                  // 27       new 4.0.0
     //uint32 unk;                                           // 28       4.2.0
 
