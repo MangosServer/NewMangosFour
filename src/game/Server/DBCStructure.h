@@ -2550,8 +2550,8 @@ struct TotemCategoryEntry
 {
     uint32    ID;                                           // 0        m_ID
     //char*   name;                                         // 1        m_name_lang
-    uint32    categoryType;                                 // 2        m_totemCategoryType (one for specialization)
-    uint32    categoryMask;                                 // 3        m_totemCategoryMask (compatibility mask for same type: different for totems, compatible from high to low for rods)
+    uint32    TotemCategoryType;                                 // 2        m_totemCategoryType (one for specialization)
+    uint32    TotemCategoryMask;                                 // 3        m_totemCategoryMask (compatibility mask for same type: different for totems, compatible from high to low for rods)
 };
 
 struct TransportAnimationEntry
