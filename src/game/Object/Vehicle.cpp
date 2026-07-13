@@ -120,7 +120,7 @@ VehicleInfo::VehicleInfo(Unit* owner, VehicleEntry const* vehicleEntry, uint32 o
                     m_creatureSeats |= 1 << i;
                 }
 
-                if (IsUsableSeatForPlayer(seatEntry->Flags, seatEntry->m_flagsB))
+                if (IsUsableSeatForPlayer(seatEntry->Flags, seatEntry->FlagsB))
                 {
                     m_playerSeats |= 1 << i;
                 }

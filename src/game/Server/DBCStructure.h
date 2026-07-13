@@ -2650,7 +2650,7 @@ struct VehicleSeatEntry
     uint32  EnterUISoundID;                               // 42  (was m_enterUISoundID)
     uint32  ExitUISoundID;                                // 43  (was m_exitUISoundID)
     int32   FlagsB;                                       // 44  (was m_uiSkin)
-    uint32  m_flagsB;                                       // 45
+    uint32  m_flagsB;                                       // 45  registry: CameraEnteringDelay (float) — misnamed legacy member, 0 consumers after FlagsB retarget; Phase-3 retype
                                                             // 46       m_cameraEnteringDelay
                                                             // 47       m_cameraEnteringDuration
                                                             // 48       m_cameraExitingDelay
@@ -2671,10 +2671,10 @@ struct VehicleSeatEntry
         (Flags & SEAT_FLAG_CAN_EXIT) ||
         (Flags & SEAT_FLAG_CAN_CONTROL) ||
         (Flags & SEAT_FLAG_UNCONTROLLED) ||
-        (m_flagsB & VEHICLE_SEAT_FLAG_B_USABLE_FORCED) ||
-        (m_flagsB & VEHICLE_SEAT_FLAG_B_USABLE_FORCED_2) ||
-        (m_flagsB & VEHICLE_SEAT_FLAG_B_USABLE_FORCED_3) ||
-        (m_flagsB & VEHICLE_SEAT_FLAG_B_USABLE_FORCED_4); }
+        (FlagsB & VEHICLE_SEAT_FLAG_B_USABLE_FORCED) ||
+        (FlagsB & VEHICLE_SEAT_FLAG_B_USABLE_FORCED_2) ||
+        (FlagsB & VEHICLE_SEAT_FLAG_B_USABLE_FORCED_3) ||
+        (FlagsB & VEHICLE_SEAT_FLAG_B_USABLE_FORCED_4); }
 };
 
 struct WMOAreaTableEntry
