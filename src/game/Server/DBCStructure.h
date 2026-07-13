@@ -687,10 +687,10 @@ struct CharTitlesEntry
 
 struct ChatChannelsEntry
 {
-    uint32  ChannelID;                                      // 0        m_ID
-    uint32  flags;                                          // 1        m_flags
+    uint32  ID;                                      // 0        m_ID
+    uint32  Flags;                                          // 1        m_flags
     //uint32                                                // 2        m_factionGroup
-    DBCString pattern;                                      // 3        m_name_lang
+    DBCString Name_lang;                                      // 3        m_name_lang
     //char*       name;                                     // 4        m_shortcut_lang
 };
 
