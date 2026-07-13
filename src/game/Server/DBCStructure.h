@@ -1531,9 +1531,9 @@ struct OverrideSpellDataEntry
 
 struct PhaseEntry
 {
-    uint32 ID;                                              // 0
-    uint32 PhaseShift;                                      // 1
-    uint32 Flags;                                           // 2 - 0x0, 0x4, 0x8
+    uint32    ID;                                           // 0
+    DBCString Name;                                         // 1  registry: string, was uint32 PhaseShift
+    uint32    Flags;                                        // 2 - 0x0, 0x4, 0x8
 };
 
 struct PowerDisplayEntry

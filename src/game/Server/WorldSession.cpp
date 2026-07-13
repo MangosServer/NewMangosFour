@@ -831,7 +831,7 @@ void WorldSession::SendSetPhaseShift(uint32 phaseMask, uint16 mapId)
     {
         if (PhaseEntry const* phase = sPhaseStore.LookupEntry(i))
         {
-            if (phase->PhaseShift == phaseMask)
+            if (phase->ID == phaseMask)
             {
                 phaseFlags = phase->Flags;
                 break;
