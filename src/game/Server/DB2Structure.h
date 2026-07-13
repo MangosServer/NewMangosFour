@@ -40,11 +40,11 @@ struct ItemEntry
    uint32   ID;                                             // 0
    uint32   Class;                                          // 1
    uint32   SubClass;                                       // 2
-   int32    Unk0;                                           // 3
+   int32    SoundOverrideSubclass;                                           // 3
    int32    Material;                                       // 4
-   uint32   DisplayId;                                      // 5
+   uint32   DisplayInfoID;                                      // 5
    uint32   InventoryType;                                  // 6
-   uint32   Sheath;                                         // 7
+   uint32   SheatheType;                                         // 7
 };
 
 struct ItemCurrencyCostEntry
