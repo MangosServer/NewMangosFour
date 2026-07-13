@@ -1081,10 +1081,10 @@ struct GemPropertiesEntry
 
 struct GlyphPropertiesEntry
 {
-    uint32  Id;                                             //          m_id
-    uint32  SpellId;                                        //          m_spellID
-    uint32  TypeFlags;                                      //          m_glyphSlotFlags
-    uint32  Unk1;                                           //          m_spellIconID
+    uint32  ID;                                             //          m_id
+    uint32  SpellID;                                        //          m_spellID
+    uint32  GlyphSlotFlags;                                      //          m_glyphSlotFlags
+    uint32  SpellIconID;                                           //          m_spellIconID
 };
 
 struct GlyphSlotEntry
