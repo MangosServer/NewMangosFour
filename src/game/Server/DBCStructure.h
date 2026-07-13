@@ -1486,7 +1486,7 @@ struct MapDifficultyEntry
 
 struct MovieEntry
 {
-    uint32      Id;                                         // 0        m_ID
+    uint32      ID;                                         // 0        m_ID
     //uint32      unk1;                                     // 1        m_volume
     //uint32      unk2;                                     // 2        5.x
     //uint32      unk3;                                     // 3        4.0.0
