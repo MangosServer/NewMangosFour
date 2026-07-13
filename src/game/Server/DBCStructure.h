@@ -1971,7 +1971,7 @@ struct SpellEffectEntry
     //uint32    Id;                                         // 0        m_ID
     uint32    DifficultyID;                                   // 1        m_difficulty
     uint32    Effect;                                       // 2        m_effect
-    float     EffectAuraPeriod;                          // 3        m_effectAmplitude
+    float     EffectAmplitude;                          // 3        m_effectAmplitude
     uint32    EffectAura;                          // 4        m_effectAura
     uint32    EffectAuraPeriod;                              // 5        m_effectAuraPeriod
     int32     EffectBasePoints;                             // 6        m_effectBasePoints (don't must be used in spell/auras explicitly, must be used cached Spell::m_currentBasePoints)
