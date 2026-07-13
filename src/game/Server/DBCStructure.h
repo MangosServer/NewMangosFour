@@ -1089,7 +1089,7 @@ struct GlyphPropertiesEntry
 
 struct GlyphSlotEntry
 {
-    uint32  Id;                                             //          m_id
+    uint32  ID;                                             //          m_id
     uint32  TypeFlags;                                      //          m_type
     uint32  Order;                                          //          m_tooltip
 };
