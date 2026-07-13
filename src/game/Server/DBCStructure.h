@@ -2679,17 +2679,17 @@ struct VehicleSeatEntry
 
 struct WMOAreaTableEntry
 {
-    uint32 Id;                                              // 0        m_ID index
-    int32 rootId;                                           // 1        m_WMOID used in root WMO
-    int32 adtId;                                            // 2        m_NameSetID used in adt file
-    int32 groupId;                                          // 3        m_WMOGroupID used in group WMO
+    uint32 ID;                                              // 0        m_ID index
+    int32 WMOID;                                           // 1        m_WMOID used in root WMO
+    int32 NameSetID;                                            // 2        m_NameSetID used in adt file
+    int32 WMOGroupID;                                          // 3        m_WMOGroupID used in group WMO
     //uint32 field4;                                        // 4        m_SoundProviderPref
     //uint32 field5;                                        // 5        m_SoundProviderPrefUnderwater
     //uint32 field6;                                        // 6        m_AmbienceID
     //uint32 field7;                                        // 7        m_ZoneMusic
     //uint32 field8;                                        // 8        m_IntroSound
     uint32 Flags;                                           // 9        m_flags (used for indoor/outdoor determination)
-    uint32 areaId;                                          // 10       m_AreaTableID (AreaTable.dbc)
+    uint32 AreaTableID;                                          // 10       m_AreaTableID (AreaTable.dbc)
     //char *Name;                                           // 11       m_AreaName_lang
     //uint32 field12;                                       // 12
     //uint32 field13;                                       // 13
