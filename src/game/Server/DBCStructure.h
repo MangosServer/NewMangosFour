@@ -746,9 +746,9 @@ struct ChrRacesEntry
 
 struct ChrPowerTypesEntry
 {
-   uint32 entry;                                               // 0
-   uint32 classId;                                             // 1
-   uint32 power;                                               // 2
+   uint32 ID;                                               // 0
+   uint32 ClassID;                                             // 1
+   uint32 PowerType;                                               // 2
 };
 
 /*struct CinematicCameraEntry
