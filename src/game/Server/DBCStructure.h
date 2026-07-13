@@ -809,13 +809,13 @@ struct CreatureDisplayInfoExtraEntry
 struct CreatureFamilyEntry
 {
     uint32  ID;                                             // 0        m_ID
-    float   minScale;                                       // 1        m_minScale
-    uint32  minScaleLevel;                                  // 2        m_minScaleLevel
-    float   maxScale;                                       // 3        m_maxScale
-    uint32  maxScaleLevel;                                  // 4        m_maxScaleLevel
-    uint32  skillLine[2];                                   // 5-6      m_skillLine
-    uint32  petFoodMask;                                    // 7        m_petFoodMask
-    int32   petTalentType;                                  // 8        m_petTalentType
+    float   MinScale;                                       // 1        m_minScale
+    uint32  MinScaleLevel;                                  // 2        m_minScaleLevel
+    float   MaxScale;                                       // 3        m_maxScale
+    uint32  MaxScaleLevel;                                  // 4        m_maxScaleLevel
+    uint32  SkillLine[2];                                   // 5-6      m_skillLine
+    uint32  PetFoodMask;                                    // 7        m_petFoodMask
+    int32   PetTalentType;                                  // 8        m_petTalentType
                                                             // 9        m_categoryEnumID
     DBCString Name;                                         // 10       m_name_lang
                                                             // 11       m_iconFile
