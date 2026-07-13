@@ -1867,10 +1867,10 @@ struct SpellAuraOptionsEntry
     //uint32    Id;                                         // 0        m_ID
                                                             // 1        5.x
                                                             // 2        5.x
-    uint32    StackAmount;                                  // 3        m_cumulativeAura
-    uint32    procChance;                                   // 4        m_procChance
-    uint32    procCharges;                                  // 5        m_procCharges
-    uint32    procFlags;                                    // 6        m_procTypeMask
+    uint32    CumulativeAura;                                  // 3        m_cumulativeAura
+    uint32    ProcChance;                                   // 4        m_procChance
+    uint32    ProcCharges;                                  // 5        m_procCharges
+    uint32    ProcTypeMask;                                    // 6        m_procTypeMask
     //uint32                                                // 7        5.4.1
     //uint32                                                // 8        5.4.1
 };
