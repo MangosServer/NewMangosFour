@@ -311,7 +311,13 @@ uint32 Player::DurabilityRepair(uint16 pos, bool cost, float discountMod, bool g
                 return TotalCost;
             }
 
-            uint32 dmultiplier = dcost->multiplier[ItemSubClassToDurabilityMultiplierId(ditemProto->Class, ditemProto->SubClass)];
+            // WeaponSubClassCost[21] (flat indices 0-20) is immediately followed in memory by
+            // ArmorSubClassCost[8] (flat indices 21-28), matching the pre-split flat
+            // multiplier[29] layout byte-for-byte -- ItemSubClassToDurabilityMultiplierId()
+            // still returns a single flat 0-based index (weapon: SubClass, armor: SubClass+21).
+            uint32 dmultiplierIdx = ItemSubClassToDurabilityMultiplierId(ditemProto->Class, ditemProto->SubClass);
+            uint32 dmultiplier = (dmultiplierIdx < 21) ? dcost->WeaponSubClassCost[dmultiplierIdx]
+                                                        : dcost->ArmorSubClassCost[dmultiplierIdx - 21];
             uint32 costs = uint32(LostDurability * dmultiplier * double(dQualitymodEntry->quality_mod));
 
             costs = uint32(costs * discountMod);

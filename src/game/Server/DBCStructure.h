@@ -934,7 +934,8 @@ struct DungeonEncounterEntry
 struct DurabilityCostsEntry
 {
     uint32    ID;                                      // 0        m_ID  (was Itemlvl)
-    uint32    multiplier[29];                               // 1-29     m_weaponSubClassCost m_armorSubClassCost
+    uint32    WeaponSubClassCost[21];                       // 1-21     m_weaponSubClassCost
+    uint32    ArmorSubClassCost[8];                         // 22-29    m_armorSubClassCost
 };
 
 struct DurabilityQualityEntry
