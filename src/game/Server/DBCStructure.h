@@ -1404,7 +1404,7 @@ struct MailTemplateEntry
 {
     uint32      ID;                                         // 0        m_ID
     //char*       subject;                                  // 1        m_subject_lang
-    DBCString content;                                      // 2        m_body_lang
+    DBCString Body_lang;                                      // 2        m_body_lang
 };
 
 struct MapEntry
