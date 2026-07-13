@@ -2117,7 +2117,7 @@ struct SpellTargetRestrictionsEntry
     //uint32    Id;                                         // 0        m_ID
                                                             // 1        unk 5.1.0
                                                             // 2        unk 5.1.0
-    float     MaxTargetRadius;                              // 3        m_maxTargetRadius
+    float     ConeAngle;                              // 3        m_maxTargetRadius
     //float                                                 // 4        unk 5.1.0
     uint32    MaxAffectedTargets;                           // 5        m_maxTargets
     uint32    MaxTargetLevel;                               // 6        m_maxTargetLevel
