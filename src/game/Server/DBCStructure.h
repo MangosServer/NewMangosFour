@@ -1225,12 +1225,12 @@ struct ItemBagFamilyEntry
 
 struct ItemClassEntry
 {
-    uint32   ID;                                            // 0        m_ID
-    uint32 Class;                                           // 1
+    uint32   ClassID;                                            // 0        m_ID
+    uint32 IsWeapon;                                           // 1
     //uint32 unk2;                                          // 2 looks like second class
     //uint32 unk3;                                          // 3 1 for weapons
-    float PriceFactor;                                       // 4
-    DBCString name;                                         // 5        m_name_lang
+    float PriceModifier;                                       // 4
+    DBCString ClassName_lang;                                         // 5        m_name_lang
 };
 
 struct ItemDisplayInfoEntry
