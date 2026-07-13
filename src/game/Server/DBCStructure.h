@@ -2155,11 +2155,11 @@ struct SpellMiscEntry
     uint32 AttributesEx13;                                  // 16
     uint32 CastingTimeIndex;                                // 17       m_castingTimeIndex
     uint32 DurationIndex;                                   // 18       m_durationIndex
-    uint32 rangeIndex;                                      // 19       m_rangeIndex
-    float  speed;                                           // 20       m_speed
+    uint32 RangeIndex;                                      // 19       m_rangeIndex
+    float  Speed;                                           // 20       m_speed
     uint32 SpellVisual[2];                                  // 21-22    m_spellVisualID
     uint32 SpellIconID;                                     // 23       m_spellIconID
-    uint32 activeIconID;                                    // 24       m_activeIconID
+    uint32 ActiveIconID;                                    // 24       m_activeIconID
     uint32 SchoolMask;                                      // 25       m_schoolMask
 };
 
