@@ -1803,9 +1803,9 @@ struct SkillLineAbilityEntry
 
 struct SoundEntriesEntry
 {
-    uint32          Id;                                     // 0        m_ID
-    uint32          Type;                                   // 1        m_soundType
-    DBCString       InternalName;                           // 2        m_name
+    uint32          ID;                                     // 0        m_ID
+    uint32          SoundType;                                   // 1        m_soundType
+    DBCString       Name;                           // 2        m_name
     ///uint32         unk[10];                                // 3-12     unk[10]
     //uint32          unk2[10];                               // 13-22    unk[10]
                                                             // 23       m_volumeFloat
