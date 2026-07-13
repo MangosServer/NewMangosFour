@@ -1132,7 +1132,7 @@ struct GtChanceToSpellCritBaseEntry
 struct GtChanceToSpellCritEntry
 {
     //uint32 level;
-    float    ratio;
+    float    Data;
 };
 
 struct GtOCTClassCombatRatingScalarEntry
