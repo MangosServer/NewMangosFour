@@ -613,14 +613,14 @@ struct BankBagSlotPricesEntry
 
 struct BarberShopStyleEntry
 {
-    uint32  Id;                                             // 0        m_ID
-    uint32  type;                                           // 1        m_type
+    uint32  ID;                                             // 0        m_ID
+    uint32  Type;                                           // 1        m_type
     //char*   name;                                         // 2        m_DisplayName_lang
     //uint32  unk_name;                                     // 3        m_Description_lang
     //float   CostMultiplier;                               // 4        m_Cost_Modifier
-    uint32  race;                                           // 5        m_race
-    uint32  gender;                                         // 6        m_sex
-    uint32  hair_id;                                        // 7        m_data (real ID to hair/facial hair)
+    uint32  Race;                                           // 5        m_race
+    uint32  Sex;                                         // 6        m_sex
+    uint32  Data;                                        // 7        m_data (real ID to hair/facial hair)
 };
 
 struct BattlemasterListEntry
