@@ -2654,7 +2654,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 damage, Aura
                         return SPELL_AURA_PROC_FAILED;
                     }
 
-                    basepoints[0] = int32(damage / (GetSpellDuration(triggeredEntry) / spellEffect->EffectAmplitude));
+                    basepoints[0] = int32(damage / (GetSpellDuration(triggeredEntry) / spellEffect->EffectAuraPeriod));
                     target = this;
                     break;
                 }

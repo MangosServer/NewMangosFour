@@ -558,7 +558,7 @@ Aura::Aura(SpellEntry const* spellproto, SpellEffectIndex eff, int32* currentBas
     damage *= holder->GetStackAmount();
     DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Aura: construct Spellid : %u, Aura : %u Target : %d Damage : %d", spellproto->Id, m_spellEffect->EffectAura, m_spellEffect->EffectImplicitTargetA, damage);
 
-    SetModifier(AuraType(m_spellEffect->EffectAura), damage, m_spellEffect->EffectAmplitude, m_spellEffect->EffectMiscValue);
+    SetModifier(AuraType(m_spellEffect->EffectAura), damage, m_spellEffect->EffectAuraPeriod, m_spellEffect->EffectMiscValue);
 
     Player* modOwner = caster ? caster->GetSpellModOwner() : NULL;
 
@@ -4615,7 +4615,7 @@ void SpellAuraHolder::CleanupTriggeredSpells()
         // needed for spell 43680, maybe others
         // TODO: is there a spell flag, which can solve this in a more sophisticated way?
         if (spellEffect->EffectAura == SPELL_AURA_PERIODIC_TRIGGER_SPELL &&
-            GetSpellDuration(m_spellProto) == int32(spellEffect->EffectAmplitude))
+            GetSpellDuration(m_spellProto) == int32(spellEffect->EffectAuraPeriod))
             {
                 continue;
             }

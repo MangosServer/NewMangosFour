@@ -445,9 +445,9 @@ uint16 GetSpellAuraMaxTicks(SpellEntry const* spellInfo)
             spellEffect->EffectAura == SPELL_AURA_PERIODIC_HEAL ||
             spellEffect->EffectAura == SPELL_AURA_PERIODIC_LEECH) )
         {
-            if (spellEffect->EffectAmplitude != 0)
+            if (spellEffect->EffectAuraPeriod != 0)
             {
-                return DotDuration / spellEffect->EffectAmplitude;
+                return DotDuration / spellEffect->EffectAuraPeriod;
             }
             break;
         }
