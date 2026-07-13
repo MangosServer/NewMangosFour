@@ -1596,14 +1596,14 @@ struct ScalingStatDistributionEntry
 
 struct ScalingStatValuesEntry
 {
-    uint32  Id;                                             // 0        m_ID
+    uint32  ID;                                             // 0        m_ID
     uint32  Level;                                          // 1        m_charlevel
     uint32  dpsMod[6];                                      // 2-7      DPS mod for level
                                                             // 8        5.x unk bonus
-    uint32  spellBonus;                                     // 9        spell power for level
+    uint32  Spellpower;                                     // 9        spell power for level
     uint32  ssdMultiplier[5];                               // 10-14     Multiplier for ScalingStatDistribution
-    uint32  armorMod[4];                                    // 15-18    Armor for level
-    uint32  armorMod2[4];                                   // 19-22    Armor for level
+    uint32  Armor_0[4];                                    // 15-18    Armor for level
+    uint32  Armor_1[4];                                   // 19-22    Armor for level
     //uint32 trash[24];                                     // 23-47
     //uint32 unk2;                                          // 48       unk, probably also Armor for level (flag 0x80000?)
 
@@ -1672,35 +1672,35 @@ struct ScalingStatValuesEntry
         {
             if (mask & 0x00000020)
             {
-                return armorMod[0];
+                return Armor_0[0];
             }
             if (mask & 0x00000040)
             {
-                return armorMod[1];
+                return Armor_0[1];
             }
             if (mask & 0x00000080)
             {
-                return armorMod[2];
+                return Armor_0[2];
             }
             if (mask & 0x00000100)
             {
-                return armorMod[3];
+                return Armor_0[3];
             }
             if (mask & 0x00100000)
             {
-                return armorMod2[0];     // cloth
+                return Armor_1[0];     // cloth
             }
             if (mask & 0x00200000)
             {
-                return armorMod2[1];     // leather
+                return Armor_1[1];     // leather
             }
             if (mask & 0x00400000)
             {
-                return armorMod2[2];     // mail
+                return Armor_1[2];     // mail
             }
             if (mask & 0x00800000)
             {
-                return armorMod2[3];     // plate
+                return Armor_1[3];     // plate
             }
         }
         return 0;
@@ -1742,7 +1742,7 @@ struct ScalingStatValuesEntry
     {
         if (mask & 0x00008000)
         {
-            return spellBonus;
+            return Spellpower;
         }
         return 0;
     }
