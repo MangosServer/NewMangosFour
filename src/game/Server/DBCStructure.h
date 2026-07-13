@@ -793,8 +793,8 @@ struct CreatureDisplayInfoEntry
 
 struct CreatureDisplayInfoExtraEntry
 {
-    uint32      DisplayExtraId;                             // 0        m_ID CreatureDisplayInfoEntry::m_extendedDisplayInfoID
-    uint32      Race;                                       // 1        m_DisplayRaceID
+    uint32      ID;                             // 0        m_ID CreatureDisplayInfoEntry::m_extendedDisplayInfoID
+    uint32      DisplayRaceID;                                       // 1        m_DisplayRaceID
     // uint32    Gender;                                    // 2        m_DisplaySexID
     // uint32    SkinColor;                                 // 3        m_SkinID
     // uint32    FaceType;                                  // 4        m_FaceID
