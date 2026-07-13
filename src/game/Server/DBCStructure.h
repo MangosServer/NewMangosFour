@@ -2423,17 +2423,17 @@ struct SpellItemEnchantmentEntry
 {
     uint32      ID;                                         // 0        m_ID
     //uint32      charges;                                  // 1        m_charges
-    uint32      type[3];                                    // 2-4      m_effect[3]
-    uint32      amount[3];                                  // 5-7      m_effectPointsMin[3]
-    uint32      spellid[3];                                 // 8-10     m_effectArg[3]
-    DBCString description;                                  // 11       m_name_lang
-    uint32      aura_id;                                    // 12       m_itemVisual
-    uint32      slot;                                       // 13       m_flags
-    uint32      GemID;                                      // 14       m_src_itemID
-    uint32      EnchantmentCondition;                       // 15       m_condition_id
+    uint32      Effect[3];                                    // 2-4      m_effect[3]
+    uint32      EffectPointsMin[3];                                  // 5-7      m_effectPointsMin[3]
+    uint32      EffectArg[3];                                 // 8-10     m_effectArg[3]
+    DBCString Name_lang;                                  // 11       m_name_lang
+    uint32      ItemVisual;                                    // 12       m_itemVisual
+    uint32      Flags;                                       // 13       m_flags
+    uint32      Src_itemID;                                      // 14       m_src_itemID
+    uint32      Condition_ID;                       // 15       m_condition_id
     //uint32      requiredSkill;                            // 16       m_requiredSkillID
     //uint32      requiredSkillValue;                       // 17       m_requiredSkillRank
-    uint32      requiredLevel;                              // 18       new in 3.1
+    uint32      MinLevel;                              // 18       new in 3.1
     //float                                                 // 19       5.x
     //uint32      minItemLevel;                             // 20       new in 3.1
     //int32                                                 // 21       5.x
