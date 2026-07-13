@@ -1149,7 +1149,7 @@ struct GtOCTHpPerStaminaEntry
 struct GtRegenMPPerSptEntry
 {
     //uint32 level;
-    float    ratio;
+    float    Data;
 };
 
 struct GtSpellScalingEntry
