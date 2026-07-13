@@ -1072,10 +1072,10 @@ struct GameObjectDisplayInfoEntry
 struct GemPropertiesEntry
 {
     uint32      ID;                                         // 0        m_id
-    uint32      spellitemenchantement;                      // 1        m_enchant_id
+    uint32      Enchant_ID;                      // 1        m_enchant_id
                                                             // 2        m_maxcount_inv
                                                             // 3        m_maxcount_item
-    uint32      color;                                      // 4        m_type
+    uint32      Color;                                      // 4        m_type
     //uint32                                                // 5
 };
 
