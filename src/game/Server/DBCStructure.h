@@ -2720,7 +2720,7 @@ struct WorldMapOverlayEntry
 {
     uint32    ID;                                           // 0        m_ID
     //uint32    worldMapAreaId;                             // 1        m_mapAreaID (WorldMapArea.dbc)
-    uint32    areatableID[MAX_WORLD_MAP_OVERLAY_AREA_IDX];  // 2-5      m_areaID
+    uint32    AreaID[MAX_WORLD_MAP_OVERLAY_AREA_IDX];  // 2-5      m_areaID
     //char* internal_name                                   // 6        m_textureName
                                                             // 7        m_textureWidth
                                                             // 8        m_textureHeight
