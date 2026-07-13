@@ -209,7 +209,7 @@ float Player::GetMeleeCritFromAgility()
         return 0.0f;
     }
 
-    float crit = critBase->base + GetStat(STAT_AGILITY) * critRatio->ratio;
+    float crit = critBase->Data + GetStat(STAT_AGILITY) * critRatio->Data;
     return crit * 100.0f;
 }
 
@@ -272,8 +272,8 @@ void Player::GetDodgeFromAgility(float& diminishing, float& nondiminishing)
     float base_agility = GetCreateStat(STAT_AGILITY) * m_auraModifiersGroup[UNIT_MOD_STAT_START + STAT_AGILITY][BASE_PCT];
     float bonus_agility = GetStat(STAT_AGILITY) - base_agility;
     // calculate diminishing (green in char screen) and non-diminishing (white) contribution
-    diminishing += 100.0f * bonus_agility * dodgeRatio->ratio * crit_to_dodge[pclass - 1];
-    nondiminishing += 100.0f * (dodge_base[pclass - 1] + base_agility * dodgeRatio->ratio * crit_to_dodge[pclass - 1]);
+    diminishing += 100.0f * bonus_agility * dodgeRatio->Data * crit_to_dodge[pclass - 1];
+    nondiminishing += 100.0f * (dodge_base[pclass - 1] + base_agility * dodgeRatio->Data * crit_to_dodge[pclass - 1]);
 }
 
 void Player::GetParryFromStrength(float& diminishing, float& nondiminishing)
@@ -310,7 +310,7 @@ float Player::GetSpellCritFromIntellect()
         return 0.0f;
     }
 
-    float crit = critBase->base + GetStat(STAT_INTELLECT) * critRatio->ratio;
+    float crit = critBase->Data + GetStat(STAT_INTELLECT) * critRatio->Data;
     return crit * 100.0f;
 }
 
@@ -328,7 +328,7 @@ float Player::GetRatingMultiplier(CombatRating cr) const
         return 1.0f;                                        // By default use minimum coefficient (not must be called)
     }
 
-    return classRating->ratio / Rating->ratio;
+    return classRating->Data / Rating->Data;
 }
 
 float Player::GetRatingBonusValue(CombatRating cr) const

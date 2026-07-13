@@ -166,9 +166,9 @@ void Spell::SendCastResult(Player* caster, SpellEntry const* spellInfo, uint8 ca
             {
                 SpellTotemsEntry const* totems = spellInfo->GetSpellTotems();
                 for(int i = 0; i < MAX_SPELL_TOTEM_CATEGORIES; ++i)
-                    if (totems && totems->TotemCategory[i])
+                    if (totems && totems->RequiredTotemCategoryID[i])
                     {
-                        data << uint32(totems->TotemCategory[i]);
+                        data << uint32(totems->RequiredTotemCategoryID[i]);
                     }
             }
             break;

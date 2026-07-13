@@ -207,13 +207,13 @@ SpellFamily SpellEntry::GetSpellFamilyName() const
 uint32 SpellEntry::GetDmgClass() const
 {
     SpellCategoriesEntry const* cat = GetSpellCategories();
-    return cat ? cat->DmgClass : 0;
+    return cat ? cat->DefenseType : 0;
 }
 
 uint32 SpellEntry::GetDispel() const
 {
     SpellCategoriesEntry const* cat = GetSpellCategories();
-    return cat ? cat->Dispel : 0;
+    return cat ? cat->DispelType : 0;
 }
 
 uint32 SpellEntry::GetMaxAffectedTargets() const
@@ -470,13 +470,13 @@ uint32 SpellEntry::GetDurationIndex() const
 uint32 SpellEntry::GetRangeIndex() const
 {
     SpellMiscEntry const* misc = GetSpellMisc();
-    return misc ? misc->rangeIndex : 0;
+    return misc ? misc->RangeIndex : 0;
 }
 
 float SpellEntry::GetSpeed() const
 {
     SpellMiscEntry const* misc = GetSpellMisc();
-    return misc ? misc->speed : 0.0f;
+    return misc ? misc->Speed : 0.0f;
 }
 
 uint32 SpellEntry::GetSpellVisual(int idx) const
@@ -494,7 +494,7 @@ uint32 SpellEntry::GetSpellIconID() const
 uint32 SpellEntry::GetActiveIconID() const
 {
     SpellMiscEntry const* misc = GetSpellMisc();
-    return misc ? misc->activeIconID : 0;
+    return misc ? misc->ActiveIconID : 0;
 }
 
 uint32 SpellEntry::GetSchoolMask() const

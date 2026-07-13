@@ -738,8 +738,8 @@ void ObjectMgr::GetPlayerClassLevelInfo(uint32 class_, uint32 level, uint32& bas
         return;
     }
 
-    baseHP = uint32(hp->ratio);
-    baseMana = uint32(mp->ratio);
+    baseHP = uint32(hp->Data);
+    baseMana = uint32(mp->Data);
 }
 
 /**

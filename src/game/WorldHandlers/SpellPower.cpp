@@ -392,7 +392,7 @@ void Spell::TakeRunePower(bool hit)
     if (hit)
     {
         // you can gain some runic power when use runes
-        int32 rp = int32(src->runePowerGain);
+        int32 rp = int32(src->RunicPower);
         if (rp)
         {
             if (Player* modOwner = m_caster->GetSpellModOwner())

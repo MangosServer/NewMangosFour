@@ -1009,7 +1009,7 @@ void LoadDBCStores(const std::string& dataPath)
     for (uint32 i = 0; i < sTransportAnimationStore.GetNumRows(); ++i)
         if (TransportAnimationEntry const* entry = sTransportAnimationStore.LookupEntry(i))
         {
-            sTransportAnimationsByEntry[entry->transportEntry][entry->timeFrame] = entry;
+            sTransportAnimationsByEntry[entry->TransportEntry][entry->TimeIndex] = entry;
         }
 
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sVehicleStore,             dbcPath, "Vehicle.dbc");
@@ -1337,12 +1337,12 @@ bool IsTotemCategoryCompatiableWith(uint32 itemTotemCategoryId, uint32 requiredT
         return false;
     }
 
-    if (itemEntry->categoryType != reqEntry->categoryType)
+    if (itemEntry->TotemCategoryType != reqEntry->TotemCategoryType)
     {
         return false;
     }
 
-    return (itemEntry->categoryMask & reqEntry->categoryMask) == reqEntry->categoryMask;
+    return (itemEntry->TotemCategoryMask & reqEntry->TotemCategoryMask) == reqEntry->TotemCategoryMask;
 }
 
 /**
@@ -1616,7 +1616,7 @@ uint32 GetCreatureModelRace(uint32 model_id)
         return 0;
     }
     CreatureDisplayInfoExtraEntry const* extraEntry = sCreatureDisplayInfoExtraStore.LookupEntry(displayEntry->ExtendedDisplayInfoID);
-    return extraEntry ? extraEntry->Race : 0;
+    return extraEntry ? extraEntry->DisplayRaceID : 0;
 }
 
 float GetCurrencyPrecision(uint32 currencyId)

@@ -3076,12 +3076,12 @@ SpellCastResult SpellMgr::GetSpellAllowedInLocationError(SpellEntry const* spell
                 {
                     found = true;
                 }
-            if (found || !groupEntry->nextGroup)
+            if (found || !groupEntry->NextGroup)
             {
                 break;
             }
             // Try search in next group
-            groupEntry = sAreaGroupStore.LookupEntry(groupEntry->nextGroup);
+            groupEntry = sAreaGroupStore.LookupEntry(groupEntry->NextGroup);
         }
 
         if (!found)
