@@ -1108,7 +1108,7 @@ struct GtBarberShopCostBaseEntry
 struct GtCombatRatingsEntry
 {
     //uint32 level;
-    float    ratio;
+    float    Data;
 };
 
 struct GtChanceToMeleeCritBaseEntry
