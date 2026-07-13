@@ -1567,7 +1567,7 @@ struct QuestFactionRewardEntry
 
 struct QuestSortEntry
 {
-    uint32      id;                                         // 0        m_ID
+    uint32      ID;                                         // 0        m_ID
     //char*       name;                                     // 1        m_SortName_lang
 };
 
