@@ -26,7 +26,7 @@
 #define MANGOS_DBCSFRM_H
 
 const char Achievementfmt[]= "niiissiiiiisiix";                     // 5.3.0 Checked
-const char AchievementCriteriafmt[]="niiiiiiiixsiiiiixxxxxxx";      // 5.4.8
+const char AchievementCriteriafmt[]="niiiiiiiixsiiiiixxxxxxx";      // 5.4.8: file is 23 fields / 96 B (col4 Quantity is int64 = 2 dwords); 23 chars can cover only 92 B -- trailing AdditionalConditionValue[2] is unreadable by design; loader tolerates the 4-byte tail.
 const char AreaTableEntryfmt[] = "iiinixxxxxxxisiiiiixxxxxxxxxxx";  // TODO: NEED TO CONFIRM THIS
 const char AreaGroupEntryfmt[] = "niiiiiii";                        // 5.3.0 Checked
 const char AreaTriggerEntryfmt[]="nifffxxxfffffxxx";                // 5.4.8
@@ -140,7 +140,7 @@ const char SpellTargetRestrictionsEntryfmt[]="dxxfxiiii"; // 5.4.8
 const char SpellTotemsEntryfmt[]="diiii";                           // 5.3.0 Checked
 const char SpellFocusObjectfmt[]="nx";
 const char SpellItemEnchantmentfmt[]="nxiiiiiiiiisiiiixxixxxxxxx";   // 5.4.8
-const char SpellItemEnchantmentConditionfmt[] = "nbbbbbxxxxxbbbbbbbbbbiiiiiXXXXX"; // 5.3.0 Checked
+const char SpellItemEnchantmentConditionfmt[] = "nbbbbbxxxxxbbbbbbbbbbiiiiiXXXXX"; // 5.4.8: file is 31 fields / 72 B; no {1,4}-byte 31-char fmt can sum to 72 (4a+b=72, a+b=31 has no integer solution) -- current fmt is the aligned maximal read; loader tolerates the tail.
 const char SpellMiscfmt[]="dxxiiiiiiiiiiiiiiiiifiiiii";             // TODO: NEED TO CONFIRM THIS
 const char SpellRadiusfmt[]="nfxxx";                                // 5.4.8
 const char SpellRangefmt[]="nffffxxx";                              // 5.4.8
