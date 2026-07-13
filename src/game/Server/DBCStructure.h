@@ -1269,8 +1269,8 @@ struct ItemLimitCategoryEntry
 {
     uint32      ID;                                         // 0 Id     m_ID
     //char*     name;                                       // 1        m_name_lang
-    uint32      maxCount;                                   // 2,       m_quantity max allowed equipped as item or in gem slot
-    uint32      mode;                                       // 3,       m_flags 0 = have, 1 = equip (enum ItemLimitCategoryMode)
+    uint32      Quantity;                                   // 2,       m_quantity max allowed equipped as item or in gem slot
+    uint32      Flags;                                       // 3,       m_flags 0 = have, 1 = equip (enum ItemLimitCategoryMode)
 };
 
 struct ItemRandomPropertiesEntry
