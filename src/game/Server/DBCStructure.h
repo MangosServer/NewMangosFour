@@ -764,7 +764,7 @@ struct ChrPowerTypesEntry
 
 struct CinematicSequencesEntry
 {
-    uint32      Id;                                         // 0        m_ID
+    uint32      ID;                                         // 0        m_ID
     // uint32      unk1;                                    // 1        m_soundID
     // uint32      cinematicCamera;                         // 2        m_camera[8]
 };
