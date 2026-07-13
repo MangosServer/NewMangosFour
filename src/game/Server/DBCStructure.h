@@ -1313,36 +1313,36 @@ struct ItemSetEntry
 struct LfgDungeonsEntry
 {
     uint32    ID;
-    DBCString    Name;
-    uint32    minLevel;
-    uint32    maxLevel;
-    uint32    target_level;
-    uint32    target_level_min;
-    uint32    target_level_max;
-    uint32    mapID;
-    uint32    difficulty;
-    uint32    flags;
-    uint32    typeID;
-    uint32    faction;
-    DBCString    textureFilename;
-    uint32    expansionLevel;
-    uint32    order_index;
-    uint32    group_id;
-    DBCString    description_lang;
-    uint32    col17;
-    uint32    col18;
-    uint32    col19;
-    uint32    col20;
-    uint32    min_count_tank;                               // 21
-    uint32    min_count_healer;                             // 22
-    uint32    min_count_damage;                             // 23
-    uint32    scenarioID;                                   // 24
-    uint32    subtype;                                      // 25
-    uint32    bonus_reputation_amount;                      // 26
-    uint32    mentorCharLevel;                              // 27
-    uint32    mentorItemLevel;                              // 28
+    DBCString    Name_lang;
+    uint32    MinLevel;
+    uint32    MaxLevel;
+    uint32    Target_level;
+    uint32    Target_level_min;
+    uint32    Target_level_max;
+    uint32    MapID;
+    uint32    DifficultyID;
+    uint32    Flags;
+    uint32    TypeID;
+    uint32    Faction;
+    DBCString    TextureFilename;
+    uint32    ExpansionLevel;
+    uint32    Order_index;
+    uint32    Group_ID;
+    DBCString    Description_lang;
+    uint32    Random_ID;
+    uint32    Count_tank;
+    uint32    Count_healer;
+    uint32    Count_damage;
+    uint32    Min_count_tank;                               // 21
+    uint32    Min_count_healer;                             // 22
+    uint32    Min_count_damage;                             // 23
+    uint32    ScenarioID;                                   // 24
+    uint32    Subtype;                                      // 25
+    uint32    Bonus_reputation_amount;                      // 26
+    uint32    MentorCharLevel;                              // 27
+    uint32    MentorItemLevel;                              // 28
 
-    uint32 Entry() const { return ID + ((uint8)typeID << 24); }
+    uint32 Entry() const { return ID + ((uint8)TypeID << 24); }
 };
 
 /*struct LfgDungeonGroupEntry
