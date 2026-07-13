@@ -2456,9 +2456,9 @@ struct SpellItemEnchantmentConditionEntry
 
 struct SummonPropertiesEntry
 {
-    uint32  Id;                                             // 0        m_id
-    uint32  Group;                                          // 1        m_control (enum SummonPropGroup)
-    uint32  FactionId;                                      // 2        m_faction
+    uint32  ID;                                             // 0        m_id
+    uint32  Control;                                          // 1        m_control (enum SummonPropGroup)
+    uint32  Faction;                                      // 2        m_faction
     uint32  Title;                                          // 3        m_title (enum UnitNameSummonTitle)
     uint32  Slot;                                           // 4        m_slot if title = UNITNAME_SUMMON_TITLE_TOTEM, its actual slot (0-6).
                                                             //      if title = UNITNAME_SUMMON_TITLE_COMPANION, slot=6 -> defensive guardian, in other cases criter/minipet
