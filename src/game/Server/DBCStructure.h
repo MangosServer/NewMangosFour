@@ -2073,8 +2073,8 @@ struct SpellScalingEntry
     int32     CastTimeMaxLevel;                          // 3  (was castScalingMaxLevel)
     int32     ScalingClass;                                  // 4        (index * 100) + charLevel => gtSpellScaling.dbc  (was playerClass)
     float     CoefBase;                                       // 5-7  (was coeff1)
-    float     coeff2;                                       // 8-10
-    float     coeff3;                                       // 11-13
+    int32     CoefLevelBase;                                // 6  registry: int, was float coeff2
+    uint32    MaxLevel;                                     // 7  registry: uint, was float coeff3
     //float     coefBase;                                    // 14       some coefficient, mostly 1.0f
     int32     ItemLevel;                                // 15       some level  (was coefLevelBase)
 
