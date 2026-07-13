@@ -1102,7 +1102,7 @@ struct GlyphSlotEntry
 struct GtBarberShopCostBaseEntry
 {
     //uint32 level;
-    float   cost;
+    float   Data;
 };
 
 struct GtCombatRatingsEntry
