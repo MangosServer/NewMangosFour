@@ -1302,12 +1302,12 @@ struct ItemReforgeEntry
 struct ItemSetEntry
 {
     //uint32    id                                          // 0        m_ID
-    DBCString name;                                         // 1        m_name_lang
+    DBCString Name_lang;                                         // 1        m_name_lang
     //uint32    itemId[17];                                 // 2-18     m_itemID
-    uint32    spells[8];                                    // 19-26    m_setSpellID
-    uint32    items_to_triggerspell[8];                     // 27-34    m_setThreshold
-    uint32    required_skill_id;                            // 35       m_requiredSkill
-    uint32    required_skill_value;                         // 36       m_requiredSkillRank
+    uint32    SetSpellID[8];                                    // 19-26    m_setSpellID
+    uint32    SetThreshold[8];                     // 27-34    m_setThreshold
+    uint32    RequiredSkill;                            // 35       m_requiredSkill
+    uint32    RequiredSkillRank;                         // 36       m_requiredSkillRank
 };
 
 struct LfgDungeonsEntry
