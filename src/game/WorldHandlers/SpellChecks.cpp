@@ -1102,7 +1102,7 @@ SpellCastResult Spell::CheckCast(bool strict)
             {
                 uint32 glyphId = spellEffect->EffectMiscValue;
                 if (GlyphPropertiesEntry const *gp = sGlyphPropertiesStore.LookupEntry(glyphId))
-                    if (m_caster->HasAura(gp->SpellId))
+                    if (m_caster->HasAura(gp->SpellID))
                     {
                         return SPELL_FAILED_UNIQUE_GLYPH;
                     }
@@ -1300,7 +1300,7 @@ SpellCastResult Spell::CheckCast(bool strict)
             {
                 if (SummonPropertiesEntry const *summon_prop = sSummonPropertiesStore.LookupEntry(spellEffect->EffectMiscValueB))
                 {
-                    if (summon_prop->Group == SUMMON_PROP_GROUP_PETS)
+                    if (summon_prop->Control == SUMMON_PROP_GROUP_PETS)
                     {
                         if (m_caster->GetPetGuid())
                         {

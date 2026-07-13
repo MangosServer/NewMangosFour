@@ -652,7 +652,7 @@ WorldSafeLocsEntry const* BattleGroundEY::GetClosestGraveYard(Player* player)
     float plr_z = player->GetPositionZ();
 
 
-    distance = (entry->x - plr_x) * (entry->x - plr_x) + (entry->y - plr_y) * (entry->y - plr_y) + (entry->z - plr_z) * (entry->z - plr_z);
+    distance = (entry->Pos_X - plr_x) * (entry->Pos_X - plr_x) + (entry->Pos_Y - plr_y) * (entry->Pos_Y - plr_y) + (entry->Pos_Z - plr_z) * (entry->Pos_Z - plr_z);
     nearestDistance = distance;
 
     for (uint8 i = 0; i < EY_NODES_MAX; ++i)
@@ -666,7 +666,7 @@ WorldSafeLocsEntry const* BattleGroundEY::GetClosestGraveYard(Player* player)
             }
             else
             {
-                distance = (entry->x - plr_x) * (entry->x - plr_x) + (entry->y - plr_y) * (entry->y - plr_y) + (entry->z - plr_z) * (entry->z - plr_z);
+                distance = (entry->Pos_X - plr_x) * (entry->Pos_X - plr_x) + (entry->Pos_Y - plr_y) * (entry->Pos_Y - plr_y) + (entry->Pos_Z - plr_z) * (entry->Pos_Z - plr_z);
                 if (distance < nearestDistance)
                 {
                     nearestDistance = distance;

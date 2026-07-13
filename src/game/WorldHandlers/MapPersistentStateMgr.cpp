@@ -424,16 +424,16 @@ void DungeonPersistentState::UpdateEncounterState(EncounterCreditType type, uint
     {
         DungeonEncounterEntry const* dbcEntry = iter->second->dbcEntry;
 
-        if (iter->second->creditType == type && Difficulty(dbcEntry->Difficulty) == GetDifficulty() && dbcEntry->mapId == GetMapId())
+        if (iter->second->creditType == type && Difficulty(dbcEntry->DifficultyID) == GetDifficulty() && dbcEntry->MapID == GetMapId())
         {
-            m_completedEncountersMask |= 1 << dbcEntry->encounterIndex;
+            m_completedEncountersMask |= 1 << dbcEntry->Bit;
 
             CharacterDatabase.PExecute("UPDATE `instance` SET `encountersMask` = '%u' WHERE `id` = '%u'", m_completedEncountersMask, GetInstanceId());
 
-            DEBUG_LOG("DungeonPersistentState: Dungeon %s (Id %u) completed encounter %s", GetMap()->GetMapName(), GetInstanceId(), dbcEntry->encounterName[sWorld.GetDefaultDbcLocale()]);
+            DEBUG_LOG("DungeonPersistentState: Dungeon %s (Id %u) completed encounter %s", GetMap()->GetMapName(), GetInstanceId(), dbcEntry->Name_lang[sWorld.GetDefaultDbcLocale()]);
             if (/*uint32 dungeonId =*/ iter->second->lastEncounterDungeon)
             {
-                DEBUG_LOG("DungeonPersistentState:: Dungeon %s (Instance-Id %u) completed last encounter %s", GetMap()->GetMapName(), GetInstanceId(), dbcEntry->encounterName[sWorld.GetDefaultDbcLocale()]);
+                DEBUG_LOG("DungeonPersistentState:: Dungeon %s (Instance-Id %u) completed last encounter %s", GetMap()->GetMapName(), GetInstanceId(), dbcEntry->Name_lang[sWorld.GetDefaultDbcLocale()]);
                 // Place LFG reward here
             }
             return;
@@ -454,12 +454,12 @@ bool BattleGroundPersistentState::CanBeUnload() const
 
 uint32 DungeonResetScheduler::GetMaxResetTimeFor(MapDifficultyEntry const* mapDiff)
 {
-    if (!mapDiff || !mapDiff->resetTime)
+    if (!mapDiff || !mapDiff->RaidDuration)
     {
         return 0;
     }
 
-    uint32 delay = uint32(mapDiff->resetTime / DAY * sWorld.getConfig(CONFIG_FLOAT_RATE_INSTANCE_RESET_TIME)) * DAY;
+    uint32 delay = uint32(mapDiff->RaidDuration / DAY * sWorld.getConfig(CONFIG_FLOAT_RATE_INSTANCE_RESET_TIME)) * DAY;
 
     if (delay < DAY)                                        // the reset_delay must be at least one day
     {
@@ -605,7 +605,7 @@ void DungeonResetScheduler::LoadResetTimes()
         MapDifficultyEntry const* mapDiff = itr->second;
 
         // skip mapDiff without global reset time
-        if (!mapDiff->resetTime)
+        if (!mapDiff->RaidDuration)
         {
             continue;
         }
@@ -1171,7 +1171,7 @@ void MapPersistentStateManager::_ResetOrWarnAll(uint32 mapid, Difficulty difficu
     if (!warn)
     {
         MapDifficultyEntry const* mapDiff = GetMapDifficultyData(mapid, difficulty);
-        if (!mapDiff || !mapDiff->resetTime)
+        if (!mapDiff || !mapDiff->RaidDuration)
         {
             sLog.outError("MapPersistentStateManager::ResetOrWarnAll: not valid difficulty or no reset delay for map %d", mapid);
             return;

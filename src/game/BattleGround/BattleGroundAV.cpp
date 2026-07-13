@@ -988,7 +988,7 @@ WorldSafeLocsEntry const* BattleGroundAV::GetClosestGraveYard(Player* plr)
             {
                 continue;
             }
-            float dist = (entry->x - x) * (entry->x - x) + (entry->y - y) * (entry->y - y);
+            float dist = (entry->Pos_X - x) * (entry->Pos_X - x) + (entry->Pos_Y - y) * (entry->Pos_Y - y);
             if (mindist > dist)
             {
                 mindist = dist;

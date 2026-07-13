@@ -750,15 +750,15 @@ void WorldSession::HandleReturnToGraveyard(WorldPacket& /*recvPacket*/)
     // and don't show spirit healer location
     if (ClosestGrave)
     {
-        bool updateVisibility = pPlayer->IsInWorld() && pPlayer->GetCorpse()->GetMapId() == ClosestGrave->map_id;
-        pPlayer->TeleportTo(ClosestGrave->map_id, ClosestGrave->x, ClosestGrave->y, ClosestGrave->z, pPlayer->GetOrientation());
+        bool updateVisibility = pPlayer->IsInWorld() && pPlayer->GetCorpse()->GetMapId() == ClosestGrave->Continent;
+        pPlayer->TeleportTo(ClosestGrave->Continent, ClosestGrave->Pos_X, ClosestGrave->Pos_Y, ClosestGrave->Pos_Z, pPlayer->GetOrientation());
         if (pPlayer->IsDead())                                       // not send if alive, because it used in TeleportTo()
         {
             WorldPacket data(SMSG_DEATH_RELEASE_LOC, 4 * 4);// show spirit healer position on minimap
-            data << ClosestGrave->map_id;
-            data << ClosestGrave->x;
-            data << ClosestGrave->y;
-            data << ClosestGrave->z;
+            data << ClosestGrave->Continent;
+            data << ClosestGrave->Pos_X;
+            data << ClosestGrave->Pos_Y;
+            data << ClosestGrave->Pos_Z;
             pPlayer->GetSession()->SendPacket(&data);
         }
 

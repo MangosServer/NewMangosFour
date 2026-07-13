@@ -2740,7 +2740,7 @@ struct WorldSafeLocsEntry
     float     Pos_X;                                            // 2        m_locX
     float     Pos_Y;                                            // 3        m_locY
     float     Pos_Z;                                            // 4        m_locZ
-    //float                                                 // 5        5.Pos_X
+    //float                                                 // 5        5.x
     //char*   name;                                         // 6        m_AreaName_lang
 };
 

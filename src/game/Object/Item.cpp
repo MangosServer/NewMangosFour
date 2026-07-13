@@ -319,7 +319,7 @@ uint32 ItemPrototype::GetArmor() const
     {
         if (ItemArmorShieldEntry const* ias = sItemArmorShieldStore.LookupEntry(ItemLevel))
         {
-            return uint32(floor(ias->Value[Quality] + 0.5f));
+            return uint32(floor(ias->Quality[Quality] + 0.5f));
         }
         return 0;
     }
@@ -378,7 +378,7 @@ uint32 ItemPrototype::GetArmor() const
             return 0;
     }
 
-    return uint32(floor(iaq->Value[Quality] * iatMult * alMult + 0.5f));
+    return uint32(floor(iaq->QualityMod[Quality] * iatMult * alMult + 0.5f));
 }
 
 float ItemPrototype::getDPS() const
@@ -450,7 +450,7 @@ float ItemPrototype::getDPS() const
             return damage;
         }
 
-        return id->Value[Quality];
+        return id->Quality[Quality];
     }
 
     return damage;

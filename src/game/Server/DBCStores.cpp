@@ -688,7 +688,7 @@ void LoadDBCStores(const std::string& dataPath)
     for (uint32 i = 1; i < sMapDifficultyStore.GetNumRows(); ++i)
         if (MapDifficultyEntry const* entry = sMapDifficultyStore.LookupEntry(i))
         {
-            sMapDifficultyMap[MAKE_PAIR32(entry->MapId, entry->Difficulty)] = entry;
+            sMapDifficultyMap[MAKE_PAIR32(entry->MapID, entry->DifficultyID)] = entry;
         }
 
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sMovieStore,               dbcPath, "Movie.dbc");
@@ -1020,7 +1020,7 @@ void LoadDBCStores(const std::string& dataPath)
     {
         if (WMOAreaTableEntry const* entry = sWMOAreaTableStore.LookupEntry(i))
         {
-            sWMOAreaInfoByTripple.insert(WMOAreaInfoByTripple::value_type(WMOAreaTableTripple(entry->rootId, entry->adtId, entry->groupId), entry));
+            sWMOAreaInfoByTripple.insert(WMOAreaInfoByTripple::value_type(WMOAreaTableTripple(entry->WMOID, entry->NameSetID, entry->WMOGroupID), entry));
         }
     }
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sWorldMapOverlayStore,     dbcPath, "WorldMapOverlay.dbc");
