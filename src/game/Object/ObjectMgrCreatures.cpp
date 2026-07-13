@@ -1134,6 +1134,9 @@ void ObjectMgr::LoadCreatures()
     // Map 0 was removed from dbc as of 4.x.x
     spawnMasks[0] = 1 << REGULAR_DIFFICULTY;
 
+    // collapse per-row "wrong spawn mask" spam into a per-map summary (DB vs DBC mismatches can hit ~every spawn on a map)
+    std::map<uint32, uint32> badSpawnMaskCounts;
+
     BarGoLink bar(result->GetRowCount());
 
     const uint32 lwAnchorMask = sWorld.getConfig(CONFIG_UINT32_LIVINGWORLD_ANCHOR_MASK);
@@ -1194,7 +1197,7 @@ void ObjectMgr::LoadCreatures()
         }
 
         if (data.spawnMask & ~spawnMasks[data.mapid])
-            sLog.outErrorDb("Table `creature` have creature (GUID: %u) that have wrong spawn mask %u including not supported difficulty modes for map (Id: %u).", guid, data.spawnMask, data.mapid);
+            ++badSpawnMaskCounts[data.mapid];
 
         bool ok = true;
         for (uint32 diff = 0; diff < MAX_DIFFICULTY - 1 && ok; ++diff)
@@ -1316,6 +1319,11 @@ void ObjectMgr::LoadCreatures()
     while (result->NextRow());
 
     delete result;
+
+    for (std::map<uint32, uint32>::const_iterator itr = badSpawnMaskCounts.begin(); itr != badSpawnMaskCounts.end(); ++itr)
+    {
+        sLog.outErrorDb("Table `creature`: map %u has %u creature spawn(s) whose spawn mask does not match the client's supported difficulty modes (loaded anyway; DB vs 5.4.8 MapDifficulty.dbc mismatch).", itr->first, itr->second);
+    }
 
     sLog.outString(">> Loaded %zu creatures", mCreatureDataMap.size());
     sLog.outString("[LivingWorld] anchor policy mask=0x%X: world-boss/leaders=%u, flight-masters=%u, settlement-defenders=%u, total-anchors=%u (continent-only; instance spawns excluded)",
