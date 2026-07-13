@@ -819,7 +819,7 @@ bool Player::Create(uint32 guidlow, const std::string& name, uint8 race, uint8 c
     {
         if (CharStartOutfitEntry const* entry = sCharStartOutfitStore.LookupEntry(i))
         {
-            if (entry->RaceClassGender == raceClassGender)
+            if (((uint32)entry->RaceID | ((uint32)entry->ClassID << 8) | ((uint32)entry->SexID << 16)) == raceClassGender)
             {
                 oEntry = entry;
                 break;

@@ -36,7 +36,7 @@ const char BankBagSlotPricesEntryfmt[] = "ni";                      // 5.3.0 Che
 const char BarberShopStyleEntryfmt[]= "nixxxiii";                   // TODO: 5.3.0 DIFFERENT
 const char BattlemasterListEntryfmt[] = "niiiiiiiiiiiiiiiiixsiiiixxxxxx";
 //                                    1        10        20        30        40        50        60        70        80        90        100       110       120       130       140       150       160
-const char CharStartOutfitEntryfmt[]= "diiiiiiiiiiiiiiiiiiiiiiiiixxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";    // TODO: 5.3.0 DIFFERENT
+const char CharStartOutfitEntryfmt[]= "dbbbXiiiiiiiiiiiiiiiiiiiiiiiixxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";    // 5.3.0 packed byte header (304B client record)
 const char CharTitlesEntryfmt[]="nxsxix";                           // 5.3.0 Checked
 const char ChatChannelsEntryfmt[]="iixsx";                          // 5.3.0 Checked
 // ChatChannelsEntryfmt, index not used (more compact store)

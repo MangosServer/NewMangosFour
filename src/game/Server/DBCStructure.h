@@ -663,16 +663,16 @@ struct BattlemasterListEntry
 
 struct CharStartOutfitEntry
 {
-    // uint32 Id;                                           // 0        m_ID
-    uint32 RaceClassGender;                                 // 1        m_raceID m_classID m_sexID m_outfitID (UNIT_FIELD_BYTES_0 & 0x00FFFFFF) comparable (0 byte = race, 1 byte = class, 2 byte = gender)
-    int32 ItemId[MAX_OUTFIT_ITEMS];                         // 2-25     m_ItemID
-    // int32 ItemDisplayId[MAX_OUTFIT_ITEMS];               // 26-29    m_DisplayItemID not required at server side
-    // int32 ItemInventorySlot[MAX_OUTFIT_ITEMS];           // 50-73    m_InventoryType not required at server side
-    // uint32 Unknown1;                                     // 74 unique values (index-like with gaps ordered in other way as ids)
-    // uint32 Unknown2;                                     // 75
-    // uint32 Unknown3;                                     // 76
-    //uint32 Unknown4;                                      // 77
-    //uint32 Unknown5;                                      // 78
+    // uint32 Id;                                           // 0        m_ID (fmt 'd' - not stored)
+    uint8 RaceID;                                           // 1        m_raceID
+    uint8 ClassID;                                          // 2        m_classID
+    uint8 SexID;                                            // 3        m_sexID
+    // uint8 OutfitID;                                      // 4        m_outfitID (always 0, fmt 'X')
+    int32 ItemId[MAX_OUTFIT_ITEMS];                         // 5-28     m_ItemID
+    // int32 ItemDisplayId[MAX_OUTFIT_ITEMS];               // 29-52    not required at server side
+    // int32 ItemInventorySlot[MAX_OUTFIT_ITEMS];           // 53-76    not required at server side
+    // uint32 PetDisplayId;                                 // 77       not required at server side
+    // uint32 PetFamilyEntry;                               // 78       not required at server side
 };
 
 struct CharTitlesEntry
