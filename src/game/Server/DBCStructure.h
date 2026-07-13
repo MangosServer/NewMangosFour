@@ -1587,9 +1587,9 @@ struct RandomPropertiesPointsEntry
 
 struct ScalingStatDistributionEntry
 {
-    uint32  Id;                                             // 0        m_ID
-    int32   StatMod[10];                                    // 1-10     m_statID
-    uint32  Modifier[10];                                   // 11-20    m_bonus
+    uint32  ID;                                             // 0        m_ID
+    int32   StatID[10];                                    // 1-10     m_statID
+    uint32  Bonus[10];                                   // 11-20    m_bonus
     //uint32 unk1;                                          // 21
     uint32  MaxLevel;                                       // 22       m_maxlevel
 };
