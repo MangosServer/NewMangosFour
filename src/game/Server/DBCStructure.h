@@ -1523,7 +1523,7 @@ struct NumTalentsAtLevelEntry
 
 struct OverrideSpellDataEntry
 {
-    uint32      Id;                                         // 0        m_ID
+    uint32      ID;                                         // 0        m_ID
     uint32      Spells[MAX_OVERRIDE_SPELLS];                // 1-10     m_spells
     // uint32      unk2;                                    // 11       m_flags
     //uint32      unk3;                                     // 12 possibly flag
