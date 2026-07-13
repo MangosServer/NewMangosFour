@@ -1475,12 +1475,12 @@ struct MapEntry
 
 struct MapDifficultyEntry
 {
-    uint32      Id;                                         // 0        m_ID
-    uint32      MapId;                                      // 1        m_mapID
-    uint32      Difficulty;                                 // 2        m_difficulty (for arenas: arena slot)
-    DBCString   areaTriggerText;                            // 3        m_message_lang (text showed when transfer to map failed)
-    uint32      resetTime;                                  // 4,       m_raidDuration in secs, 0 if no fixed reset time
-    uint32      maxPlayers;                                 // 5,       m_maxPlayers some heroic versions have 0 when expected same amount as in normal version
+    uint32      ID;                                         // 0        m_ID
+    uint32      MapID;                                      // 1        m_mapID
+    uint32      DifficultyID;                                 // 2        m_difficulty (for arenas: arena slot)
+    DBCString   Message_lang;                            // 3        m_message_lang (text showed when transfer to map failed)
+    uint32      RaidDuration;                                  // 4,       m_raidDuration in secs, 0 if no fixed reset time
+    uint32      MaxPlayers;                                 // 5,       m_maxPlayers some heroic versions have 0 when expected same amount as in normal version
     DBCString   difficultyString;                           // 6        m_difficultystring
 };
 
