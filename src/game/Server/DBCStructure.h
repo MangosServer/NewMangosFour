@@ -593,7 +593,11 @@ struct AreaTriggerEntry
 struct ArmorLocationEntry
 {
   uint32    InventoryType;                                  // 0
-  float     Value[5];                                       // 1-5 multiplier for armor types (cloth...plate, no armor?)
+  float     Clothmodifier;                                  // 1 multiplier for cloth armor
+  float     Leathermodifier;                                // 2 multiplier for leather armor
+  float     Chainmodifier;                                  // 3 multiplier for mail/chain armor
+  float     Platemodifier;                                  // 4 multiplier for plate armor
+  float     Modifier;                                       // 5 multiplier, no-armor/catch-all slot
 };
 
 struct AuctionHouseEntry

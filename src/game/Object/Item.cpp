@@ -360,19 +360,19 @@ uint32 ItemPrototype::GetArmor() const
     {
         case ITEM_SUBCLASS_ARMOR_CLOTH:
             iatMult = iat->Cloth;
-            alMult = al->Value[0];
+            alMult = al->Clothmodifier;
             break;
         case ITEM_SUBCLASS_ARMOR_LEATHER:
             iatMult = iat->Leather;
-            alMult = al->Value[1];
+            alMult = al->Leathermodifier;
             break;
         case ITEM_SUBCLASS_ARMOR_MAIL:
             iatMult = iat->Mail;
-            alMult = al->Value[2];
+            alMult = al->Chainmodifier;
             break;
         case ITEM_SUBCLASS_ARMOR_PLATE:
             iatMult = iat->Plate;
-            alMult = al->Value[3];
+            alMult = al->Platemodifier;
             break;
         default:
             return 0;
