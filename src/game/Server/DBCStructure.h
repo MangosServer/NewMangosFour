@@ -2383,10 +2383,10 @@ struct SpellRuneCostEntry
     uint32  ID;                                             // 0        m_ID
     uint32  RuneCost[3];                                    // 1-3      m_blood m_unholy m_frost (0=blood, 1=frost, 2=unholy)
     //uint32                                                // 4        5.x
-    uint32  runePowerGain;                                  // 5        m_runicPower
+    uint32  RunicPower;                                  // 5        m_runicPower
 
     bool NoRuneCost() const { return RuneCost[0] == 0 && RuneCost[1] == 0 && RuneCost[2] == 0; }
-    bool NoRunicPowerGain() const { return runePowerGain == 0; }
+    bool NoRunicPowerGain() const { return RunicPower == 0; }
 };
 
 struct SpellShapeshiftFormEntry
