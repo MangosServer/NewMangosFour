@@ -1609,7 +1609,7 @@ struct ScalingStatValuesEntry
     uint32  dpsMod[6];                                      // 2-7      DPS mod for level
                                                             // 8        5.x unk bonus
     uint32  Spellpower;                                     // 9        spell power for level  (was spellBonus)
-    uint32  ssdMultiplier[5];                               // 10-14     Multiplier for ScalingStatDistribution
+    uint32  StatMultiplier[5];                              // 10-14     Multiplier for ScalingStatDistribution
     uint32  Armor_0[4];                                    // 15-18    Armor for level  (was armorMod)
     uint32  Armor_1[4];                                   // 19-22    Armor for level  (was armorMod2)
     //uint32 trash[24];                                     // 23-47
@@ -1648,27 +1648,27 @@ struct ScalingStatValuesEntry
         {
             if (mask & 0x00000001)
             {
-                return ssdMultiplier[1];
+                return StatMultiplier[1];
             }
             if (mask & 0x00000002)
             {
-                return ssdMultiplier[2]; // 0 and 1 were duplicated
+                return StatMultiplier[2]; // 0 and 1 were duplicated
             }
             if (mask & 0x00000004)
             {
-                return ssdMultiplier[3];
+                return StatMultiplier[3];
             }
             if (mask & 0x00000008)
             {
-                return ssdMultiplier[0];
+                return StatMultiplier[0];
             }
             if (mask & 0x00000010)
             {
-                return ssdMultiplier[4];
+                return StatMultiplier[4];
             }
             if (mask & 0x00040000)
             {
-                return ssdMultiplier[2]; // 4.0.0
+                return StatMultiplier[2]; // 4.0.0
             }
         }
         return 0;
