@@ -2050,13 +2050,13 @@ struct SpellLevelsEntry
 struct SpellPowerEntry
 {
     //uint32    Id;                                           // 0 - m_ID
-    uint32    SpellId;                                      // 1        5.x
+    uint32    SpellID;                                      // 1        5.x
                                                             // 2        5.x
-    uint32    powerType;                                    // 3        m_powerType
-    uint32    manaCost;                                     // 4        m_manaCost
-    uint32    manaCostPerlevel;                             // 5        m_manaCostPerLevel
-    uint32    ManaCostPercentage;                           // 6        m_manaCostPct
-    uint32    manaPerSecond;                                // 7        m_manaPerSecond
+    uint32    PowerType;                                    // 3        m_powerType
+    uint32    ManaCost;                                     // 4        m_manaCost
+    uint32    ManaCostPerLevel;                             // 5        m_manaCostPerLevel
+    uint32    ManaPerSecond;                           // 6        m_manaCostPct
+    uint32    PowerDisplayID;                                // 7        m_manaPerSecond
     //uint32  PowerDisplayId;                               // 8        m_powerDisplayID - id from PowerDisplay.dbc, new in 3.1
     //uint32  unk1;                                         // 9        4.0.0
     //unk                                                   // 10       4.3.0
