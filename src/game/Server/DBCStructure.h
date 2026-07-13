@@ -1055,8 +1055,8 @@ struct FactionTemplateEntry
 
 struct GameObjectDisplayInfoEntry
 {
-    uint32 Displayid;                                       // 0 m_ID
-    char* filename;                                         // 1 m_modelName
+    uint32 ID;                                       // 0 m_ID
+    char* ModelName;                                         // 1 m_modelName
     // uint32 unknown2[10];                                 // 2-11 m_Sound
     float geoBoxMinX;                                       // 12 m_geoBoxMinX (use first value as interact dist, mostly in hacks way)
     float geoBoxMinY;                                       // 13 m_geoBoxMinY
