@@ -953,9 +953,9 @@ struct EmotesEntry
 
 struct EmotesTextEntry
 {
-    uint32  Id;                                             //          m_ID
+    uint32  ID;                                             //          m_ID
                                                             //          m_name
-    uint32  textid;                                         //          m_emoteID
+    uint32  EmoteID;                                         //          m_emoteID
                                                             //          m_emoteText
 };
 
