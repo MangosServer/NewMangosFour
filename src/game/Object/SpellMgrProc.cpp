@@ -294,7 +294,10 @@ void SpellMgr::LoadSpellProcEvents()
         spe.schoolMask      = fields[1].GetUInt32();
         spe.spellFamilyName = fields[2].GetUInt32();
 
-        for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        // spell_proc_event carries exactly 3 per-effect family-mask column triples
+        // (SpellFamilyMaskA/B/C 0-2, fields 3..11); MAX_EFFECT_INDEX (21) is the MoP
+        // iteration bound, NOT this table's shape - masks [3..20] stay default-zero.
+        for (int i = 0; i < 3; ++i)
         {
             spe.spellFamilyMask[i] = ClassFamilyMask(
                                          (uint64)fields[i + 3].GetUInt32() | ((uint64)fields[i + 6].GetUInt32() << 32),

@@ -26,7 +26,7 @@
 #define MANGOS_DBCSFRM_H
 
 const char Achievementfmt[]= "niiissiiiiisiix";                     // 5.3.0 Checked
-const char AchievementCriteriafmt[]="niiiiiiiixsiiiiixxxxxxx";      // 5.4.8
+const char AchievementCriteriafmt[]="niiiiiiiixsiiiiixxxxxxx";      // 5.4.8: file is 23 fields / 96 B (col4 Quantity is int64 = 2 dwords); 23 chars can cover only 92 B -- trailing AdditionalConditionValue[2] is unreadable by design; loader tolerates the 4-byte tail.
 const char AreaTableEntryfmt[] = "iiinixxxxxxxisiiiiixxxxxxxxxxx";  // TODO: NEED TO CONFIRM THIS
 const char AreaGroupEntryfmt[] = "niiiiiii";                        // 5.3.0 Checked
 const char AreaTriggerEntryfmt[]="nifffxxxfffffxxx";                // 5.4.8
@@ -36,7 +36,7 @@ const char BankBagSlotPricesEntryfmt[] = "ni";                      // 5.3.0 Che
 const char BarberShopStyleEntryfmt[]= "nixxxiii";                   // TODO: 5.3.0 DIFFERENT
 const char BattlemasterListEntryfmt[] = "niiiiiiiiiiiiiiiiixsiiiixxxxxx";
 //                                    1        10        20        30        40        50        60        70        80        90        100       110       120       130       140       150       160
-const char CharStartOutfitEntryfmt[]= "diiiiiiiiiiiiiiiiiiiiiiiiixxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";    // TODO: 5.3.0 DIFFERENT
+const char CharStartOutfitEntryfmt[]= "dbbbXiiiiiiiiiiiiiiiiiiiiiiiixxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";    // 5.3.0 packed byte header (304B client record)
 const char CharTitlesEntryfmt[]="nxsxix";                           // 5.3.0 Checked
 const char ChatChannelsEntryfmt[]="iixsx";                          // 5.3.0 Checked
 // ChatChannelsEntryfmt, index not used (more compact store)
@@ -47,12 +47,12 @@ const char CinematicSequencesEntryfmt[] = "nxxxxxxxxx";             // 5.3.0 Che
 const char CreatureDisplayInfofmt[]="nixifxxxxxxxxxxxxxxx";         // TODO: NEED TO CONFIRM THIS
 const char CreatureDisplayInfoExtrafmt[] = "nixxxxxxxxxxxxxxxxxxx"; // 5.3.0 Checked
 const char CreatureFamilyfmt[]="nfifiiiiixsx";                      // 5.3.0 Checked
-const char CreatureModelDatafmt[] = "nxxxxxxxxxxxxxxffxxxxxxxxxxxxxx";
+const char CreatureModelDatafmt[] = "nxxxxxxxxxxxxxxffxxxxxxxxxxxxxxxxx";
 const char CreatureSpellDatafmt[] = "niiiixxxx";                    // 5.3.0 Checked
 const char CreatureTypefmt[]="nxx";                                 // 5.3.0 Checked
 const char CurrencyTypesfmt[]="nisxxxxiiixx";   // TODO: NEED TO CONFIRM THIS
 const char DestructibleModelDataFmt[] = "nixxxixxxxixxxxixxxxixxx";
-const char DungeonEncounterfmt[]="niiiisxx";   // TODO: NEED TO CONFIRM THIS
+const char DungeonEncounterfmt[]="niiiisxxx";   // 5.4.8
 const char DurabilityCostsfmt[] = "niiiiiiiiiiiiiiiiiiiiiiiiiiiii"; // TODO: 5.3.0 DIFFERENT
 const char DurabilityQualityfmt[] = "nf";                           // TODO: 5.3.0 DIFFERENT
 const char EmotesEntryfmt[]="nxxiiixx";                             // 5.3.0 Checked
@@ -92,7 +92,7 @@ const char ItemRandomPropertiesfmt[]="nxiiiiis";                    // 5.3.0 Che
 const char ItemRandomSuffixfmt[]="nsxiiiiiiiiii";                   // 5.3.0 Checked
 const char ItemReforgefmt[]="nifif";
 const char ItemSetEntryfmt[]="dsxxxxxxxxxxxxxxxxxiiiiiiiiiiiiiiiiii"; // 5.3.0 Checked
-const char LfgDungeonsEntryfmt[] = "isiiiiifiiifsisisiiii";
+const char LfgDungeonsEntryfmt[] = "isiiiiiiiiiisiiisiiiiiiiiiiii";
 const char LiquidTypefmt[] = "nxxixixxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // 5.3.0 Checked
 const char LockEntryfmt[] = "niiiiiiiiiiiiiiiiiiiiiiiixxxxxxxx";    // 5.3.0 Checked
 const char MailTemplateEntryfmt[]="nxs";                            // 5.3.0 Checked
@@ -113,7 +113,7 @@ const char RandomPropertiesPointsfmt[] = "niiiiiiiiiiiiiii";        // 5.3.0 Che
 const char ScalingStatDistributionfmt[]="niiiiiiiiiiiiiiiiiiiixi";  // 5.3.0 Checked
 const char ScalingStatValuesfmt[]="iniiiiiixiiiiiiiiiiiiiixxxxxxxxxxxxxxxxxxxxxxxxxx";   // TODO: NEED TO CONFIRM THIS
 const char SkillLinefmt[]="nisxixixx";                              // TODO: NEED TO CONFIRM THIS
-const char SkillLineAbilityfmt[]="niiiixxiiiiii";
+const char SkillLineAbilityfmt[]="niiiiiiiiiixx";                    // 5.4.8 (18414): MoP removed excludeRace/excludeClass; columns 5+ shifted left two slots
 const char SkillRaceClassInfofmt[]="diiiiixx";                      // 5.4.8
 const char SoundEntriesfmt[]="nisxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // TODO: NEED TO CONFIRM THIS
 const char SpellCastTimefmt[]="niii";                               // 5.3.0 Checked
@@ -139,8 +139,8 @@ const char SpellShapeshiftEntryfmt[]="dixixx";                      // 5.3.0 Che
 const char SpellTargetRestrictionsEntryfmt[]="dxxfxiiii"; // 5.4.8
 const char SpellTotemsEntryfmt[]="diiii";                           // 5.3.0 Checked
 const char SpellFocusObjectfmt[]="nx";
-const char SpellItemEnchantmentfmt[]="nxiiiiiiiiisiiiixxixxxxxx";   // TODO: NEED TO CONFIRM THIS
-const char SpellItemEnchantmentConditionfmt[] = "nbbbbbxxxxxbbbbbbbbbbiiiiiXXXXX"; // 5.3.0 Checked
+const char SpellItemEnchantmentfmt[]="nxiiiiiiiiisiiiixxixxxxxxx";   // 5.4.8
+const char SpellItemEnchantmentConditionfmt[] = "nbbbbbxxxxxbbbbbbbbbbiiiiiXXXXX"; // 5.4.8: file is 31 fields / 72 B; no {1,4}-byte 31-char fmt can sum to 72 (4a+b=72, a+b=31 has no integer solution) -- current fmt is the aligned maximal read; loader tolerates the tail.
 const char SpellMiscfmt[]="dxxiiiiiiiiiiiiiiiiifiiiii";             // TODO: NEED TO CONFIRM THIS
 const char SpellRadiusfmt[]="nfxxx";                                // 5.4.8
 const char SpellRangefmt[]="nffffxxx";                              // 5.4.8

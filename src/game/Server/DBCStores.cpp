@@ -694,13 +694,13 @@ void LoadDBCStores(const std::string& dataPath)
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sMovieStore,               dbcPath, "Movie.dbc");
     LoadDBC(availableDbcLocales,bar,bad_dbc_files, sMountCapabilityStore,     dbcPath,"MountCapability.dbc");
     LoadDBC(availableDbcLocales,bar,bad_dbc_files, sMountTypeStore,           dbcPath,"MountType.dbc");
-    LoadDBC(availableDbcLocales,bar,bad_dbc_files,sNumTalentsAtLevelStore,   dbcPath,"NumTalentsAtLevel.dbc");
+    //LoadDBC(availableDbcLocales,bar,bad_dbc_files,sNumTalentsAtLevelStore,   dbcPath,"NumTalentsAtLevel.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sOverrideSpellDataStore,   dbcPath, "OverrideSpellData.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sQuestFactionRewardStore,  dbcPath, "QuestFactionReward.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sQuestSortStore,           dbcPath, "QuestSort.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sQuestXPLevelStore,        dbcPath, "QuestXP.dbc");
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sPhaseStore,               dbcPath,"Phase.dbc");
-    LoadDBC(availableDbcLocales,bar,bad_dbc_files,sPowerDisplayStore,        dbcPath,"PowerDisplay.dbc");
+    //LoadDBC(availableDbcLocales,bar,bad_dbc_files,sPowerDisplayStore,        dbcPath,"PowerDisplay.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sPvPDifficultyStore,       dbcPath, "PvpDifficulty.dbc");
     for (uint32 i = 0; i < sPvPDifficultyStore.GetNumRows(); ++i)
         if (PvPDifficultyEntry const* entry = sPvPDifficultyStore.LookupEntry(i))
@@ -744,6 +744,7 @@ void LoadDBCStores(const std::string& dataPath)
         }
     }
 
+    uint32 oobSpellEffectIndex = 0;
     for(uint32 i = 1; i < sSpellEffectStore.GetNumRows(); ++i)
     {
         if (SpellEffectEntry const *spellEffect = sSpellEffectStore.LookupEntry(i))
@@ -759,12 +760,19 @@ void LoadDBCStores(const std::string& dataPath)
                     break;
             }
 
-            sSpellEffectMap[spellEffect->EffectSpellId].effects[spellEffect->EffectIndex] = spellEffect;
-            if (spellEffect->EffectSpellId < MAX_EFFECT_INDEX && spellEffect->Difficulty == 0)
+            if (spellEffect->EffectIndex >= MAX_SPELL_EFFECTS_MOP)
             {
-                sSpellEffectMap[spellEffect->EffectSpellId].effects[spellEffect->EffectIndex] = spellEffect;
+                ++oobSpellEffectIndex;
+                continue;
             }
+
+            sSpellEffectMap[spellEffect->EffectSpellId].effects[spellEffect->EffectIndex] = spellEffect;
         }
+    }
+
+    if (oobSpellEffectIndex)
+    {
+        sLog.outErrorDb("SpellEffect.dbc: skipped %u records with EffectIndex >= %u", oobSpellEffectIndex, MAX_SPELL_EFFECTS_MOP);
     }
 
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sSpellEquippedItemsStore,  dbcPath,"SpellEquippedItems.dbc");
@@ -810,7 +818,7 @@ void LoadDBCStores(const std::string& dataPath)
 
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sSpellCastTimesStore,      dbcPath, "SpellCastTimes.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sSpellDurationStore,       dbcPath, "SpellDuration.dbc");
-    LoadDBC(availableDbcLocales, bar, bad_dbc_files, sSpellDifficultyStore,     dbcPath, "SpellDifficulty.dbc");
+    //LoadDBC(availableDbcLocales, bar, bad_dbc_files, sSpellDifficultyStore,     dbcPath, "SpellDifficulty.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sSpellFocusObjectStore,    dbcPath, "SpellFocusObject.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sSpellItemEnchantmentStore, dbcPath, "SpellItemEnchantment.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sSpellItemEnchantmentConditionStore, dbcPath, "SpellItemEnchantmentCondition.dbc");
@@ -821,7 +829,7 @@ void LoadDBCStores(const std::string& dataPath)
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sSpellShapeshiftFormStore, dbcPath, "SpellShapeshiftForm.dbc");
     //LoadDBC(availableDbcLocales,bar,bad_dbc_files,sStableSlotPricesStore,    dbcPath,"StableSlotPrices.dbc");
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sSummonPropertiesStore,    dbcPath, "SummonProperties.dbc");
-    LoadDBC(availableDbcLocales, bar, bad_dbc_files, sTalentStore,              dbcPath, "Talent.dbc");
+    //LoadDBC(availableDbcLocales, bar, bad_dbc_files, sTalentStore,              dbcPath, "Talent.dbc");
 
     // create talent spells set
     for (unsigned int i = 0; i < sTalentStore.GetNumRows(); ++i)
@@ -835,7 +843,7 @@ void LoadDBCStores(const std::string& dataPath)
             }
     }
 
-    LoadDBC(availableDbcLocales, bar, bad_dbc_files, sTalentTabStore,           dbcPath, "TalentTab.dbc");
+    //LoadDBC(availableDbcLocales, bar, bad_dbc_files, sTalentTabStore,           dbcPath, "TalentTab.dbc");
 
     // prepare fast data access to bit pos of talent ranks for use at inspecting
     {
@@ -872,7 +880,7 @@ void LoadDBCStores(const std::string& dataPath)
         }
     }
 
-    LoadDBC(availableDbcLocales,bar,bad_dbc_files, sTalentTreePrimarySpellsStore, dbcPath, "TalentTreePrimarySpells.dbc");
+    //LoadDBC(availableDbcLocales,bar,bad_dbc_files, sTalentTreePrimarySpellsStore, dbcPath, "TalentTreePrimarySpells.dbc");
     for (uint32 i = 0; i < sTalentTreePrimarySpellsStore.GetNumRows(); ++i)
         if (TalentTreePrimarySpellsEntry const* talentSpell = sTalentTreePrimarySpellsStore.LookupEntry(i))
             if (sSpellStore.LookupEntry(talentSpell->SpellId))
@@ -1039,11 +1047,11 @@ void LoadDBCStores(const std::string& dataPath)
     }
 
     // Check loaded DBC files proper version
-    if (!sAreaStore.LookupEntry(6539)              ||       // last area (areaflag) added in 5.1.0
-        !sCharTitlesStore.LookupEntry(389)         ||       // last char title added in 5.4.1 17538
-        !sGemPropertiesStore.LookupEntry(2467)     ||       // last gem property added in 5.4.1 17538
-        !sMapStore.LookupEntry(1173)               ||       // last map added in 5.4.1 17538
-        !sSpellStore.LookupEntry(152028)           )        // last added spell in 5.4.1 17538
+    if (!GetAreaEntryByAreaID(6863)                ||       // last area added in 5.4.8 (18414)
+        !sCharTitlesStore.LookupEntry(389)         ||       // max char title in 5.4.8 (18414) data (unchanged since 5.4.1)
+        !sGemPropertiesStore.LookupEntry(2467)     ||       // max gem property in 5.4.8 (18414) data (unchanged since 5.4.1)
+        !sMapStore.LookupEntry(1173)               ||       // max map in 5.4.8 (18414) data (unchanged since 5.4.1)
+        !sSpellStore.LookupEntry(163227)           )        // last added spell in 5.4.8 (18414)
     {
         sLog.outError("\nYou have mixed version DBC files. Please re-extract DBC files for one from client build: %s", AcceptableClientBuildsListStr().c_str());
         Log::WaitBeforeContinueIfNeed();
@@ -1114,6 +1122,11 @@ TalentSpellPos const* GetTalentSpellPos(uint32 spellId)
 
 SpellEffectEntry const* GetSpellEffectEntry(uint32 spellId, SpellEffectIndex effect)
 {
+    if (effect >= MAX_SPELL_EFFECTS_MOP)
+    {
+        return NULL;
+    }
+
     SpellEffectMap::const_iterator itr = sSpellEffectMap.find(spellId);
     if (itr == sSpellEffectMap.end())
     {

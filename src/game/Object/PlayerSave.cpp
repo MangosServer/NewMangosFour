@@ -460,12 +460,15 @@ void Player::_SaveAuras()
             stmt.addUInt32(holder->GetStackAmount());
             stmt.addUInt8(holder->GetAuraCharges());
 
-            for (uint32 i = 0; i < MAX_EFFECT_INDEX; ++i)
+            // character_aura persists exactly 3 basepoints/periodictime columns; aura amounts for
+            // effect indices >= 3 are not persisted by the 3-column schema -- full persistence
+            // belongs to the spell-system port phase.
+            for (uint32 i = 0; i < 3; ++i)
             {
                 stmt.addInt32(damage[i]);
             }
 
-            for (uint32 i = 0; i < MAX_EFFECT_INDEX; ++i)
+            for (uint32 i = 0; i < 3; ++i)
             {
                 stmt.addUInt32(periodicTime[i]);
             }

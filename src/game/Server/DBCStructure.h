@@ -663,16 +663,16 @@ struct BattlemasterListEntry
 
 struct CharStartOutfitEntry
 {
-    // uint32 Id;                                           // 0        m_ID
-    uint32 RaceClassGender;                                 // 1        m_raceID m_classID m_sexID m_outfitID (UNIT_FIELD_BYTES_0 & 0x00FFFFFF) comparable (0 byte = race, 1 byte = class, 2 byte = gender)
-    int32 ItemId[MAX_OUTFIT_ITEMS];                         // 2-25     m_ItemID
-    // int32 ItemDisplayId[MAX_OUTFIT_ITEMS];               // 26-29    m_DisplayItemID not required at server side
-    // int32 ItemInventorySlot[MAX_OUTFIT_ITEMS];           // 50-73    m_InventoryType not required at server side
-    // uint32 Unknown1;                                     // 74 unique values (index-like with gaps ordered in other way as ids)
-    // uint32 Unknown2;                                     // 75
-    // uint32 Unknown3;                                     // 76
-    //uint32 Unknown4;                                      // 77
-    //uint32 Unknown5;                                      // 78
+    // uint32 Id;                                           // 0        m_ID (fmt 'd' - not stored)
+    uint8 RaceID;                                           // 1        m_raceID
+    uint8 ClassID;                                          // 2        m_classID
+    uint8 SexID;                                            // 3        m_sexID
+    // uint8 OutfitID;                                      // 4        m_outfitID (always 0, fmt 'X')
+    int32 ItemId[MAX_OUTFIT_ITEMS];                         // 5-28     m_ItemID
+    // int32 ItemDisplayId[MAX_OUTFIT_ITEMS];               // 29-52    not required at server side
+    // int32 ItemInventorySlot[MAX_OUTFIT_ITEMS];           // 53-76    not required at server side
+    // uint32 PetDisplayId;                                 // 77       not required at server side
+    // uint32 PetFamilyEntry;                               // 78       not required at server side
 };
 
 struct CharTitlesEntry
@@ -1319,20 +1319,28 @@ struct LfgDungeonsEntry
     uint32    target_level;
     uint32    target_level_min;
     uint32    target_level_max;
-    float    mapID;
+    uint32    mapID;
     uint32    difficulty;
     uint32    flags;
     uint32    typeID;
-    float    faction;
+    uint32    faction;
     DBCString    textureFilename;
     uint32    expansionLevel;
-    DBCString    order_index;
+    uint32    order_index;
     uint32    group_id;
     DBCString    description_lang;
     uint32    col17;
     uint32    col18;
     uint32    col19;
     uint32    col20;
+    uint32    min_count_tank;                               // 21
+    uint32    min_count_healer;                             // 22
+    uint32    min_count_damage;                             // 23
+    uint32    scenarioID;                                   // 24
+    uint32    subtype;                                      // 25
+    uint32    bonus_reputation_amount;                      // 26
+    uint32    mentorCharLevel;                              // 27
+    uint32    mentorItemLevel;                              // 28
 
     uint32 Entry() const { return ID + ((uint8)typeID << 24); }
 };
@@ -1783,15 +1791,14 @@ struct SkillLineAbilityEntry
     uint32    spellId;                                      // 2        m_spell
     uint32    racemask;                                     // 3        m_raceMask
     uint32    classmask;                                    // 4        m_classMask
-    //uint32    racemaskNot;                                // 5        m_excludeRace
-    //uint32    classmaskNot;                               // 6        m_excludeClass
-    uint32    req_skill_value;                              // 7        m_minSkillLineRank
-    uint32    forward_spellid;                              // 8        m_supercededBySpell
-    uint32    learnOnGetSkill;                              // 9        m_acquireMethod
-    uint32    max_value;                                    // 10       m_trivialSkillLineRankHigh
-    uint32    min_value;                                    // 11       m_trivialSkillLineRankLow
-    uint32    characterPoints;                              // 12       4.0.0
-    //uint32                                                // 13       4.0.0
+    uint32    req_skill_value;                              // 5        m_minSkillLineRank
+    uint32    forward_spellid;                              // 6        m_supercededBySpell
+    uint32    learnOnGetSkill;                              // 7        m_acquireMethod
+    uint32    max_value;                                    // 8        m_trivialSkillLineRankHigh
+    uint32    min_value;                                    // 9        m_trivialSkillLineRankLow
+    uint32    characterPoints;                              // 10       m_numSkillUps
+    //uint32  uniqueBit;                                    // 11       m_uniqueBit (not read)
+    //uint32  tradeSkillCategoryId;                         // 12       m_tradeSkillCategoryID (not read)
 };
 
 struct SoundEntriesEntry
@@ -2778,7 +2785,7 @@ struct SpellEffect
     {
         memset(effects, 0, sizeof(effects));
     }
-    SpellEffectEntry const* effects[MAX_EFFECT_INDEX];
+    SpellEffectEntry const* effects[MAX_SPELL_EFFECTS_MOP];
 };
 
 typedef std::map<uint32, SpellEffect> SpellEffectMap;
