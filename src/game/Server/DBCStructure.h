@@ -2041,9 +2041,9 @@ struct SpellLevelsEntry
     //uint32    Id;                                         // 0        m_ID
                                                             // 1        unk 5.1.0
                                                             // 2        unk 5.1.0
-    uint32    baseLevel;                                    // 3        m_baseLevel
-    uint32    maxLevel;                                     // 4        m_maxLevel
-    uint32    spellLevel;                                   // 5        m_spellLevel
+    uint32    BaseLevel;                                    // 3        m_baseLevel
+    uint32    MaxLevel;                                     // 4        m_maxLevel
+    uint32    SpellLevel;                                   // 5        m_spellLevel
 };
 
 // SpellPower.dbc
