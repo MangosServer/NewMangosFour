@@ -89,7 +89,11 @@ void Spell::FillTargetMap()
     // TODO: ADD the correct target FILLS!!!!!!
 
     UnitList tmpUnitLists[MAX_EFFECT_INDEX];                // Stores the temporary Target Lists for each effect
-    uint8 effToIndex[MAX_EFFECT_INDEX] = {0, 1, 2};         // Helper array, to link to another tmpUnitList, if the targets for both effects match
+    uint8 effToIndex[MAX_EFFECT_INDEX];                     // Helper array, to link to another tmpUnitList, if the targets for both effects match
+    for (int j = 0; j < MAX_EFFECT_INDEX; ++j)              // identity init so the effToIndex[i]==i new-combination test holds for all effects
+    {
+        effToIndex[j] = j;
+    }
     for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
     {
         SpellEffectEntry const* spellEffect = m_spellInfo->GetSpellEffect(SpellEffectIndex(i));

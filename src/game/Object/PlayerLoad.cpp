@@ -351,10 +351,11 @@ void Player::_LoadAuras(QueryResult* result, uint32 timediff)
             uint32 spellid = fields[2].GetUInt32();
             uint32 stackcount = fields[3].GetUInt32();
             uint32 remaincharges = fields[4].GetUInt32();
-            int32  damage[MAX_EFFECT_INDEX];
-            uint32 periodicTime[MAX_EFFECT_INDEX];
+            int32  damage[MAX_EFFECT_INDEX] = {0};
+            uint32 periodicTime[MAX_EFFECT_INDEX] = {0};
 
-            for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
+            // character_aura persists exactly 3 basepoints/periodictime columns
+            for (int32 i = 0; i < 3; ++i)
             {
                 damage[i] = fields[i + 5].GetInt32();
                 periodicTime[i] = fields[i + 8].GetUInt32();
