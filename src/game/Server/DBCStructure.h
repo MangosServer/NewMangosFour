@@ -1137,7 +1137,7 @@ struct GtChanceToSpellCritEntry
 
 struct GtOCTClassCombatRatingScalarEntry
 {
-    float    ratio;
+    float    Data;
 };
 
 struct GtOCTHpPerStaminaEntry
