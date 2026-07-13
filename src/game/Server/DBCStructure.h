@@ -1212,8 +1212,8 @@ struct ItemArmorShieldEntry
 
 struct ItemArmorTotalEntry
 {
-  uint32    Id;                                             // 0 item level
-  uint32    Id2;                                            // 1 item level
+  uint32    ID;                                             // 0 item level
+  uint32    ItemLevel;                                            // 1 item level
   float     Value[4];                                       // 2-5 multiplier for armor types (cloth...plate)
 };
 
