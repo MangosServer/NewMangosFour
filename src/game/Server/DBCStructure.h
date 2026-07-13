@@ -929,7 +929,7 @@ struct DungeonEncounterEntry
 
 struct DurabilityCostsEntry
 {
-    uint32    Itemlvl;                                      // 0        m_ID
+    uint32    ID;                                      // 0        m_ID
     uint32    multiplier[29];                               // 1-29     m_weaponSubClassCost m_armorSubClassCost
 };
 
