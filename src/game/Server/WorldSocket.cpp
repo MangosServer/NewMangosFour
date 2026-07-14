@@ -910,12 +910,13 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
         return HandleWowConnection(*new_pct);
     }
 
-    // Reject anything outside the registered client closure (Phase 1a).
-    if (opcode >= OPCODE_TABLE_SIZE || LookupClientOpcode(opcode) == nullptr)
-    {
-        sLog.outError("SESSION: received unhandled/out-of-range opcode 0x%.4X", opcode);
-        return -1;
-    }
+    // Phase 1a registers only the login closure in clientOpcodeTable, so a closure-based reject here
+    // would hard-close the socket for every non-closure client opcode (movement, char management, ...).
+    // Do NOT gate on the client table: hand non-closure opcodes to the switch below, whose default case
+    // queues them to WorldSession, where the bounded LookupClientOpcode() drops unregistered opcodes
+    // gracefully (no disconnect, no out-of-range index). Phase 1b reinstates a table-based inbound guard
+    // once all client opcodes live within OPCODE_TABLE_SIZE. Mirrors the outbound SendPacket fix: no
+    // faithful table-based guard exists in Phase 1a.
 
     try
     {
