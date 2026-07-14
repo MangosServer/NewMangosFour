@@ -310,13 +310,13 @@ void Player::LearnPetTalent(ObjectGuid petGuid, uint32 talentId, uint32 talentRa
         return;
     }
 
-    if (pet_family->petTalentType < 0)                      // not hunter pet
+    if (pet_family->PetTalentType < 0)                      // not hunter pet
     {
         return;
     }
 
     // prevent learn talent for different family (cheating)
-    if (!((1 << pet_family->petTalentType) & talentTabInfo->petTalentMask))
+    if (!((1 << pet_family->PetTalentType) & talentTabInfo->petTalentMask))
     {
         return;
     }
@@ -552,7 +552,7 @@ void Player::BuildPetTalentsInfoData(WorldPacket* data)
     }
 
     CreatureFamilyEntry const* pet_family = sCreatureFamilyStore.LookupEntry(ci->Family);
-    if (!pet_family || pet_family->petTalentType < 0)
+    if (!pet_family || pet_family->PetTalentType < 0)
     {
         return;
     }
@@ -565,7 +565,7 @@ void Player::BuildPetTalentsInfoData(WorldPacket* data)
             continue;
         }
 
-        if (!((1 << pet_family->petTalentType) & talentTabInfo->petTalentMask))
+        if (!((1 << pet_family->PetTalentType) & talentTabInfo->petTalentMask))
         {
             continue;
         }

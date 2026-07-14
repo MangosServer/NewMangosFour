@@ -278,13 +278,13 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recv_data)
         }
 
         // tried to put normal gem in meta socket
-        if (itemProto->Socket[i].Color == SOCKET_COLOR_META && GemProps[i]->color != SOCKET_COLOR_META)
+        if (itemProto->Socket[i].Color == SOCKET_COLOR_META && GemProps[i]->Color != SOCKET_COLOR_META)
         {
             return;
         }
 
         // tried to put meta gem in normal socket
-        if (itemProto->Socket[i].Color != SOCKET_COLOR_META && GemProps[i]->color == SOCKET_COLOR_META)
+        if (itemProto->Socket[i].Color != SOCKET_COLOR_META && GemProps[i]->Color == SOCKET_COLOR_META)
         {
             return;
         }
@@ -294,7 +294,7 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recv_data)
     uint32 OldEnchants[MAX_GEM_SOCKETS];
     for (int i = 0; i < MAX_GEM_SOCKETS; ++i)               // get new and old enchantments
     {
-        GemEnchants[i] = (GemProps[i]) ? GemProps[i]->spellitemenchantement : 0;
+        GemEnchants[i] = (GemProps[i]) ? GemProps[i]->Enchant_ID : 0;
         OldEnchants[i] = itemTarget->GetEnchantmentId(EnchantmentSlot(SOCK_ENCHANTMENT_SLOT + i));
     }
 
@@ -331,7 +331,7 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recv_data)
                 {
                     if (SpellItemEnchantmentEntry const* enchantEntry = sSpellItemEnchantmentStore.LookupEntry(OldEnchants[j]))
                     {
-                        if (iGemProto->ItemId == enchantEntry->GemID)
+                        if (iGemProto->ItemId == enchantEntry->Src_itemID)
                         {
                             _player->SendEquipError(EQUIP_ERR_ITEM_UNIQUE_EQUIPPABLE_SOCKETED, itemTarget, NULL);
                             return;
@@ -357,7 +357,7 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recv_data)
                         if (OldEnchants[j])
                         {
                             if (SpellItemEnchantmentEntry const* enchantEntry = sSpellItemEnchantmentStore.LookupEntry(OldEnchants[j]))
-                                if (ItemPrototype const* jProto = ObjectMgr::GetItemPrototype(enchantEntry->GemID))
+                                if (ItemPrototype const* jProto = ObjectMgr::GetItemPrototype(enchantEntry->Src_itemID))
                                     if (iGemProto->ItemLimitCategory == jProto->ItemLimitCategory)
                                     {
                                         --limit_newcount;
@@ -374,7 +374,7 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recv_data)
                     else if (OldEnchants[j])
                     {
                         if (SpellItemEnchantmentEntry const* enchantEntry = sSpellItemEnchantmentStore.LookupEntry(OldEnchants[j]))
-                            if (ItemPrototype const* jProto = ObjectMgr::GetItemPrototype(enchantEntry->GemID))
+                            if (ItemPrototype const* jProto = ObjectMgr::GetItemPrototype(enchantEntry->Src_itemID))
                                 if (iGemProto->ItemLimitCategory == jProto->ItemLimitCategory)
                                 {
                                     ++limit_newcount;
@@ -382,7 +382,7 @@ void WorldSession::HandleSocketOpcode(WorldPacket& recv_data)
                     }
                 }
 
-                if (limit_newcount > 0 && uint32(limit_newcount) > limitEntry->maxCount)
+                if (limit_newcount > 0 && uint32(limit_newcount) > limitEntry->Quantity)
                 {
                     _player->SendEquipError(EQUIP_ERR_ITEM_UNIQUE_EQUIPPABLE_SOCKETED, itemTarget, NULL);
                     return;

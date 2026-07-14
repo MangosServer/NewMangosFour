@@ -616,7 +616,7 @@ bool Creature::UpdateEntry(uint32 Entry, Team team, const CreatureData* data /*=
     // checked and error show at loading templates
     if (FactionTemplateEntry const* factionTemplate = sFactionTemplateStore.LookupEntry(GetCreatureInfo()->FactionAlliance))
     {
-        if (factionTemplate->factionFlags & FACTION_TEMPLATE_FLAG_PVP)
+        if (factionTemplate->Flags & FACTION_TEMPLATE_FLAG_PVP)
         {
             SetPvP(true);
         }
@@ -1290,7 +1290,7 @@ bool Creature::IsTrainerOf(Player* pPlayer, bool msg) const
                 // Allowed to train if exalted
                 if (FactionTemplateEntry const* faction_template = getFactionTemplateEntry())
                 {
-                    if (pPlayer->GetReputationRank(faction_template->faction) == REP_EXALTED)
+                    if (pPlayer->GetReputationRank(faction_template->Faction) == REP_EXALTED)
                     {
                         return true;
                     }
@@ -2175,7 +2175,7 @@ bool Creature::IsImmuneToSpellEffect(SpellEntry const* spellInfo, SpellEffectInd
         // Taunt aura apply check
         if (spellEffect->Effect == SPELL_EFFECT_APPLY_AURA)
         {
-            if (spellEffect->EffectApplyAuraName == SPELL_AURA_MOD_TAUNT)
+            if (spellEffect->EffectAura == SPELL_AURA_MOD_TAUNT)
             {
                 return true;
             }
@@ -2895,7 +2895,7 @@ bool Creature::MeetsSelectAttackingRequirement(Unit* pTarget, SpellEntry const* 
         return false;
     }
 
-    if (pSpellInfo && selectFlags & SELECT_FLAG_IN_LOS && !DisableMgr::IsDisabledFor(DISABLE_TYPE_SPELL, pSpellInfo->Id, pTarget, SPELL_DISABLE_LOS) && !IsWithinLOSInMap(pTarget))
+    if (pSpellInfo && selectFlags & SELECT_FLAG_IN_LOS && !DisableMgr::IsDisabledFor(DISABLE_TYPE_SPELL, pSpellInfo->ID, pTarget, SPELL_DISABLE_LOS) && !IsWithinLOSInMap(pTarget))
     {
         return false;
     }

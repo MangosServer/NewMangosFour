@@ -183,7 +183,7 @@ void Spell::EffectSummonObjectWild(SpellEffectEntry const* effect)
     }
 
     pGameObj->SetRespawnTime(m_duration > 0 ? m_duration / IN_MILLISECONDS : 0);
-    pGameObj->SetSpellId(m_spellInfo->Id);
+    pGameObj->SetSpellId(m_spellInfo->ID);
 
     // Wild object not have owner and check clickable by players
     map->Add(pGameObj);
@@ -302,14 +302,14 @@ void Spell::EffectDuel(SpellEffectEntry const* effect)
 
     // Players can only fight a duel with each other outside (=not inside dungeons and not in capital cities)
     AreaTableEntry const* casterAreaEntry = GetAreaEntryByAreaID(caster->GetAreaId());
-    if (casterAreaEntry && !(casterAreaEntry->flags & AREA_FLAG_DUEL))
+    if (casterAreaEntry && !(casterAreaEntry->Flags & AREA_FLAG_DUEL))
     {
         SendCastResult(SPELL_FAILED_NO_DUELING);            // Dueling isn't allowed here
         return;
     }
 
     AreaTableEntry const* targetAreaEntry = GetAreaEntryByAreaID(target->GetAreaId());
-    if (targetAreaEntry && !(targetAreaEntry->flags & AREA_FLAG_DUEL))
+    if (targetAreaEntry && !(targetAreaEntry->Flags & AREA_FLAG_DUEL))
     {
         SendCastResult(SPELL_FAILED_NO_DUELING);            // Dueling isn't allowed here
         return;
@@ -335,7 +335,7 @@ void Spell::EffectDuel(SpellEffectEntry const* effect)
     pGameObj->SetUInt32Value(GAMEOBJECT_LEVEL, m_caster->getLevel() + 1);
 
     pGameObj->SetRespawnTime(m_duration > 0 ? m_duration / IN_MILLISECONDS : 0);
-    pGameObj->SetSpellId(m_spellInfo->Id);
+    pGameObj->SetSpellId(m_spellInfo->ID);
 
     m_caster->AddGameObject(pGameObj);
     map->Add(pGameObj);
@@ -508,7 +508,7 @@ void Spell::EffectActivateObject(SpellEffectEntry const* effect)
             break;
         case 16:                    // GO custom use - found mostly in Wind Stones spells, Simon Game spells and other GO target summoning spells
         {
-            switch (m_spellInfo->Id)
+            switch (m_spellInfo->ID)
             {
                 case 24734:         // Summon Templar Random
                 case 24744:         // Summon Templar (fire)
@@ -531,7 +531,7 @@ void Spell::EffectActivateObject(SpellEffectEntry const* effect)
                     uint32 dukes[] = {15206, 15207, 15208, 15220};
                     uint32 royals[] = {15203, 15204, 15205, 15305};
 
-                    switch (m_spellInfo->Id)
+                    switch (m_spellInfo->ID)
                     {
                         case 24734: npcEntry = templars[urand(0, 3)]; break;
                         case 24763: npcEntry = dukes[urand(0, 3)];    break;
@@ -609,7 +609,7 @@ void Spell::EffectActivateObject(SpellEffectEntry const* effect)
             gameObjTarget->RemoveFlag(GAMEOBJECT_FLAGS, GO_FLAG_NO_INTERACT);
             break;
         default:
-            sLog.outError("Spell::EffectActivateObject called with unknown misc value. Spell Id %u", m_spellInfo->Id);
+            sLog.outError("Spell::EffectActivateObject called with unknown misc value. Spell Id %u", m_spellInfo->ID);
             break;
     }
 }
@@ -651,7 +651,7 @@ void Spell::EffectApplyGlyph(SpellEffectEntry const* effect)
         {
             if (GlyphSlotEntry const* gs = sGlyphSlotStore.LookupEntry(player->GetGlyphSlot(m_glyphIndex)))
             {
-                if (gp->TypeFlags != gs->TypeFlags)
+                if (gp->GlyphSlotFlags != gs->TypeFlags)
                 {
                     SendCastResult(SPELL_FAILED_INVALID_GLYPH);
                     return;                                 // glyph slot mismatch
@@ -755,7 +755,7 @@ void Spell::EffectDisEnchant(SpellEffectEntry const* /*effect*/)
         return;
     }
 
-    p_caster->UpdateCraftSkill(m_spellInfo->Id);
+    p_caster->UpdateCraftSkill(m_spellInfo->ID);
 
     ((Player*)m_caster)->SendLoot(itemTarget->GetObjectGuid(), LOOT_DISENCHANTING);
 
@@ -903,7 +903,7 @@ void Spell::EffectSummonObject(SpellEffectEntry const* effect)
 
     pGameObj->SetUInt32Value(GAMEOBJECT_LEVEL, m_caster->getLevel());
     pGameObj->SetRespawnTime(m_duration > 0 ? m_duration / IN_MILLISECONDS : 0);
-    pGameObj->SetSpellId(m_spellInfo->Id);
+    pGameObj->SetSpellId(m_spellInfo->ID);
     m_caster->AddGameObject(pGameObj);
 
     map->Add(pGameObj);
@@ -939,7 +939,7 @@ void Spell::EffectResurrect(SpellEffectEntry const* /*effect*/)
         return;
     }
 
-    switch (m_spellInfo->Id)
+    switch (m_spellInfo->ID)
     {
         case 8342:                                          // Defibrillate (Goblin Jumper Cables) has 33% chance on success
         case 22999:                                         // Defibrillate (Goblin Jumper Cables XL) has 50% chance on success
@@ -947,7 +947,7 @@ void Spell::EffectResurrect(SpellEffectEntry const* /*effect*/)
         {
             uint32 failChance = 0;
             uint32 failSpellId = 0;
-            switch (m_spellInfo->Id)
+            switch (m_spellInfo->ID)
             {
                 case 8342:  failChance = 67; failSpellId = 8338;  break;
                 case 22999: failChance = 50; failSpellId = 23055; break;
@@ -1252,7 +1252,7 @@ void Spell::EffectQuestComplete(SpellEffectEntry const* effect)
     }
 
     // A few spells has additional value from basepoints, check condition here.
-    switch (m_spellInfo->Id)
+    switch (m_spellInfo->ID)
     {
         case 43458:                                         // Secrets of Nifflevar
         {
@@ -1384,7 +1384,7 @@ void Spell::EffectCharge(SpellEffectEntry const* /*effect*/)
     m_caster->MonsterMoveWithSpeed(x, y, z, 24.f, true, true);
 
     // not all charge effects used in negative spells
-    if (unitTarget != m_caster && !IsPositiveSpell(m_spellInfo->Id))
+    if (unitTarget != m_caster && !IsPositiveSpell(m_spellInfo->ID))
     {
         m_caster->Attack(unitTarget, true);
     }
@@ -1415,7 +1415,7 @@ void Spell::EffectCharge2(SpellEffectEntry const* /*effect*/)
     m_caster->MonsterMoveWithSpeed(x, y, z, 24.f, true, true);
 
     // not all charge effects used in negative spells
-    if (unitTarget && unitTarget != m_caster && !IsPositiveSpell(m_spellInfo->Id))
+    if (unitTarget && unitTarget != m_caster && !IsPositiveSpell(m_spellInfo->ID))
     {
         m_caster->Attack(unitTarget, true);
     }
@@ -1448,7 +1448,7 @@ void Spell::EffectSendTaxi(SpellEffectEntry const* effect)
         return;
     }
 
-    ((Player*)unitTarget)->ActivateTaxiPathTo(effect->EffectMiscValue, m_spellInfo->Id);
+    ((Player*)unitTarget)->ActivateTaxiPathTo(effect->EffectMiscValue, m_spellInfo->ID);
 }
 
 /**

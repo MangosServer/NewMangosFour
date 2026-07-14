@@ -266,7 +266,7 @@ void SpellMgr::LoadSpellBonuses()
             }
 
             // DoTs/HoTs
-            switch(spellEffect->EffectApplyAuraName)
+            switch(spellEffect->EffectAura)
             {
                 case SPELL_AURA_PERIODIC_DAMAGE:
                 case SPELL_AURA_PERIODIC_DAMAGE_PERCENT:
@@ -305,7 +305,7 @@ void SpellMgr::LoadSpellBonuses()
                 }
                 // Heals (Also count Mana Shield and Absorb effects as heals)
                 if (spellEffect->Effect == SPELL_EFFECT_HEAL || spellEffect->Effect == SPELL_EFFECT_HEAL_MAX_HEALTH ||
-                    (spellEffect->Effect == SPELL_EFFECT_APPLY_AURA && (spellEffect->EffectApplyAuraName == SPELL_AURA_SCHOOL_ABSORB || spellEffect->EffectApplyAuraName == SPELL_AURA_PERIODIC_HEAL)) )
+                    (spellEffect->Effect == SPELL_EFFECT_APPLY_AURA && (spellEffect->EffectAura == SPELL_AURA_SCHOOL_ABSORB || spellEffect->EffectAura == SPELL_AURA_PERIODIC_HEAL)) )
                 {
                     isHeal = true;
                     break;
@@ -329,7 +329,7 @@ void SpellMgr::LoadSpellBonuses()
                     continue;
                 }
                 // Periodic Heals
-                if (spellEffect->Effect == SPELL_EFFECT_APPLY_AURA && spellEffect->EffectApplyAuraName == SPELL_AURA_PERIODIC_HEAL)
+                if (spellEffect->Effect == SPELL_EFFECT_APPLY_AURA && spellEffect->EffectAura == SPELL_AURA_PERIODIC_HEAL)
                 {
                     isHeal = true;
                     break;
@@ -476,7 +476,7 @@ struct DoSpellThreat
     }
     void AddEntry(SpellThreatEntry const& ste, SpellEntry const* spell)
     {
-        threatMap[spell->Id] = ste;
+        threatMap[spell->ID] = ste;
 
         // flat threat bonus and attack power bonus currently only work properly when all
         // effects have same targets, otherwise, we'd need to seperate it by effect index
@@ -487,7 +487,7 @@ struct DoSpellThreat
             SpellEffectEntry const* spellEffect2 = spell->GetSpellEffect(EFFECT_INDEX_2);
             if ((spellEffect1 && spellEffect1->EffectImplicitTargetA && (!spellEffect0 || spellEffect1->EffectImplicitTargetA != spellEffect0->EffectImplicitTargetA)) ||
                 (spellEffect2 && spellEffect2->EffectImplicitTargetA && (!spellEffect0 || spellEffect2->EffectImplicitTargetA != spellEffect0->EffectImplicitTargetA)))
-                sLog.outErrorDb("Spell %u listed in `spell_threat` has effects with different targets, threat may be assigned incorrectly", spell->Id);
+                sLog.outErrorDb("Spell %u listed in `spell_threat` has effects with different targets, threat may be assigned incorrectly", spell->ID);
         }
         ++count;
     }
@@ -679,7 +679,7 @@ void SpellMgr::LoadSpellScriptTarget()
                     SQLMultiStorage::SQLMSIteratorBounds<SpellTargetEntry> bounds = sSpellScriptTargetStorage.getBounds<SpellTargetEntry>(i);
                     if (bounds.first == bounds.second)
                     {
-                        sLog.outErrorDb("Spell (ID: %u) has effect EffectImplicitTargetA/EffectImplicitTargetB = %u (TARGET_SCRIPT), but does not have record in `spell_script_target`", spellInfo->Id, TARGET_SCRIPT);
+                        sLog.outErrorDb("Spell (ID: %u) has effect EffectImplicitTargetA/EffectImplicitTargetB = %u (TARGET_SCRIPT), but does not have record in `spell_script_target`", spellInfo->ID, TARGET_SCRIPT);
                         break;                              // effects of spell
                     }
                 }

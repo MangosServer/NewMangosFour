@@ -341,7 +341,7 @@ bool Player::ActivateTaxiPathTo(std::vector<uint32> const& nodes, Creature* npc 
         }
 
         if (Spell* spell = GetCurrentSpell(CURRENT_GENERIC_SPELL))
-            if (spell->m_spellInfo->Id != spellid)
+            if (spell->m_spellInfo->ID != spellid)
             {
                 InterruptSpell(CURRENT_GENERIC_SPELL, false);
             }
@@ -349,7 +349,7 @@ bool Player::ActivateTaxiPathTo(std::vector<uint32> const& nodes, Creature* npc 
         InterruptSpell(CURRENT_AUTOREPEAT_SPELL, false);
 
         if (Spell* spell = GetCurrentSpell(CURRENT_CHANNELED_SPELL))
-            if (spell->m_spellInfo->Id != spellid)
+            if (spell->m_spellInfo->ID != spellid)
             {
                 InterruptSpell(CURRENT_CHANNELED_SPELL, true);
             }
@@ -368,7 +368,7 @@ bool Player::ActivateTaxiPathTo(std::vector<uint32> const& nodes, Creature* npc 
     // check node starting pos data set case if provided
     if (node->x != 0.0f || node->y != 0.0f || node->z != 0.0f)
     {
-        if (node->map_id != GetMapId() ||
+        if (node->ContinentID != GetMapId() ||
                 (node->x - GetPositionX()) * (node->x - GetPositionX()) +
                 (node->y - GetPositionY()) * (node->y - GetPositionY()) +
                 (node->z - GetPositionZ()) * (node->z - GetPositionZ()) >
@@ -505,8 +505,8 @@ bool Player::ActivateTaxiPathTo(uint32 taxi_path_id, uint32 spellid /*= 0*/)
     std::vector<uint32> nodes;
 
     nodes.resize(2);
-    nodes[0] = entry->from;
-    nodes[1] = entry->to;
+    nodes[0] = entry->FromTaxiNode;
+    nodes[1] = entry->ToTaxiNode;
 
     return ActivateTaxiPathTo(nodes, NULL, spellid);
 }
@@ -544,7 +544,7 @@ void Player::ContinueTaxiFlight()
         TaxiPathNodeEntry const& prevNode = nodeList[i - 1];
 
         // skip nodes at another map
-        if (node.mapid != GetMapId())
+        if (node.ContinentID != GetMapId())
         {
             continue;
         }

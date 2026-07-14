@@ -351,7 +351,7 @@ void Pet::_SaveAuras()
                 continue;
             }
 
-            if (effectEntry->EffectApplyAuraName == SPELL_AURA_MOD_STEALTH ||
+            if (effectEntry->EffectAura == SPELL_AURA_MOD_STEALTH ||
                 effectEntry->Effect == SPELL_EFFECT_APPLY_AREA_AURA_OWNER ||
                 effectEntry->Effect == SPELL_EFFECT_APPLY_AREA_AURA_PET )
             {
@@ -649,12 +649,12 @@ void Pet::InitLevelupSpellsForLevel()
             // will called first if level down
             if (spellEntry->GetSpellLevel() > level)
             {
-                unlearnSpell(spellEntry->Id, true);
+                unlearnSpell(spellEntry->ID, true);
             }
             // will called if level up
             else
             {
-                learnSpell(spellEntry->Id);
+                learnSpell(spellEntry->ID);
             }
         }
     }
@@ -813,7 +813,7 @@ bool Pet::resetTalents(bool no_cost)
     }
     // Check pet talent type
     CreatureFamilyEntry const* pet_family = sCreatureFamilyStore.LookupEntry(ci->Family);
-    if (!pet_family || pet_family->petTalentType < 0)
+    if (!pet_family || pet_family->PetTalentType < 0)
     {
         return false;
     }
@@ -853,7 +853,7 @@ bool Pet::resetTalents(bool no_cost)
         }
 
         // unlearn only talents for pets family talent type
-        if (!((1 << pet_family->petTalentType) & talentTabInfo->petTalentMask))
+        if (!((1 << pet_family->PetTalentType) & talentTabInfo->petTalentMask))
         {
             continue;
         }

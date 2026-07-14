@@ -711,7 +711,7 @@ void Aura::HandleSchoolAbsorb(bool apply, bool Real)
             {
                 case SPELLFAMILY_GENERIC:
                     // Stoicism
-                    if (spellProto->Id == 70845)
+                    if (spellProto->ID == 70845)
                     {
                         DoneActualBenefit = caster->GetMaxHealth() * 0.20f;
                     }
@@ -792,7 +792,7 @@ void Aura::HandleSchoolAbsorb(bool apply, bool Real)
                         case EFFECT_INDEX_0:
                         {
                             // energize caster
-                            int32 manapct1000 = 5 * ((*itr)->GetModifier()->m_amount + sSpellMgr.GetSpellRank(vSpell->Id));
+                            int32 manapct1000 = 5 * ((*itr)->GetModifier()->m_amount + sSpellMgr.GetSpellRank(vSpell->ID));
                             int32 basepoints0 = caster->GetMaxPower(POWER_MANA) * manapct1000 / 1000;
                             caster->CastCustomSpell(caster, 47755, &basepoints0, NULL, NULL, true);
                             break;

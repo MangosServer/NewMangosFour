@@ -40,17 +40,17 @@ struct ItemEntry
    uint32   ID;                                             // 0
    uint32   Class;                                          // 1
    uint32   SubClass;                                       // 2
-   int32    Unk0;                                           // 3
+   int32    SoundOverrideSubclass;                                           // 3  (was Unk0)
    int32    Material;                                       // 4
-   uint32   DisplayId;                                      // 5
+   uint32   DisplayInfoID;                                      // 5  (was DisplayId)
    uint32   InventoryType;                                  // 6
-   uint32   Sheath;                                         // 7
+   uint32   SheatheType;                                         // 7  (was Sheath)
 };
 
 struct ItemCurrencyCostEntry
 {
     //uint32 id;                                            // 0
-    uint32 itemid;                                          // 1
+    uint32 ItemID;                                          // 1
 };
 
 #define MAX_EXTENDED_COST_ITEMS         5
@@ -68,19 +68,19 @@ enum ItemExtendedCostFlags
 
 struct ItemExtendedCostEntry
 {
-    uint32      Id;                                         // 0
+    uint32      ID;                                         // 0
     //                                                      // 1        unk, old reqhonorpoints
     //                                                      // 2        unk, old reqarenapoints
-    uint32      reqarenaslot;                               // 3        m_arenaBracket
-    uint32      reqitem[MAX_EXTENDED_COST_ITEMS];           // 5-8      m_itemID
-    uint32      reqitemcount[MAX_EXTENDED_COST_ITEMS];      // 9-13     m_itemCount
-    uint32      reqpersonalarenarating;                     // 14       m_requiredArenaRating
+    uint32      RequiredArenaSlot;                               // 3        m_arenaBracket  (was reqarenaslot)
+    uint32      RequiredItem[MAX_EXTENDED_COST_ITEMS];           // 5-8      m_itemID  (was reqitem)
+    uint32      RequiredItemCount[MAX_EXTENDED_COST_ITEMS];      // 9-13     m_itemCount  (was reqitemcount)
+    uint32      RequiredPersonalArenaRating;                     // 14       m_requiredArenaRating  (was reqpersonalarenarating)
     //uint32                                                // 15       m_itemPurchaseGroup
-    uint32      reqcur[MAX_EXTENDED_COST_CURRENCIES];       // 16-20
-    uint32      reqcurrcount[MAX_EXTENDED_COST_CURRENCIES]; // 21-25
+    uint32      RequiredCurrency[MAX_EXTENDED_COST_CURRENCIES];       // 16-20  (was reqcur)
+    uint32      RequiredCurrencyCount[MAX_EXTENDED_COST_CURRENCIES]; // 21-25  (was reqcurrcount)
                                                             // 26       reputation-related
                                                             // 27       reputation-related
-    uint32      flags;                                      // 28
+    uint32      RequirementFlags;                                      // 28  (was flags)
     //                                                      // 29
     //                                                      // 30
 
@@ -89,7 +89,7 @@ struct ItemExtendedCostEntry
         MANGOS_ASSERT(i < MAX_EXTENDED_COST_CURRENCIES);
 
         // start from ITEM_EXTENDED_COST_FLAG_SEASON_IN_INDEX_0
-        return flags & 1 << (i + 1);
+        return RequirementFlags & 1 << (i + 1);
     }
 };
 
@@ -99,7 +99,7 @@ struct SceneScriptEntry
     uint32 ID;                                               // 0         m_ID
     //char* name;                                            // 1         m_name
     //char* script;                                          // 2         m_script
-    uint32 prevScriptPartID;                                 // 3         m_prevScriptPartID - Prev Script Part Id From Chain
-    uint32 nextScriptPartID;                                 // 4         m_nextScriptPartID - Next Script Part Id From Chain
+    uint32 FirstSceneScriptID;                                 // 3         m_prevScriptPartID - Prev Script Part Id From Chain  (was prevScriptPartID)
+    uint32 NextSceneScriptID;                                 // 4         m_nextScriptPartID - Next Script Part Id From Chain  (was nextScriptPartID)
 };
 #endif

@@ -119,7 +119,7 @@ void ObjectMgr::LoadGraveyardZones()
             continue;
         }
 
-        if (areaEntry->zone != 0)
+        if (areaEntry->ParentAreaID != 0)
         {
             sLog.outErrorDb("Table `game_graveyard_zone` has record subzone id (%u) instead of zone, skipped.", zoneId);
             continue;
@@ -205,12 +205,12 @@ WorldSafeLocsEntry const* ObjectMgr::GetClosestGraveYard(float x, float y, float
         }
 
         // find now nearest graveyard at other (continent) map
-        if (MapId != entry->map_id)
+        if (MapId != entry->Continent)
         {
             // if find graveyard at different map from where entrance placed (or no entrance data), use any first
             if (!mapEntry ||
-                    mapEntry->ghost_entrance_map < 0 ||
-                    uint32(mapEntry->ghost_entrance_map) != entry->map_id ||
+                    mapEntry->CorpseMapID < 0 ||
+                    uint32(mapEntry->CorpseMapID) != entry->Continent ||
                     (mapEntry->ghost_entrance_x == 0 && mapEntry->ghost_entrance_y == 0))
             {
                 // not have any coordinates for check distance anyway
@@ -219,8 +219,8 @@ WorldSafeLocsEntry const* ObjectMgr::GetClosestGraveYard(float x, float y, float
             }
 
             // at entrance map calculate distance (2D);
-            float dist2 = (entry->x - mapEntry->ghost_entrance_x) * (entry->x - mapEntry->ghost_entrance_x)
-                          + (entry->y - mapEntry->ghost_entrance_y) * (entry->y - mapEntry->ghost_entrance_y);
+            float dist2 = (entry->Pos_X - mapEntry->ghost_entrance_x) * (entry->Pos_X - mapEntry->ghost_entrance_x)
+                          + (entry->Pos_Y - mapEntry->ghost_entrance_y) * (entry->Pos_Y - mapEntry->ghost_entrance_y);
             if (foundEntr)
             {
                 if (dist2 < distEntr)
@@ -239,7 +239,7 @@ WorldSafeLocsEntry const* ObjectMgr::GetClosestGraveYard(float x, float y, float
         // find now nearest graveyard at same map
         else
         {
-            float dist2 = (entry->x - x) * (entry->x - x) + (entry->y - y) * (entry->y - y) + (entry->z - z) * (entry->z - z);
+            float dist2 = (entry->Pos_X - x) * (entry->Pos_X - x) + (entry->Pos_Y - y) * (entry->Pos_Y - y) + (entry->Pos_Z - z) * (entry->Pos_Z - z);
             if (foundNear)
             {
                 if (dist2 < distNear)

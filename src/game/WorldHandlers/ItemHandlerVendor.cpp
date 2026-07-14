@@ -435,7 +435,7 @@ void WorldSession::SendListInventory(ObjectGuid vendorguid)
                     continue;
                 }
 
-                if (pCurrency->Category == CURRENCY_CATEGORY_META)
+                if (pCurrency->CategoryID == CURRENCY_CATEGORY_META)
                 {
                     continue;
                 }
@@ -619,7 +619,7 @@ void WorldSession::HandleBuyBankSlotOpcode(WorldPacket& recvPacket)
         return;
     }
 
-    uint64 price = slotEntry->price;
+    uint64 price = slotEntry->Cost;
 
     if (_player->GetMoney() < price)
     {

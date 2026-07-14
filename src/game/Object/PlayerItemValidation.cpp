@@ -88,15 +88,15 @@ InventoryResult Player::_CanTakeMoreSimilarItems(uint32 entry, uint32 count, Ite
             return EQUIP_ERR_ITEM_CANT_BE_EQUIPPED;
         }
 
-        if (limitEntry->mode == ITEM_LIMIT_CATEGORY_MODE_HAVE)
+        if (limitEntry->Flags == ITEM_LIMIT_CATEGORY_MODE_HAVE)
         {
             uint32 curcount = GetItemCountWithLimitCategory(pProto->ItemLimitCategory, pItem);
 
-            if (curcount + count > uint32(limitEntry->maxCount))
+            if (curcount + count > uint32(limitEntry->Quantity))
             {
                 if (no_space_count)
                 {
-                    *no_space_count = count + curcount - limitEntry->maxCount;
+                    *no_space_count = count + curcount - limitEntry->Quantity;
                 }
                 return EQUIP_ERR_ITEM_MAX_LIMIT_CATEGORY_COUNT_EXCEEDED_IS;
             }
@@ -1549,18 +1549,18 @@ InventoryResult Player::CanUseItem(Item* pItem, bool direct_action) const
                             continue;
                         }
 
-                        if (skillInfo->skillId != item_use_skill)
+                        if (skillInfo->SkillLine != item_use_skill)
                         {
                             continue;
                         }
 
                         // can't learn
-                        if (skillInfo->classmask && (skillInfo->classmask & getClassMask()) == 0)
+                        if (skillInfo->ClassMask && (skillInfo->ClassMask & getClassMask()) == 0)
                         {
                             continue;
                         }
 
-                        if (skillInfo->racemask && (skillInfo->racemask & getRaceMask()) == 0)
+                        if (skillInfo->RaceMask && (skillInfo->RaceMask & getRaceMask()) == 0)
                         {
                             continue;
                         }
