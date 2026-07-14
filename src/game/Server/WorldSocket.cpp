@@ -56,6 +56,7 @@
 
 #include "WorldSocket.h"
 #include "Common.h"
+#include "MopWireCodec.h"
 
 #include "Util.h"
 #include "World.h"
@@ -78,46 +79,6 @@
 #else
 #pragma pack(push,1)
 #endif
-
-/**
- * @brief Server packet header structure
- *
- * Header for packets sent from server to client.
- */
-struct ServerPktHeader
-{
-    /*
-     * size is the length of the payload _plus_ the length of the opcode
-     */
-    ServerPktHeader(uint32 size, uint16 cmd) : size(size)
-    {
-        uint8 headerIndex = 0;
-        if (isLargePacket())
-        {
-            DEBUG_LOG("initializing large server to client packet. Size: %u, cmd: %u", size, cmd);
-            header[headerIndex++] = 0x80 | (0xFF & (size >> 16));
-        }
-        header[headerIndex++] = 0xFF & (size >> 8);
-        header[headerIndex++] = 0xFF & size;
-
-        header[headerIndex++] = 0xFF & cmd;
-        header[headerIndex++] = 0xFF & (cmd >> 8);
-    }
-
-    uint8 getHeaderLength()
-    {
-        // cmd = 2 bytes, size= 2||3bytes
-        return 2 + (isLargePacket() ? 3 : 2);
-    }
-
-    bool isLargePacket()
-    {
-        return size > 0x7FFF;
-    }
-
-    const uint32 size;
-    uint8 header[5];
-};
 
 /**
  * @brief Client packet header structure
@@ -256,13 +217,23 @@ int WorldSocket::SendPacket(const WorldPacket& pct)
     }
 #endif
 
-    ServerPktHeader header(pct.size() + 2, pct.GetOpcode());
-    m_Crypt.EncryptSend((uint8*)header.header, header.getHeaderLength());
+    uint8 header[4];
+    const bool postCrypt = m_Crypt.IsInitialized();
+    if (!MopWire::BuildServerHeader(postCrypt, pct.size(), pct.GetOpcode(), header))
+    {
+        sLog.outError("WorldSocket::SendPacket: frame out of range (size=%zu opcode=0x%.4X postCrypt=%d)",
+                      pct.size(), pct.GetOpcode(), int(postCrypt));
+        return -1;
+    }
+    if (postCrypt)
+    {
+        m_Crypt.EncryptSend(header, sizeof(header));
+    }
 
-    if (m_OutBuffer->space() >= pct.size() + header.getHeaderLength() && msg_queue()->is_empty())
+    if (m_OutBuffer->space() >= pct.size() + sizeof(header) && msg_queue()->is_empty())
     {
         // Put the packet on the buffer.
-        if (m_OutBuffer->copy((char*) header.header, header.getHeaderLength()) == -1)
+        if (m_OutBuffer->copy((char*) header, sizeof(header)) == -1)
         {
             MANGOS_ASSERT(false);
         }
@@ -280,9 +251,9 @@ int WorldSocket::SendPacket(const WorldPacket& pct)
         // Enqueue the packet.
         ACE_Message_Block* mb;
 
-        ACE_NEW_RETURN(mb, ACE_Message_Block(pct.size() + header.getHeaderLength()), -1);
+        ACE_NEW_RETURN(mb, ACE_Message_Block(pct.size() + sizeof(header)), -1);
 
-        mb->copy((char*) header.header, header.getHeaderLength());
+        mb->copy((char*) header, sizeof(header));
 
         if (!pct.empty())
         {
