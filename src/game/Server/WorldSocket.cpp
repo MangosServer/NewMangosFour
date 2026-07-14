@@ -157,7 +157,10 @@ WorldSocket::WorldSocket(void) :
     m_OutBuffer(0),
     m_OutBufferSize(65536),
     m_OutActive(false),
-    m_Seed(rand32())
+    m_Seed(rand32()),
+    m_connState(MopHs::CONN_GREETING),
+    m_frameReader(),
+    m_lastDecodeLog(ACE_Time_Value::zero)
 {
     reference_counting_policy().value(ACE_Event_Handler::Reference_Counting_Policy::ENABLED);
 

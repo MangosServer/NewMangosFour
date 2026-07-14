@@ -49,6 +49,8 @@
 #include "Common.h"
 #include "Auth/AuthCrypt.h"
 #include "Auth/BigNumber.h"
+#include "MopHandshake.h"
+#include "MopFrameReader.h"
 
 class ACE_Message_Block;
 class WorldPacket;
@@ -180,6 +182,11 @@ class WorldSocket : protected WorldHandler
         /// Called by ProcessIncoming() on CMSG_PING.
         int HandlePing(WorldPacket& recvPacket);
 
+        /// MopFrameReader::DecryptFn hook (Phase 2 wire framing).
+        static bool DecryptHeaderHook(void*, uint8*, size_t);
+        /// MopFrameReader::CmdValidFn hook (Phase 2 wire framing).
+        static bool CmdValidHook(void*, uint32, bool);
+
     private:
         void SendAuthResponseError(uint8);
         /// Time in which the last ping was received
@@ -226,6 +233,15 @@ class WorldSocket : protected WorldHandler
         uint32 m_Seed;
 
         BigNumber m_s;
+
+        /// Phase 2 wire framing: current handshake state (unused until later tasks).
+        MopHs::ConnectionState m_connState;
+
+        /// Phase 2 wire framing: consume-one-frame reader (unused until later tasks).
+        MopFrameReader m_frameReader;
+
+        /// Phase 2 wire framing: rate-limits malformed-frame diagnostic logging (unused until later tasks).
+        ACE_Time_Value m_lastDecodeLog;
 };
 
 #endif  /* _WORLDSOCKET_H */
