@@ -378,7 +378,7 @@ bool ChatHandler::HandleDebugRecvOpcodeCommand(char* /*args*/)
     }
     stream.close();
 
-    DEBUG_LOG("Queued opcode %u, %s", data->GetOpcode(), LookupOpcodeName(DIR_SERVER, data->GetOpcode()));
+    DEBUG_LOG("Queued opcode %u, %s", data->GetOpcode(), LookupOpcodeName(DIR_CLIENT, data->GetOpcode()));
 
     m_session->QueuePacket(data);
 

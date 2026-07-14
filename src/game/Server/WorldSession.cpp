@@ -232,11 +232,10 @@ void WorldSession::SendPacket(WorldPacket const* packet)
         return;
     }
 
-    if (LookupClientOpcode(packet->GetOpcode()) == nullptr)
-    {
-        sLog.outError("SESSION: tried to send an unhandled opcode 0x%.4X", packet->GetOpcode());
-        return;
-    }
+    // Phase 1a: an outbound (SMSG) send cannot be validated against the client table, and the server
+    // table registers only the login closure until Phase 1b, so any table-based guard here would drop
+    // every non-closure SMSG. Send unconditionally; Phase 1b reinstates a server-direction guard once
+    // all SMSG are registered.
 
     const_cast<WorldPacket*>(packet)->FlushBits();
 

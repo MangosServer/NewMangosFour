@@ -1453,8 +1453,10 @@ enum OpcodesList
 
 #define OPCODE_TABLE_SIZE 0x2000   // 13-bit wire space; greeting 0x4F57 is OUT of range
 // Eluna submodule (shared across MaNGOS cores) references NUM_MSG_TYPES as the opcode upper bound.
-// Alias it to the new table size so the module compiles unchanged; superseded by OPCODE_TABLE_SIZE.
-#define NUM_MSG_TYPES OPCODE_TABLE_SIZE
+// Keep the pre-migration value so Phase 1a leaves Eluna's accepted opcode range unchanged (non-closure
+// opcodes still carry Four values up to 0xFFFF). Phase 1b tightens this to OPCODE_TABLE_SIZE once every
+// opcode is < 0x2000.
+#define NUM_MSG_TYPES 0xFFFF
 
 /**
  * Initializes opcode handler metadata tables.
