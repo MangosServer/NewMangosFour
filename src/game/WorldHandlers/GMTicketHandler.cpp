@@ -307,7 +307,7 @@ void WorldSession::HandleGMTicketSurveySubmitOpcode(WorldPacket& recv_data)
 void WorldSession::HandleGMResponseResolveOpcode(WorldPacket& recv_data)
 {
     // empty opcode
-    DEBUG_LOG("WORLD: %s", recv_data.GetOpcodeName());
+    DEBUG_LOG("WORLD: %s", LookupOpcodeName(DIR_CLIENT, recv_data.GetOpcode()));
 
     sTicketMgr.Delete(GetPlayer()->GetObjectGuid());
 

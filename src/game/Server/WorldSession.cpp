@@ -117,14 +117,14 @@ static bool MapSessionFilterHelper(WorldSession* session, OpcodeHandler const& o
  */
 bool MapSessionFilter::Process(WorldPacket* packet)
 {
-    OpcodeHandler const& opHandle = opcodeTable[packet->GetOpcode()];
-    if (opHandle.packetProcessing == PROCESS_INPLACE)
+    OpcodeHandler const* opHandle = LookupClientOpcode(packet->GetOpcode());
+    if (!opHandle || opHandle->packetProcessing == PROCESS_INPLACE)
     {
         return true;
     }
 
     // let's check if our opcode can be really processed in Map::Update()
-    return MapSessionFilterHelper(m_pSession, opHandle);
+    return MapSessionFilterHelper(m_pSession, *opHandle);
 }
 
 /**
@@ -138,15 +138,15 @@ bool MapSessionFilter::Process(WorldPacket* packet)
  */
 bool WorldSessionFilter::Process(WorldPacket* packet)
 {
-    OpcodeHandler const& opHandle = opcodeTable[packet->GetOpcode()];
+    OpcodeHandler const* opHandle = LookupClientOpcode(packet->GetOpcode());
     // check if packet handler is supposed to be safe
-    if (opHandle.packetProcessing == PROCESS_INPLACE)
+    if (!opHandle || opHandle->packetProcessing == PROCESS_INPLACE)
     {
         return true;
     }
 
     // let's check if our opcode can't be processed in Map::Update()
-    return !MapSessionFilterHelper(m_pSession, opHandle);
+    return !MapSessionFilterHelper(m_pSession, *opHandle);
 }
 
 /// WorldSession constructor
@@ -202,7 +202,7 @@ WorldSession::~WorldSession()
 void WorldSession::SizeError(WorldPacket const& packet, uint32 size) const
 {
     sLog.outError("Client (account %u) send packet %s (%u) with size %zu but expected %u (attempt crash server?), skipped",
-                  GetAccountId(), packet.GetOpcodeName(), packet.GetOpcode(), packet.size(), size);
+                  GetAccountId(), LookupOpcodeName(DIR_CLIENT, packet.GetOpcode()), packet.GetOpcode(), packet.size(), size);
 }
 
 /// Get the player name
@@ -232,7 +232,7 @@ void WorldSession::SendPacket(WorldPacket const* packet)
         return;
     }
 
-    if (opcodeTable[packet->GetOpcode()].status == STATUS_UNHANDLED)
+    if (LookupClientOpcode(packet->GetOpcode()) == nullptr)
     {
         sLog.outError("SESSION: tried to send an unhandled opcode 0x%.4X", packet->GetOpcode());
         return;
@@ -292,7 +292,7 @@ void WorldSession::QueuePacket(WorldPacket* new_packet)
 void WorldSession::LogUnexpectedOpcode(WorldPacket* packet, const char* reason)
 {
     sLog.outError("SESSION: received unexpected opcode %s (0x%.4X) %s",
-                  packet->GetOpcodeName(),
+                  LookupOpcodeName(DIR_CLIENT, packet->GetOpcode()),
                   packet->GetOpcode(),
                   reason);
 }
@@ -301,7 +301,7 @@ void WorldSession::LogUnexpectedOpcode(WorldPacket* packet, const char* reason)
 void WorldSession::LogUnprocessedTail(WorldPacket* packet)
 {
     sLog.outError("SESSION: opcode %s (0x%.4X) have unprocessed tail data (read stop at %zu from %zu)",
-                  packet->GetOpcodeName(),
+                  LookupOpcodeName(DIR_CLIENT, packet->GetOpcode()),
                   packet->GetOpcode(),
                   packet->rpos(), packet->wpos());
 }
@@ -316,11 +316,20 @@ bool WorldSession::Update(PacketFilter& updater)
     {
         /*#if 1
         sLog.outError( "MOEP: %s (0x%.4X)",
-                        packet->GetOpcodeName(),
+                        LookupOpcodeName(DIR_CLIENT, packet->GetOpcode()),
                         packet->GetOpcode());
         #endif*/
 
-        OpcodeHandler const& opHandle = opcodeTable[packet->GetOpcode()];
+        OpcodeHandler const* opHandlePtr = LookupClientOpcode(packet->GetOpcode());
+        if (!opHandlePtr)
+        {
+            DEBUG_LOG("SESSION: received not handled opcode %s (0x%.4X)",
+                      LookupOpcodeName(DIR_CLIENT, packet->GetOpcode()),
+                      packet->GetOpcode());
+            delete packet;
+            continue;
+        }
+        OpcodeHandler const& opHandle = *opHandlePtr;
         try
         {
             switch (opHandle.status)
@@ -392,17 +401,17 @@ bool WorldSession::Update(PacketFilter& updater)
                     break;
                 case STATUS_NEVER:
                     sLog.outError("SESSION: received not allowed opcode %s (0x%.4X)",
-                                  packet->GetOpcodeName(),
+                                  LookupOpcodeName(DIR_CLIENT, packet->GetOpcode()),
                                   packet->GetOpcode());
                     break;
                 case STATUS_UNHANDLED:
                     DEBUG_LOG("SESSION: received not handled opcode %s (0x%.4X)",
-                              LookupOpcodeName(packet->GetOpcode()),
+                              LookupOpcodeName(DIR_CLIENT, packet->GetOpcode()),
                               packet->GetOpcode());
                     break;
                 default:
                     sLog.outError("SESSION: received wrong-status-req opcode %s (0x%.4X)",
-                                  packet->GetOpcodeName(),
+                                  LookupOpcodeName(DIR_CLIENT, packet->GetOpcode()),
                                   packet->GetOpcode());
                     break;
             }
@@ -476,8 +485,11 @@ void WorldSession::HandleBotPackets()
     WorldPacket* packet;
     while (_recvQueue.next(packet))
     {
-        OpcodeHandler const& opHandle = opcodeTable[packet->GetOpcode()];
-        (this->*opHandle.handler)(*packet);
+        OpcodeHandler const* opHandle = LookupClientOpcode(packet->GetOpcode());
+        if (opHandle)
+        {
+            (this->*opHandle->handler)(*packet);
+        }
         delete packet;
     }
 }
@@ -933,7 +945,7 @@ const char* WorldSession::GetMangosString(int32 entry) const
 void WorldSession::Handle_NULL(WorldPacket& recvPacket)
 {
     DEBUG_LOG("SESSION: received unimplemented opcode %s (0x%.4X)",
-              recvPacket.GetOpcodeName(),
+              LookupOpcodeName(DIR_CLIENT, recvPacket.GetOpcode()),
               recvPacket.GetOpcode());
 }
 
@@ -945,7 +957,7 @@ void WorldSession::Handle_NULL(WorldPacket& recvPacket)
 void WorldSession::Handle_EarlyProccess(WorldPacket& recvPacket)
 {
     sLog.outError("SESSION: received opcode %s (0x%.4X) that must be processed in WorldSocket::OnRead",
-                  recvPacket.GetOpcodeName(),
+                  LookupOpcodeName(DIR_CLIENT, recvPacket.GetOpcode()),
                   recvPacket.GetOpcode());
 }
 
@@ -957,7 +969,7 @@ void WorldSession::Handle_EarlyProccess(WorldPacket& recvPacket)
 void WorldSession::Handle_ServerSide(WorldPacket& recvPacket)
 {
     sLog.outError("SESSION: received server-side opcode %s (0x%.4X)",
-                  recvPacket.GetOpcodeName(),
+                  LookupOpcodeName(DIR_CLIENT, recvPacket.GetOpcode()),
                   recvPacket.GetOpcode());
 }
 
@@ -969,7 +981,7 @@ void WorldSession::Handle_ServerSide(WorldPacket& recvPacket)
 void WorldSession::Handle_Deprecated(WorldPacket& recvPacket)
 {
     sLog.outError("SESSION: received deprecated opcode %s (0x%.4X)",
-                  recvPacket.GetOpcodeName(),
+                  LookupOpcodeName(DIR_CLIENT, recvPacket.GetOpcode()),
                   recvPacket.GetOpcode());
 }
 

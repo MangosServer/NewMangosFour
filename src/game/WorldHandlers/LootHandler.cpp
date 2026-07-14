@@ -62,7 +62,7 @@
 
 void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recv_data)
 {
-    DEBUG_LOG("WORLD: %s", LookupOpcodeName(recv_data.GetOpcode()));
+    DEBUG_LOG("WORLD: %s", LookupOpcodeName(DIR_CLIENT, recv_data.GetOpcode()));
     Player*  player = GetPlayer();
     ObjectGuid lguid = player->GetLootGuid();
     Loot* loot = nullptr;

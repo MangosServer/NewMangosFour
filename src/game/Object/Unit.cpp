@@ -93,7 +93,7 @@ void MovementInfo::Read(ByteBuffer& data, uint16 opcode)
     MovementStatusElements* sequence = GetMovementStatusElementsSequence(opcode);
     if (!sequence)
     {
-        sLog.outError("Unsupported MovementInfo::Read for 0x%X (%s)!", opcode, LookupOpcodeName(opcode));
+        sLog.outError("Unsupported MovementInfo::Read for 0x%X (%s)!", opcode, LookupOpcodeName(DIR_CLIENT, opcode));
         return;
     }
 
@@ -351,7 +351,7 @@ void MovementInfo::Write(ByteBuffer& data, uint16 opcode) const
     MovementStatusElements* sequence = GetMovementStatusElementsSequence(opcode);
     if (!sequence)
     {
-        sLog.outError("Unsupported MovementInfo::Write for 0x%X (%s)!", opcode, LookupOpcodeName(opcode));
+        sLog.outError("Unsupported MovementInfo::Write for 0x%X (%s)!", opcode, LookupOpcodeName(DIR_SERVER, opcode));
         return;
     }
 

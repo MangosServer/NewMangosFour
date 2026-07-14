@@ -240,7 +240,7 @@ int WorldSocket::SendPacket(const WorldPacket& pct)
     // Dump outgoing packet (opt-in via PacketLoggingEnabled; off by default).
     if (sLog.IsPacketLoggingEnabled())
     {
-        sLog.outWorldPacketDump(uint32(get_handle()), pct.GetOpcode(), pct.GetOpcodeName(), &pct, false);
+        sLog.outWorldPacketDump(uint32(get_handle()), pct.GetOpcode(), LookupOpcodeName(DIR_SERVER, pct.GetOpcode()), &pct, false);
     }
 
 #ifdef ENABLE_ELUNA
@@ -891,13 +891,7 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
     // manage memory ;)
     ACE_Auto_Ptr<WorldPacket> aptr(new_pct);
 
-    const ACE_UINT16 opcode = new_pct->GetOpcode();
-
-    if (opcode >= NUM_MSG_TYPES)
-    {
-        sLog.outError("SESSION: received nonexistent opcode 0x%.4X", opcode);
-        return -1;
-    }
+    const uint16 opcode = new_pct->GetOpcode();
 
     if (closing_)
     {
@@ -907,15 +901,26 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
     // Dump received packet (opt-in via PacketLoggingEnabled; off by default).
     if (sLog.IsPacketLoggingEnabled())
     {
-        sLog.outWorldPacketDump(uint32(get_handle()), new_pct->GetOpcode(), new_pct->GetOpcodeName(), new_pct, true);
+        sLog.outWorldPacketDump(uint32(get_handle()), opcode, LookupOpcodeName(DIR_CLIENT, opcode), new_pct, true);
+    }
+
+    // Greeting is out-of-band: 0x4F57 is outside the 13-bit table, resolved by name only.
+    if (opcode == MSG_WOW_CONNECTION)
+    {
+        return HandleWowConnection(*new_pct);
+    }
+
+    // Reject anything outside the registered client closure (Phase 1a).
+    if (opcode >= OPCODE_TABLE_SIZE || LookupClientOpcode(opcode) == nullptr)
+    {
+        sLog.outError("SESSION: received unhandled/out-of-range opcode 0x%.4X", opcode);
+        return -1;
     }
 
     try
     {
         switch (opcode)
         {
-            case MSG_WOW_CONNECTION:
-                return HandleWowConnection(*new_pct);
             case CMSG_PING:
                 return HandlePing(*new_pct);
             case CMSG_AUTH_SESSION:
@@ -944,6 +949,15 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
                     e->OnPacketReceive(m_Session, *new_pct);
                 }
 #endif /* ENABLE_ELUNA */
+                return 0;
+            case CMSG_LOG_DISCONNECT:
+                new_pct->rfinish();                                  // uint32 disconnect reason; socket notification, not logout
+#ifdef ENABLE_ELUNA
+                if (Eluna* e = sWorld.GetEluna())
+                {
+                    e->OnPacketReceive(m_Session, *new_pct);
+                }
+#endif
                 return 0;
             default:
             {
