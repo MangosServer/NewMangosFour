@@ -231,6 +231,10 @@ uint32 SpellEntry::GetStackAmount() const
 uint32 SpellEntry::GetManaCostPercentage() const
 {
     SpellPowerEntry const* power = GetSpellPower();
+    // NOTE (MoP port-sweep): 'ManaPerSecond' is the 5.4.8 client name for SpellPower column 6; this
+    // accessor's byte offset is unchanged from pre-alignment. The true percentage cost is the client
+    // 'PowerCostPct' float (column 9), which this core does not model yet, so the value returned here
+    // is the per-second column, not a percentage. Semantic fix deferred to the MoP port-sweep track.
     return power ? power->ManaPerSecond : 0;
 }
 
@@ -261,6 +265,9 @@ uint32 SpellEntry::GetTargetAuraState() const
 uint32 SpellEntry::GetManaPerSecond() const
 {
     SpellPowerEntry const* power = GetSpellPower();
+    // NOTE (MoP port-sweep): 'PowerDisplayID' is the 5.4.8 client name for SpellPower column 7; byte
+    // offset unchanged from pre-alignment. The true per-second drain is the client 'ManaPerSecond'
+    // (column 6, consumed above by GetManaCostPercentage). Semantic fix deferred to the port-sweep track.
     return power ? power->PowerDisplayID : 0;
 }
 
