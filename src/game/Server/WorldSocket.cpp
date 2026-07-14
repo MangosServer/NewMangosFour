@@ -240,7 +240,7 @@ int WorldSocket::SendPacket(const WorldPacket& pct)
     // Dump outgoing packet (opt-in via PacketLoggingEnabled; off by default).
     if (sLog.IsPacketLoggingEnabled())
     {
-        sLog.outWorldPacketDump(uint32(get_handle()), pct.GetOpcode(), pct.GetOpcodeName(), &pct, false);
+        sLog.outWorldPacketDump(uint32(get_handle()), pct.GetOpcode(), LookupOpcodeName(DIR_SERVER, pct.GetOpcode()), &pct, false);
     }
 
 #ifdef ENABLE_ELUNA
@@ -891,13 +891,7 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
     // manage memory ;)
     ACE_Auto_Ptr<WorldPacket> aptr(new_pct);
 
-    const ACE_UINT16 opcode = new_pct->GetOpcode();
-
-    if (opcode >= NUM_MSG_TYPES)
-    {
-        sLog.outError("SESSION: received nonexistent opcode 0x%.4X", opcode);
-        return -1;
-    }
+    const uint16 opcode = new_pct->GetOpcode();
 
     if (closing_)
     {
@@ -907,15 +901,27 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
     // Dump received packet (opt-in via PacketLoggingEnabled; off by default).
     if (sLog.IsPacketLoggingEnabled())
     {
-        sLog.outWorldPacketDump(uint32(get_handle()), new_pct->GetOpcode(), new_pct->GetOpcodeName(), new_pct, true);
+        sLog.outWorldPacketDump(uint32(get_handle()), opcode, LookupOpcodeName(DIR_CLIENT, opcode), new_pct, true);
     }
+
+    // Greeting is out-of-band: 0x4F57 is outside the 13-bit table, resolved by name only.
+    if (opcode == MSG_WOW_CONNECTION)
+    {
+        return HandleWowConnection(*new_pct);
+    }
+
+    // Phase 1a registers only the login closure in clientOpcodeTable, so a closure-based reject here
+    // would hard-close the socket for every non-closure client opcode (movement, char management, ...).
+    // Do NOT gate on the client table: hand non-closure opcodes to the switch below, whose default case
+    // queues them to WorldSession, where the bounded LookupClientOpcode() drops unregistered opcodes
+    // gracefully (no disconnect, no out-of-range index). Phase 1b reinstates a table-based inbound guard
+    // once all client opcodes live within OPCODE_TABLE_SIZE. Mirrors the outbound SendPacket fix: no
+    // faithful table-based guard exists in Phase 1a.
 
     try
     {
         switch (opcode)
         {
-            case MSG_WOW_CONNECTION:
-                return HandleWowConnection(*new_pct);
             case CMSG_PING:
                 return HandlePing(*new_pct);
             case CMSG_AUTH_SESSION:
@@ -944,6 +950,15 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
                     e->OnPacketReceive(m_Session, *new_pct);
                 }
 #endif /* ENABLE_ELUNA */
+                return 0;
+            case CMSG_LOG_DISCONNECT:
+                new_pct->rfinish();                                  // uint32 disconnect reason; socket notification, not logout
+#ifdef ENABLE_ELUNA
+                if (Eluna* e = sWorld.GetEluna())
+                {
+                    e->OnPacketReceive(m_Session, *new_pct);
+                }
+#endif
                 return 0;
             default:
             {
