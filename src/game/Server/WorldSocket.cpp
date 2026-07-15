@@ -764,6 +764,20 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
         sLog.outWorldPacketDump(uint32(get_handle()), opcode, LookupOpcodeName(DIR_CLIENT, opcode), new_pct, true);
     }
 
+    // Handshake state legality allowlist. MUST run before the MSG_WOW_CONNECTION early-return below,
+    // otherwise a client could resend the greeting after already being CONN_CHALLENGED (duplicate-greeting
+    // bypass). OPC_NORMAL is AUTHED-only; Phase 2 never reaches CONN_AUTHED, so all non-handshake opcodes
+    // are rejected pre-auth (prevents pre-auth socket pinning). Phase 3 sets CONN_AUTHED and opens that gate.
+    MopHs::OpcodeClass cls =
+        (opcode == MSG_WOW_CONNECTION) ? MopHs::OPC_GREETING :
+        (opcode == CMSG_AUTH_SESSION)  ? MopHs::OPC_AUTH_SESSION : MopHs::OPC_NORMAL;
+    if (!MopHs::IsHandshakeOpcodeLegal(m_connState, cls))
+    {
+        sLog.outError("WorldSocket::ProcessIncoming: opcode 0x%.4X illegal in state %d from %s; closing.",
+                      opcode, int(m_connState), GetRemoteAddress().c_str());
+        return -1;
+    }
+
     // Greeting is out-of-band: 0x4F57 is outside the 13-bit table, resolved by name only.
     if (opcode == MSG_WOW_CONNECTION)
     {
@@ -785,22 +799,11 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
             case CMSG_PING:
                 return HandlePing(*new_pct);
             case CMSG_AUTH_SESSION:
-                if (m_Session)
-                {
-                    sLog.outError("WorldSocket::ProcessIncoming: Player send CMSG_AUTH_SESSION again");
-                    return -1;
-                }
-
-#ifdef ENABLE_ELUNA
-                if (Eluna* e = sWorld.GetEluna())
-                {
-                    if (!e->OnPacketReceive(m_Session, *new_pct))
-                    {
-                        return 0;
-                    }
-                }
-#endif /* ENABLE_ELUNA */
-                return HandleAuthSession(*new_pct);
+                // Phase 2: framing proven. Do NOT enter the legacy auth path (HandleAuthSession -> m_Crypt.Init).
+                // The allowlist (Step 1) guarantees we are in CONN_CHALLENGED here, so this is the LEGAL transition.
+                m_connState = MopHs::CONN_AUTHENTICATING;
+                DEBUG_LOG("WorldSocket: CMSG_AUTH_SESSION accepted; CONN_CHALLENGED -> CONN_AUTHENTICATING; auth deferred to Phase 3 (framing OK, len %zu, body redacted); closing.", new_pct->size());
+                return -1;
             case CMSG_KEEP_ALIVE:
                 DEBUG_LOG("CMSG_KEEP_ALIVE ,size: %zu ", new_pct->size());
 
