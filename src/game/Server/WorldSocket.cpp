@@ -969,9 +969,6 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     std::string account;
     Sha1Hash sha1;
     BigNumber v, s, g, N, K;
-    std::string os;
-    WorldPacket packet;
-    bool wardenActive = (sWorld.getConfig(CONFIG_BOOL_WARDEN_WIN_ENABLED) || sWorld.getConfig(CONFIG_BOOL_WARDEN_OSX_ENABLED));
 
     // Read the content of the packet.
     // The read order, the scattered digest[] indices and the missing leading ReadBit() before
@@ -1029,8 +1026,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
                              "`s`, "                       // 6
                              "`expansion`, "               // 7
                              "`mutetime`, "                // 8
-                             "`locale`, "                  // 9
-                             "`os` "                       // 10
+                             "`locale` "                   // 9
                              "FROM `account` "
                              "WHERE `username` = '%s'",
                              safe_account.c_str());
@@ -1095,8 +1091,6 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
         locale = LOCALE_enUS;
     }
 
-    os = fields[10].GetString();
-
     delete result;
 
     // Re-check account ban (same check as in realmd)
@@ -1127,17 +1121,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
         return -1;
     }
 
-    // Warden: Must be done before WorldSession is created
-    if (wardenActive && os != "Win" && os != "OSX")
-    {
-        WorldPacket Packet(SMSG_AUTH_RESPONSE, 1);
-        Packet << uint8(AUTH_REJECT);
-
-        SendPacket(packet);
-
-        BASIC_LOG("WorldSocket::HandleAuthSession: Client %s attempted to log in using invalid client OS (%s).", GetRemoteAddress().c_str(), os.c_str());
-        return -1;
-    }
+    // Phase 3 defers Warden structurally; see auth design §6.11 before re-enabling.
 
     // Check that Key and account name are the same on client and server
     Sha1Hash sha;
@@ -1184,12 +1168,6 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     // In case needed sometime the second arg is in microseconds 1 000 000 = 1 sec
     ACE_OS::sleep(ACE_Time_Value(0, 10000));
-
-    // Warden: Initialize Warden system only if it is enabled by config
-    if (wardenActive)
-    {
-        m_Session->InitWarden(uint16(BuiltNumberClient), &K, os);
-    }
 
     sWorld.AddSession(m_Session);
 

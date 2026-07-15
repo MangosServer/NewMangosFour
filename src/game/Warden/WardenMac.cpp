@@ -97,14 +97,10 @@ void WardenMac::Init(WorldSession* pClient, BigNumber* K)
     _inputCrypto.Init(_inputKey);
     _outputCrypto.Init(_outputKey);
     sLog.outWarden("Server side Mac warden for client %u (build %u) initializing...", pClient->GetAccountId(), _session->GetClientBuild());
-    sLog.outWarden("C->S Key: %s", ByteArrayToHexStr(_inputKey, 16).c_str());
-    sLog.outWarden("S->C Key: %s", ByteArrayToHexStr(_outputKey, 16).c_str());
-    sLog.outWarden("  Seed: %s", ByteArrayToHexStr(_seed, 16).c_str());
     sLog.outWarden("Loading Module...");
 
     _module = GetModuleForClient();
 
-    sLog.outWarden("Module Key: %s", ByteArrayToHexStr(_module->Key, 16).c_str());
     sLog.outWarden("Module ID: %s", ByteArrayToHexStr(_module->Id, 16).c_str());
     RequestModule();
 }
