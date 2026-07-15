@@ -177,9 +177,18 @@ int WorldSocket::SendPacket(const WorldPacket& pct)
     }
 
     // Dump outgoing packet (opt-in via PacketLoggingEnabled; off by default).
+    // SMSG_AUTH_RESPONSE is auth-adjacent and must never have its body logged
+    // (defensive for Phase 3, when this response starts carrying auth material).
     if (sLog.IsPacketLoggingEnabled())
     {
-        sLog.outWorldPacketDump(uint32(get_handle()), pct.GetOpcode(), LookupOpcodeName(DIR_SERVER, pct.GetOpcode()), &pct, false);
+        if (pct.GetOpcode() == SMSG_AUTH_RESPONSE)
+        {
+            sLog.outWorldPacketDumpRedacted(uint32(get_handle()), pct.GetOpcode(), LookupOpcodeName(DIR_SERVER, pct.GetOpcode()), pct.size(), false);
+        }
+        else
+        {
+            sLog.outWorldPacketDump(uint32(get_handle()), pct.GetOpcode(), LookupOpcodeName(DIR_SERVER, pct.GetOpcode()), &pct, false);
+        }
     }
 
 #ifdef ENABLE_ELUNA
@@ -759,9 +768,17 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
     }
 
     // Dump received packet (opt-in via PacketLoggingEnabled; off by default).
+    // CMSG_AUTH_SESSION carries the client's auth proof and must never have its body logged.
     if (sLog.IsPacketLoggingEnabled())
     {
-        sLog.outWorldPacketDump(uint32(get_handle()), opcode, LookupOpcodeName(DIR_CLIENT, opcode), new_pct, true);
+        if (opcode == CMSG_AUTH_SESSION)
+        {
+            sLog.outWorldPacketDumpRedacted(uint32(get_handle()), opcode, LookupOpcodeName(DIR_CLIENT, opcode), new_pct->size(), true);
+        }
+        else
+        {
+            sLog.outWorldPacketDump(uint32(get_handle()), opcode, LookupOpcodeName(DIR_CLIENT, opcode), new_pct, true);
+        }
     }
 
     // Handshake state legality allowlist. MUST run before the MSG_WOW_CONNECTION early-return below,
@@ -846,12 +863,29 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
     }
     catch (ByteBufferException&)
     {
-        sLog.outError("WorldSocket::ProcessIncoming ByteBufferException occured while parsing an instant handled packet (opcode: %u) from client %s, accountid=%i.",
-                      opcode, GetRemoteAddress().c_str(), m_Session ? m_Session->GetAccountId() : -1);
-        if (sLog.HasLogLevelOrHigher(LOG_LVL_DEBUG))
+        // Bounded + rate-limited: shares m_lastDecodeLog with the Task-2.5 malformed-frame
+        // path so every decode-failure path is rate-limited together. CMSG_AUTH_SESSION never
+        // has its body logged, even on error; other opcodes log at most the first 64 bytes.
+        const ACE_Time_Value now = ACE_OS::gettimeofday();
+        if (MopHs::RateLimitElapsed(m_lastDecodeLog.sec(), now.sec()))
         {
-            DEBUG_LOG("Dumping error-causing packet:");
-            new_pct->hexlike();
+            m_lastDecodeLog = now;
+            if (opcode == CMSG_AUTH_SESSION)
+            {
+                sLog.outError("WorldSocket: CMSG_AUTH_SESSION decode failed from %s (body redacted).", GetRemoteAddress().c_str());
+            }
+            else
+            {
+                const size_t cap = 64, m = new_pct->size() < cap ? new_pct->size() : cap;
+                char hex[cap * 3 + 1];
+                for (size_t i = 0; i < m; ++i)
+                {
+                    snprintf(hex + i * 3, 4, "%02X ", new_pct->contents()[i]);
+                }
+                hex[m ? m * 3 - 1 : 0] = '\0';
+                sLog.outError("WorldSocket: decode failure opcode 0x%.4X (%s) from %s; first %zu bytes: %s",
+                              opcode, LookupOpcodeName(DIR_CLIENT, opcode), GetRemoteAddress().c_str(), m, hex);
+            }
         }
 
         if (sWorld.getConfig(CONFIG_BOOL_KICK_PLAYER_ON_BAD_PACKET))

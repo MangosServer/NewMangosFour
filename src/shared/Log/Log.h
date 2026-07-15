@@ -299,6 +299,17 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, ACE_Th
          */
         void outWorldPacketDump(uint32 socket, uint32 opcode, char const* opcodeName, ByteBuffer const* packet, bool incoming);
         /**
+         * @brief any log level; writes only a redacted header line (never the body) for
+         * auth-adjacent opcodes so auth material never reaches worldLogfile
+         *
+         * @param socket
+         * @param opcode
+         * @param opcodeName
+         * @param length
+         * @param incoming
+         */
+        void outWorldPacketDumpRedacted(uint32 socket, uint32 opcode, char const* opcodeName, size_t length, bool incoming);
+        /**
          * @brief any log level
          *
          * @param str
