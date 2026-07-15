@@ -65,6 +65,13 @@ namespace MopSock
     /// pending. A concurrent WorldSocketMgr::svc() sweep (a different thread from the reactor once
     /// Network.Threads > 1, since sockets_ is ACE_TSS) would otherwise conclude the drain had
     /// finished and close the socket, dropping the very response the drain exists to deliver.
+    ///
+    /// This predicate is pure, so it can only be as consistent as the values handed to it. The
+    /// caller must sample all four as ONE snapshot under a common lock: argument evaluation order
+    /// is unspecified in C++, so four independently-read values can interleave with the writer and
+    /// describe a state that never existed. WorldSocket::Update() snapshots them under
+    /// m_OutBufferLock for exactly this reason. Making one input atomic does not fix the other
+    /// three.
     inline bool ShouldCloseNow(DrainState state, size_t outBufferLen, bool queueEmpty, bool sendInFlight)
     {
         return state == DrainState::Flushing && outBufferLen == 0 && queueEmpty && !sendInFlight;

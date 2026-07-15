@@ -754,37 +754,62 @@ int WorldSocket::Update(void)
     // either. A check inside handle_output() would never run and the socket would leak.
     // Returning -1 makes WorldSocketMgr::svc() do the orderly CloseSocket()/RemoveReference().
     //
-    // KNOWN, ACCEPTED RISK: length()/is_empty()/m_sendInFlight are read WITHOUT m_OutBufferLock,
-    // matching the pre-existing convention below -- but the consequence is NOT the same and this is
-    // not a plain convention match. A spurious length()==0 below merely returns 0 and is retried in
-    // ~10ms; here it returns -1 -> CloseSocket() and DISCARDS the auth response, i.e. reintroduces
-    // the exact bug this drain exists to prevent. Accepted because it requires a torn read of
-    // ACE_Message_Block's pointers mid-reset/crunch, which is very unlikely. Do NOT "fix" this by
-    // taking the lock: handle_output() acquires m_OutBufferLock and Update() calls handle_output() a
-    // few lines below, so holding it here is the documented self-deadlock.
+    // The four inputs are SNAPSHOTTED UNDER m_OutBufferLock, in a nested scope that releases before
+    // handle_output() is reached below. Reading them unlocked is not sufficient here and never was:
+    // argument evaluation order is unspecified in C++ (MSVC commonly evaluates right-to-left), so an
+    // unlocked call could sample m_sendInFlight BEFORE handle_output_queue() raises it and
+    // msg_queue()->is_empty() AFTER dequeue_head() emptied the queue -- concluding "fully drained"
+    // in the middle of a send and closing on top of the unsent response. Four independent non-atomic
+    // reads cannot be made mutually consistent by making one of them atomic; only a common lock can.
     //
-    // m_sendInFlight closes the one variant of this that was NOT merely a torn read but a plain
-    // race: handle_output_queue() dequeues the block before send()ing it, so across that syscall the
-    // buffer and the queue both genuinely report empty while the response exists only as a local
-    // pointer. Without the flag this thread would close the socket and drop it. Needs
-    // Network.Threads > 1 to bite (sockets_ is ACE_TSS, so the sweeping thread and the reactor
-    // thread differ), and only when the response took the queue path rather than m_OutBuffer.
+    // Taking the lock here does NOT deadlock, and the earlier claim that it would was wrong. The
+    // real rule is: do not HOLD it across the handle_output() call below. handle_output() acquires
+    // m_OutBufferLock via a function-scoped ACE_GUARD_RETURN at :557, and LockType is a
+    // non-recursive ACE_Thread_Mutex, so holding it across that call would self-deadlock -- but
+    // acquiring and RELEASING it first does not. No Update() caller holds the lock:
+    // WorldSocketMgr::svc() (WorldSocketMgr.cpp:123) holds nothing, and handle_input() (:526, :544)
+    // takes no guard.
     //
-    // The state is tested FIRST, before ShouldCloseNow, so m_OutBuffer is not dereferenced unless a
-    // drain is actually armed. ShouldCloseNow takes size_t by value, so an unguarded call would
-    // evaluate m_OutBuffer->length() unconditionally -- above the m_OutActive short-circuit below
-    // that otherwise covers it. open() sets m_OutActive = true at :312 specifically to keep Update()
-    // out while initialising, but m_OutBuffer stays NULL from :312 until :321, a window spanning
-    // OnSocketOpen() at :315 which inserts this socket into the set svc() sweeps. Not reachable
-    // today (sockets_ is ACE_TSS, so only the opening thread sweeps it, and that thread is inside
+    // The lock genuinely covers the dequeue_head()->send() window: handle_output_queue() receives
+    // that same function-scoped guard by reference and releases it ONLY inside
+    // cancel_wakeup_output()/schedule_wakeup_output() (:938, :960), both of which run strictly AFTER
+    // send() returns. So a snapshot taken under the lock can never land mid-send.
+    //
+    // m_sendInFlight is retained as belt-and-braces. With the snapshot it is no longer the primary
+    // mechanism, but it stays correct and fails safe: it is lowered at scope exit, i.e. after
+    // cancel_wakeup_output() has already released the guard, so a snapshot in that sliver sees the
+    // flag still raised and merely defers the close by one ~10ms sweep. By then the block has been
+    // sent or re-enqueued, so deferring is always the safe direction.
+    //
+    // The drain state is tested FIRST so m_OutBuffer is not dereferenced unless a drain is actually
+    // armed. open() sets m_OutActive = true at :312 specifically to keep Update() out while
+    // initialising, but m_OutBuffer stays NULL from :312 until :321, a window spanning OnSocketOpen()
+    // at :315 which inserts this socket into the set svc() sweeps. Not reachable today (sockets_ is
+    // ACE_TSS, so only the opening thread sweeps it, and that thread is inside
     // run_reactor_event_loop() for all of open()) -- but this keeps the safety local and obvious
     // instead of resting on an invariant stated nowhere near here. Drain state is only ever armed
-    // long after open() completes, so the added test costs nothing.
-    if (m_drainState.load() == MopSock::DrainState::Flushing &&
-        MopSock::ShouldCloseNow(m_drainState.load(), m_OutBuffer->length(), msg_queue()->is_empty(),
-                                m_sendInFlight.load()))
+    // long after open() completes, so the test costs nothing.
+    if (m_drainState.load() == MopSock::DrainState::Flushing)
     {
-        return -1;
+        MopSock::DrainState drainState;
+        size_t outBufferLen;
+        bool queueEmpty;
+        bool sendInFlight;
+
+        // Critical section: snapshot only. Released before handle_output() below.
+        {
+            ACE_GUARD_RETURN(LockType, Guard, m_OutBufferLock, -1);
+
+            drainState = m_drainState.load();
+            outBufferLen = m_OutBuffer->length();
+            queueEmpty = msg_queue()->is_empty();
+            sendInFlight = m_sendInFlight.load();
+        }
+
+        if (MopSock::ShouldCloseNow(drainState, outBufferLen, queueEmpty, sendInFlight))
+        {
+            return -1;
+        }
     }
 
     if (m_OutActive || (m_OutBuffer->length() == 0 && msg_queue()->is_empty()))

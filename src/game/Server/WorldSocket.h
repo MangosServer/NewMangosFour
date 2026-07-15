@@ -240,12 +240,17 @@ class WorldSocket : protected WorldHandler
         std::atomic<MopSock::DrainState> m_drainState;
 
         /// True while handle_output_queue() holds a dequeued block that is not yet sent, released
-        /// or re-enqueued. Feeds MopSock::ShouldCloseNow so a concurrent Update() cannot mistake
-        /// that window -- queue emptied by dequeue_head(), block still only in a local -- for a
-        /// finished drain and close the socket on top of the unsent response.
-        /// Writers are serialised by m_OutBufferLock; Update() reads it unlocked, as it already
-        /// reads m_OutBuffer->length() and msg_queue()->is_empty() (taking the lock there is the
-        /// documented self-deadlock).
+        /// or re-enqueued -- the window in which the queue reports empty (dequeue_head() took the
+        /// block) but the response exists only as a local pointer. Feeds MopSock::ShouldCloseNow so
+        /// that window is never mistaken for a finished drain.
+        ///
+        /// Belt-and-braces, not the primary mechanism: Update() snapshots this together with the
+        /// buffer length and queue state under m_OutBufferLock, and that lock already covers the
+        /// dequeue_head()->send() window (handle_output_queue() releases the guard only inside
+        /// cancel_wakeup_output()/schedule_wakeup_output(), both strictly after send() returns).
+        /// It stays because it fails safe: lowered at scope exit, i.e. after the guard is released,
+        /// so a snapshot in that sliver sees it raised and merely defers the close one sweep.
+        /// Writers are serialised by m_OutBufferLock.
         std::atomic<bool> m_sendInFlight;
 
         uint32 m_Seed;
