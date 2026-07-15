@@ -21,3 +21,13 @@ add_executable(mop_framing_test mop_framing_test.cpp)
 target_include_directories(mop_framing_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 set_target_properties(mop_framing_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 add_test(NAME mop_framing COMMAND mop_framing_test)
+
+add_executable(mop_auth_test
+    mop_auth_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopAuthSession.cpp)
+target_include_directories(mop_auth_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_auth_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_auth_test PRIVATE shared)
+add_test(NAME mop_auth COMMAND mop_auth_test)

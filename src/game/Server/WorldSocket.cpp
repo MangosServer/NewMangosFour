@@ -59,6 +59,7 @@
 #include "WorldSocket.h"
 #include "Common.h"
 #include "MopWireCodec.h"
+#include "MopAuthSession.h"
 
 #include "Util.h"
 #include "World.h"
@@ -962,7 +963,6 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // NOTE: ATM the socket is singlethread, have this in mind ...
     uint8 digest[20];
     uint32 clientSeed, id, security;
-    uint32 m_addonSize;
     uint16 BuiltNumberClient;
     uint8 expansion = 0;
     LocaleConstant locale;
@@ -973,44 +973,31 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     WorldPacket packet;
     bool wardenActive = (sWorld.getConfig(CONFIG_BOOL_WARDEN_WIN_ENABLED) || sWorld.getConfig(CONFIG_BOOL_WARDEN_OSX_ENABLED));
 
-    // Read the content of the packet
-    recvPacket.read_skip<uint32>();
-    recvPacket.read_skip<uint32>();
-    recvPacket >> digest[18];
-    recvPacket >> digest[14];
-    recvPacket >> digest[3];
-    recvPacket >> digest[4];
-    recvPacket >> digest[0];
-    recvPacket.read_skip<uint32>();
-    recvPacket >> digest[11];
-    recvPacket >> clientSeed;
-    recvPacket >> digest[19];
-    recvPacket.read_skip<uint8>();
-    recvPacket.read_skip<uint8>();
-    recvPacket >> digest[2];
-    recvPacket >> digest[9];
-    recvPacket >> digest[12];
-    recvPacket.read_skip<uint64>();
-    recvPacket.read_skip<uint32>();
-    recvPacket >> digest[16];
-    recvPacket >> digest[5];
-    recvPacket >> digest[6];
-    recvPacket >> digest[8];
-    recvPacket >> BuiltNumberClient;
-    recvPacket >> digest[17];
-    recvPacket >> digest[7];
-    recvPacket >> digest[13];
-    recvPacket >> digest[15];
-    recvPacket >> digest[1];
-    recvPacket >> digest[10];
+    // Read the content of the packet.
+    // The read order, the scattered digest[] indices and the missing leading ReadBit() before
+    // ReadBits(11) all now live in MopAuth::DecodeAuthSession, which reproduces them bug-for-bug
+    // while bounding every read. See MopAuthSession.h.
+    // NOTE: named authFields, not fields: a 'Field* fields' DB row local already exists below.
+    MopAuth::AuthSessionFields authFields{};
+    MopAuth::DecodeResult const decodeResult = MopAuth::DecodeAuthSession(recvPacket, authFields);
+    if (decodeResult != MopAuth::DecodeResult::Ok)
+    {
+        // TODO(Task 3): replace with the drain helper + AUTH_FAILED response.
+        sLog.outError("WorldSocket::HandleAuthSession: malformed auth session body (result %u).",
+                      static_cast<uint32>(decodeResult));
+        return -1;
+    }
 
-    recvPacket >> m_addonSize;                            // addon data size
+    memcpy(digest, authFields.digest, sizeof(digest));
+    clientSeed = authFields.clientSeed;
+    BuiltNumberClient = authFields.builtNumberClient;
+    account = authFields.account;
 
     ByteBuffer addonsData;
-    addonsData.resize(m_addonSize);
-    recvPacket.read((uint8*)addonsData.contents(), m_addonSize);
-
-    account = recvPacket.ReadString(recvPacket.ReadBits(11));
+    if (!authFields.addonData.empty())
+    {
+        addonsData.append(authFields.addonData.data(), authFields.addonData.size());
+    }
 
     DEBUG_LOG("WorldSocket::HandleAuthSession: client build %u, account %s, clientseed %X",
               BuiltNumberClient,
