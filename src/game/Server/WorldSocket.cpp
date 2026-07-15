@@ -292,7 +292,7 @@ long WorldSocket::RemoveReference(void)
 }
 
 /**
- * @brief Opens the socket handler and sends the authentication challenge.
+ * @brief Opens the socket handler and sends the connection greeting; the auth challenge is sent later via HandleWowConnection -> SendAuthChallenge().
  *
  * @param a The ACE open hook parameter.
  * @return int Zero on success; otherwise -1.
