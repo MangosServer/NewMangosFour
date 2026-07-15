@@ -763,32 +763,25 @@ int WorldSocket::Update(void)
     // reads cannot be made mutually consistent by making one of them atomic; only a common lock can.
     //
     // Taking the lock here does NOT deadlock, and the earlier claim that it would was wrong. The
-    // real rule is: do not HOLD it across the handle_output() call below. handle_output() acquires
-    // m_OutBufferLock via a function-scoped ACE_GUARD_RETURN at :557, and LockType is a
-    // non-recursive ACE_Thread_Mutex, so holding it across that call would self-deadlock -- but
-    // acquiring and RELEASING it first does not. No Update() caller holds the lock:
-    // WorldSocketMgr::svc() (WorldSocketMgr.cpp:123) holds nothing, and handle_input() (:526, :544)
-    // takes no guard.
+    // real rule is: do not HOLD it across the handle_output() call below, which acquires this same
+    // non-recursive ACE_Thread_Mutex through its own function-scoped ACE_GUARD_RETURN. Acquiring and
+    // RELEASING it first, as the nested scope does, deadlocks nothing. No Update() caller holds it
+    // either: WorldSocketMgr::svc() holds nothing, and handle_input() takes no guard.
     //
     // The lock genuinely covers the dequeue_head()->send() window: handle_output_queue() receives
-    // that same function-scoped guard by reference and releases it ONLY inside
-    // cancel_wakeup_output()/schedule_wakeup_output() (:938, :960), both of which run strictly AFTER
-    // send() returns. So a snapshot taken under the lock can never land mid-send.
-    //
-    // m_sendInFlight is retained as belt-and-braces. With the snapshot it is no longer the primary
-    // mechanism, but it stays correct and fails safe: it is lowered at scope exit, i.e. after
-    // cancel_wakeup_output() has already released the guard, so a snapshot in that sliver sees the
-    // flag still raised and merely defers the close by one ~10ms sweep. By then the block has been
-    // sent or re-enqueued, so deferring is always the safe direction.
+    // handle_output()'s guard by reference and releases it ONLY inside cancel_wakeup_output() and
+    // schedule_wakeup_output(), both of which run strictly AFTER send() returns. So a snapshot taken
+    // under the lock can never land mid-send. THAT -- not m_sendInFlight -- is what makes this
+    // decision correct; see WorldSocket.h for why the flag is redundant rather than load-bearing.
     //
     // The drain state is tested FIRST so m_OutBuffer is not dereferenced unless a drain is actually
-    // armed. open() sets m_OutActive = true at :312 specifically to keep Update() out while
-    // initialising, but m_OutBuffer stays NULL from :312 until :321, a window spanning OnSocketOpen()
-    // at :315 which inserts this socket into the set svc() sweeps. Not reachable today (sockets_ is
-    // ACE_TSS, so only the opening thread sweeps it, and that thread is inside
-    // run_reactor_event_loop() for all of open()) -- but this keeps the safety local and obvious
-    // instead of resting on an invariant stated nowhere near here. Drain state is only ever armed
-    // long after open() completes, so the test costs nothing.
+    // armed. open() sets m_OutActive = true specifically to keep Update() out while initialising,
+    // but m_OutBuffer stays NULL from that assignment until the ACE_NEW_RETURN a few lines later --
+    // a window spanning the OnSocketOpen() call that inserts this socket into the set svc() sweeps.
+    // Not reachable today (sockets_ is ACE_TSS, so only the opening thread sweeps it, and that
+    // thread is inside run_reactor_event_loop() for all of open()) -- but this keeps the safety
+    // local and obvious instead of resting on an invariant stated nowhere near here. Drain state is
+    // only ever armed long after open() completes, so the test costs nothing.
     if (m_drainState.load() == MopSock::DrainState::Flushing)
     {
         MopSock::DrainState drainState;

@@ -79,9 +79,9 @@ namespace MopAuth
             // Bound the addon blob against the real remainder before allocating anything: addonSize
             // is attacker-controlled and drives the resize() below, and the legacy path would have
             // thrown ByteBufferException here anyway. There is deliberately NO lower bound: a blob
-            // too small to carry a 4-byte header is not malformed. The legacy path did
-            // resize(m_addonSize)/read(..., m_addonSize), which for 0..3 is a no-op rather than a
-            // rejection, and ReadAddonsInfo likewise bails benignly on one
+            // too small to carry a 4-byte header is not malformed. Legacy accepted 0..3 -- it did
+            // resize(n) then read(..., n), which copies n bytes and cannot throw while n <= the
+            // bytes remaining -- and ReadAddonsInfo likewise bails benignly on such a blob
             // ("if (data.rpos() + 4 > data.size()) { return; }"). Rejecting it would change
             // behaviour on valid input.
             if (parsed.addonSize > in.size() - in.rpos())

@@ -244,13 +244,20 @@ class WorldSocket : protected WorldHandler
         /// block) but the response exists only as a local pointer. Feeds MopSock::ShouldCloseNow so
         /// that window is never mistaken for a finished drain.
         ///
-        /// Belt-and-braces, not the primary mechanism: Update() snapshots this together with the
-        /// buffer length and queue state under m_OutBufferLock, and that lock already covers the
-        /// dequeue_head()->send() window (handle_output_queue() releases the guard only inside
-        /// cancel_wakeup_output()/schedule_wakeup_output(), both strictly after send() returns).
-        /// It stays because it fails safe: lowered at scope exit, i.e. after the guard is released,
-        /// so a snapshot in that sliver sees it raised and merely defers the close one sweep.
-        /// Writers are serialised by m_OutBufferLock.
+        /// REDUNDANT belt-and-braces. It is NOT what makes the drain correct, and must not be
+        /// reasoned about as if it were: the mechanism is the snapshot Update() takes under
+        /// m_OutBufferLock. handle_output_queue() receives handle_output()'s guard by reference and
+        /// releases it only inside cancel_wakeup_output()/schedule_wakeup_output(), both strictly
+        /// after send() returns, so that lock already spans the entire dequeue_head()->send() window
+        /// and a snapshot taken under it cannot observe the window at all.
+        ///
+        /// Writers are NOT uniformly serialised by m_OutBufferLock. The raise happens under the
+        /// guard (before dequeue_head), but the lowering is a ScopedSendInFlight destructor store at
+        /// handle_output_queue() scope exit, and on the cancel_wakeup_output()/
+        /// schedule_wakeup_output() paths that runs AFTER g.release() -- with no lock held. So the
+        /// flag alone does not give a consistent view, which is precisely why the snapshot exists.
+        /// It is harmless because it is redundant: by the time it lowers, the block has already been
+        /// sent, released or re-enqueued, and the close decision rests on the locked snapshot.
         std::atomic<bool> m_sendInFlight;
 
         uint32 m_Seed;
