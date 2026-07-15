@@ -356,7 +356,14 @@ int WorldSocket::HandleWowConnection(WorldPacket& recvPacket)
     std::string ClientToServerMsg;
     recvPacket >> ClientToServerMsg;
     DEBUG_LOG("Received MSG_WOW_CONNECTION FROM %s", m_Session ? m_Session->GetRemoteAddress().c_str() : "<unk>");
-    if (strcmp(ClientToServerMsg.c_str(), "D OF WARCRAFT CONNECTION - CLIENT TO SERVER") != 0)
+    // Mirror of the greeting we send ("RLD OF WARCRAFT CONNECTION - SERVER TO CLIENT"): the leading
+    // "WO" of "WORLD" is carried by the header's cmd field (0x4F57 == "WO" little-endian), so the
+    // payload legitimately begins at "RLD".
+    // NOTE: this previously expected "D OF WARCRAFT ..." -- that constant was compensating for the
+    // Cata-era 6-byte {uint16 size; uint32 cmd} read of the greeting, which swallowed "WORL" into cmd
+    // and left the payload starting at 'D' (the garbage cmd then truncated to 0x4F57 and dispatched
+    // here by accident). With the greeting parsed at its true 4-byte width, the payload is "RLD...".
+    if (strcmp(ClientToServerMsg.c_str(), "RLD OF WARCRAFT CONNECTION - CLIENT TO SERVER") != 0)
     {
         sLog.outError("WorldSocket::ProcessIncoming: received wrong data in MSG_WOW_CONNECTION.");
         return -1;
