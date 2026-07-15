@@ -76,14 +76,30 @@ namespace MopAuth
 
             in >> parsed.addonSize;                          // addon data size
 
-            // Bound the addon blob against the real remainder before allocating anything.
-            if (parsed.addonSize < 4 || parsed.addonSize > in.size() - in.rpos())
+            // Bound the addon blob against the real remainder before allocating anything: addonSize
+            // is attacker-controlled and drives the resize() below, and the legacy path would have
+            // thrown ByteBufferException here anyway. There is deliberately NO lower bound: a blob
+            // too small to carry a 4-byte header is not malformed. The legacy path did
+            // resize(m_addonSize)/read(..., m_addonSize), which for 0..3 is a no-op rather than a
+            // rejection, and ReadAddonsInfo likewise bails benignly on one
+            // ("if (data.rpos() + 4 > data.size()) { return; }"). Rejecting it would change
+            // behaviour on valid input.
+            if (parsed.addonSize > in.size() - in.rpos())
             {
                 return DecodeResult::BadAddonSize;
             }
 
             parsed.addonData.resize(parsed.addonSize);
-            in.read(parsed.addonData.data(), parsed.addonSize);
+
+            // Guarded because addonSize may now be 0: data() on an empty vector may be nullptr, and
+            // read() would index &_storage[_rpos] with _rpos possibly == size(). Skipping the call
+            // is behaviour-identical, NOT just a shortcut -- read() resets the bit reader
+            // (_bitpos = 8), but the preceding 'in >> parsed.addonSize' already did so via
+            // read<T>(), so ReadBits(11) below sees exactly the same state either way.
+            if (parsed.addonSize > 0)
+            {
+                in.read(parsed.addonData.data(), parsed.addonSize);
+            }
 
             // The blob's self-described inflated size is deliberately NOT inspected here, and must
             // never decide authentication. The real consumer, WorldSession::ReadAddonsInfo

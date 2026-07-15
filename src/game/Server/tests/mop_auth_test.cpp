@@ -45,11 +45,20 @@ static ByteBuffer make_legacy_body(uint32_t addonSize, uint32_t inflatedSize,
     in << addonSize;
     if (addonSize >= 4)
     {
-        in << inflatedSize;
+        in << inflatedSize;                                       // blob's self-described size
+        for (uint32_t i = 4; i < addonSize; ++i)
+        {
+            in << uint8_t(0);
+        }
     }
-    for (uint32_t i = 4; i < addonSize; ++i)
+    else
     {
-        in << uint8_t(0);
+        // A blob too small to carry a 4-byte header still has to be emitted at its stated length,
+        // or the decoder would read the name bits as addon bytes and the vector would prove nothing.
+        for (uint32_t i = 0; i < addonSize; ++i)
+        {
+            in << uint8_t(0);
+        }
     }
     in << nameBits0 << nameBits1;
     if (nameBytes)
@@ -90,14 +99,23 @@ static void test_prefix_one_byte_short_rejected()
     CHECK(decode(in) == MopAuth::DecodeResult::ShortBody);
 }
 
-// Pins CURRENT behaviour, not legacy behaviour: the legacy inline parser did resize(0)/read(...,0)
-// and carried on, so it accepted an addon size below 4. This minimum is retained as-is, but note
-// its original rationale (guaranteeing addonData[0..3] was readable for the inflated-size check)
-// no longer exists now that the decoder does not inspect the blob.
-static void test_addon_size_below_minimum_rejected()
+// An addon blob too small to carry a 4-byte header is NOT malformed. The legacy inline parser did
+//     addonsData.resize(m_addonSize);
+//     recvPacket.read((uint8*)addonsData.contents(), m_addonSize);
+// which for 0..3 is a no-op, never a rejection -- and the consumer agrees, since ReadAddonsInfo
+// bails benignly via "if (data.rpos() + 4 > data.size()) { return; }". Each must decode to Ok with
+// addonData at exactly the stated length, and must still go on to read the account name.
+static void test_small_addon_sizes_accepted()
 {
-    ByteBuffer in = make_legacy_body(0, 0, 0x00, 0x20, "A", 1);
-    CHECK(decode(in) == MopAuth::DecodeResult::BadAddonSize);
+    for (uint32_t addonSize = 0; addonSize < 4; ++addonSize)
+    {
+        ByteBuffer in = make_legacy_body(addonSize, 0, 0x00, 0x20, "A", 1);
+        MopAuth::AuthSessionFields out{};
+        CHECK(MopAuth::DecodeAuthSession(in, out) == MopAuth::DecodeResult::Ok);
+        CHECK(out.addonSize == addonSize);
+        CHECK(out.addonData.size() == addonSize);
+        CHECK(out.account == "A");                                // the name read is still reached
+    }
 }
 
 // Built by hand so the helper cannot accidentally supply the bytes this bound is meant to reject.
@@ -310,7 +328,7 @@ int main(int /*argc*/, char** /*argv*/)
     test_short_body_rejected();
     test_exact_valid_structure_accepted();
     test_prefix_one_byte_short_rejected();
-    test_addon_size_below_minimum_rejected();
+    test_small_addon_sizes_accepted();
     test_addon_size_beyond_remaining_rejected();
     test_inflated_size_zero_accepted();
     test_inflated_size_over_maximum_accepted();
