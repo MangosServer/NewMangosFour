@@ -40,6 +40,35 @@ static void test_legality()
     }
     CHECK(RateLimitElapsed(10,11) && !RateLimitElapsed(10,10));
 }
-// test_challenge() -> Task 2.4 ; test_framereader() -> Task 2.5
-int main() { test_codec(); test_legality(); /* test_challenge(); test_framereader(); */
+static bool constRng(uint8_t* out, size_t len)                  // deterministic: field=0xAB..., seed=01 02 03 04
+{
+    if (len == 32) { for (size_t i = 0; i < 32; ++i) { out[i] = 0xAB; } return true; }
+    if (len == 4)  { out[0] = 1; out[1] = 2; out[2] = 3; out[3] = 4; return true; }
+    return false;
+}
+static bool failFirstRng(uint8_t*, size_t) { return false; }
+static int g_rngCall = 0;
+static bool failSecondRng(uint8_t* out, size_t len)             // first draw (32B) ok, second (seed) fails
+{
+    if (++g_rngCall == 1) { for (size_t i = 0; i < len; ++i) { out[i] = 0xCD; } return true; }
+    return false;
+}
+static void test_challenge()
+{
+    using namespace MopHs;
+    std::vector<uint8_t> out; uint32_t seed = 0xDEADBEEFu;
+    CHECK(BuildAuthChallengePayload(&constRng, out, seed));
+    CHECK(out.size() == 39);
+    CHECK(out[0] == 0 && out[1] == 0);                          // two leading zero bytes
+    CHECK(out[2] == 0xAB && out[33] == 0xAB);                   // 32 entropy bytes
+    CHECK(out[34] == 1);                                        // the 0x01 marker
+    CHECK(out[35] == 1 && out[36] == 2 && out[37] == 3 && out[38] == 4);   // seed suffix = LE bytes (identity)
+    CHECK(seed == 0x04030201u);                                 // uint32 LE of 01 02 03 04
+    out.assign(5, 0xFF); seed = 7;                              // fail-closed: first draw fails
+    CHECK(!BuildAuthChallengePayload(&failFirstRng, out, seed) && out.empty());
+    g_rngCall = 0; out.assign(5, 0xFF);                         // fail-closed: SECOND (seed) draw fails
+    CHECK(!BuildAuthChallengePayload(&failSecondRng, out, seed) && out.empty());
+}
+// test_framereader() -> Task 2.5
+int main() { test_codec(); test_legality(); test_challenge(); /* test_framereader(); */
     std::printf(g_fail? "FAILED (%d)\n":"OK\n", g_fail); return g_fail? 1:0; }

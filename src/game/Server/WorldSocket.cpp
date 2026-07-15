@@ -73,6 +73,7 @@
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
+#include <openssl/rand.h>
 
 #if defined( __GNUC__ )
 #pragma pack(1)
@@ -118,7 +119,7 @@ WorldSocket::WorldSocket(void) :
     m_OutBuffer(0),
     m_OutBufferSize(65536),
     m_OutActive(false),
-    m_Seed(rand32()),
+    m_Seed(0),
     m_connState(MopHs::CONN_GREETING),
     m_frameReader(),
     m_lastDecodeLog(ACE_Time_Value::zero)
@@ -368,20 +369,23 @@ int WorldSocket::HandleWowConnection(WorldPacket& recvPacket)
     return SendAuthChallenge();
 }
 
+static bool DefaultRandomBytes(uint8_t* out, size_t len) { return RAND_bytes(out, int(len)) == 1; }
+
 int WorldSocket::SendAuthChallenge()
 {
     DEBUG_LOG("Sending SMSG_AUTH_CHALLENGE");
-    WorldPacket packet(SMSG_AUTH_CHALLENGE, 37);
-    packet << uint16(0);
-
-    for (int i = 0; i < 8; i++)
-        packet << uint32(0);
-
-    packet << uint8(1);
-    packet << uint32(m_Seed);
-
-    return SendPacket(packet);
-
+    std::vector<uint8_t> payload; uint32 seed = 0;
+    if (!MopHs::BuildAuthChallengePayload(&DefaultRandomBytes, payload, seed))
+    {
+        sLog.outError("WorldSocket::SendAuthChallenge: CSPRNG failure; closing.");
+        return -1;                                            // nothing sent
+    }
+    m_Seed = seed;
+    WorldPacket packet(SMSG_AUTH_CHALLENGE, uint32(payload.size()));
+    packet.append(payload.data(), payload.size());
+    if (SendPacket(packet) == -1) { return -1; }
+    m_connState = MopHs::CONN_CHALLENGED;                     // member exists since Task 2.1
+    return 0;
 }
 
 void WorldSocket::SendAuthResponseError(uint8 code)
