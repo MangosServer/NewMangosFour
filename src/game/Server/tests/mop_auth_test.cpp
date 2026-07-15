@@ -192,59 +192,46 @@ static void test_missing_name_bitfield_rejected()
     CHECK(decode(partial) == MopAuth::DecodeResult::ShortBody);
 }
 
-static void test_name_length_zero_rejected()
+// The 11-bit name length is read MSB-first across two bytes with no leading ReadBit(), so the
+// encoded value is (bits0 << 3) | (bits1 >> 5). Derived rather than hand-written: 2047 in
+// particular is easy to mis-encode by hand.
+static uint8_t name_bits0(uint32_t len)
 {
-    ByteBuffer in = make_legacy_body(4, 1, 0x00, 0x00, "A", 1);   // 11-bit name length 0
-    CHECK(decode(in) == MopAuth::DecodeResult::BadNameLength);
+    return uint8_t(len >> 3);
 }
 
-// 129 > MaxAccountNameBytes (MAX_ACCOUNT_STR * 4): longer than any username AccountMgr can create
-// even if every character were a 4-byte code point, so bounding the allocation is legitimate. The
-// 11-bit field would otherwise permit 2047.
-static void test_name_length_over_maximum_rejected()
+static uint8_t name_bits1(uint32_t len)
 {
-    std::string const name(129, 'A');
-    ByteBuffer in = make_legacy_body(4, 1, 0x10, 0x20, name.c_str(), name.size());
-    CHECK(decode(in) == MopAuth::DecodeResult::BadNameLength);
+    return uint8_t((len & 7) << 5);
 }
 
-// 128 == MAX_ACCOUNT_STR * 4: the byte cap itself. A 32-character username of 4-byte code points
-// encodes to exactly this, so it must decode.
-static void test_name_length_at_byte_cap_accepted()
+// The decoder applies NO cap to the name length, because the legacy path applied none:
+//     account = recvPacket.ReadString(recvPacket.ReadBits(11));
+// It took whatever the 11-bit field said and carried on to the build check and the account
+// lookup. Every structurally well-formed length must therefore decode to Ok:
+//   0     -> ReadString(0) returns "" and cannot throw (ByteBuffer.h:1005-1013); legacy then
+//            reached IsAcceptableClientBuild and the account query, yielding a build mismatch or
+//            AUTH_UNKNOWN_ACCOUNT -- NOT the AUTH_FAILED a decode rejection would short-circuit to.
+//   17,32 -> ordinary ASCII usernames AccountMgr creates.
+//   33+   -> a username of multi-byte code points. AccountMgr's own username limit is a CHARACTER
+//            count, applied as utf8length(username) (AccountMgr.cpp:101), so a perfectly ordinary
+//            account can encode to far more bytes than characters.
+//   2047  -> the 11-bit maximum, the true worst case; ReadString self-bounds on size() regardless.
+// Nothing downstream needs a cap: ReadString cannot read past the buffer whatever the count says,
+// and TruncatedName below already rejects a length exceeding the bytes actually present.
+static void test_name_lengths_uncapped()
 {
-    std::string const name(128, 'A');
-    ByteBuffer in = make_legacy_body(4, 1, 0x10, 0x00, name.c_str(), name.size());
-    CHECK(decode(in) == MopAuth::DecodeResult::Ok);
-}
+    static uint32_t const lengths[] = { 0, 1, 17, 32, 33, 128, 129, 2047 };
 
-// 32 == MAX_ACCOUNT_STR: the longest ASCII username AccountMgr will create.
-static void test_name_length_max_account_chars_accepted()
-{
-    ByteBuffer in = make_legacy_body(4, 1, 0x04, 0x00,
-                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 32);
-    CHECK(decode(in) == MopAuth::DecodeResult::Ok);
-}
-
-// The multi-byte lockout: MAX_ACCOUNT_STR is a CHARACTER limit applied as
-// utf8length(username) > MAX_ACCOUNT_STR (AccountMgr.cpp:101), and utf8length is utf8::distance
-// (Util.cpp:544-547), which counts code points -- so e.g. a 20-character Cyrillic username is 40
-// bytes and is perfectly creatable. A 32-BYTE cap would reject it, exactly as the original 16-byte
-// cap locked out 17..32 character ASCII accounts. Legacy capped nothing at all.
-static void test_name_length_thirty_three_accepted()
-{
-    std::string const name(33, 'A');
-    ByteBuffer in = make_legacy_body(4, 1, 0x04, 0x20, name.c_str(), name.size());
-    CHECK(decode(in) == MopAuth::DecodeResult::Ok);
-}
-
-// The regression a 16-byte cap actually caused: AccountMgr accepts usernames up to
-// MAX_ACCOUNT_STR (32) and the legacy inline parser capped nothing at all, so every existing
-// account of 17..32 characters would have been locked out with BadNameLength once this path
-// activates. Valid input must decode exactly as it did before the extraction.
-static void test_name_length_seventeen_accepted()
-{
-    ByteBuffer in = make_legacy_body(4, 1, 0x02, 0x20, "AAAAAAAAAAAAAAAAA", 17);
-    CHECK(decode(in) == MopAuth::DecodeResult::Ok);
+    for (uint32_t len : lengths)
+    {
+        std::string const name(len, 'A');
+        ByteBuffer in = make_legacy_body(4, 1, name_bits0(len), name_bits1(len),
+                                         name.c_str(), name.size());
+        MopAuth::AuthSessionFields out{};
+        CHECK(MopAuth::DecodeAuthSession(in, out) == MopAuth::DecodeResult::Ok);
+        CHECK(out.account.size() == len);
+    }
 }
 
 // ReadString() truncates silently at end-of-buffer; the decoder must reject rather than shorten.
@@ -358,12 +345,7 @@ int main(int /*argc*/, char** /*argv*/)
     test_inflated_size_at_maximum_accepted();
     test_outer_addon_size_still_bounds_allocation();
     test_missing_name_bitfield_rejected();
-    test_name_length_zero_rejected();
-    test_name_length_over_maximum_rejected();
-    test_name_length_at_byte_cap_accepted();
-    test_name_length_max_account_chars_accepted();
-    test_name_length_thirty_three_accepted();
-    test_name_length_seventeen_accepted();
+    test_name_lengths_uncapped();
     test_name_truncated_rejected();
     test_wire_field_widths();
     test_open_state_processes_input();

@@ -119,13 +119,19 @@ namespace MopAuth
             // this extraction must not change behaviour for input the legacy code accepted.
             uint32_t const nameLength = in.ReadBits(11);
 
-            if (nameLength == 0 || nameLength > MaxAccountNameBytes)
-            {
-                return DecodeResult::BadNameLength;
-            }
+            // There is deliberately NO cap on nameLength, and no rejection of 0. The legacy path
+            // applied neither -- it did ReadString(ReadBits(11)) and carried on to the build check
+            // and the account lookup, so a name we found odd still produced a build mismatch or
+            // AUTH_UNKNOWN_ACCOUNT rather than the AUTH_FAILED a decode rejection short-circuits to,
+            // and it produced it in a different order. A cap would bound nothing either:
+            // ReadString() self-bounds on the buffer ("while (rpos() < size() && rpos() < start +
+            // count)"), so it cannot over-read whatever the count claims, and ReadString(0) simply
+            // returns "" without throwing. The 11-bit field's own maximum is 2047, which is the
+            // real worst case with or without a cap.
 
             // ReadString() silently truncates at end-of-buffer, so reject the short case up front
-            // instead of accepting a quietly shortened account name.
+            // instead of accepting a quietly shortened account name. THIS bound stays: a body
+            // claiming more name bytes than it carries is genuinely malformed.
             if (nameLength > in.size() - in.rpos())
             {
                 return DecodeResult::TruncatedName;

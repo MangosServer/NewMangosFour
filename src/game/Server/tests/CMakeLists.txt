@@ -27,7 +27,6 @@ add_executable(mop_auth_test
     ${CMAKE_CURRENT_SOURCE_DIR}/../MopAuthSession.cpp)
 target_include_directories(mop_auth_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${CMAKE_SOURCE_DIR}/src/game
     ${CMAKE_SOURCE_DIR}/src/shared)
 set_target_properties(mop_auth_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 target_link_libraries(mop_auth_test PRIVATE shared)
