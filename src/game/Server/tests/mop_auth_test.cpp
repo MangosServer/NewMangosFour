@@ -221,25 +221,18 @@ static void test_open_state_never_closes()
     CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Open, 7, false) == false);
 }
 
-// Mirrors handle_input_missing_data()'s return rule. A full read normally reports 1, which
-// ACE_TP_Reactor::dispatch_socket_event turns into an immediate re-invocation of handle_input
-// ("while (status > 0) status = (event_handler->*callback)(handle)") without consulting the wait
-// set -- so while draining, a full read must NOT report 1 or a rejected peer keeps being served.
-static int input_status(MopSock::DrainState state, bool fullRead)
-{
-    if (!MopSock::MayProcessInput(state))
-    {
-        return 2;
-    }
-    return fullRead ? 1 : 2;
-}
-
+// Pins the rule handle_input_missing_data() RETURNS -- WorldSocket.cpp calls MopSock::InputStatus
+// directly and open-codes nothing, so this test covers production rather than a copy of it.
+// A full read normally reports 1, which ACE_TP_Reactor::dispatch_socket_event turns into an
+// immediate re-invocation of handle_input ("while (status > 0) status = (event_handler->*callback)
+// (handle)") without consulting the wait set -- so while draining, a full read must NOT report 1
+// or a rejected peer keeps being served.
 static void test_drain_never_requests_reactor_reentry()
 {
-    CHECK(input_status(MopSock::DrainState::Open, true) == 1);      // healthy full read: keep reading
-    CHECK(input_status(MopSock::DrainState::Open, false) == 2);
-    CHECK(input_status(MopSock::DrainState::Flushing, true) != 1);  // draining: never ask to be re-called
-    CHECK(input_status(MopSock::DrainState::Flushing, false) != 1);
+    CHECK(MopSock::InputStatus(MopSock::DrainState::Open, true) == 1);      // healthy full read: keep reading
+    CHECK(MopSock::InputStatus(MopSock::DrainState::Open, false) == 2);     // healthy partial read: stop
+    CHECK(MopSock::InputStatus(MopSock::DrainState::Flushing, true) != 1);  // draining: never ask to be re-called
+    CHECK(MopSock::InputStatus(MopSock::DrainState::Flushing, false) != 1);
 }
 
 // A fresh socket must start Open, or the first Update() would tear down a healthy connection.

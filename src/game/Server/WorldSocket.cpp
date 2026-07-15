@@ -439,9 +439,24 @@ int WorldSocket::BeginAuthErrorDrain(uint8 code)
     //
     // cancel_wakeup() -> mask_ops(CLR_MASK) clears the read bit without unbinding, without
     // touching the reference count, and without invoking handle_close() (which would set
-    // closing_ and defeat the drain outright, making DONT_CALL moot here). It also calls
-    // clear_dispatch_mask(), dropping a read event already selected for this dispatch. This is
-    // the same idiom cancel_wakeup_output() uses for WRITE_MASK a few lines below.
+    // closing_ and defeat the drain outright, making DONT_CALL moot here). This is the same
+    // idiom cancel_wakeup_output() uses for WRITE_MASK a few lines below.
+    //
+    // What actually stops the reads is a SUSPEND-set operation, not a wait-set one, and that
+    // depends on running inside the suspended dispatch window: ACE_TP_Reactor::dispatch_socket_event
+    // calls suspend_i() BEFORE dispatching us (TP_Reactor.cpp:395-397), and suspend_i() moves READ
+    // out of wait_set_ into suspend_set_ and clears the dispatch mask, dropping a read event
+    // already selected for this dispatch (Select_Reactor_T.cpp:949-975). mask_ops() is
+    // suspend-aware -- "if (is_suspended_i(handle)) bit_ops(..., suspend_set_, ops)"
+    // (Select_Reactor_T.cpp:851-866) -- so our CLR_MASK clears READ from suspend_set_. Afterwards
+    // post_process_socket_event() calls resume_i() (TP_Reactor.cpp:596), and resume_i() restores
+    // to wait_set_ only bits STILL present in suspend_set_ (Select_Reactor_T.cpp:929-933). READ is
+    // gone by then, so it is never restored and no further read event is raised.
+    //
+    // Therefore this must stay INSIDE the suspended dispatch window (i.e. on the handler's own
+    // upcall path, as HandleAuthSession is). Arming the drain from outside it would route the
+    // CLR_MASK to wait_set_ instead, where a subsequent resume_i() has nothing to do with it --
+    // the reasoning above simply would not apply and reads would continue.
     if (reactor()->cancel_wakeup(this, ACE_Event_Handler::READ_MASK) == -1)
     {
         sLog.outError("WorldSocket::BeginAuthErrorDrain: could not cancel read interest for %s; closing.",
@@ -697,6 +712,15 @@ int WorldSocket::Update(void)
     // drain already called cancel_wakeup_output(), so the reactor raises no further write event
     // either. A check inside handle_output() would never run and the socket would leak.
     // Returning -1 makes WorldSocketMgr::svc() do the orderly CloseSocket()/RemoveReference().
+    //
+    // KNOWN, ACCEPTED RISK: length()/is_empty() are read WITHOUT m_OutBufferLock, matching the
+    // pre-existing convention below -- but the consequence is NOT the same and this is not a plain
+    // convention match. A spurious length()==0 below merely returns 0 and is retried in ~10ms; here
+    // it returns -1 -> CloseSocket() and DISCARDS the auth response, i.e. reintroduces the exact bug
+    // this drain exists to prevent. Accepted because it requires a torn read of ACE_Message_Block's
+    // pointers mid-reset/crunch, which is very unlikely. Do NOT "fix" this by taking the lock:
+    // handle_output() acquires m_OutBufferLock and Update() calls handle_output() a few lines below,
+    // so holding it here is the documented self-deadlock.
     if (MopSock::ShouldCloseNow(m_drainState.load(), m_OutBuffer->length(), msg_queue()->is_empty()))
     {
         return -1;
@@ -740,6 +764,16 @@ int WorldSocket::handle_input_missing_data(void)
     MopFrameReader::Frame frame;
     for (;;)
     {
+        // Structural guard: never dispatch a frame while an auth error is draining, INCLUDING the
+        // first frame of a re-entered call. The post-ProcessIncoming check below only suppresses
+        // the next iteration of this loop, so on its own it would let any re-entry dispatch one
+        // frame from a rejected peer. Unreachable today (legs 1 and 3 stop re-entry happening at
+        // all), so this makes the property structural rather than contingent on those two legs.
+        if (!MopSock::MayProcessInput(m_drainState.load()))
+        {
+            break;
+        }
+
         // Header width is state-driven, derived fresh every frame (no stored codec flag):
         //   crypt live            -> 4-byte packed
         //   still awaiting greet  -> 4-byte {size, cmd16}; the client's MSG_WOW_CONNECTION reply is
@@ -807,19 +841,11 @@ int WorldSocket::handle_input_missing_data(void)
     }
 
     // Third leg of the quiesce, and NOT redundant with the break above or the READ-interest
-    // removal. A full read reports 1, which handle_input() passes straight to the reactor, and
-    // ACE_TP_Reactor::dispatch_socket_event re-invokes the callback DIRECTLY on a positive status
-    // ("int status = 1; while (status > 0) status = (event_handler->*callback)(handle);",
-    // TP_Reactor.cpp). That loop consults neither the wait set nor the dispatch mask, so
-    // cancel_wakeup() cannot stop it: we would recv() and dispatch further frames from a peer we
-    // have already rejected, which a peer can force simply by sending >= 4096 bytes at once.
-    // Reporting a partial read instead ends the re-entry; the drain then proceeds via Update().
-    if (!MopSock::MayProcessInput(m_drainState.load()))
-    {
-        return 2;
-    }
-
-    return (size_t(n) == sizeof(buf)) ? 1 : 2;   // preserve ACE contract: full read -> 1, partial -> 2
+    // removal: while Flushing this reports a partial read so ACE_TP_Reactor cannot re-invoke
+    // handle_input() directly off a positive status. The rule itself lives in MopSocketDrain.h
+    // (see MopSock::InputStatus) where it is unit-tested; do not re-open-code it here.
+    // Otherwise the plain ACE contract applies: full read -> 1, partial -> 2.
+    return MopSock::InputStatus(m_drainState.load(), size_t(n) == sizeof(buf));
 }
 
 /// MopFrameReader::DecryptFn hook (Phase 2 wire framing): in-place ARC4 on the header only.

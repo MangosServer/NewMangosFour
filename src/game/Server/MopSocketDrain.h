@@ -36,7 +36,7 @@
  * a bare TCP close. The socket must instead stay open until the response has actually been
  * written, while refusing to act on any further input from a peer we have already rejected.
  *
- * Header-only and free of ACE/WorldSocket so both decisions are unit-testable.
+ * Header-only and free of ACE/WorldSocket so the decisions are unit-testable.
  */
 namespace MopSock
 {
@@ -58,6 +58,26 @@ namespace MopSock
     inline bool ShouldCloseNow(DrainState state, size_t outBufferLen, bool queueEmpty)
     {
         return state == DrainState::Flushing && outBufferLen == 0 && queueEmpty;
+    }
+
+    /// The receive-status a handle_input() implementation must report (ACE contract: 1 = full
+    /// read, 2 = partial read). Normally a full read reports 1 so the reactor keeps draining the
+    /// socket. While Flushing it must report 2 instead: ACE_TP_Reactor::dispatch_socket_event
+    /// re-invokes the callback DIRECTLY on a positive status
+    /// ("while (status > 0) status = (event_handler->*callback)(handle);", TP_Reactor.cpp:541-543)
+    /// consulting neither the wait set nor the dispatch mask, so dropping READ interest cannot
+    /// stop that loop -- only a non-positive... specifically a non-1 ... status ends it. A peer
+    /// can otherwise force continued service simply by sending >= 4096 bytes at once.
+    ///
+    /// This is the drain's third leg and is called from WorldSocket::handle_input_missing_data();
+    /// it lives here, not open-coded at the call site, so the rule is pinned by unit tests.
+    inline int InputStatus(DrainState state, bool fullRead)
+    {
+        if (!MayProcessInput(state))
+        {
+            return 2;
+        }
+        return fullRead ? 1 : 2;
     }
 }
 
