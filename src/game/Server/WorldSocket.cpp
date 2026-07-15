@@ -380,10 +380,13 @@ int WorldSocket::SendAuthChallenge()
         sLog.outError("WorldSocket::SendAuthChallenge: CSPRNG failure; closing.");
         return -1;                                            // nothing sent
     }
-    m_Seed = seed;
     WorldPacket packet(SMSG_AUTH_CHALLENGE, uint32(payload.size()));
     packet.append(payload.data(), payload.size());
-    if (SendPacket(packet) == -1) { return -1; }
+    if (SendPacket(packet) == -1)
+    {
+        return -1;
+    }
+    m_Seed = seed;                                            // only after the challenge is actually on the wire
     m_connState = MopHs::CONN_CHALLENGED;                     // member exists since Task 2.1
     return 0;
 }
