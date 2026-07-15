@@ -85,18 +85,12 @@ namespace MopAuth
             parsed.addonData.resize(parsed.addonSize);
             in.read(parsed.addonData.data(), parsed.addonSize);
 
-            // The blob's first four little-endian bytes are its self-described inflated size.
-            // Sanity-bound it here; actual inflation stays out of this decoder.
-            uint32_t const inflatedSize =
-                static_cast<uint32_t>(parsed.addonData[0])
-                | (static_cast<uint32_t>(parsed.addonData[1]) << 8)
-                | (static_cast<uint32_t>(parsed.addonData[2]) << 16)
-                | (static_cast<uint32_t>(parsed.addonData[3]) << 24);
-
-            if (inflatedSize == 0 || inflatedSize > MaxInflatedAddonBytes)
-            {
-                return DecodeResult::BadInflatedAddonSize;
-            }
+            // The blob's self-described inflated size is deliberately NOT inspected here, and must
+            // never decide authentication. The real consumer, WorldSession::ReadAddonsInfo
+            // (WorldSession.cpp:1329-1341), treats both out-of-range cases as benign: size 0 returns
+            // immediately, and size > 0xFFFFF logs "addon info too big" and returns. Both mean "no
+            // usable addon info", never "reject this login". The blob is passed through as-is and
+            // ReadAddonsInfo applies its own bound at the point it actually inflates.
 
             // ReadBits(11) consumes two bytes; require them explicitly rather than via a throw.
             if (in.size() - in.rpos() < 2)

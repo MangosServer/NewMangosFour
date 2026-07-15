@@ -62,9 +62,6 @@ namespace MopAuth
      */
     static constexpr size_t MaxAccountNameBytes = MAX_ACCOUNT_STR;
 
-    /** Upper bound on the self-described inflated addon payload, in bytes. */
-    static constexpr uint32_t MaxInflatedAddonBytes = 0xFFFFF;
-
     /**
      * @brief Outcome of DecodeAuthSession. Anything other than Ok means 'out' is untouched.
      */
@@ -73,7 +70,6 @@ namespace MopAuth
         Ok = 0,
         ShortBody,
         BadAddonSize,
-        BadInflatedAddonSize,
         BadNameLength,
         TruncatedName
     };

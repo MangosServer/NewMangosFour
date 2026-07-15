@@ -90,9 +90,13 @@ static void test_prefix_one_byte_short_rejected()
     CHECK(decode(in) == MopAuth::DecodeResult::ShortBody);
 }
 
+// Pins CURRENT behaviour, not legacy behaviour: the legacy inline parser did resize(0)/read(...,0)
+// and carried on, so it accepted an addon size below 4. This minimum is retained as-is, but note
+// its original rationale (guaranteeing addonData[0..3] was readable for the inflated-size check)
+// no longer exists now that the decoder does not inspect the blob.
 static void test_addon_size_below_minimum_rejected()
 {
-    ByteBuffer in = make_legacy_body(0, 0, 0x00, 0x20, "A", 1);   // addon size 0 cannot hold its own header
+    ByteBuffer in = make_legacy_body(0, 0, 0x00, 0x20, "A", 1);
     CHECK(decode(in) == MopAuth::DecodeResult::BadAddonSize);
 }
 
@@ -109,22 +113,41 @@ static void test_addon_size_beyond_remaining_rejected()
     CHECK(decode(in) == MopAuth::DecodeResult::BadAddonSize);
 }
 
-static void test_inflated_size_zero_rejected()
+// The embedded inflated size must NOT decide authentication. The real consumer,
+// WorldSession::ReadAddonsInfo (WorldSession.cpp:1329-1341), treats size 0 as "no addon info"
+// and simply returns -- it does not reject the login. Auth must be equally tolerant.
+static void test_inflated_size_zero_accepted()
 {
     ByteBuffer in = make_legacy_body(4, 0, 0x00, 0x20, "A", 1);
-    CHECK(decode(in) == MopAuth::DecodeResult::BadInflatedAddonSize);
+    CHECK(decode(in) == MopAuth::DecodeResult::Ok);
 }
 
-static void test_inflated_size_over_maximum_rejected()
+// Same class: ReadAddonsInfo logs "addon info too big" and returns for size > 0xFFFFF. That is a
+// skipped addon parse, not a failed authentication.
+static void test_inflated_size_over_maximum_accepted()
 {
-    ByteBuffer in = make_legacy_body(4, 0x100000, 0x00, 0x20, "A", 1);  // one over MaxInflatedAddonBytes
-    CHECK(decode(in) == MopAuth::DecodeResult::BadInflatedAddonSize);
+    ByteBuffer in = make_legacy_body(4, 0x100000, 0x00, 0x20, "A", 1);
+    CHECK(decode(in) == MopAuth::DecodeResult::Ok);
 }
 
 static void test_inflated_size_at_maximum_accepted()
 {
-    ByteBuffer in = make_legacy_body(4, MopAuth::MaxInflatedAddonBytes, 0x00, 0x20, "A", 1);
+    ByteBuffer in = make_legacy_body(4, 0xFFFFF, 0x00, 0x20, "A", 1);
     CHECK(decode(in) == MopAuth::DecodeResult::Ok);
+}
+
+// The bound that DOES matter and must stay: the outer addonSize is attacker-controlled and drives
+// a resize(), so it is still checked against the bytes actually present.
+static void test_outer_addon_size_still_bounds_allocation()
+{
+    ByteBuffer in;
+    for (size_t i = 0; i < 52; ++i)
+    {
+        in << uint8_t(0);
+    }
+    in << uint32_t(0xFFFFFFFF);                                   // claims 4GB ...
+    in << uint32_t(1);                                            // ... but only 4 bytes follow
+    CHECK(decode(in) == MopAuth::DecodeResult::BadAddonSize);
 }
 
 // Built by hand: the helper always emits the two name-length bytes.
@@ -271,9 +294,10 @@ int main(int /*argc*/, char** /*argv*/)
     test_prefix_one_byte_short_rejected();
     test_addon_size_below_minimum_rejected();
     test_addon_size_beyond_remaining_rejected();
-    test_inflated_size_zero_rejected();
-    test_inflated_size_over_maximum_rejected();
+    test_inflated_size_zero_accepted();
+    test_inflated_size_over_maximum_accepted();
     test_inflated_size_at_maximum_accepted();
+    test_outer_addon_size_still_bounds_allocation();
     test_missing_name_bitfield_rejected();
     test_name_length_zero_rejected();
     test_name_length_over_maximum_rejected();
