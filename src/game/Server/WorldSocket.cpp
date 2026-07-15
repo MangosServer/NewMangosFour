@@ -1277,17 +1277,36 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     stmt.PExecute(address.c_str(), account.c_str());
 
     // NOTE ATM the socket is single-threaded, have this in mind ...
+    // Allocation stays ahead of its own load calls below; ACE_NEW_RETURN is an explicit early
+    // return, so it must remain pre-commit.
     ACE_NEW_RETURN(m_Session, WorldSession(id, this, AccountTypes(security), expansion, mutetime, locale), -1);
 
-    m_Crypt.Init(&K);
-
+    // Every fallible step -- DB loads, addon inflate -- runs BEFORE the commit region. Their
+    // internal semantics are unchanged from the pre-Task-4 code; only their position moved above
+    // m_Crypt.Init. This is what makes the region atomic BY ORDERING: once the commit region is
+    // entered nothing below it can fail, so no failure path can observe an initialised crypt on an
+    // unauthenticated session. AuthCrypt has no rollback and deliberately does not gain one --
+    // rollback would exist only to paper over the ordering defect this reorder removes.
     m_Session->LoadGlobalAccountData();
     m_Session->LoadTutorialsData();
     m_Session->ReadAddonsInfo(addonsData);
 
     // In case needed sometime the second arg is in microseconds 1 000 000 = 1 sec
+    // Legacy delay, semantics unchanged; hoisted above the commit region because a delay may not
+    // appear between the three commit statements.
     ACE_OS::sleep(ACE_Time_Value(0, 10000));
 
+    // ===================== COMMIT REGION -- no failure is possible below =====================
+    // Exactly three statements, in this order, with nothing between them: no log, no packet send,
+    // no validation, no branch, no delay, no allocation, no early return. Publication ends the
+    // region.
+    //
+    // LIMITATION (Stage 1 scope): AuthCrypt::Init is void and does NOT report OpenSSL failure, so
+    // this proves SOURCE ORDERING only -- it cannot prove initialisation SUCCEEDED. Stage 2 owns
+    // making init success observable during its atomic raw-40 K migration, before activation.
+    // Do not read this region as a proof of cryptographic atomicity.
+    m_Crypt.Init(&K);
+    m_connState = MopHs::CONN_AUTHED;
     sWorld.AddSession(m_Session);
 
     return 0;
