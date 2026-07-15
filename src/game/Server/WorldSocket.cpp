@@ -658,8 +658,17 @@ int WorldSocket::handle_input_missing_data(void)
     MopFrameReader::Frame frame;
     for (;;)
     {
+        // Header width is state-driven, derived fresh every frame (no stored codec flag):
+        //   crypt live            -> 4-byte packed
+        //   still awaiting greet  -> 4-byte {size, cmd16}; the client's MSG_WOW_CONNECTION reply is
+        //                            symmetric with the greeting we sent (size = payload + 2)
+        //   otherwise (pre-crypt) -> 6-byte {size, cmd32}; CMSG_AUTH_SESSION onward (size = payload + 4)
+        const MopFrameReader::HeaderKind kind =
+            m_Crypt.IsInitialized()             ? MopFrameReader::HDR_POSTCRYPT :
+            (m_connState == MopHs::CONN_GREETING) ? MopFrameReader::HDR_GREETING :
+                                                    MopFrameReader::HDR_PRECRYPT;
         const MopFrameReader::Status s =
-            m_frameReader.TryFrame(frame, m_Crypt.IsInitialized(), this, &DecryptHeaderHook, &CmdValidHook);
+            m_frameReader.TryFrame(frame, kind, this, &DecryptHeaderHook, &CmdValidHook);
 
         if (s == MopFrameReader::NEED_MORE)
         {

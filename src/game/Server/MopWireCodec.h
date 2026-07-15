@@ -23,6 +23,20 @@ namespace MopWire
         }
         return true;
     }
+    /// Greeting reply header: 4 bytes {uint16 size LE; uint16 cmd LE}, size = payload + 2 -- i.e. the
+    /// SAME shape the server emits for its own greeting (the exchange is symmetric). Confirmed on the
+    /// wire by the live gate: the client sent `30 00 57 4F 52 4C ...` = size 48, cmd 0x4F57
+    /// (MSG_WOW_CONNECTION -- "WO" in LE), payload "RLD OF WARCRAFT CONNECTION - CLIENT TO SERVER\0"
+    /// (46 bytes; 46 + 2 == 48). Reading this as the 6-byte auth header swallows "RL" into cmd and
+    /// yields 0x4C524F57 -> BAD_COMMAND. Only the greeting uses this width; CMSG_AUTH_SESSION and
+    /// later pre-crypt packets use ReadClientPreCryptHeader's 6-byte form.
+    inline bool ReadClientGreetingHeader(const uint8_t in[4], uint16_t& payloadSize, uint32_t& cmd)
+    {
+        uint32_t size=uint32_t(in[0])|(uint32_t(in[1])<<8);
+        cmd=uint32_t(in[2])|(uint32_t(in[3])<<8);                // 16-bit cmd; caller range-checks
+        if (size<2 || size>10240) { return false; }
+        payloadSize=uint16_t(size-2); return true;
+    }
     inline bool ReadClientPreCryptHeader(const uint8_t in[6], uint16_t& payloadSize, uint32_t& cmd)
     {
         uint32_t size=uint32_t(in[0])|(uint32_t(in[1])<<8);

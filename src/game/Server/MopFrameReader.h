@@ -10,6 +10,14 @@ class MopFrameReader
         enum Status { NEED_MORE, FRAME_READY, MALFORMED };
         /// Bounded reason for a MALFORMED result (for a diagnostic log - never reveals payload).
         enum MalformedReason { MF_NONE, MF_DECRYPT, MF_BAD_SIZE, MF_BAD_COMMAND };
+        /// Inbound header width is STATE-driven, not a simple pre/post-crypt bool:
+        ///   HDR_GREETING  - 4 bytes {uint16 size; uint16 cmd}, size = payload + 2. ONLY the client's
+        ///                   MSG_WOW_CONNECTION reply. Symmetric with the server's own greeting header.
+        ///   HDR_PRECRYPT  - 6 bytes {uint16 size; uint32 cmd}, size = payload + 4. CMSG_AUTH_SESSION onward.
+        ///   HDR_POSTCRYPT - 4 bytes packed (size<<13)|(cmd&0x1FFF), after crypt init.
+        /// Chosen by WorldSocket from (m_Crypt.IsInitialized(), m_connState) and passed PER CALL -- the
+        /// reader stores no codec state of its own.
+        enum HeaderKind { HDR_GREETING, HDR_PRECRYPT, HDR_POSTCRYPT };
         typedef bool (*DecryptFn)(void* ctx, uint8_t* header, size_t len);   ///< in-place ARC4 on the HEADER only
         typedef bool (*CmdValidFn)(void* ctx, uint32_t cmd, bool preCrypt);  ///< game rule; false => reject
         struct Frame { uint32_t cmd; std::vector<uint8_t> payload; };
@@ -19,31 +27,39 @@ class MopFrameReader
             m_reason(MF_NONE), m_hdrLen(0), m_hdrPreCrypt(false) {}
         void Push(const uint8_t* data, size_t len) { m_buf.insert(m_buf.end(), data, data + len); compact(); }
 
-        /// postCrypt is m_Crypt.IsInitialized() - the SOLE codec authority - passed each call; it may change
-        /// between frames (never mid-frame: crypt inits only after a full frame is processed).
-        Status TryFrame(Frame& out, bool postCrypt, void* ctx, DecryptFn decrypt, CmdValidFn cmdValid)
+        /// kind is derived fresh from (m_Crypt.IsInitialized(), m_connState) - the SOLE codec authority -
+        /// and passed each call; it may change between frames (never mid-frame: crypt inits and state
+        /// advances only after a full frame is processed).
+        Status TryFrame(Frame& out, HeaderKind kind, void* ctx, DecryptFn decrypt, CmdValidFn cmdValid)
         {
+            const bool preCrypt = (kind != HDR_POSTCRYPT);
             if (!m_haveHeader)
             {
-                const size_t hlen = postCrypt ? 4u : 6u;
+                const size_t hlen = (kind == HDR_PRECRYPT) ? 6u : 4u;
                 if (avail() < hlen) { return NEED_MORE; }               // NO decrypt call before a complete header
                 uint8_t hdr[6];
                 for (size_t i = 0; i < hlen; ++i) { hdr[i] = m_buf[m_rpos + i]; }
-                if (decrypt && !decrypt(ctx, hdr, hlen)) { return fail(MF_DECRYPT, hdr, hlen, !postCrypt); }
+                if (decrypt && !decrypt(ctx, hdr, hlen)) { return fail(MF_DECRYPT, hdr, hlen, preCrypt); }
                 uint16_t payloadSize = 0;
-                if (postCrypt)
+                if (kind == HDR_POSTCRYPT)
                 {
                     uint16_t c16 = 0;
-                    if (!MopWire::ReadClientPostCryptHeader(hdr, payloadSize, c16)) { return fail(MF_BAD_SIZE, hdr, hlen, false); }
+                    if (!MopWire::ReadClientPostCryptHeader(hdr, payloadSize, c16)) { return fail(MF_BAD_SIZE, hdr, hlen, preCrypt); }
                     m_cmd = c16;
+                }
+                else if (kind == HDR_GREETING)
+                {
+                    uint32_t c32 = 0;
+                    if (!MopWire::ReadClientGreetingHeader(hdr, payloadSize, c32)) { return fail(MF_BAD_SIZE, hdr, hlen, preCrypt); }
+                    m_cmd = c32;
                 }
                 else
                 {
                     uint32_t c32 = 0;
-                    if (!MopWire::ReadClientPreCryptHeader(hdr, payloadSize, c32)) { return fail(MF_BAD_SIZE, hdr, hlen, true); }
+                    if (!MopWire::ReadClientPreCryptHeader(hdr, payloadSize, c32)) { return fail(MF_BAD_SIZE, hdr, hlen, preCrypt); }
                     m_cmd = c32;
                 }
-                if (cmdValid && !cmdValid(ctx, m_cmd, !postCrypt)) { return fail(MF_BAD_COMMAND, hdr, hlen, !postCrypt); }
+                if (cmdValid && !cmdValid(ctx, m_cmd, preCrypt)) { return fail(MF_BAD_COMMAND, hdr, hlen, preCrypt); }
                 m_rpos += hlen; m_need = payloadSize; m_haveHeader = true;
             }
             if (avail() < m_need) { return NEED_MORE; }

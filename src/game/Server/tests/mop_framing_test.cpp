@@ -91,11 +91,11 @@ static void test_framereader()
     {
         HookCtx cx = {0,0,0,false,true,true}; R rd; R::Frame f;
         uint8_t part[3] = {0x08,0,0xB2}; rd.Push(part, 3);      // size=8 => payload 4, cmd 0xB2
-        CHECK(rd.TryFrame(f, false, &cx, countingDecrypt, countingCmdValid) == R::NEED_MORE);
+        CHECK(rd.TryFrame(f, R::HDR_PRECRYPT, &cx, countingDecrypt, countingCmdValid) == R::NEED_MORE);
         CHECK(cx.decryptCalls == 0);                            // hook NOT called on a partial header
         uint8_t rest[3] = {0,0,0}; rd.Push(rest, 3);
         uint8_t body[4] = {1,2,3,4};  rd.Push(body, 4);
-        CHECK(rd.TryFrame(f, false, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY);
+        CHECK(rd.TryFrame(f, R::HDR_PRECRYPT, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY);
         CHECK(cx.decryptCalls == 1 && cx.calls6 == 1 && cx.calls4 == 0 && !cx.sawOther);
         CHECK(f.cmd == 0x000000B2u && f.payload.size() == 4);
     }
@@ -103,7 +103,7 @@ static void test_framereader()
     {
         HookCtx cx = {0,0,0,false,true,true}; R rd; R::Frame f;
         uint8_t h[4] = {0x01,0,0,0};  rd.Push(h, 4);            // v=1 => size 0, cmd 1
-        CHECK(rd.TryFrame(f, true, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY);
+        CHECK(rd.TryFrame(f, R::HDR_POSTCRYPT, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY);
         CHECK(cx.decryptCalls == 1 && cx.calls4 == 1 && cx.calls6 == 0 && !cx.sawOther);
         CHECK(f.cmd == 1u && f.payload.empty());
     }
@@ -111,7 +111,7 @@ static void test_framereader()
     {
         HookCtx cx = {0,0,0,false,true,true}; R rd; R::Frame f;
         uint8_t bad[6] = {0x03,0,0,0,0,0};  rd.Push(bad, 6);
-        CHECK(rd.TryFrame(f, false, &cx, countingDecrypt, countingCmdValid) == R::MALFORMED);
+        CHECK(rd.TryFrame(f, R::HDR_PRECRYPT, &cx, countingDecrypt, countingCmdValid) == R::MALFORMED);
         CHECK(rd.LastReason() == R::MF_BAD_SIZE);
         size_t hl = 0; bool pc = false; const uint8_t* hb = rd.LastHeader(hl, pc);
         CHECK(hl == 6 && pc == true && hb[0] == 0x03);
@@ -120,14 +120,14 @@ static void test_framereader()
     {
         HookCtx cx = {0,0,0,false,true,true}; R rd; R::Frame f;
         uint8_t hi[6] = {0x08,0,0x00,0x00,0x01,0x00};  rd.Push(hi, 6);   // cmd = 0x00010000 (>= 0x2000)
-        CHECK(rd.TryFrame(f, false, &cx, countingDecrypt, countingCmdValid) == R::MALFORMED);
+        CHECK(rd.TryFrame(f, R::HDR_PRECRYPT, &cx, countingDecrypt, countingCmdValid) == R::MALFORMED);
         CHECK(rd.LastReason() == R::MF_BAD_COMMAND);
     }
     // 5) malformed: decrypt hook returns false -> MF_DECRYPT (exactly one call).
     {
         HookCtx cx = {0,0,0,false,false,true}; R rd; R::Frame f;   // decryptOk=false
         uint8_t any[4] = {0x01,0,0,0};  rd.Push(any, 4);
-        CHECK(rd.TryFrame(f, true, &cx, countingDecrypt, countingCmdValid) == R::MALFORMED);
+        CHECK(rd.TryFrame(f, R::HDR_POSTCRYPT, &cx, countingDecrypt, countingCmdValid) == R::MALFORMED);
         CHECK(rd.LastReason() == R::MF_DECRYPT && cx.decryptCalls == 1);
     }
     // 6) 6->4 transition in ONE buffer, postCrypt passed per call (no stored flag).
@@ -136,9 +136,33 @@ static void test_framereader()
         uint8_t pre[6]  = {0x04,0,0xB2,0,0,0};   // size 4 => payload 0, cmd 0xB2
         uint8_t post[4] = {0x01,0,0,0};          // size 0, cmd 1
         rd.Push(pre, 6); rd.Push(post, 4);
-        CHECK(rd.TryFrame(f, false, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY && f.cmd == 0xB2u);
-        CHECK(rd.TryFrame(f, true,  &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY && f.cmd == 1u);
+        CHECK(rd.TryFrame(f, R::HDR_PRECRYPT, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY && f.cmd == 0xB2u);
+        CHECK(rd.TryFrame(f, R::HDR_POSTCRYPT, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY && f.cmd == 1u);
         CHECK(cx.calls6 == 1 && cx.calls4 == 1 && !cx.sawOther);   // one call each width, never payload
+    }
+    // 6b) REGRESSION, captured from the live gate 2a: the client's MSG_WOW_CONNECTION reply is framed
+    //     with the 4-byte GREETING header, NOT the 6-byte auth header. Reading it as 6-byte swallows
+    //     "RL" into cmd -> 0x4C524F57 -> BAD_COMMAND -> socket closed (the original gate-2a failure).
+    //     These are the exact bytes the real 5.4.8 client sent: 30 00 57 4F 52 4C ...
+    {
+        HookCtx cx = {0,0,0,false,true,true}; R rd; R::Frame f;
+        const char* s = "RLD OF WARCRAFT CONNECTION - CLIENT TO SERVER";   // 45 chars
+        uint8_t greet[50];
+        greet[0] = 0x30; greet[1] = 0x00;                      // size = 48 = payload(46) + 2
+        greet[2] = 0x57; greet[3] = 0x4F;                      // cmd  = 0x4F57 (MSG_WOW_CONNECTION, "WO" LE)
+        for (size_t i = 0; i < 45; ++i) { greet[4 + i] = uint8_t(s[i]); }
+        greet[49] = 0x00;                                      // NUL -> payload is 46 bytes
+        rd.Push(greet, 50);
+        CHECK(rd.TryFrame(f, R::HDR_GREETING, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY);
+        CHECK(f.cmd == 0x4F57u);                               // greeting opcode survives (unmasked)
+        CHECK(f.payload.size() == 46);                         // size - 2, not size - 4
+        CHECK(f.payload[0] == 'R' && f.payload[45] == 0x00);
+        CHECK(cx.calls4 == 1 && cx.calls6 == 0 && !cx.sawOther);   // greeting uses the 4-byte width
+        // and prove the OLD behaviour was genuinely wrong: same bytes read as the 6-byte auth header
+        HookCtx cx2 = {0,0,0,false,true,true}; R rd2; R::Frame f2;
+        rd2.Push(greet, 50);
+        CHECK(rd2.TryFrame(f2, R::HDR_PRECRYPT, &cx2, countingDecrypt, countingCmdValid) == R::MALFORMED);
+        CHECK(rd2.LastReason() == R::MF_BAD_COMMAND);          // exactly what the live gate logged
     }
     // 7) complete header + PARTIAL payload -> NEED_MORE; remaining payload -> FRAME_READY;
     //    decrypt count stays EXACTLY ONE across the whole sequence (header not re-decrypted).
@@ -147,10 +171,10 @@ static void test_framereader()
         uint8_t hdr[6]  = {0x08,0,0xB2,0,0,0};           // size 8 => payload 4, cmd 0xB2
         uint8_t half[2] = {0xAA,0xBB};                   // only 2 of the 4 payload bytes
         rd.Push(hdr, 6); rd.Push(half, 2);
-        CHECK(rd.TryFrame(f, false, &cx, countingDecrypt, countingCmdValid) == R::NEED_MORE);
+        CHECK(rd.TryFrame(f, R::HDR_PRECRYPT, &cx, countingDecrypt, countingCmdValid) == R::NEED_MORE);
         CHECK(cx.decryptCalls == 1);                     // header decrypted once; NOT re-decrypted while waiting
         uint8_t rest[2] = {0xCC,0xDD}; rd.Push(rest, 2);
-        CHECK(rd.TryFrame(f, false, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY);
+        CHECK(rd.TryFrame(f, R::HDR_PRECRYPT, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY);
         CHECK(cx.decryptCalls == 1 && cx.calls6 == 1 && cx.calls4 == 0);   // still exactly one 6-byte decrypt
         CHECK(f.cmd == 0xB2u && f.payload.size() == 4 && f.payload[0] == 0xAA && f.payload[3] == 0xDD);
     }
@@ -160,9 +184,9 @@ static void test_framereader()
         uint8_t two[20] = {0x08,0,0xB2,0,0,0, 0xDE,0xAD,0xBE,0xEF,    // frame A: cmd 0xB2, payload 4
                            0x08,0,0xC3,0,0,0, 0x01,0x02,0x03,0x04};   // frame B: cmd 0xC3, payload 4
         rd.Push(two, 20);
-        CHECK(rd.TryFrame(f, false, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY && f.cmd == 0xB2u);
-        CHECK(rd.TryFrame(f, false, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY && f.cmd == 0xC3u);
-        CHECK(rd.TryFrame(f, false, &cx, countingDecrypt, countingCmdValid) == R::NEED_MORE);
+        CHECK(rd.TryFrame(f, R::HDR_PRECRYPT, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY && f.cmd == 0xB2u);
+        CHECK(rd.TryFrame(f, R::HDR_PRECRYPT, &cx, countingDecrypt, countingCmdValid) == R::FRAME_READY && f.cmd == 0xC3u);
+        CHECK(rd.TryFrame(f, R::HDR_PRECRYPT, &cx, countingDecrypt, countingCmdValid) == R::NEED_MORE);
         CHECK(cx.decryptCalls == 2 && cx.calls6 == 2 && !cx.sawOther);    // one header decrypt per frame
     }
 }
