@@ -23,6 +23,7 @@
  */
 
 #include "MopAuthSession.h"
+#include "MopSocketDrain.h"
 #include "Utilities/ByteBuffer.h"
 #include <cstdio>
 #include <type_traits>
@@ -174,6 +175,77 @@ static void test_name_truncated_rejected()
     CHECK(decode(in) == MopAuth::DecodeResult::TruncatedName);
 }
 
+// ---------------------------------------------------------------------------------------------
+// Auth-error drain decisions (MopSocketDrain.h)
+//
+// These cover the two pure decisions only. They are NOT a test of the ACE peer/reactor lifecycle:
+// that the production socket calls them in the right places is established by inspection, not here.
+// ---------------------------------------------------------------------------------------------
+
+// While Open, traffic is ordinary and must keep flowing.
+static void test_open_state_processes_input()
+{
+    CHECK(MopSock::MayProcessInput(MopSock::DrainState::Open) == true);
+}
+
+// The core of the quiesce: MopFrameReader may have already coalesced a further frame into the
+// buffer before we decided to reject. Once Flushing, that frame must never be acted upon.
+static void test_flushing_state_rejects_coalesced_next_frame()
+{
+    CHECK(MopSock::MayProcessInput(MopSock::DrainState::Flushing) == false);
+}
+
+// The bug this whole task exists to fix: closing while bytes are still buffered discards the
+// auth error response, leaving the peer with a bare TCP close and no reason for the rejection.
+static void test_buffered_output_prevents_close()
+{
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Flushing, 7, true) == false);
+}
+
+// Same, for output that overflowed the buffer and went to the message queue instead.
+static void test_queued_output_prevents_close()
+{
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Flushing, 0, false) == false);
+}
+
+// Neither buffer nor queue holds anything: the response is on the wire, so the socket may go.
+static void test_fully_drained_flushing_closes()
+{
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Flushing, 0, true) == true);
+}
+
+// A healthy idle socket is drained by definition; it must never be closed on that basis alone.
+static void test_open_state_never_closes()
+{
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Open, 0, true) == false);
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Open, 7, false) == false);
+}
+
+// Mirrors handle_input_missing_data()'s return rule. A full read normally reports 1, which
+// ACE_TP_Reactor::dispatch_socket_event turns into an immediate re-invocation of handle_input
+// ("while (status > 0) status = (event_handler->*callback)(handle)") without consulting the wait
+// set -- so while draining, a full read must NOT report 1 or a rejected peer keeps being served.
+static int input_status(MopSock::DrainState state, bool fullRead)
+{
+    if (!MopSock::MayProcessInput(state))
+    {
+        return 2;
+    }
+    return fullRead ? 1 : 2;
+}
+
+static void test_drain_never_requests_reactor_reentry()
+{
+    CHECK(input_status(MopSock::DrainState::Open, true) == 1);      // healthy full read: keep reading
+    CHECK(input_status(MopSock::DrainState::Open, false) == 2);
+    CHECK(input_status(MopSock::DrainState::Flushing, true) != 1);  // draining: never ask to be re-called
+    CHECK(input_status(MopSock::DrainState::Flushing, false) != 1);
+}
+
+// A fresh socket must start Open, or the first Update() would tear down a healthy connection.
+static_assert(MopSock::DrainState{} == MopSock::DrainState::Open,
+              "value-initialized DrainState must be Open");
+
 static_assert(std::is_same<decltype(MopAuth::AuthSessionFields{}.builtNumberClient), uint16_t>::value,
               "auth build field must stay 16-bit");
 
@@ -200,6 +272,13 @@ int main(int /*argc*/, char** /*argv*/)
     test_name_length_at_maximum_accepted();
     test_name_truncated_rejected();
     test_wire_field_widths();
+    test_open_state_processes_input();
+    test_flushing_state_rejects_coalesced_next_frame();
+    test_buffered_output_prevents_close();
+    test_queued_output_prevents_close();
+    test_fully_drained_flushing_closes();
+    test_open_state_never_closes();
+    test_drain_never_requests_reactor_reentry();
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;
 }

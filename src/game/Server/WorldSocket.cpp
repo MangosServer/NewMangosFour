@@ -55,6 +55,7 @@
 #include <ace/Auto_Ptr.h>
 
 #include <cstdio>
+#include <cstring>
 
 #include "WorldSocket.h"
 #include "Common.h"
@@ -96,6 +97,7 @@ WorldSocket::WorldSocket(void) :
     m_OutBuffer(0),
     m_OutBufferSize(65536),
     m_OutActive(false),
+    m_drainState(MopSock::DrainState::Open),
     m_Seed(0),
     m_connState(MopHs::CONN_GREETING),
     m_frameReader(),
@@ -401,13 +403,74 @@ int WorldSocket::SendAuthChallenge()
     return 0;
 }
 
-void WorldSocket::SendAuthResponseError(uint8 code)
+/**
+ * @brief Queues the auth error response and enters the drain state.
+ *
+ * The sole SMSG_AUTH_RESPONSE construction site on the rejection path: every auth rejection
+ * routes through here, so the response body and the drain bookkeeping cannot drift apart.
+ *
+ * Ordering matters. READ interest is dropped BEFORE the response is queued, so a failure to
+ * quiesce input is reported while nothing has been committed to the wire.
+ *
+ * @param code the AUTH_* result to report.
+ * @return int 0 with the response queued and the drain armed; -1 if nothing was queued.
+ */
+int WorldSocket::BeginAuthErrorDrain(uint8 code)
 {
+    // 1. Idempotent: a second rejection must not re-arm the drain or re-queue a response.
+    if (m_drainState.load() == MopSock::DrainState::Flushing)
+    {
+        return 0;
+    }
+
+    // 2. Drop reactor READ interest only; the socket must stay writable to drain.
+    //
+    // NOTE: cancel_wakeup(), NOT remove_handler(READ_MASK | DONT_CALL). Verified against the
+    // vendored ACE (dep/acelite): remove_handler() -> handler_rep_.unbind(), which sets
+    // complete_removal when the cleared mask leaves the handle with no wait/suspend mask left,
+    // and then calls remove_reference() (Select_Reactor_Base.cpp:395). open() registers
+    // READ|WRITE, but cancel_wakeup_output() clears WRITE as soon as the auth challenge has
+    // flushed, so by the time a rejection runs READ is the ONLY mask: removing it would fully
+    // unbind the handler and drop the reactor's reference, not merely stop reads. The socket
+    // would survive (WorldSocketMgr::OnSocketOpen holds a second reference) but the handler
+    // would be gone from the reactor, so a later schedule_wakeup_output() on a short write
+    // could never be serviced -- m_OutActive would stay true, Update() would early-return 0
+    // forever, and the socket would leak, never draining and never closing.
+    //
+    // cancel_wakeup() -> mask_ops(CLR_MASK) clears the read bit without unbinding, without
+    // touching the reference count, and without invoking handle_close() (which would set
+    // closing_ and defeat the drain outright, making DONT_CALL moot here). It also calls
+    // clear_dispatch_mask(), dropping a read event already selected for this dispatch. This is
+    // the same idiom cancel_wakeup_output() uses for WRITE_MASK a few lines below.
+    if (reactor()->cancel_wakeup(this, ACE_Event_Handler::READ_MASK) == -1)
+    {
+        sLog.outError("WorldSocket::BeginAuthErrorDrain: could not cancel read interest for %s; closing.",
+                      GetRemoteAddress().c_str());
+        return -1;                                            // nothing queued yet
+    }
+
+    // 3. Construct the legacy error response (unchanged wire shape).
     WorldPacket packet(SMSG_AUTH_RESPONSE, 1);
     packet.WriteBit(0); // has account info
     packet.WriteBit(0); // has queue info
     packet << uint8(code);
-    SendPacket(packet);
+
+    // 4. Queue it. If it never reached the buffer there is nothing to drain, so close now.
+    bool sent = false;
+    if (SendPacket(packet, &sent) == -1)
+    {
+        return -1;
+    }
+    if (!sent)
+    {
+        // Eluna's OnPacketSend vetoed the response; draining for it would hang the socket open.
+        DEBUG_LOG("WorldSocket::BeginAuthErrorDrain: auth error response suppressed; closing.");
+        return -1;
+    }
+
+    // 5. Arm the drain only once the bytes are genuinely pending.
+    m_drainState.store(MopSock::DrainState::Flushing);
+    return 0;
 }
 
 /**
@@ -628,6 +691,17 @@ int WorldSocket::Update(void)
         return -1;
     }
 
+    // The auth error response has now been written: close for real.
+    // This MUST sit above the drained early-return below, and NOT in handle_output(): once the
+    // buffers are empty Update() returns 0 without ever calling handle_output(), and the full
+    // drain already called cancel_wakeup_output(), so the reactor raises no further write event
+    // either. A check inside handle_output() would never run and the socket would leak.
+    // Returning -1 makes WorldSocketMgr::svc() do the orderly CloseSocket()/RemoveReference().
+    if (MopSock::ShouldCloseNow(m_drainState.load(), m_OutBuffer->length(), msg_queue()->is_empty()))
+    {
+        return -1;
+    }
+
     if (m_OutActive || (m_OutBuffer->length() == 0 && msg_queue()->is_empty()))
     {
         return 0;
@@ -713,12 +787,36 @@ int WorldSocket::handle_input_missing_data(void)
             pct->append(frame.payload.data(), frame.payload.size());
         }
 
-        if (ProcessIncoming(pct) == -1)
+        const int processed = ProcessIncoming(pct);
+        if (processed == -1)
         {
             errno = EINVAL;
             return -1;
         }
+
+        // An auth rejection is now draining. Stop dispatching immediately: MopFrameReader may
+        // already have coalesced a further frame into the buffer, and a peer we have decided to
+        // reject must not have it acted upon. Removing reactor READ interest stops FUTURE
+        // callbacks; only this break stops the frame that is already buffered -- both are needed.
+        // Nothing is discarded here: the buffered frames die with the socket once output drains.
+        if (!MopSock::MayProcessInput(m_drainState.load()))
+        {
+            break;
+        }
         // Phase 3: after crypt Init in the auth path, the NEXT TryFrame sees IsInitialized()==true (no manual flag).
+    }
+
+    // Third leg of the quiesce, and NOT redundant with the break above or the READ-interest
+    // removal. A full read reports 1, which handle_input() passes straight to the reactor, and
+    // ACE_TP_Reactor::dispatch_socket_event re-invokes the callback DIRECTLY on a positive status
+    // ("int status = 1; while (status > 0) status = (event_handler->*callback)(handle);",
+    // TP_Reactor.cpp). That loop consults neither the wait set nor the dispatch mask, so
+    // cancel_wakeup() cannot stop it: we would recv() and dispatch further frames from a peer we
+    // have already rejected, which a peer can force simply by sending >= 4096 bytes at once.
+    // Reporting a partial read instead ends the re-entry; the drain then proceeds via Update().
+    if (!MopSock::MayProcessInput(m_drainState.load()))
+    {
+        return 2;
     }
 
     return (size_t(n) == sizeof(buf)) ? 1 : 2;   // preserve ACE contract: full read -> 1, partial -> 2
@@ -979,13 +1077,20 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     MopAuth::DecodeResult const decodeResult = MopAuth::DecodeAuthSession(recvPacket, authFields);
     if (decodeResult != MopAuth::DecodeResult::Ok)
     {
-        // TODO(Task 3): replace with the drain helper + AUTH_FAILED response.
-        sLog.outError("WorldSocket::HandleAuthSession: malformed auth session body (result %u).",
-                      static_cast<uint32>(decodeResult));
-        return -1;
+        // DEBUG_LOG, not sLog.outError: this fires on every malformed body on an UNAUTHENTICATED
+        // path, so at error level an attacker spraying junk auth bodies would drive unbounded
+        // error-level log writes (disk/IO amplification). Deliberately NOT rate-limited via
+        // m_lastDecodeLog like the sibling decode paths: a rejection now drains and closes the
+        // socket, so this path logs at most ONCE per connection and a PER-SOCKET limiter cannot
+        // bound it -- volume tracks connection rate, which the limiter never sees. Demoting is
+        // what actually removes the amplification at default log levels.
+        // Payload-free: the decode result enum only, never the body.
+        DEBUG_LOG("WorldSocket::HandleAuthSession: malformed auth session body (result %u).",
+                  static_cast<uint32>(decodeResult));
+        return BeginAuthErrorDrain(AUTH_FAILED);
     }
 
-    memcpy(digest, authFields.digest, sizeof(digest));
+    std::memcpy(digest, authFields.digest, sizeof(digest));
     clientSeed = authFields.clientSeed;
     BuiltNumberClient = authFields.builtNumberClient;
     account = authFields.account;
@@ -1004,10 +1109,8 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // Check the version of client trying to connect
     if (!IsAcceptableClientBuild(BuiltNumberClient))
     {
-        SendAuthResponseError(AUTH_VERSION_MISMATCH);
-
         sLog.outError("WorldSocket::HandleAuthSession: Sent Auth Response (version mismatch).");
-        return -1;
+        return BeginAuthErrorDrain(AUTH_VERSION_MISMATCH);
     }
 
     // Get the account information from the realmd database
@@ -1034,10 +1137,8 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // Stop if the account is not found
     if (!result)
     {
-        SendAuthResponseError(AUTH_UNKNOWN_ACCOUNT);
-
         sLog.outError("WorldSocket::HandleAuthSession: Sent Auth Response (unknown account).");
-        return -1;
+        return BeginAuthErrorDrain(AUTH_UNKNOWN_ACCOUNT);
     }
 
     Field* fields = result->Fetch();
@@ -1066,11 +1167,9 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     {
         if (strcmp(fields[3].GetString(), GetRemoteAddress().c_str()))
         {
-            SendAuthResponseError(AUTH_FAILED);
-
-            delete result;
+            delete result;                                    // 'fields' dies with it; not used below
             BASIC_LOG("WorldSocket::HandleAuthSession: Sent Auth Response (Account IP differs).");
-            return -1;
+            return BeginAuthErrorDrain(AUTH_FAILED);
         }
     }
 
@@ -1102,12 +1201,10 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     if (banresult) // if account banned
     {
-        SendAuthResponseError(AUTH_BANNED);
-
         delete banresult;
 
         sLog.outError("WorldSocket::HandleAuthSession: Sent Auth Response (Account banned).");
-        return -1;
+        return BeginAuthErrorDrain(AUTH_BANNED);
     }
 
     // Check locked state for server
@@ -1115,10 +1212,8 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     if (allowedAccountType > SEC_PLAYER && AccountTypes(security) < allowedAccountType)
     {
-        SendAuthResponseError(AUTH_UNAVAILABLE);
-
         BASIC_LOG("WorldSocket::HandleAuthSession: User tries to login but his security level is not enough");
-        return -1;
+        return BeginAuthErrorDrain(AUTH_UNAVAILABLE);
     }
 
     // Phase 3 defers Warden structurally; see auth design §6.11 before re-enabling.
@@ -1138,10 +1233,8 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     if (memcmp(sha.GetDigest(), digest, 20))
     {
-        SendAuthResponseError(AUTH_FAILED);
-
         sLog.outError("WorldSocket::HandleAuthSession: Sent Auth Response (authentification failed).");
-        return -1;
+        return BeginAuthErrorDrain(AUTH_FAILED);
     }
 
     std::string address = GetRemoteAddress();
