@@ -119,8 +119,10 @@ class WorldSocket : protected WorldHandler
 
         /// Send A packet on the socket, this function is reentrant.
         /// @param pct packet to send
+        /// @param sent optional out-param; set to whether the packet actually reached the
+        ///        buffer/queue, as opposed to being suppressed by an Eluna OnPacketSend veto
         /// @return -1 of failure
-        int SendPacket(const WorldPacket& pct);
+        int SendPacket(const WorldPacket& pct, bool* sent = nullptr);
 
         /// Add reference to this object.
         long AddReference(void);

@@ -80,7 +80,9 @@ static bool countingDecrypt(void* ctx, uint8_t*, size_t len)
 static bool countingCmdValid(void* ctx, uint32_t cmd, bool)
 {
     HookCtx* c = static_cast<HookCtx*>(ctx);
-    return c->cmdOk && (cmd == 0x4F57u || cmd < 0x2000u);        // mirrors the production CmdValidHook rule
+    return c->cmdOk && (cmd == 0x4F57u || cmd < 0x2000u);        // bound duplicated deliberately (no Opcodes.h
+                                                                  // include here, to keep this test dependency-free);
+                                                                  // MUST be kept in sync with OPCODE_TABLE_SIZE
 }
 static void test_framereader()
 {

@@ -167,8 +167,13 @@ const std::string& WorldSocket::GetRemoteAddress(void) const
  * @param pct The packet to send.
  * @return int Zero on success; otherwise -1.
  */
-int WorldSocket::SendPacket(const WorldPacket& pct)
+int WorldSocket::SendPacket(const WorldPacket& pct, bool* sent)
 {
+    if (sent)
+    {
+        *sent = false;
+    }
+
     ACE_GUARD_RETURN(LockType, Guard, m_OutBufferLock, -1);
 
     if (closing_)
@@ -196,6 +201,10 @@ int WorldSocket::SendPacket(const WorldPacket& pct)
     {
         if (!e->OnPacketSend(m_Session, pct))
         {
+            if (sent)
+            {
+                *sent = false;
+            }
             return 0;
         }
     }
@@ -252,6 +261,10 @@ int WorldSocket::SendPacket(const WorldPacket& pct)
         }
     }
 
+    if (sent)
+    {
+        *sent = true;
+    }
     return 0;
 }
 
@@ -365,9 +378,15 @@ int WorldSocket::SendAuthChallenge()
     }
     WorldPacket packet(SMSG_AUTH_CHALLENGE, uint32(payload.size()));
     packet.append(payload.data(), payload.size());
-    if (SendPacket(packet) == -1)
+    bool sent = false;
+    if (SendPacket(packet, &sent) == -1)
     {
         return -1;
+    }
+    if (!sent)
+    {
+        sLog.outError("WorldSocket::SendAuthChallenge: challenge was suppressed (not sent); closing.");
+        return -1;                                            // never advance state on a challenge the client never got
     }
     m_Seed = seed;                                            // only after the challenge is actually on the wire
     m_connState = MopHs::CONN_CHALLENGED;                     // member exists since Task 2.1
@@ -636,9 +655,9 @@ int WorldSocket::handle_input_missing_data(void)
 
     m_frameReader.Push((const uint8*)buf, size_t(n));
 
+    MopFrameReader::Frame frame;
     for (;;)
     {
-        MopFrameReader::Frame frame;
         const MopFrameReader::Status s =
             m_frameReader.TryFrame(frame, m_Crypt.IsInitialized(), this, &DecryptHeaderHook, &CmdValidHook);
 
@@ -670,7 +689,8 @@ int WorldSocket::handle_input_missing_data(void)
             return -1;
         }
 
-        WorldPacket* pct = new WorldPacket(OpcodesList(uint16(frame.cmd)), uint32(frame.payload.size()));
+        WorldPacket* pct = NULL;
+        ACE_NEW_RETURN(pct, WorldPacket(OpcodesList(uint16(frame.cmd)), uint32(frame.payload.size())), -1);
         if (!frame.payload.empty())
         {
             pct->append(frame.payload.data(), frame.payload.size());
@@ -785,7 +805,7 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
     // otherwise a client could resend the greeting after already being CONN_CHALLENGED (duplicate-greeting
     // bypass). OPC_NORMAL is AUTHED-only; Phase 2 never reaches CONN_AUTHED, so all non-handshake opcodes
     // are rejected pre-auth (prevents pre-auth socket pinning). Phase 3 sets CONN_AUTHED and opens that gate.
-    MopHs::OpcodeClass cls =
+    const MopHs::OpcodeClass cls =
         (opcode == MSG_WOW_CONNECTION) ? MopHs::OPC_GREETING :
         (opcode == CMSG_AUTH_SESSION)  ? MopHs::OPC_AUTH_SESSION : MopHs::OPC_NORMAL;
     if (!MopHs::IsHandshakeOpcodeLegal(m_connState, cls))
@@ -817,7 +837,9 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
                 return HandlePing(*new_pct);
             case CMSG_AUTH_SESSION:
                 // Phase 2: framing proven. Do NOT enter the legacy auth path (HandleAuthSession -> m_Crypt.Init).
-                // The allowlist (Step 1) guarantees we are in CONN_CHALLENGED here, so this is the LEGAL transition.
+                // The allowlist above guarantees we are in CONN_CHALLENGED here, so this is the LEGAL transition.
+                // The ENABLE_ELUNA OnPacketReceive hook for this opcode is intentionally NOT invoked here;
+                // it is deferred to Phase 3 along with the rest of the auth path.
                 m_connState = MopHs::CONN_AUTHENTICATING;
                 DEBUG_LOG("WorldSocket: CMSG_AUTH_SESSION accepted; CONN_CHALLENGED -> CONN_AUTHENTICATING; auth deferred to Phase 3 (framing OK, len %zu, body redacted); closing.", new_pct->size());
                 return -1;
@@ -876,15 +898,24 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
             }
             else
             {
-                const size_t cap = 64, m = new_pct->size() < cap ? new_pct->size() : cap;
-                char hex[cap * 3 + 1];
-                for (size_t i = 0; i < m; ++i)
+                const size_t cap = 64;
+                const size_t dumpLen = new_pct->size() < cap ? new_pct->size() : cap;
+                if (sLog.HasLogLevelOrHigher(LOG_LVL_DEBUG))
                 {
-                    snprintf(hex + i * 3, 4, "%02X ", new_pct->contents()[i]);
+                    char hex[cap * 3 + 1];
+                    for (size_t i = 0; i < dumpLen; ++i)
+                    {
+                        snprintf(hex + i * 3, 4, "%02X ", new_pct->contents()[i]);
+                    }
+                    hex[dumpLen ? dumpLen * 3 - 1 : 0] = '\0';
+                    sLog.outError("WorldSocket: decode failure opcode 0x%.4X (%s) from %s; first %zu bytes: %s",
+                                  opcode, LookupOpcodeName(DIR_CLIENT, opcode), GetRemoteAddress().c_str(), dumpLen, hex);
                 }
-                hex[m ? m * 3 - 1 : 0] = '\0';
-                sLog.outError("WorldSocket: decode failure opcode 0x%.4X (%s) from %s; first %zu bytes: %s",
-                              opcode, LookupOpcodeName(DIR_CLIENT, opcode), GetRemoteAddress().c_str(), m, hex);
+                else
+                {
+                    sLog.outError("WorldSocket: decode failure opcode 0x%.4X (%s) from %s.",
+                                  opcode, LookupOpcodeName(DIR_CLIENT, opcode), GetRemoteAddress().c_str());
+                }
             }
         }
 
