@@ -54,6 +54,8 @@
 #include <ace/Reactor.h>
 #include <ace/Auto_Ptr.h>
 
+#include <cstdio>
+
 #include "WorldSocket.h"
 #include "Common.h"
 #include "MopWireCodec.h"
@@ -75,29 +77,6 @@
 #endif /* ENABLE_ELUNA */
 #include <openssl/rand.h>
 
-#if defined( __GNUC__ )
-#pragma pack(1)
-#else
-#pragma pack(push,1)
-#endif
-
-/**
- * @brief Client packet header structure
- *
- * Header for packets sent from client to server.
- */
-struct ClientPktHeader
-{
-    uint16 size; ///< Packet size
-    uint32 cmd;  ///< Opcode
-};
-
-#if defined( __GNUC__ )
-#pragma pack()
-#else
-#pragma pack(pop)
-#endif
-
 /**
  * @brief WorldSocket constructor
  *
@@ -113,9 +92,6 @@ WorldSocket::WorldSocket(void) :
     m_LastPingTime(ACE_Time_Value::zero),
     m_OverSpeedPings(0),
     m_Session(0),
-    m_RecvWPct(0),
-    m_RecvPct(),
-    m_Header(sizeof(ClientPktHeader)),
     m_OutBuffer(0),
     m_OutBufferSize(65536),
     m_OutActive(false),
@@ -137,8 +113,6 @@ WorldSocket::WorldSocket(void) :
  */
 WorldSocket::~WorldSocket(void)
 {
-    delete m_RecvWPct;
-
     if (m_OutBuffer)
     {
         m_OutBuffer->release();
@@ -632,173 +606,93 @@ int WorldSocket::Update(void)
 }
 
 /**
- * @brief Parses and validates an incoming packet header.
+ * @brief Receives socket data and drains as many complete frames as are buffered.
  *
- * @return int Zero on success; otherwise -1.
- */
-int WorldSocket::handle_input_header(void)
-{
-    MANGOS_ASSERT(m_RecvWPct == NULL);
-
-    MANGOS_ASSERT(m_Header.length() == sizeof(ClientPktHeader));
-
-    m_Crypt.DecryptRecv((uint8*) m_Header.rd_ptr(), sizeof(ClientPktHeader));
-
-    ClientPktHeader& header = *((ClientPktHeader*) m_Header.rd_ptr());
-
-    EndianConvertReverse(header.size);
-    EndianConvert(header.cmd);
-
-    if ((header.size < 4) || (header.size > 10240))
-    {
-        sLog.outError("WorldSocket::handle_input_header: client sent malformed packet size = %d , cmd = %d",
-                      header.size, header.cmd);
-
-        errno = EINVAL;
-        return -1;
-    }
-
-    header.size -= 4;
-
-    ACE_NEW_RETURN(m_RecvWPct, WorldPacket(OpcodesList(header.cmd), header.size), -1);
-
-    if (header.size > 0)
-    {
-        m_RecvWPct->resize(header.size);
-        m_RecvPct.base((char*) m_RecvWPct->contents(), m_RecvWPct->size());
-    }
-    else
-    {
-        MANGOS_ASSERT(m_RecvPct.space() == 0);
-    }
-
-    return 0;
-}
-
-/**
- * @brief Finalizes processing of a fully received packet payload.
+ * Delegates two-phase header + payload reassembly to MopFrameReader (consume-one-frame
+ * reader). postCrypt is passed per call as m_Crypt.IsInitialized() - the sole codec
+ * authority - so a crypt Init() mid-stream (Phase 3 auth) is picked up automatically on
+ * the very next TryFrame() with no separate flag to keep in sync.
  *
- * @return int Zero on success; otherwise -1.
- */
-int WorldSocket::handle_input_payload(void)
-{
-    // set errno properly here on error !!!
-    // now have a header and payload
-
-    MANGOS_ASSERT(m_RecvPct.space() == 0);
-    MANGOS_ASSERT(m_Header.space() == 0);
-    MANGOS_ASSERT(m_RecvWPct != NULL);
-
-    const int ret = ProcessIncoming(m_RecvWPct);
-
-    m_RecvPct.base(NULL, 0);
-    m_RecvPct.reset();
-    m_RecvWPct = NULL;
-
-    m_Header.reset();
-
-    if (ret == -1)
-    {
-        errno = EINVAL;
-    }
-
-    return ret;
-}
-
-/**
- * @brief Receives and assembles any missing header or payload data from the socket.
- *
- * @return int A receive state code, or -1 on error.
+ * @return int A receive state code (ACE contract: 0 peer-closed, -1 error, 1 full read,
+ *             2 partial read), or -1 on error.
  */
 int WorldSocket::handle_input_missing_data(void)
 {
-    char buf [4096];
-
-    ACE_Data_Block db(sizeof(buf),
-                      ACE_Message_Block::MB_DATA,
-                      buf,
-                      0,
-                      0,
-                      ACE_Message_Block::DONT_DELETE,
-                      0);
-
-    ACE_Message_Block message_block(&db,
-                                    ACE_Message_Block::DONT_DELETE,
-                                    0);
-
-    const size_t recv_size = message_block.space();
-
-    const ssize_t n = peer().recv(message_block.wr_ptr(),
-                                  recv_size);
-
+    char buf[4096];
+    const ssize_t n = peer().recv(buf, sizeof(buf));
     if (n <= 0)
     {
         return (int)n;
     }
 
-    message_block.wr_ptr(n);
+    m_frameReader.Push((const uint8*)buf, size_t(n));
 
-    while (message_block.length() > 0)
+    for (;;)
     {
-        if (m_Header.space() > 0)
+        MopFrameReader::Frame frame;
+        const MopFrameReader::Status s =
+            m_frameReader.TryFrame(frame, m_Crypt.IsInitialized(), this, &DecryptHeaderHook, &CmdValidHook);
+
+        if (s == MopFrameReader::NEED_MORE)
         {
-            // need to receive the header
-            const size_t to_header = (message_block.length() > m_Header.space() ? m_Header.space() : message_block.length());
-            m_Header.copy(message_block.rd_ptr(), to_header);
-            message_block.rd_ptr(to_header);
-
-            if (m_Header.space() > 0)
-            {
-                // Couldn't receive the whole header this time.
-                MANGOS_ASSERT(message_block.length() == 0);
-                errno = EWOULDBLOCK;
-                return -1;
-            }
-
-            // We just received nice new header
-            if (handle_input_header() == -1)
-            {
-                MANGOS_ASSERT((errno != EWOULDBLOCK) && (errno != EAGAIN));
-                return -1;
-            }
+            break;
         }
 
-        // Its possible on some error situations that this happens
-        // for example on closing when epoll receives more chunked data and stuff
-        // hope this is not hack ,as proper m_RecvWPct is asserted around
-        if (!m_RecvWPct)
+        if (s == MopFrameReader::MALFORMED)
         {
-            sLog.outError("Forcing close on input m_RecvWPct = NULL");
+            const ACE_Time_Value now = ACE_OS::gettimeofday();
+            if (MopHs::RateLimitElapsed(m_lastDecodeLog.sec(), now.sec()))
+            {
+                m_lastDecodeLog = now;
+                size_t hl = 0;
+                bool preCrypt = false;
+                const uint8* hb = m_frameReader.LastHeader(hl, preCrypt);   // <=6 HEADER bytes; never payload
+                char hex[6 * 3 + 1];
+                for (size_t i = 0; i < hl; ++i)
+                {
+                    snprintf(hex + i * 3, 4, "%02X ", hb[i]);
+                }
+                hex[hl ? hl * 3 - 1 : 0] = '\0';
+                sLog.outError("WorldSocket: malformed frame from %s [%s reason=%s header=%s]; closing.",
+                              GetRemoteAddress().c_str(), preCrypt ? "pre-crypt" : "post-crypt",
+                              MalformedReasonName(m_frameReader.LastReason()), hex);
+            }
             errno = EINVAL;
             return -1;
         }
 
-        // We have full read header, now check the data payload
-        if (m_RecvPct.space() > 0)
+        WorldPacket* pct = new WorldPacket(OpcodesList(uint16(frame.cmd)), uint32(frame.payload.size()));
+        if (!frame.payload.empty())
         {
-            // need more data in the payload
-            const size_t to_data = (message_block.length() > m_RecvPct.space() ? m_RecvPct.space() : message_block.length());
-            m_RecvPct.copy(message_block.rd_ptr(), to_data);
-            message_block.rd_ptr(to_data);
-
-            if (m_RecvPct.space() > 0)
-            {
-                // Couldn't receive the whole data this time.
-                MANGOS_ASSERT(message_block.length() == 0);
-                errno = EWOULDBLOCK;
-                return -1;
-            }
+            pct->append(frame.payload.data(), frame.payload.size());
         }
 
-        // just received fresh new payload
-        if (handle_input_payload() == -1)
+        if (ProcessIncoming(pct) == -1)
         {
-            MANGOS_ASSERT((errno != EWOULDBLOCK) && (errno != EAGAIN));
+            errno = EINVAL;
             return -1;
         }
+        // Phase 3: after crypt Init in the auth path, the NEXT TryFrame sees IsInitialized()==true (no manual flag).
     }
 
-    return size_t(n) == recv_size ? 1 : 2;
+    return (size_t(n) == sizeof(buf)) ? 1 : 2;   // preserve ACE contract: full read -> 1, partial -> 2
+}
+
+/// MopFrameReader::DecryptFn hook (Phase 2 wire framing): in-place ARC4 on the header only.
+bool WorldSocket::DecryptHeaderHook(void* ctx, uint8* header, size_t len)
+{
+    static_cast<WorldSocket*>(ctx)->m_Crypt.DecryptRecv(header, len);
+    return true;   // no-op pre-crypt (m_Crypt.DecryptRecv() is itself a no-op before Init())
+}
+
+/// MopFrameReader::CmdValidFn hook (Phase 2 wire framing): game rule; false rejects the frame.
+bool WorldSocket::CmdValidHook(void* ctx, uint32 cmd, bool preCrypt)
+{
+    if (!preCrypt)
+    {
+        return true;
+    }
+    return cmd == MSG_WOW_CONNECTION || cmd < OPCODE_TABLE_SIZE;
 }
 
 int WorldSocket::cancel_wakeup_output(GuardType& g)
