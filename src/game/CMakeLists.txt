@@ -311,3 +311,5 @@ if(PLAYERBOTS)
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/aiplayerbot.conf.dist
     DESTINATION ${CONF_INSTALL_DIR})
 endif()
+
+add_subdirectory(Server/tests)

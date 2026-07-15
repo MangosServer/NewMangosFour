@@ -54,8 +54,11 @@
 #include <ace/Reactor.h>
 #include <ace/Auto_Ptr.h>
 
+#include <cstdio>
+
 #include "WorldSocket.h"
 #include "Common.h"
+#include "MopWireCodec.h"
 
 #include "Util.h"
 #include "World.h"
@@ -72,69 +75,7 @@
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
-
-#if defined( __GNUC__ )
-#pragma pack(1)
-#else
-#pragma pack(push,1)
-#endif
-
-/**
- * @brief Server packet header structure
- *
- * Header for packets sent from server to client.
- */
-struct ServerPktHeader
-{
-    /*
-     * size is the length of the payload _plus_ the length of the opcode
-     */
-    ServerPktHeader(uint32 size, uint16 cmd) : size(size)
-    {
-        uint8 headerIndex = 0;
-        if (isLargePacket())
-        {
-            DEBUG_LOG("initializing large server to client packet. Size: %u, cmd: %u", size, cmd);
-            header[headerIndex++] = 0x80 | (0xFF & (size >> 16));
-        }
-        header[headerIndex++] = 0xFF & (size >> 8);
-        header[headerIndex++] = 0xFF & size;
-
-        header[headerIndex++] = 0xFF & cmd;
-        header[headerIndex++] = 0xFF & (cmd >> 8);
-    }
-
-    uint8 getHeaderLength()
-    {
-        // cmd = 2 bytes, size= 2||3bytes
-        return 2 + (isLargePacket() ? 3 : 2);
-    }
-
-    bool isLargePacket()
-    {
-        return size > 0x7FFF;
-    }
-
-    const uint32 size;
-    uint8 header[5];
-};
-
-/**
- * @brief Client packet header structure
- *
- * Header for packets sent from client to server.
- */
-struct ClientPktHeader
-{
-    uint16 size; ///< Packet size
-    uint32 cmd;  ///< Opcode
-};
-
-#if defined( __GNUC__ )
-#pragma pack()
-#else
-#pragma pack(pop)
-#endif
+#include <openssl/rand.h>
 
 /**
  * @brief WorldSocket constructor
@@ -151,13 +92,13 @@ WorldSocket::WorldSocket(void) :
     m_LastPingTime(ACE_Time_Value::zero),
     m_OverSpeedPings(0),
     m_Session(0),
-    m_RecvWPct(0),
-    m_RecvPct(),
-    m_Header(sizeof(ClientPktHeader)),
     m_OutBuffer(0),
     m_OutBufferSize(65536),
     m_OutActive(false),
-    m_Seed(rand32())
+    m_Seed(0),
+    m_connState(MopHs::CONN_GREETING),
+    m_frameReader(),
+    m_lastDecodeLog(ACE_Time_Value::zero)
 {
     reference_counting_policy().value(ACE_Event_Handler::Reference_Counting_Policy::ENABLED);
 
@@ -172,8 +113,6 @@ WorldSocket::WorldSocket(void) :
  */
 WorldSocket::~WorldSocket(void)
 {
-    delete m_RecvWPct;
-
     if (m_OutBuffer)
     {
         m_OutBuffer->release();
@@ -228,8 +167,13 @@ const std::string& WorldSocket::GetRemoteAddress(void) const
  * @param pct The packet to send.
  * @return int Zero on success; otherwise -1.
  */
-int WorldSocket::SendPacket(const WorldPacket& pct)
+int WorldSocket::SendPacket(const WorldPacket& pct, bool* sent)
 {
+    if (sent)
+    {
+        *sent = false;
+    }
+
     ACE_GUARD_RETURN(LockType, Guard, m_OutBufferLock, -1);
 
     if (closing_)
@@ -238,9 +182,18 @@ int WorldSocket::SendPacket(const WorldPacket& pct)
     }
 
     // Dump outgoing packet (opt-in via PacketLoggingEnabled; off by default).
+    // SMSG_AUTH_RESPONSE is auth-adjacent and must never have its body logged
+    // (defensive for Phase 3, when this response starts carrying auth material).
     if (sLog.IsPacketLoggingEnabled())
     {
-        sLog.outWorldPacketDump(uint32(get_handle()), pct.GetOpcode(), LookupOpcodeName(DIR_SERVER, pct.GetOpcode()), &pct, false);
+        if (pct.GetOpcode() == SMSG_AUTH_RESPONSE)
+        {
+            sLog.outWorldPacketDumpRedacted(uint32(get_handle()), pct.GetOpcode(), LookupOpcodeName(DIR_SERVER, pct.GetOpcode()), pct.size(), false);
+        }
+        else
+        {
+            sLog.outWorldPacketDump(uint32(get_handle()), pct.GetOpcode(), LookupOpcodeName(DIR_SERVER, pct.GetOpcode()), &pct, false);
+        }
     }
 
 #ifdef ENABLE_ELUNA
@@ -248,18 +201,32 @@ int WorldSocket::SendPacket(const WorldPacket& pct)
     {
         if (!e->OnPacketSend(m_Session, pct))
         {
+            if (sent)
+            {
+                *sent = false;
+            }
             return 0;
         }
     }
 #endif
 
-    ServerPktHeader header(pct.size() + 2, pct.GetOpcode());
-    m_Crypt.EncryptSend((uint8*)header.header, header.getHeaderLength());
+    uint8 header[4];
+    const bool postCrypt = m_Crypt.IsInitialized();
+    if (!MopWire::BuildServerHeader(postCrypt, pct.size(), pct.GetOpcode(), header))
+    {
+        sLog.outError("WorldSocket::SendPacket: frame out of range (size=%zu opcode=0x%.4X postCrypt=%d)",
+                      pct.size(), pct.GetOpcode(), int(postCrypt));
+        return -1;
+    }
+    if (postCrypt)
+    {
+        m_Crypt.EncryptSend(header, sizeof(header));
+    }
 
-    if (m_OutBuffer->space() >= pct.size() + header.getHeaderLength() && msg_queue()->is_empty())
+    if (m_OutBuffer->space() >= pct.size() + sizeof(header) && msg_queue()->is_empty())
     {
         // Put the packet on the buffer.
-        if (m_OutBuffer->copy((char*) header.header, header.getHeaderLength()) == -1)
+        if (m_OutBuffer->copy((char*) header, sizeof(header)) == -1)
         {
             MANGOS_ASSERT(false);
         }
@@ -277,9 +244,9 @@ int WorldSocket::SendPacket(const WorldPacket& pct)
         // Enqueue the packet.
         ACE_Message_Block* mb;
 
-        ACE_NEW_RETURN(mb, ACE_Message_Block(pct.size() + header.getHeaderLength()), -1);
+        ACE_NEW_RETURN(mb, ACE_Message_Block(pct.size() + sizeof(header)), -1);
 
-        mb->copy((char*) header.header, header.getHeaderLength());
+        mb->copy((char*) header, sizeof(header));
 
         if (!pct.empty())
         {
@@ -294,6 +261,10 @@ int WorldSocket::SendPacket(const WorldPacket& pct)
         }
     }
 
+    if (sent)
+    {
+        *sent = true;
+    }
     return 0;
 }
 
@@ -318,7 +289,7 @@ long WorldSocket::RemoveReference(void)
 }
 
 /**
- * @brief Opens the socket handler and sends the authentication challenge.
+ * @brief Opens the socket handler and sends the connection greeting; the auth challenge is sent later via HandleWowConnection -> SendAuthChallenge().
  *
  * @param a The ACE open hook parameter.
  * @return int Zero on success; otherwise -1.
@@ -367,21 +338,6 @@ int WorldSocket::open(void* a)
         return -1;
     }
 
-    // Send startup packet.
-    WorldPacket packet (SMSG_AUTH_CHALLENGE, 37);
-    for (uint32 i = 0; i < 8; i++)
-    {
-        packet << uint32(0);
-    }
-
-    packet << m_Seed;
-    packet << uint8(1);
-
-    if (SendPacket(packet) == -1)
-    {
-        return -1;
-    }
-
     // Register with ACE Reactor
     if (reactor()->register_handler(this, ACE_Event_Handler::READ_MASK | ACE_Event_Handler::WRITE_MASK) == -1)
     {
@@ -400,7 +356,14 @@ int WorldSocket::HandleWowConnection(WorldPacket& recvPacket)
     std::string ClientToServerMsg;
     recvPacket >> ClientToServerMsg;
     DEBUG_LOG("Received MSG_WOW_CONNECTION FROM %s", m_Session ? m_Session->GetRemoteAddress().c_str() : "<unk>");
-    if (strcmp(ClientToServerMsg.c_str(), "D OF WARCRAFT CONNECTION - CLIENT TO SERVER") != 0)
+    // Mirror of the greeting we send ("RLD OF WARCRAFT CONNECTION - SERVER TO CLIENT"): the leading
+    // "WO" of "WORLD" is carried by the header's cmd field (0x4F57 == "WO" little-endian), so the
+    // payload legitimately begins at "RLD".
+    // NOTE: this previously expected "D OF WARCRAFT ..." -- that constant was compensating for the
+    // Cata-era 6-byte {uint16 size; uint32 cmd} read of the greeting, which swallowed "WORL" into cmd
+    // and left the payload starting at 'D' (the garbage cmd then truncated to 0x4F57 and dispatched
+    // here by accident). With the greeting parsed at its true 4-byte width, the payload is "RLD...".
+    if (strcmp(ClientToServerMsg.c_str(), "RLD OF WARCRAFT CONNECTION - CLIENT TO SERVER") != 0)
     {
         sLog.outError("WorldSocket::ProcessIncoming: received wrong data in MSG_WOW_CONNECTION.");
         return -1;
@@ -409,20 +372,32 @@ int WorldSocket::HandleWowConnection(WorldPacket& recvPacket)
     return SendAuthChallenge();
 }
 
+static bool DefaultRandomBytes(uint8_t* out, size_t len) { return RAND_bytes(out, int(len)) == 1; }
+
 int WorldSocket::SendAuthChallenge()
 {
     DEBUG_LOG("Sending SMSG_AUTH_CHALLENGE");
-    WorldPacket packet(SMSG_AUTH_CHALLENGE, 37);
-    packet << uint16(0);
-
-    for (int i = 0; i < 8; i++)
-        packet << uint32(0);
-
-    packet << uint8(1);
-    packet << uint32(m_Seed);
-
-    return SendPacket(packet);
-
+    std::vector<uint8_t> payload; uint32 seed = 0;
+    if (!MopHs::BuildAuthChallengePayload(&DefaultRandomBytes, payload, seed))
+    {
+        sLog.outError("WorldSocket::SendAuthChallenge: CSPRNG failure; closing.");
+        return -1;                                            // nothing sent
+    }
+    WorldPacket packet(SMSG_AUTH_CHALLENGE, uint32(payload.size()));
+    packet.append(payload.data(), payload.size());
+    bool sent = false;
+    if (SendPacket(packet, &sent) == -1)
+    {
+        return -1;
+    }
+    if (!sent)
+    {
+        sLog.outError("WorldSocket::SendAuthChallenge: challenge was suppressed (not sent); closing.");
+        return -1;                                            // never advance state on a challenge the client never got
+    }
+    m_Seed = seed;                                            // only after the challenge is actually on the wire
+    m_connState = MopHs::CONN_CHALLENGED;                     // member exists since Task 2.1
+    return 0;
 }
 
 void WorldSocket::SendAuthResponseError(uint8 code)
@@ -666,173 +641,103 @@ int WorldSocket::Update(void)
 }
 
 /**
- * @brief Parses and validates an incoming packet header.
+ * @brief Receives socket data and drains as many complete frames as are buffered.
  *
- * @return int Zero on success; otherwise -1.
- */
-int WorldSocket::handle_input_header(void)
-{
-    MANGOS_ASSERT(m_RecvWPct == NULL);
-
-    MANGOS_ASSERT(m_Header.length() == sizeof(ClientPktHeader));
-
-    m_Crypt.DecryptRecv((uint8*) m_Header.rd_ptr(), sizeof(ClientPktHeader));
-
-    ClientPktHeader& header = *((ClientPktHeader*) m_Header.rd_ptr());
-
-    EndianConvertReverse(header.size);
-    EndianConvert(header.cmd);
-
-    if ((header.size < 4) || (header.size > 10240))
-    {
-        sLog.outError("WorldSocket::handle_input_header: client sent malformed packet size = %d , cmd = %d",
-                      header.size, header.cmd);
-
-        errno = EINVAL;
-        return -1;
-    }
-
-    header.size -= 4;
-
-    ACE_NEW_RETURN(m_RecvWPct, WorldPacket(OpcodesList(header.cmd), header.size), -1);
-
-    if (header.size > 0)
-    {
-        m_RecvWPct->resize(header.size);
-        m_RecvPct.base((char*) m_RecvWPct->contents(), m_RecvWPct->size());
-    }
-    else
-    {
-        MANGOS_ASSERT(m_RecvPct.space() == 0);
-    }
-
-    return 0;
-}
-
-/**
- * @brief Finalizes processing of a fully received packet payload.
+ * Delegates two-phase header + payload reassembly to MopFrameReader (consume-one-frame
+ * reader). postCrypt is passed per call as m_Crypt.IsInitialized() - the sole codec
+ * authority - so a crypt Init() mid-stream (Phase 3 auth) is picked up automatically on
+ * the very next TryFrame() with no separate flag to keep in sync.
  *
- * @return int Zero on success; otherwise -1.
- */
-int WorldSocket::handle_input_payload(void)
-{
-    // set errno properly here on error !!!
-    // now have a header and payload
-
-    MANGOS_ASSERT(m_RecvPct.space() == 0);
-    MANGOS_ASSERT(m_Header.space() == 0);
-    MANGOS_ASSERT(m_RecvWPct != NULL);
-
-    const int ret = ProcessIncoming(m_RecvWPct);
-
-    m_RecvPct.base(NULL, 0);
-    m_RecvPct.reset();
-    m_RecvWPct = NULL;
-
-    m_Header.reset();
-
-    if (ret == -1)
-    {
-        errno = EINVAL;
-    }
-
-    return ret;
-}
-
-/**
- * @brief Receives and assembles any missing header or payload data from the socket.
- *
- * @return int A receive state code, or -1 on error.
+ * @return int A receive state code (ACE contract: 0 peer-closed, -1 error, 1 full read,
+ *             2 partial read), or -1 on error.
  */
 int WorldSocket::handle_input_missing_data(void)
 {
-    char buf [4096];
-
-    ACE_Data_Block db(sizeof(buf),
-                      ACE_Message_Block::MB_DATA,
-                      buf,
-                      0,
-                      0,
-                      ACE_Message_Block::DONT_DELETE,
-                      0);
-
-    ACE_Message_Block message_block(&db,
-                                    ACE_Message_Block::DONT_DELETE,
-                                    0);
-
-    const size_t recv_size = message_block.space();
-
-    const ssize_t n = peer().recv(message_block.wr_ptr(),
-                                  recv_size);
-
+    char buf[4096];
+    const ssize_t n = peer().recv(buf, sizeof(buf));
     if (n <= 0)
     {
         return (int)n;
     }
 
-    message_block.wr_ptr(n);
+    m_frameReader.Push((const uint8*)buf, size_t(n));
 
-    while (message_block.length() > 0)
+    MopFrameReader::Frame frame;
+    for (;;)
     {
-        if (m_Header.space() > 0)
+        // Header width is state-driven, derived fresh every frame (no stored codec flag):
+        //   crypt live            -> 4-byte packed
+        //   still awaiting greet  -> 4-byte {size, cmd16}; the client's MSG_WOW_CONNECTION reply is
+        //                            symmetric with the greeting we sent (size = payload + 2)
+        //   otherwise (pre-crypt) -> 6-byte {size, cmd32}; CMSG_AUTH_SESSION onward (size = payload + 4)
+        const MopFrameReader::HeaderKind kind =
+            m_Crypt.IsInitialized()             ? MopFrameReader::HDR_POSTCRYPT :
+            (m_connState == MopHs::CONN_GREETING) ? MopFrameReader::HDR_GREETING :
+                                                    MopFrameReader::HDR_PRECRYPT;
+        const MopFrameReader::Status s =
+            m_frameReader.TryFrame(frame, kind, this, &DecryptHeaderHook, &CmdValidHook);
+
+        if (s == MopFrameReader::NEED_MORE)
         {
-            // need to receive the header
-            const size_t to_header = (message_block.length() > m_Header.space() ? m_Header.space() : message_block.length());
-            m_Header.copy(message_block.rd_ptr(), to_header);
-            message_block.rd_ptr(to_header);
-
-            if (m_Header.space() > 0)
-            {
-                // Couldn't receive the whole header this time.
-                MANGOS_ASSERT(message_block.length() == 0);
-                errno = EWOULDBLOCK;
-                return -1;
-            }
-
-            // We just received nice new header
-            if (handle_input_header() == -1)
-            {
-                MANGOS_ASSERT((errno != EWOULDBLOCK) && (errno != EAGAIN));
-                return -1;
-            }
+            break;
         }
 
-        // Its possible on some error situations that this happens
-        // for example on closing when epoll receives more chunked data and stuff
-        // hope this is not hack ,as proper m_RecvWPct is asserted around
-        if (!m_RecvWPct)
+        if (s == MopFrameReader::MALFORMED)
         {
-            sLog.outError("Forcing close on input m_RecvWPct = NULL");
+            const ACE_Time_Value now = ACE_OS::gettimeofday();
+            if (MopHs::RateLimitElapsed(m_lastDecodeLog.sec(), now.sec()))
+            {
+                m_lastDecodeLog = now;
+                size_t hl = 0;
+                bool preCrypt = false;
+                const uint8* hb = m_frameReader.LastHeader(hl, preCrypt);   // <=6 HEADER bytes; never payload
+                char hex[6 * 3 + 1];
+                for (size_t i = 0; i < hl; ++i)
+                {
+                    snprintf(hex + i * 3, 4, "%02X ", hb[i]);
+                }
+                hex[hl ? hl * 3 - 1 : 0] = '\0';
+                sLog.outError("WorldSocket: malformed frame from %s [%s reason=%s header=%s]; closing.",
+                              GetRemoteAddress().c_str(), preCrypt ? "pre-crypt" : "post-crypt",
+                              MalformedReasonName(m_frameReader.LastReason()), hex);
+            }
             errno = EINVAL;
             return -1;
         }
 
-        // We have full read header, now check the data payload
-        if (m_RecvPct.space() > 0)
+        WorldPacket* pct = NULL;
+        ACE_NEW_RETURN(pct, WorldPacket(OpcodesList(uint16(frame.cmd)), uint32(frame.payload.size())), -1);
+        if (!frame.payload.empty())
         {
-            // need more data in the payload
-            const size_t to_data = (message_block.length() > m_RecvPct.space() ? m_RecvPct.space() : message_block.length());
-            m_RecvPct.copy(message_block.rd_ptr(), to_data);
-            message_block.rd_ptr(to_data);
-
-            if (m_RecvPct.space() > 0)
-            {
-                // Couldn't receive the whole data this time.
-                MANGOS_ASSERT(message_block.length() == 0);
-                errno = EWOULDBLOCK;
-                return -1;
-            }
+            pct->append(frame.payload.data(), frame.payload.size());
         }
 
-        // just received fresh new payload
-        if (handle_input_payload() == -1)
+        if (ProcessIncoming(pct) == -1)
         {
-            MANGOS_ASSERT((errno != EWOULDBLOCK) && (errno != EAGAIN));
+            errno = EINVAL;
             return -1;
         }
+        // Phase 3: after crypt Init in the auth path, the NEXT TryFrame sees IsInitialized()==true (no manual flag).
     }
 
-    return size_t(n) == recv_size ? 1 : 2;
+    return (size_t(n) == sizeof(buf)) ? 1 : 2;   // preserve ACE contract: full read -> 1, partial -> 2
+}
+
+/// MopFrameReader::DecryptFn hook (Phase 2 wire framing): in-place ARC4 on the header only.
+bool WorldSocket::DecryptHeaderHook(void* ctx, uint8* header, size_t len)
+{
+    static_cast<WorldSocket*>(ctx)->m_Crypt.DecryptRecv(header, len);
+    return true;   // no-op pre-crypt (m_Crypt.DecryptRecv() is itself a no-op before Init())
+}
+
+/// MopFrameReader::CmdValidFn hook (Phase 2 wire framing): game rule; false rejects the frame.
+bool WorldSocket::CmdValidHook(void* ctx, uint32 cmd, bool preCrypt)
+{
+    if (!preCrypt)
+    {
+        return true;
+    }
+    return cmd == MSG_WOW_CONNECTION || cmd < OPCODE_TABLE_SIZE;
 }
 
 int WorldSocket::cancel_wakeup_output(GuardType& g)
@@ -899,9 +804,31 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
     }
 
     // Dump received packet (opt-in via PacketLoggingEnabled; off by default).
+    // CMSG_AUTH_SESSION carries the client's auth proof and must never have its body logged.
     if (sLog.IsPacketLoggingEnabled())
     {
-        sLog.outWorldPacketDump(uint32(get_handle()), opcode, LookupOpcodeName(DIR_CLIENT, opcode), new_pct, true);
+        if (opcode == CMSG_AUTH_SESSION)
+        {
+            sLog.outWorldPacketDumpRedacted(uint32(get_handle()), opcode, LookupOpcodeName(DIR_CLIENT, opcode), new_pct->size(), true);
+        }
+        else
+        {
+            sLog.outWorldPacketDump(uint32(get_handle()), opcode, LookupOpcodeName(DIR_CLIENT, opcode), new_pct, true);
+        }
+    }
+
+    // Handshake state legality allowlist. MUST run before the MSG_WOW_CONNECTION early-return below,
+    // otherwise a client could resend the greeting after already being CONN_CHALLENGED (duplicate-greeting
+    // bypass). OPC_NORMAL is AUTHED-only; Phase 2 never reaches CONN_AUTHED, so all non-handshake opcodes
+    // are rejected pre-auth (prevents pre-auth socket pinning). Phase 3 sets CONN_AUTHED and opens that gate.
+    const MopHs::OpcodeClass cls =
+        (opcode == MSG_WOW_CONNECTION) ? MopHs::OPC_GREETING :
+        (opcode == CMSG_AUTH_SESSION)  ? MopHs::OPC_AUTH_SESSION : MopHs::OPC_NORMAL;
+    if (!MopHs::IsHandshakeOpcodeLegal(m_connState, cls))
+    {
+        sLog.outError("WorldSocket::ProcessIncoming: opcode 0x%.4X illegal in state %d from %s; closing.",
+                      opcode, int(m_connState), GetRemoteAddress().c_str());
+        return -1;
     }
 
     // Greeting is out-of-band: 0x4F57 is outside the 13-bit table, resolved by name only.
@@ -925,22 +852,13 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
             case CMSG_PING:
                 return HandlePing(*new_pct);
             case CMSG_AUTH_SESSION:
-                if (m_Session)
-                {
-                    sLog.outError("WorldSocket::ProcessIncoming: Player send CMSG_AUTH_SESSION again");
-                    return -1;
-                }
-
-#ifdef ENABLE_ELUNA
-                if (Eluna* e = sWorld.GetEluna())
-                {
-                    if (!e->OnPacketReceive(m_Session, *new_pct))
-                    {
-                        return 0;
-                    }
-                }
-#endif /* ENABLE_ELUNA */
-                return HandleAuthSession(*new_pct);
+                // Phase 2: framing proven. Do NOT enter the legacy auth path (HandleAuthSession -> m_Crypt.Init).
+                // The allowlist above guarantees we are in CONN_CHALLENGED here, so this is the LEGAL transition.
+                // The ENABLE_ELUNA OnPacketReceive hook for this opcode is intentionally NOT invoked here;
+                // it is deferred to Phase 3 along with the rest of the auth path.
+                m_connState = MopHs::CONN_AUTHENTICATING;
+                DEBUG_LOG("WorldSocket: CMSG_AUTH_SESSION accepted; CONN_CHALLENGED -> CONN_AUTHENTICATING; auth deferred to Phase 3 (framing OK, len %zu, body redacted); closing.", new_pct->size());
+                return -1;
             case CMSG_KEEP_ALIVE:
                 DEBUG_LOG("CMSG_KEEP_ALIVE ,size: %zu ", new_pct->size());
 
@@ -983,12 +901,38 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
     }
     catch (ByteBufferException&)
     {
-        sLog.outError("WorldSocket::ProcessIncoming ByteBufferException occured while parsing an instant handled packet (opcode: %u) from client %s, accountid=%i.",
-                      opcode, GetRemoteAddress().c_str(), m_Session ? m_Session->GetAccountId() : -1);
-        if (sLog.HasLogLevelOrHigher(LOG_LVL_DEBUG))
+        // Bounded + rate-limited: shares m_lastDecodeLog with the Task-2.5 malformed-frame
+        // path so every decode-failure path is rate-limited together. CMSG_AUTH_SESSION never
+        // has its body logged, even on error; other opcodes log at most the first 64 bytes.
+        const ACE_Time_Value now = ACE_OS::gettimeofday();
+        if (MopHs::RateLimitElapsed(m_lastDecodeLog.sec(), now.sec()))
         {
-            DEBUG_LOG("Dumping error-causing packet:");
-            new_pct->hexlike();
+            m_lastDecodeLog = now;
+            if (opcode == CMSG_AUTH_SESSION)
+            {
+                sLog.outError("WorldSocket: CMSG_AUTH_SESSION decode failed from %s (body redacted).", GetRemoteAddress().c_str());
+            }
+            else
+            {
+                const size_t cap = 64;
+                const size_t dumpLen = new_pct->size() < cap ? new_pct->size() : cap;
+                if (sLog.HasLogLevelOrHigher(LOG_LVL_DEBUG))
+                {
+                    char hex[cap * 3 + 1];
+                    for (size_t i = 0; i < dumpLen; ++i)
+                    {
+                        snprintf(hex + i * 3, 4, "%02X ", new_pct->contents()[i]);
+                    }
+                    hex[dumpLen ? dumpLen * 3 - 1 : 0] = '\0';
+                    sLog.outError("WorldSocket: decode failure opcode 0x%.4X (%s) from %s; first %zu bytes: %s",
+                                  opcode, LookupOpcodeName(DIR_CLIENT, opcode), GetRemoteAddress().c_str(), dumpLen, hex);
+                }
+                else
+                {
+                    sLog.outError("WorldSocket: decode failure opcode 0x%.4X (%s) from %s.",
+                                  opcode, LookupOpcodeName(DIR_CLIENT, opcode), GetRemoteAddress().c_str());
+                }
+            }
         }
 
         if (sWorld.getConfig(CONFIG_BOOL_KICK_PLAYER_ON_BAD_PACKET))

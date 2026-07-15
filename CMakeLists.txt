@@ -80,6 +80,8 @@ message("")
 
 project(MaNGOS VERSION 0.22.0)
 
+enable_testing()
+
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/install CACHE PATH "Default install directory" FORCE)
 endif()

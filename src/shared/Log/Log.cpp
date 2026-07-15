@@ -1261,6 +1261,28 @@ void Log::outWorldPacketDump(uint32 socket, uint32 opcode, char const* opcodeNam
     fwrite(out.c_str(), 1, out.size(), worldLogfile);
 }
 
+void Log::outWorldPacketDumpRedacted(uint32 socket, uint32 opcode, char const* opcodeName, size_t length, bool incoming)
+{
+    if (!worldLogfile)
+    {
+        return;
+    }
+
+    ACE_GUARD(ACE_Thread_Mutex, GuardObj, m_worldLogMtx);
+
+    outTimestamp(worldLogfile);
+
+    // Header line ONLY -- mirrors outWorldPacketDump's CLIENT/SERVER + SOCKET/LENGTH/OPCODE
+    // shape exactly (so a CLIENT.*CMSG_AUTH_SESSION style grep still matches), but the DATA
+    // line carries a redaction marker instead of hex body bytes. Auth material must never
+    // reach worldLogfile.
+    char header[512];
+    snprintf(header, sizeof(header), "\n%s:\nSOCKET: %u\nLENGTH: %zu\nOPCODE: %s (0x%.4X)\nDATA: [BODY REDACTED - auth material]\n\n\n",
+        incoming ? "CLIENT" : "SERVER",
+        socket, length, opcodeName, opcode);
+    fwrite(header, 1, strlen(header), worldLogfile);
+}
+
 void Log::outCharDump(const char* str, uint32 account_id, uint32 guid, const char* name)
 {
     if (charLogfile)

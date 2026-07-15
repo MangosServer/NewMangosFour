@@ -49,6 +49,8 @@
 #include "Common.h"
 #include "Auth/AuthCrypt.h"
 #include "Auth/BigNumber.h"
+#include "MopHandshake.h"
+#include "MopFrameReader.h"
 
 class ACE_Message_Block;
 class WorldPacket;
@@ -117,8 +119,10 @@ class WorldSocket : protected WorldHandler
 
         /// Send A packet on the socket, this function is reentrant.
         /// @param pct packet to send
+        /// @param sent optional out-param; set to whether the packet actually reached the
+        ///        buffer/queue, as opposed to being suppressed by an Eluna OnPacketSend veto
         /// @return -1 of failure
-        int SendPacket(const WorldPacket& pct);
+        int SendPacket(const WorldPacket& pct, bool* sent = nullptr);
 
         /// Add reference to this object.
         long AddReference(void);
@@ -158,8 +162,6 @@ class WorldSocket : protected WorldHandler
 
     private:
         /// Helper functions for processing incoming data.
-        int handle_input_header(void);
-        int handle_input_payload(void);
         int handle_input_missing_data(void);
 
         /// Help functions to mark/unmark the socket for output.
@@ -179,6 +181,11 @@ class WorldSocket : protected WorldHandler
 
         /// Called by ProcessIncoming() on CMSG_PING.
         int HandlePing(WorldPacket& recvPacket);
+
+        /// MopFrameReader::DecryptFn hook (Phase 2 wire framing).
+        static bool DecryptHeaderHook(void*, uint8*, size_t);
+        /// MopFrameReader::CmdValidFn hook (Phase 2 wire framing).
+        static bool CmdValidHook(void*, uint32, bool);
 
     private:
         void SendAuthResponseError(uint8);
@@ -200,17 +207,6 @@ class WorldSocket : protected WorldHandler
         /// Session to which received packets are routed
         WorldSession* m_Session;
 
-        /// here are stored the fragments of the received data
-        WorldPacket* m_RecvWPct;
-
-        /// This block actually refers to m_RecvWPct contents,
-        /// which allows easy and safe writing to it.
-        /// It wont free memory when its deleted. m_RecvWPct takes care of freeing.
-        ACE_Message_Block m_RecvPct;
-
-        /// Fragment of the received header.
-        ACE_Message_Block m_Header;
-
         /// Mutex for protecting output related data.
         LockType m_OutBufferLock;
 
@@ -226,6 +222,15 @@ class WorldSocket : protected WorldHandler
         uint32 m_Seed;
 
         BigNumber m_s;
+
+        /// Phase 2 wire framing: current handshake state (unused until later tasks).
+        MopHs::ConnectionState m_connState;
+
+        /// Phase 2 wire framing: consume-one-frame reader driving the production inbound path.
+        MopFrameReader m_frameReader;
+
+        /// Phase 2 wire framing: rate-limits malformed-frame diagnostic logging.
+        ACE_Time_Value m_lastDecodeLog;
 };
 
 #endif  /* _WORLDSOCKET_H */
