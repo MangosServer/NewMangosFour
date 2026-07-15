@@ -721,7 +721,19 @@ int WorldSocket::Update(void)
     // pointers mid-reset/crunch, which is very unlikely. Do NOT "fix" this by taking the lock:
     // handle_output() acquires m_OutBufferLock and Update() calls handle_output() a few lines below,
     // so holding it here is the documented self-deadlock.
-    if (MopSock::ShouldCloseNow(m_drainState.load(), m_OutBuffer->length(), msg_queue()->is_empty()))
+    //
+    // The state is tested FIRST, before ShouldCloseNow, so m_OutBuffer is not dereferenced unless a
+    // drain is actually armed. ShouldCloseNow takes size_t by value, so an unguarded call would
+    // evaluate m_OutBuffer->length() unconditionally -- above the m_OutActive short-circuit below
+    // that otherwise covers it. open() sets m_OutActive = true at :312 specifically to keep Update()
+    // out while initialising, but m_OutBuffer stays NULL from :312 until :321, a window spanning
+    // OnSocketOpen() at :315 which inserts this socket into the set svc() sweeps. Not reachable
+    // today (sockets_ is ACE_TSS, so only the opening thread sweeps it, and that thread is inside
+    // run_reactor_event_loop() for all of open()) -- but this keeps the safety local and obvious
+    // instead of resting on an invariant stated nowhere near here. Drain state is only ever armed
+    // long after open() completes, so the added test costs nothing.
+    if (m_drainState.load() == MopSock::DrainState::Flushing &&
+        MopSock::ShouldCloseNow(m_drainState.load(), m_OutBuffer->length(), msg_queue()->is_empty()))
     {
         return -1;
     }
@@ -1135,7 +1147,9 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // Check the version of client trying to connect
     if (!IsAcceptableClientBuild(BuiltNumberClient))
     {
-        sLog.outError("WorldSocket::HandleAuthSession: Sent Auth Response (version mismatch).");
+        // Claims only the decision, not the delivery: BeginAuthErrorDrain can return -1 having sent
+        // nothing, and it reports the actual send outcome itself. Keep payload-free.
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (version mismatch).");
         return BeginAuthErrorDrain(AUTH_VERSION_MISMATCH);
     }
 
@@ -1163,7 +1177,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // Stop if the account is not found
     if (!result)
     {
-        sLog.outError("WorldSocket::HandleAuthSession: Sent Auth Response (unknown account).");
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (unknown account).");
         return BeginAuthErrorDrain(AUTH_UNKNOWN_ACCOUNT);
     }
 
@@ -1194,7 +1208,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
         if (strcmp(fields[3].GetString(), GetRemoteAddress().c_str()))
         {
             delete result;                                    // 'fields' dies with it; not used below
-            BASIC_LOG("WorldSocket::HandleAuthSession: Sent Auth Response (Account IP differs).");
+            BASIC_LOG("WorldSocket::HandleAuthSession: rejecting auth session (account IP differs).");
             return BeginAuthErrorDrain(AUTH_FAILED);
         }
     }
@@ -1229,7 +1243,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     {
         delete banresult;
 
-        sLog.outError("WorldSocket::HandleAuthSession: Sent Auth Response (Account banned).");
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (account banned).");
         return BeginAuthErrorDrain(AUTH_BANNED);
     }
 
@@ -1242,7 +1256,23 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
         return BeginAuthErrorDrain(AUTH_UNAVAILABLE);
     }
 
-    // Phase 3 defers Warden structurally; see auth design §6.11 before re-enabling.
+    // Phase 3 defers Warden structurally. Everything needed to re-enable it correctly is stated
+    // here; do not re-add the code without addressing all four points:
+    //
+    // 1. K CONSUMER. Warden is the fourth consumer of the session key K (after the digest check,
+    //    m_Crypt.Init and the DB). Any migration to a canonical raw-40 K must account for it.
+    //    WorldSession::InitWarden still takes BigNumber* k and currently has ZERO callers, so the
+    //    compiler will NOT flag it when the key representation changes. This comment is the only
+    //    barrier -- treat it as a live TODO, not history.
+    // 2. SHORT-K BUG. WardenWin.cpp / WardenMac.cpp reseed from k->AsByteArray(), k->GetNumBytes().
+    //    BigNumber drops leading zero bytes, so whenever K's most-significant byte is zero (~1/256
+    //    of logins) that yields 39 bytes, not 40, and Warden desyncs. A raw-40 K fixes this by
+    //    construction; a BigNumber-shaped K does not.
+    // 3. NO KEY LOGGING. Warden logged its derived encryption keys. That logging was removed in
+    //    Stage 1 and must not be reintroduced.
+    // 4. ORDERING. InitWarden previously ran BEFORE AddSession, which made SMSG_WARDEN_DATA the
+    //    first encrypted server packet -- ahead of SMSG_AUTH_RESPONSE. Re-enabling must decide
+    //    that ordering deliberately rather than inherit it.
 
     // Check that Key and account name are the same on client and server
     Sha1Hash sha;
@@ -1259,7 +1289,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     if (memcmp(sha.GetDigest(), digest, 20))
     {
-        sLog.outError("WorldSocket::HandleAuthSession: Sent Auth Response (authentification failed).");
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (authentication failed).");
         return BeginAuthErrorDrain(AUTH_FAILED);
     }
 
@@ -1296,10 +1326,28 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // appear between the three commit statements.
     ACE_OS::sleep(ACE_Time_Value(0, 10000));
 
-    // ===================== COMMIT REGION -- no failure is possible below =====================
+    // ================ COMMIT REGION -- no program failure path exists below ================
     // Exactly three statements, in this order, with nothing between them: no log, no packet send,
     // no validation, no branch, no delay, no allocation, no early return. Publication ends the
-    // region.
+    // region. The claim is precise: no early return, no explicit failure and no fallible call
+    // appears below the commit point -- NOT that no exception can be thrown here.
+    //
+    // A throw IS possible: m_Crypt.Init(&K) -> HMACSHA1::ComputeHash -> BigNumber::AsByteArray
+    // does new uint8[length] and can throw std::bad_alloc inside this region's FIRST statement.
+    // The invariant survives it for two reasons, both of which live in AuthCrypt::Init:
+    //   (a) _initialized = true is the LAST statement of AuthCrypt::Init (AuthCrypt.cpp:71), and
+    //       DecryptRecv/EncryptSend early-return on !_initialized -- so a mid-Init throw leaves
+    //       the crypt inert, not half-keyed.
+    //   (b) both throw sites precede _clientDecrypt.Init/_serverEncrypt.Init (AuthCrypt.cpp:55-56),
+    //       so a throw also leaves the ARC4 contexts un-keyed.
+    // A bad_alloc therefore unwinds past an unauthenticated, non-crypting session -- the same
+    // outcome as an ordinary early return.
+    //
+    // WARNING TO STAGE 2: that guarantee is SILENT and structural. Stage 2 reworks AuthCrypt::Init
+    // for the raw-40 K migration; this region's correctness depends on _initialized = true staying
+    // the last statement of Init. It must not be hoisted above the ARC4 setup, and no early return
+    // may be added on a partial-init path -- either change turns a throw here into a half-keyed
+    // crypt on an unauthenticated session, silently. NO TEST COVERS THIS.
     //
     // LIMITATION (Stage 1 scope): AuthCrypt::Init is void and does NOT report OpenSSL failure, so
     // this proves SOURCE ORDERING only -- it cannot prove initialisation SUCCEEDED. Stage 2 owns
