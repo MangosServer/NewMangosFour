@@ -25,6 +25,8 @@
 #ifndef MANGOS_H_MOPAUTHSESSION
 #define MANGOS_H_MOPAUTHSESSION
 
+#include "WorldHandlers/AccountMgr.h"                // MAX_ACCOUNT_STR
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -50,8 +52,15 @@ namespace MopAuth
     /** Bytes consumed by the fixed legacy prefix, up to and including the addon size field. */
     static constexpr size_t LegacyFixedPrefixBytes = 56;
 
-    /** Upper bound on a decoded account name, in bytes. */
-    static constexpr size_t MaxAccountNameBytes = 16;
+    /**
+     * Upper bound on a decoded account name, in bytes.
+     *
+     * Tied to MAX_ACCOUNT_STR because that is the limit AccountMgr enforces when creating or
+     * renaming an account (AccountMgr.cpp:101, :139), so a shorter cap here would lock existing
+     * accounts out. The legacy inline parser capped nothing at all -- the 11-bit length field
+     * permits 2047 -- so bounding the allocation is a genuine malformed-input concern and is kept.
+     */
+    static constexpr size_t MaxAccountNameBytes = MAX_ACCOUNT_STR;
 
     /** Upper bound on the self-described inflated addon payload, in bytes. */
     static constexpr uint32_t MaxInflatedAddonBytes = 0xFFFFF;

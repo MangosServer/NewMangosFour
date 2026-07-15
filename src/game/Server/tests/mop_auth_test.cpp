@@ -158,13 +158,28 @@ static void test_name_length_zero_rejected()
 
 static void test_name_length_over_maximum_rejected()
 {
-    ByteBuffer in = make_legacy_body(4, 1, 0x02, 0x20, "AAAAAAAAAAAAAAAAA", 17);  // length 17 > 16
+    // 33 > MAX_ACCOUNT_STR: beyond anything AccountMgr can hold, so bounding the allocation is
+    // legitimate. The 11-bit field would otherwise permit 2047.
+    ByteBuffer in = make_legacy_body(4, 1, 0x04, 0x20,
+                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 33);
     CHECK(decode(in) == MopAuth::DecodeResult::BadNameLength);
 }
 
 static void test_name_length_at_maximum_accepted()
 {
-    ByteBuffer in = make_legacy_body(4, 1, 0x02, 0x00, "AAAAAAAAAAAAAAAA", 16);   // length 16 == max
+    // 32 == MAX_ACCOUNT_STR: the longest username AccountMgr will create, so it must decode.
+    ByteBuffer in = make_legacy_body(4, 1, 0x04, 0x00,
+                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 32);
+    CHECK(decode(in) == MopAuth::DecodeResult::Ok);
+}
+
+// The regression a 16-byte cap actually caused: AccountMgr accepts usernames up to
+// MAX_ACCOUNT_STR (32) and the legacy inline parser capped nothing at all, so every existing
+// account of 17..32 characters would have been locked out with BadNameLength once this path
+// activates. Valid input must decode exactly as it did before the extraction.
+static void test_name_length_seventeen_accepted()
+{
+    ByteBuffer in = make_legacy_body(4, 1, 0x02, 0x20, "AAAAAAAAAAAAAAAAA", 17);
     CHECK(decode(in) == MopAuth::DecodeResult::Ok);
 }
 
@@ -263,6 +278,7 @@ int main(int /*argc*/, char** /*argv*/)
     test_name_length_zero_rejected();
     test_name_length_over_maximum_rejected();
     test_name_length_at_maximum_accepted();
+    test_name_length_seventeen_accepted();
     test_name_truncated_rejected();
     test_wire_field_widths();
     test_open_state_processes_input();
