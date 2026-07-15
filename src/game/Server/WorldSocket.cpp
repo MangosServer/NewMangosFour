@@ -98,6 +98,7 @@ WorldSocket::WorldSocket(void) :
     m_OutBufferSize(65536),
     m_OutActive(false),
     m_drainState(MopSock::DrainState::Open),
+    m_sendInFlight(false),
     m_Seed(0),
     m_connState(MopHs::CONN_GREETING),
     m_frameReader(),
@@ -605,12 +606,52 @@ int WorldSocket::handle_output(ACE_HANDLE)
     ACE_NOTREACHED(return 0);
 }
 
+namespace
+{
+    /**
+     * @brief Marks a dequeued-but-unaccounted-for block as an in-flight write.
+     *
+     * RAII rather than hand-placed stores: handle_output_queue() has seven exits once a block is
+     * dequeued (dequeue failure, n == 0, EWOULDBLOCK re-enqueue, hard send error, partial-send
+     * re-enqueue, partial-send re-enqueue FAILURE, full send). A single missed lower would pin the
+     * flag high and the socket would then NEVER close -- trading a dropped auth response for a
+     * socket leak. Scope exit cannot miss one.
+     */
+    class ScopedSendInFlight
+    {
+        public:
+            explicit ScopedSendInFlight(std::atomic<bool>& flag) : m_flag(flag)
+            {
+                m_flag.store(true);
+            }
+
+            ~ScopedSendInFlight()
+            {
+                m_flag.store(false);
+            }
+
+        private:
+            ScopedSendInFlight(ScopedSendInFlight const&);
+            ScopedSendInFlight& operator=(ScopedSendInFlight const&);
+
+            std::atomic<bool>& m_flag;
+    };
+}
+
 int WorldSocket::handle_output_queue(GuardType& g)
 {
     if (msg_queue()->is_empty())
     {
         return cancel_wakeup_output(g);
     }
+
+    // Raised BEFORE dequeue_head() and lowered on every exit below. The queue is still non-empty
+    // here, so from this point until the block is sent, released or re-enqueued there is no instant
+    // at which the queue reports empty while no write is recorded as in flight -- which is exactly
+    // the window a concurrent Update() would otherwise read as a finished drain (see
+    // MopSock::ShouldCloseNow). Lowering happens at scope exit, i.e. AFTER any enqueue_head() has
+    // put the block back, so the two never both look absent.
+    ScopedSendInFlight inFlight(m_sendInFlight);
 
     ACE_Message_Block* mblk;
 
@@ -713,14 +754,21 @@ int WorldSocket::Update(void)
     // either. A check inside handle_output() would never run and the socket would leak.
     // Returning -1 makes WorldSocketMgr::svc() do the orderly CloseSocket()/RemoveReference().
     //
-    // KNOWN, ACCEPTED RISK: length()/is_empty() are read WITHOUT m_OutBufferLock, matching the
-    // pre-existing convention below -- but the consequence is NOT the same and this is not a plain
-    // convention match. A spurious length()==0 below merely returns 0 and is retried in ~10ms; here
-    // it returns -1 -> CloseSocket() and DISCARDS the auth response, i.e. reintroduces the exact bug
-    // this drain exists to prevent. Accepted because it requires a torn read of ACE_Message_Block's
-    // pointers mid-reset/crunch, which is very unlikely. Do NOT "fix" this by taking the lock:
-    // handle_output() acquires m_OutBufferLock and Update() calls handle_output() a few lines below,
-    // so holding it here is the documented self-deadlock.
+    // KNOWN, ACCEPTED RISK: length()/is_empty()/m_sendInFlight are read WITHOUT m_OutBufferLock,
+    // matching the pre-existing convention below -- but the consequence is NOT the same and this is
+    // not a plain convention match. A spurious length()==0 below merely returns 0 and is retried in
+    // ~10ms; here it returns -1 -> CloseSocket() and DISCARDS the auth response, i.e. reintroduces
+    // the exact bug this drain exists to prevent. Accepted because it requires a torn read of
+    // ACE_Message_Block's pointers mid-reset/crunch, which is very unlikely. Do NOT "fix" this by
+    // taking the lock: handle_output() acquires m_OutBufferLock and Update() calls handle_output() a
+    // few lines below, so holding it here is the documented self-deadlock.
+    //
+    // m_sendInFlight closes the one variant of this that was NOT merely a torn read but a plain
+    // race: handle_output_queue() dequeues the block before send()ing it, so across that syscall the
+    // buffer and the queue both genuinely report empty while the response exists only as a local
+    // pointer. Without the flag this thread would close the socket and drop it. Needs
+    // Network.Threads > 1 to bite (sockets_ is ACE_TSS, so the sweeping thread and the reactor
+    // thread differ), and only when the response took the queue path rather than m_OutBuffer.
     //
     // The state is tested FIRST, before ShouldCloseNow, so m_OutBuffer is not dereferenced unless a
     // drain is actually armed. ShouldCloseNow takes size_t by value, so an unguarded call would
@@ -733,7 +781,8 @@ int WorldSocket::Update(void)
     // instead of resting on an invariant stated nowhere near here. Drain state is only ever armed
     // long after open() completes, so the added test costs nothing.
     if (m_drainState.load() == MopSock::DrainState::Flushing &&
-        MopSock::ShouldCloseNow(m_drainState.load(), m_OutBuffer->length(), msg_queue()->is_empty()))
+        MopSock::ShouldCloseNow(m_drainState.load(), m_OutBuffer->length(), msg_queue()->is_empty(),
+                                m_sendInFlight.load()))
     {
         return -1;
     }

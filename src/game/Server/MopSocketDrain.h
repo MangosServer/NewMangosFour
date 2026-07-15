@@ -53,11 +53,21 @@ namespace MopSock
     }
 
     /// Whether the socket has finished draining and may now be closed.
-    /// Both the buffer and the queue must be empty: closing earlier is exactly the bug this
-    /// state exists to prevent, since the queued error response would be discarded unsent.
-    inline bool ShouldCloseNow(DrainState state, size_t outBufferLen, bool queueEmpty)
+    ///
+    /// The buffer and the queue must both be empty AND no write may be in flight: closing early
+    /// is exactly the bug this state exists to prevent, since the error response would then be
+    /// discarded unsent.
+    ///
+    /// sendInFlight is NOT redundant with the two emptiness tests. handle_output_queue() takes the
+    /// block off the queue with dequeue_head() and only then calls send(), so for the whole
+    /// duration of that syscall the block lives solely in a local ACE_Message_Block* -- the queue
+    /// reports empty, the buffer reports empty, and nothing else records that a write is still
+    /// pending. A concurrent WorldSocketMgr::svc() sweep (a different thread from the reactor once
+    /// Network.Threads > 1, since sockets_ is ACE_TSS) would otherwise conclude the drain had
+    /// finished and close the socket, dropping the very response the drain exists to deliver.
+    inline bool ShouldCloseNow(DrainState state, size_t outBufferLen, bool queueEmpty, bool sendInFlight)
     {
-        return state == DrainState::Flushing && outBufferLen == 0 && queueEmpty;
+        return state == DrainState::Flushing && outBufferLen == 0 && queueEmpty && !sendInFlight;
     }
 
     /// The receive-status a handle_input() implementation must report (ACE contract: 1 = full

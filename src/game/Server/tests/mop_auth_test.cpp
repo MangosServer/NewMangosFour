@@ -237,26 +237,44 @@ static void test_flushing_state_rejects_coalesced_next_frame()
 // auth error response, leaving the peer with a bare TCP close and no reason for the rejection.
 static void test_buffered_output_prevents_close()
 {
-    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Flushing, 7, true) == false);
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Flushing, 7, true, false) == false);
 }
 
 // Same, for output that overflowed the buffer and went to the message queue instead.
 static void test_queued_output_prevents_close()
 {
-    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Flushing, 0, false) == false);
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Flushing, 0, false, false) == false);
 }
 
 // Neither buffer nor queue holds anything: the response is on the wire, so the socket may go.
 static void test_fully_drained_flushing_closes()
 {
-    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Flushing, 0, true) == true);
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Flushing, 0, true, false) == true);
+}
+
+// The dequeue_head()/send() window. handle_output_queue() removes the block from the queue and
+// only then calls send(), so mid-send the buffer is empty AND the queue is empty while the
+// response is still nothing but a local pointer. That combination previously read as "fully
+// drained" and closed the socket, discarding the auth response -- reintroducing the exact bug the
+// drain exists to fix. An in-flight write must veto the close on its own.
+static void test_in_flight_send_prevents_close()
+{
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Flushing, 0, true, true) == false);
+}
+
+// In-flight vetoes regardless of what else is pending.
+static void test_in_flight_send_vetoes_with_pending_output()
+{
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Flushing, 7, true, true) == false);
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Flushing, 0, false, true) == false);
 }
 
 // A healthy idle socket is drained by definition; it must never be closed on that basis alone.
 static void test_open_state_never_closes()
 {
-    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Open, 0, true) == false);
-    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Open, 7, false) == false);
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Open, 0, true, false) == false);
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Open, 7, false, false) == false);
+    CHECK(MopSock::ShouldCloseNow(MopSock::DrainState::Open, 0, true, true) == false);
 }
 
 // Pins the rule handle_input_missing_data() RETURNS -- WorldSocket.cpp calls MopSock::InputStatus
@@ -310,6 +328,8 @@ int main(int /*argc*/, char** /*argv*/)
     test_buffered_output_prevents_close();
     test_queued_output_prevents_close();
     test_fully_drained_flushing_closes();
+    test_in_flight_send_prevents_close();
+    test_in_flight_send_vetoes_with_pending_output();
     test_open_state_never_closes();
     test_drain_never_requests_reactor_reentry();
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

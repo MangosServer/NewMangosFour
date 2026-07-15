@@ -239,6 +239,15 @@ class WorldSocket : protected WorldHandler
         /// (which reads it) can run on different threads once Network.Threads > 1.
         std::atomic<MopSock::DrainState> m_drainState;
 
+        /// True while handle_output_queue() holds a dequeued block that is not yet sent, released
+        /// or re-enqueued. Feeds MopSock::ShouldCloseNow so a concurrent Update() cannot mistake
+        /// that window -- queue emptied by dequeue_head(), block still only in a local -- for a
+        /// finished drain and close the socket on top of the unsent response.
+        /// Writers are serialised by m_OutBufferLock; Update() reads it unlocked, as it already
+        /// reads m_OutBuffer->length() and msg_queue()->is_empty() (taking the lock there is the
+        /// documented self-deadlock).
+        std::atomic<bool> m_sendInFlight;
+
         uint32 m_Seed;
 
         BigNumber m_s;
