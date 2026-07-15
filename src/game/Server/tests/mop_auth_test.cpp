@@ -26,6 +26,7 @@
 #include "MopSocketDrain.h"
 #include "Utilities/ByteBuffer.h"
 #include <cstdio>
+#include <string>
 #include <type_traits>
 
 static int g_fail = 0;
@@ -197,20 +198,42 @@ static void test_name_length_zero_rejected()
     CHECK(decode(in) == MopAuth::DecodeResult::BadNameLength);
 }
 
+// 129 > MaxAccountNameBytes (MAX_ACCOUNT_STR * 4): longer than any username AccountMgr can create
+// even if every character were a 4-byte code point, so bounding the allocation is legitimate. The
+// 11-bit field would otherwise permit 2047.
 static void test_name_length_over_maximum_rejected()
 {
-    // 33 > MAX_ACCOUNT_STR: beyond anything AccountMgr can hold, so bounding the allocation is
-    // legitimate. The 11-bit field would otherwise permit 2047.
-    ByteBuffer in = make_legacy_body(4, 1, 0x04, 0x20,
-                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 33);
+    std::string const name(129, 'A');
+    ByteBuffer in = make_legacy_body(4, 1, 0x10, 0x20, name.c_str(), name.size());
     CHECK(decode(in) == MopAuth::DecodeResult::BadNameLength);
 }
 
-static void test_name_length_at_maximum_accepted()
+// 128 == MAX_ACCOUNT_STR * 4: the byte cap itself. A 32-character username of 4-byte code points
+// encodes to exactly this, so it must decode.
+static void test_name_length_at_byte_cap_accepted()
 {
-    // 32 == MAX_ACCOUNT_STR: the longest username AccountMgr will create, so it must decode.
+    std::string const name(128, 'A');
+    ByteBuffer in = make_legacy_body(4, 1, 0x10, 0x00, name.c_str(), name.size());
+    CHECK(decode(in) == MopAuth::DecodeResult::Ok);
+}
+
+// 32 == MAX_ACCOUNT_STR: the longest ASCII username AccountMgr will create.
+static void test_name_length_max_account_chars_accepted()
+{
     ByteBuffer in = make_legacy_body(4, 1, 0x04, 0x00,
                                      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 32);
+    CHECK(decode(in) == MopAuth::DecodeResult::Ok);
+}
+
+// The multi-byte lockout: MAX_ACCOUNT_STR is a CHARACTER limit applied as
+// utf8length(username) > MAX_ACCOUNT_STR (AccountMgr.cpp:101), and utf8length is utf8::distance
+// (Util.cpp:544-547), which counts code points -- so e.g. a 20-character Cyrillic username is 40
+// bytes and is perfectly creatable. A 32-BYTE cap would reject it, exactly as the original 16-byte
+// cap locked out 17..32 character ASCII accounts. Legacy capped nothing at all.
+static void test_name_length_thirty_three_accepted()
+{
+    std::string const name(33, 'A');
+    ByteBuffer in = make_legacy_body(4, 1, 0x04, 0x20, name.c_str(), name.size());
     CHECK(decode(in) == MopAuth::DecodeResult::Ok);
 }
 
@@ -337,7 +360,9 @@ int main(int /*argc*/, char** /*argv*/)
     test_missing_name_bitfield_rejected();
     test_name_length_zero_rejected();
     test_name_length_over_maximum_rejected();
-    test_name_length_at_maximum_accepted();
+    test_name_length_at_byte_cap_accepted();
+    test_name_length_max_account_chars_accepted();
+    test_name_length_thirty_three_accepted();
     test_name_length_seventeen_accepted();
     test_name_truncated_rejected();
     test_wire_field_widths();

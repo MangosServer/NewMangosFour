@@ -53,14 +53,25 @@ namespace MopAuth
     static constexpr size_t LegacyFixedPrefixBytes = 56;
 
     /**
-     * Upper bound on a decoded account name, in bytes.
+     * Upper bound on a decoded account name, in BYTES.
      *
-     * Tied to MAX_ACCOUNT_STR because that is the limit AccountMgr enforces when creating or
-     * renaming an account (AccountMgr.cpp:101, :139), so a shorter cap here would lock existing
-     * accounts out. The legacy inline parser capped nothing at all -- the 11-bit length field
-     * permits 2047 -- so bounding the allocation is a genuine malformed-input concern and is kept.
+     * Sized so that every username AccountMgr can create fits, and nothing narrower. MAX_ACCOUNT_STR
+     * is a CHARACTER limit, not a byte limit: AccountMgr applies it as
+     * utf8length(username) > MAX_ACCOUNT_STR (AccountMgr.cpp:101, :139), and utf8length is
+     * utf8::distance (Util.cpp:544-547), which counts code points. A 32-character Cyrillic username
+     * is 64 bytes and is perfectly creatable, so equating a BYTE cap with MAX_ACCOUNT_STR would
+     * reject it -- the legacy inline parser capped nothing at all, so that would lock such accounts
+     * out exactly as an earlier 16-byte cap locked out 17..32 character ASCII ones. UTF-8 encodes a
+     * code point in at most 4 bytes, hence * 4: at 128 bytes there is no username AccountMgr can
+     * create that this rejects.
+     *
+     * It exists ONLY to bound the allocation, never to validate the name. It buys that bound
+     * cheaply: the 11-bit length field permits 2047, and 128 still rejects that. Nothing else here
+     * depends on it -- length against the bytes actually present is the separate TruncatedName
+     * check, and MopFrameReader's payloadSize is a uint16, so the worst case even with no cap at
+     * all would be 2047 bytes. A tighter cap would therefore buy no safety and only narrow.
      */
-    static constexpr size_t MaxAccountNameBytes = MAX_ACCOUNT_STR;
+    static constexpr size_t MaxAccountNameBytes = MAX_ACCOUNT_STR * 4;
 
     /**
      * @brief Outcome of DecodeAuthSession. Anything other than Ok means 'out' is untouched.
