@@ -55,10 +55,12 @@
 #include <ace/Auto_Ptr.h>
 
 #include <cstdio>
+#include <cstring>
 
 #include "WorldSocket.h"
 #include "Common.h"
 #include "MopWireCodec.h"
+#include "MopAuthSession.h"
 
 #include "Util.h"
 #include "World.h"
@@ -95,6 +97,7 @@ WorldSocket::WorldSocket(void) :
     m_OutBuffer(0),
     m_OutBufferSize(65536),
     m_OutActive(false),
+    m_drainState(MopSock::DrainState::Open),
     m_Seed(0),
     m_connState(MopHs::CONN_GREETING),
     m_frameReader(),
@@ -400,13 +403,89 @@ int WorldSocket::SendAuthChallenge()
     return 0;
 }
 
-void WorldSocket::SendAuthResponseError(uint8 code)
+/**
+ * @brief Queues the auth error response and enters the drain state.
+ *
+ * The sole SMSG_AUTH_RESPONSE construction site on the rejection path: every auth rejection
+ * routes through here, so the response body and the drain bookkeeping cannot drift apart.
+ *
+ * Ordering matters. READ interest is dropped BEFORE the response is queued, so a failure to
+ * quiesce input is reported while nothing has been committed to the wire.
+ *
+ * @param code the AUTH_* result to report.
+ * @return int 0 with the response queued and the drain armed; -1 if nothing was queued.
+ */
+int WorldSocket::BeginAuthErrorDrain(uint8 code)
 {
+    // 1. Idempotent: a second rejection must not re-arm the drain or re-queue a response.
+    if (m_drainState.load() == MopSock::DrainState::Flushing)
+    {
+        return 0;
+    }
+
+    // 2. Drop reactor READ interest only; the socket must stay writable to drain.
+    //
+    // NOTE: cancel_wakeup(), NOT remove_handler(READ_MASK | DONT_CALL). Verified against the
+    // vendored ACE (dep/acelite): remove_handler() -> handler_rep_.unbind(), which sets
+    // complete_removal when the cleared mask leaves the handle with no wait/suspend mask left,
+    // and then calls remove_reference() (Select_Reactor_Base.cpp:395). open() registers
+    // READ|WRITE, but cancel_wakeup_output() clears WRITE as soon as the auth challenge has
+    // flushed, so by the time a rejection runs READ is the ONLY mask: removing it would fully
+    // unbind the handler and drop the reactor's reference, not merely stop reads. The socket
+    // would survive (WorldSocketMgr::OnSocketOpen holds a second reference) but the handler
+    // would be gone from the reactor, so a later schedule_wakeup_output() on a short write
+    // could never be serviced -- m_OutActive would stay true, Update() would early-return 0
+    // forever, and the socket would leak, never draining and never closing.
+    //
+    // cancel_wakeup() -> mask_ops(CLR_MASK) clears the read bit without unbinding, without
+    // touching the reference count, and without invoking handle_close() (which would set
+    // closing_ and defeat the drain outright, making DONT_CALL moot here). This is the same
+    // idiom cancel_wakeup_output() uses for WRITE_MASK a few lines below.
+    //
+    // What actually stops the reads is a SUSPEND-set operation, not a wait-set one, and that
+    // depends on running inside the suspended dispatch window: ACE_TP_Reactor::dispatch_socket_event
+    // calls suspend_i() BEFORE dispatching us (TP_Reactor.cpp:395-397), and suspend_i() moves READ
+    // out of wait_set_ into suspend_set_ and clears the dispatch mask, dropping a read event
+    // already selected for this dispatch (Select_Reactor_T.cpp:949-975). mask_ops() is
+    // suspend-aware -- "if (is_suspended_i(handle)) bit_ops(..., suspend_set_, ops)"
+    // (Select_Reactor_T.cpp:851-866) -- so our CLR_MASK clears READ from suspend_set_. Afterwards
+    // post_process_socket_event() calls resume_i() (TP_Reactor.cpp:596), and resume_i() restores
+    // to wait_set_ only bits STILL present in suspend_set_ (Select_Reactor_T.cpp:929-933). READ is
+    // gone by then, so it is never restored and no further read event is raised.
+    //
+    // Therefore this must stay INSIDE the suspended dispatch window (i.e. on the handler's own
+    // upcall path, as HandleAuthSession is). Arming the drain from outside it would route the
+    // CLR_MASK to wait_set_ instead, where a subsequent resume_i() has nothing to do with it --
+    // the reasoning above simply would not apply and reads would continue.
+    if (reactor()->cancel_wakeup(this, ACE_Event_Handler::READ_MASK) == -1)
+    {
+        sLog.outError("WorldSocket::BeginAuthErrorDrain: could not cancel read interest for %s; closing.",
+                      GetRemoteAddress().c_str());
+        return -1;                                            // nothing queued yet
+    }
+
+    // 3. Construct the legacy error response (unchanged wire shape).
     WorldPacket packet(SMSG_AUTH_RESPONSE, 1);
     packet.WriteBit(0); // has account info
     packet.WriteBit(0); // has queue info
     packet << uint8(code);
-    SendPacket(packet);
+
+    // 4. Queue it. If it never reached the buffer there is nothing to drain, so close now.
+    bool sent = false;
+    if (SendPacket(packet, &sent) == -1)
+    {
+        return -1;
+    }
+    if (!sent)
+    {
+        // Eluna's OnPacketSend vetoed the response; draining for it would hang the socket open.
+        DEBUG_LOG("WorldSocket::BeginAuthErrorDrain: auth error response suppressed; closing.");
+        return -1;
+    }
+
+    // 5. Arm the drain only once the bytes are genuinely pending.
+    m_drainState.store(MopSock::DrainState::Flushing);
+    return 0;
 }
 
 /**
@@ -627,6 +706,38 @@ int WorldSocket::Update(void)
         return -1;
     }
 
+    // The auth error response has now been written: close for real.
+    // This MUST sit above the drained early-return below, and NOT in handle_output(): once the
+    // buffers are empty Update() returns 0 without ever calling handle_output(), and the full
+    // drain already called cancel_wakeup_output(), so the reactor raises no further write event
+    // either. A check inside handle_output() would never run and the socket would leak.
+    // Returning -1 makes WorldSocketMgr::svc() do the orderly CloseSocket()/RemoveReference().
+    //
+    // KNOWN, ACCEPTED RISK: length()/is_empty() are read WITHOUT m_OutBufferLock, matching the
+    // pre-existing convention below -- but the consequence is NOT the same and this is not a plain
+    // convention match. A spurious length()==0 below merely returns 0 and is retried in ~10ms; here
+    // it returns -1 -> CloseSocket() and DISCARDS the auth response, i.e. reintroduces the exact bug
+    // this drain exists to prevent. Accepted because it requires a torn read of ACE_Message_Block's
+    // pointers mid-reset/crunch, which is very unlikely. Do NOT "fix" this by taking the lock:
+    // handle_output() acquires m_OutBufferLock and Update() calls handle_output() a few lines below,
+    // so holding it here is the documented self-deadlock.
+    //
+    // The state is tested FIRST, before ShouldCloseNow, so m_OutBuffer is not dereferenced unless a
+    // drain is actually armed. ShouldCloseNow takes size_t by value, so an unguarded call would
+    // evaluate m_OutBuffer->length() unconditionally -- above the m_OutActive short-circuit below
+    // that otherwise covers it. open() sets m_OutActive = true at :312 specifically to keep Update()
+    // out while initialising, but m_OutBuffer stays NULL from :312 until :321, a window spanning
+    // OnSocketOpen() at :315 which inserts this socket into the set svc() sweeps. Not reachable
+    // today (sockets_ is ACE_TSS, so only the opening thread sweeps it, and that thread is inside
+    // run_reactor_event_loop() for all of open()) -- but this keeps the safety local and obvious
+    // instead of resting on an invariant stated nowhere near here. Drain state is only ever armed
+    // long after open() completes, so the added test costs nothing.
+    if (m_drainState.load() == MopSock::DrainState::Flushing &&
+        MopSock::ShouldCloseNow(m_drainState.load(), m_OutBuffer->length(), msg_queue()->is_empty()))
+    {
+        return -1;
+    }
+
     if (m_OutActive || (m_OutBuffer->length() == 0 && msg_queue()->is_empty()))
     {
         return 0;
@@ -665,6 +776,16 @@ int WorldSocket::handle_input_missing_data(void)
     MopFrameReader::Frame frame;
     for (;;)
     {
+        // Structural guard: never dispatch a frame while an auth error is draining, INCLUDING the
+        // first frame of a re-entered call. The post-ProcessIncoming check below only suppresses
+        // the next iteration of this loop, so on its own it would let any re-entry dispatch one
+        // frame from a rejected peer. Unreachable today (legs 1 and 3 stop re-entry happening at
+        // all), so this makes the property structural rather than contingent on those two legs.
+        if (!MopSock::MayProcessInput(m_drainState.load()))
+        {
+            break;
+        }
+
         // Header width is state-driven, derived fresh every frame (no stored codec flag):
         //   crypt live            -> 4-byte packed
         //   still awaiting greet  -> 4-byte {size, cmd16}; the client's MSG_WOW_CONNECTION reply is
@@ -712,15 +833,31 @@ int WorldSocket::handle_input_missing_data(void)
             pct->append(frame.payload.data(), frame.payload.size());
         }
 
-        if (ProcessIncoming(pct) == -1)
+        const int processed = ProcessIncoming(pct);
+        if (processed == -1)
         {
             errno = EINVAL;
             return -1;
         }
+
+        // An auth rejection is now draining. Stop dispatching immediately: MopFrameReader may
+        // already have coalesced a further frame into the buffer, and a peer we have decided to
+        // reject must not have it acted upon. Removing reactor READ interest stops FUTURE
+        // callbacks; only this break stops the frame that is already buffered -- both are needed.
+        // Nothing is discarded here: the buffered frames die with the socket once output drains.
+        if (!MopSock::MayProcessInput(m_drainState.load()))
+        {
+            break;
+        }
         // Phase 3: after crypt Init in the auth path, the NEXT TryFrame sees IsInitialized()==true (no manual flag).
     }
 
-    return (size_t(n) == sizeof(buf)) ? 1 : 2;   // preserve ACE contract: full read -> 1, partial -> 2
+    // Third leg of the quiesce, and NOT redundant with the break above or the READ-interest
+    // removal: while Flushing this reports a partial read so ACE_TP_Reactor cannot re-invoke
+    // handle_input() directly off a positive status. The rule itself lives in MopSocketDrain.h
+    // (see MopSock::InputStatus) where it is unit-tested; do not re-open-code it here.
+    // Otherwise the plain ACE contract applies: full read -> 1, partial -> 2.
+    return MopSock::InputStatus(m_drainState.load(), size_t(n) == sizeof(buf));
 }
 
 /// MopFrameReader::DecryptFn hook (Phase 2 wire framing): in-place ARC4 on the header only.
@@ -962,55 +1099,45 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // NOTE: ATM the socket is singlethread, have this in mind ...
     uint8 digest[20];
     uint32 clientSeed, id, security;
-    uint32 m_addonSize;
     uint16 BuiltNumberClient;
     uint8 expansion = 0;
     LocaleConstant locale;
     std::string account;
     Sha1Hash sha1;
     BigNumber v, s, g, N, K;
-    std::string os;
-    WorldPacket packet;
-    bool wardenActive = (sWorld.getConfig(CONFIG_BOOL_WARDEN_WIN_ENABLED) || sWorld.getConfig(CONFIG_BOOL_WARDEN_OSX_ENABLED));
 
-    // Read the content of the packet
-    recvPacket.read_skip<uint32>();
-    recvPacket.read_skip<uint32>();
-    recvPacket >> digest[18];
-    recvPacket >> digest[14];
-    recvPacket >> digest[3];
-    recvPacket >> digest[4];
-    recvPacket >> digest[0];
-    recvPacket.read_skip<uint32>();
-    recvPacket >> digest[11];
-    recvPacket >> clientSeed;
-    recvPacket >> digest[19];
-    recvPacket.read_skip<uint8>();
-    recvPacket.read_skip<uint8>();
-    recvPacket >> digest[2];
-    recvPacket >> digest[9];
-    recvPacket >> digest[12];
-    recvPacket.read_skip<uint64>();
-    recvPacket.read_skip<uint32>();
-    recvPacket >> digest[16];
-    recvPacket >> digest[5];
-    recvPacket >> digest[6];
-    recvPacket >> digest[8];
-    recvPacket >> BuiltNumberClient;
-    recvPacket >> digest[17];
-    recvPacket >> digest[7];
-    recvPacket >> digest[13];
-    recvPacket >> digest[15];
-    recvPacket >> digest[1];
-    recvPacket >> digest[10];
+    // Read the content of the packet.
+    // The read order, the scattered digest[] indices and the missing leading ReadBit() before
+    // ReadBits(11) all now live in MopAuth::DecodeAuthSession, which reproduces them bug-for-bug
+    // while bounding every read. See MopAuthSession.h.
+    // NOTE: named authFields, not fields: a 'Field* fields' DB row local already exists below.
+    MopAuth::AuthSessionFields authFields{};
+    MopAuth::DecodeResult const decodeResult = MopAuth::DecodeAuthSession(recvPacket, authFields);
+    if (decodeResult != MopAuth::DecodeResult::Ok)
+    {
+        // DEBUG_LOG, not sLog.outError: this fires on every malformed body on an UNAUTHENTICATED
+        // path, so at error level an attacker spraying junk auth bodies would drive unbounded
+        // error-level log writes (disk/IO amplification). Deliberately NOT rate-limited via
+        // m_lastDecodeLog like the sibling decode paths: a rejection now drains and closes the
+        // socket, so this path logs at most ONCE per connection and a PER-SOCKET limiter cannot
+        // bound it -- volume tracks connection rate, which the limiter never sees. Demoting is
+        // what actually removes the amplification at default log levels.
+        // Payload-free: the decode result enum only, never the body.
+        DEBUG_LOG("WorldSocket::HandleAuthSession: malformed auth session body (result %u).",
+                  static_cast<uint32>(decodeResult));
+        return BeginAuthErrorDrain(AUTH_FAILED);
+    }
 
-    recvPacket >> m_addonSize;                            // addon data size
+    std::memcpy(digest, authFields.digest, sizeof(digest));
+    clientSeed = authFields.clientSeed;
+    BuiltNumberClient = authFields.builtNumberClient;
+    account = authFields.account;
 
     ByteBuffer addonsData;
-    addonsData.resize(m_addonSize);
-    recvPacket.read((uint8*)addonsData.contents(), m_addonSize);
-
-    account = recvPacket.ReadString(recvPacket.ReadBits(11));
+    if (!authFields.addonData.empty())
+    {
+        addonsData.append(authFields.addonData.data(), authFields.addonData.size());
+    }
 
     DEBUG_LOG("WorldSocket::HandleAuthSession: client build %u, account %s, clientseed %X",
               BuiltNumberClient,
@@ -1020,10 +1147,10 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // Check the version of client trying to connect
     if (!IsAcceptableClientBuild(BuiltNumberClient))
     {
-        SendAuthResponseError(AUTH_VERSION_MISMATCH);
-
-        sLog.outError("WorldSocket::HandleAuthSession: Sent Auth Response (version mismatch).");
-        return -1;
+        // Claims only the decision, not the delivery: BeginAuthErrorDrain can return -1 having sent
+        // nothing, and it reports the actual send outcome itself. Keep payload-free.
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (version mismatch).");
+        return BeginAuthErrorDrain(AUTH_VERSION_MISMATCH);
     }
 
     // Get the account information from the realmd database
@@ -1042,8 +1169,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
                              "`s`, "                       // 6
                              "`expansion`, "               // 7
                              "`mutetime`, "                // 8
-                             "`locale`, "                  // 9
-                             "`os` "                       // 10
+                             "`locale` "                   // 9
                              "FROM `account` "
                              "WHERE `username` = '%s'",
                              safe_account.c_str());
@@ -1051,10 +1177,8 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // Stop if the account is not found
     if (!result)
     {
-        SendAuthResponseError(AUTH_UNKNOWN_ACCOUNT);
-
-        sLog.outError("WorldSocket::HandleAuthSession: Sent Auth Response (unknown account).");
-        return -1;
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (unknown account).");
+        return BeginAuthErrorDrain(AUTH_UNKNOWN_ACCOUNT);
     }
 
     Field* fields = result->Fetch();
@@ -1083,11 +1207,9 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     {
         if (strcmp(fields[3].GetString(), GetRemoteAddress().c_str()))
         {
-            SendAuthResponseError(AUTH_FAILED);
-
-            delete result;
-            BASIC_LOG("WorldSocket::HandleAuthSession: Sent Auth Response (Account IP differs).");
-            return -1;
+            delete result;                                    // 'fields' dies with it; not used below
+            BASIC_LOG("WorldSocket::HandleAuthSession: rejecting auth session (account IP differs).");
+            return BeginAuthErrorDrain(AUTH_FAILED);
         }
     }
 
@@ -1108,8 +1230,6 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
         locale = LOCALE_enUS;
     }
 
-    os = fields[10].GetString();
-
     delete result;
 
     // Re-check account ban (same check as in realmd)
@@ -1121,12 +1241,10 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     if (banresult) // if account banned
     {
-        SendAuthResponseError(AUTH_BANNED);
-
         delete banresult;
 
-        sLog.outError("WorldSocket::HandleAuthSession: Sent Auth Response (Account banned).");
-        return -1;
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (account banned).");
+        return BeginAuthErrorDrain(AUTH_BANNED);
     }
 
     // Check locked state for server
@@ -1134,23 +1252,27 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     if (allowedAccountType > SEC_PLAYER && AccountTypes(security) < allowedAccountType)
     {
-        SendAuthResponseError(AUTH_UNAVAILABLE);
-
         BASIC_LOG("WorldSocket::HandleAuthSession: User tries to login but his security level is not enough");
-        return -1;
+        return BeginAuthErrorDrain(AUTH_UNAVAILABLE);
     }
 
-    // Warden: Must be done before WorldSession is created
-    if (wardenActive && os != "Win" && os != "OSX")
-    {
-        WorldPacket Packet(SMSG_AUTH_RESPONSE, 1);
-        Packet << uint8(AUTH_REJECT);
-
-        SendPacket(packet);
-
-        BASIC_LOG("WorldSocket::HandleAuthSession: Client %s attempted to log in using invalid client OS (%s).", GetRemoteAddress().c_str(), os.c_str());
-        return -1;
-    }
+    // Phase 3 defers Warden structurally. Everything needed to re-enable it correctly is stated
+    // here; do not re-add the code without addressing all four points:
+    //
+    // 1. K CONSUMER. Warden is the fourth consumer of the session key K (after the digest check,
+    //    m_Crypt.Init and the DB). Any migration to a canonical raw-40 K must account for it.
+    //    WorldSession::InitWarden still takes BigNumber* k and currently has ZERO callers, so the
+    //    compiler will NOT flag it when the key representation changes. This comment is the only
+    //    barrier -- treat it as a live TODO, not history.
+    // 2. SHORT-K BUG. WardenWin.cpp / WardenMac.cpp reseed from k->AsByteArray(), k->GetNumBytes().
+    //    BigNumber drops leading zero bytes, so whenever K's most-significant byte is zero (~1/256
+    //    of logins) that yields 39 bytes, not 40, and Warden desyncs. A raw-40 K fixes this by
+    //    construction; a BigNumber-shaped K does not.
+    // 3. NO KEY LOGGING. Warden logged its derived encryption keys. That logging was removed in
+    //    Stage 1 and must not be reintroduced.
+    // 4. ORDERING. InitWarden previously ran BEFORE AddSession, which made SMSG_WARDEN_DATA the
+    //    first encrypted server packet -- ahead of SMSG_AUTH_RESPONSE. Re-enabling must decide
+    //    that ordering deliberately rather than inherit it.
 
     // Check that Key and account name are the same on client and server
     Sha1Hash sha;
@@ -1167,10 +1289,8 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     if (memcmp(sha.GetDigest(), digest, 20))
     {
-        SendAuthResponseError(AUTH_FAILED);
-
-        sLog.outError("WorldSocket::HandleAuthSession: Sent Auth Response (authentification failed).");
-        return -1;
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (authentication failed).");
+        return BeginAuthErrorDrain(AUTH_FAILED);
     }
 
     std::string address = GetRemoteAddress();
@@ -1187,23 +1307,54 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     stmt.PExecute(address.c_str(), account.c_str());
 
     // NOTE ATM the socket is single-threaded, have this in mind ...
+    // Allocation stays ahead of its own load calls below; ACE_NEW_RETURN is an explicit early
+    // return, so it must remain pre-commit.
     ACE_NEW_RETURN(m_Session, WorldSession(id, this, AccountTypes(security), expansion, mutetime, locale), -1);
 
-    m_Crypt.Init(&K);
-
+    // Every fallible step -- DB loads, addon inflate -- runs BEFORE the commit region. Their
+    // internal semantics are unchanged from the pre-Task-4 code; only their position moved above
+    // m_Crypt.Init. This is what makes the region atomic BY ORDERING: once the commit region is
+    // entered nothing below it can fail, so no failure path can observe an initialised crypt on an
+    // unauthenticated session. AuthCrypt has no rollback and deliberately does not gain one --
+    // rollback would exist only to paper over the ordering defect this reorder removes.
     m_Session->LoadGlobalAccountData();
     m_Session->LoadTutorialsData();
     m_Session->ReadAddonsInfo(addonsData);
 
     // In case needed sometime the second arg is in microseconds 1 000 000 = 1 sec
+    // Legacy delay, semantics unchanged; hoisted above the commit region because a delay may not
+    // appear between the three commit statements.
     ACE_OS::sleep(ACE_Time_Value(0, 10000));
 
-    // Warden: Initialize Warden system only if it is enabled by config
-    if (wardenActive)
-    {
-        m_Session->InitWarden(uint16(BuiltNumberClient), &K, os);
-    }
-
+    // ================ COMMIT REGION -- no program failure path exists below ================
+    // Exactly three statements, in this order, with nothing between them: no log, no packet send,
+    // no validation, no branch, no delay, no allocation, no early return. Publication ends the
+    // region. The claim is precise: no early return, no explicit failure and no fallible call
+    // appears below the commit point -- NOT that no exception can be thrown here.
+    //
+    // A throw IS possible: m_Crypt.Init(&K) -> HMACSHA1::ComputeHash -> BigNumber::AsByteArray
+    // does new uint8[length] and can throw std::bad_alloc inside this region's FIRST statement.
+    // The invariant survives it for two reasons, both of which live in AuthCrypt::Init:
+    //   (a) _initialized = true is the LAST statement of AuthCrypt::Init (AuthCrypt.cpp:71), and
+    //       DecryptRecv/EncryptSend early-return on !_initialized -- so a mid-Init throw leaves
+    //       the crypt inert, not half-keyed.
+    //   (b) both throw sites precede _clientDecrypt.Init/_serverEncrypt.Init (AuthCrypt.cpp:55-56),
+    //       so a throw also leaves the ARC4 contexts un-keyed.
+    // A bad_alloc therefore unwinds past an unauthenticated, non-crypting session -- the same
+    // outcome as an ordinary early return.
+    //
+    // WARNING TO STAGE 2: that guarantee is SILENT and structural. Stage 2 reworks AuthCrypt::Init
+    // for the raw-40 K migration; this region's correctness depends on _initialized = true staying
+    // the last statement of Init. It must not be hoisted above the ARC4 setup, and no early return
+    // may be added on a partial-init path -- either change turns a throw here into a half-keyed
+    // crypt on an unauthenticated session, silently. NO TEST COVERS THIS.
+    //
+    // LIMITATION (Stage 1 scope): AuthCrypt::Init is void and does NOT report OpenSSL failure, so
+    // this proves SOURCE ORDERING only -- it cannot prove initialisation SUCCEEDED. Stage 2 owns
+    // making init success observable during its atomic raw-40 K migration, before activation.
+    // Do not read this region as a proof of cryptographic atomicity.
+    m_Crypt.Init(&K);
+    m_connState = MopHs::CONN_AUTHED;
     sWorld.AddSession(m_Session);
 
     return 0;

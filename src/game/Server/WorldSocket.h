@@ -51,6 +51,9 @@
 #include "Auth/BigNumber.h"
 #include "MopHandshake.h"
 #include "MopFrameReader.h"
+#include "MopSocketDrain.h"
+
+#include <atomic>
 
 class ACE_Message_Block;
 class WorldPacket;
@@ -188,7 +191,19 @@ class WorldSocket : protected WorldHandler
         static bool CmdValidHook(void*, uint32, bool);
 
     private:
-        void SendAuthResponseError(uint8);
+        /// Queue the legacy auth error response and enter the drain state.
+        ///
+        /// Replaces the former SendAuthResponseError(): that helper only appended to
+        /// m_OutBuffer, so every caller's follow-up `return -1` closed the socket before the
+        /// bytes were ever written and the peer saw a bare TCP close. This instead removes
+        /// reactor READ interest, queues the response, and leaves the socket open until
+        /// Update() observes the output fully drained.
+        ///
+        /// @param code the AUTH_* result to report
+        /// @return 0 once the response is queued (caller must return this, not -1);
+        ///         -1 if nothing was queued and the socket should close immediately
+        int BeginAuthErrorDrain(uint8 code);
+
         /// Time in which the last ping was received
         ACE_Time_Value m_LastPingTime;
 
@@ -218,6 +233,11 @@ class WorldSocket : protected WorldHandler
 
         /// True if the socket is registered with the reactor for output
         bool m_OutActive;
+
+        /// Auth-error drain state; see MopSocketDrain.h.
+        /// Atomic because reactor input dispatch (which sets it) and WorldSocketMgr::Update()
+        /// (which reads it) can run on different threads once Network.Threads > 1.
+        std::atomic<MopSock::DrainState> m_drainState;
 
         uint32 m_Seed;
 
