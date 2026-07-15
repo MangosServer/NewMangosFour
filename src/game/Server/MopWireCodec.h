@@ -33,6 +33,23 @@ namespace MopWire
     inline void WriteServerPostCryptHeader(uint8_t out[4], uint32_t size, uint16_t cmd)
     { uint32_t v=(size<<13)|(uint32_t(cmd)&0x1FFF); out[0]=uint8_t(v); out[1]=uint8_t(v>>8); out[2]=uint8_t(v>>16); out[3]=uint8_t(v>>24); }
     /// Validate wide (size_t/uint32) THEN narrow. false => reject (do not send).
+    ///
+    /// PRE-CRYPT writes {uint16 size LE; uint16 cmd LE}, size = payload + 2, UNENCRYPTED.
+    /// The size field is LITTLE-endian. Confirmed by the live 5.4.8.18414 gate: the client decoded
+    /// our `29 00 49 09` (size 0x0029 = 41 = 39 + 2, cmd 0x0949 SMSG_AUTH_CHALLENGE) and replied
+    /// with CMSG_AUTH_SESSION. The client's OWN greeting reply uses the same LE shape (`30 00` = 48
+    /// for a 50-byte frame; big-endian that would be 12288, absurd). DO NOT byte-swap this to match
+    /// the deleted Cata-era ServerPktHeader -- that baseline wrote the size big-endian and is the
+    /// direct cause of the "Connected." stall this replaced; no MoP client ever framed against it.
+    ///
+    /// SEQUENCING CONSTRAINT -- PHASE 1b MUST LAND BEFORE PHASE 3 INITIALIZES CRYPT.
+    /// The post-crypt header packs (size << 13) | (cmd & 0x1FFF), so the opcode field is physically
+    /// 13 bits: a cmd > 0x1FFF CANNOT be represented and is rejected here (SendPacket logs
+    /// "frame out of range" and returns -1 -- never silent). 536 values in Opcodes.h still exceed
+    /// 0x1FFF (279 of them SMSG, e.g. SMSG_MESSAGECHAT = 0x2026) because they retain their 4.3.4
+    /// values. This is UNREACHABLE for all of Phase 2 (crypt is never initialized, so postCrypt is
+    /// always false), but once Phase 3 calls m_Crypt.Init() those sends begin failing unless the
+    /// Phase 1b opcode-table migration has already remapped them into the 13-bit space.
     inline bool BuildServerHeader(bool postCrypt, size_t payloadSize, uint32_t cmd, uint8_t out[4])
     {
         if (postCrypt)
@@ -61,6 +78,19 @@ namespace MopWire
         if (size<2 || size>10240) { return false; }
         payloadSize=uint16_t(size-2); return true;
     }
+    /// 6-byte auth-era header {uint16 size LE; uint32 cmd LE}, size = payload + 4. Used for
+    /// CMSG_AUTH_SESSION onward; the greeting uses ReadClientGreetingHeader's 4-byte form instead.
+    ///
+    /// The size field is LITTLE-endian, and the arithmetic is decisive. The live 5.4.8.18414 gate
+    /// captured the client emitting `b7 01 b2 00 00 00` for a 441-byte frame:
+    ///     LE: size = 0x01B7 = 439 = 435 + 4, and the 435-byte body parsed cleanly.  <- correct
+    ///     BE: size = 0xB701 = 46849, which trips the `size > 10240` reject below and would kill
+    ///         the connection before authentication could start.
+    /// Those bytes are the CLIENT's own encoding, not our interpretation of them.
+    ///
+    /// DO NOT "restore" a byte-swap here. The deleted Cata-era parser applied
+    /// EndianConvertReverse(header.size); that path is precisely what never got a MoP client past
+    /// "Connected.", so it cannot serve as evidence of the correct byte order.
     inline bool ReadClientPreCryptHeader(const uint8_t in[6], uint16_t& payloadSize, uint32_t& cmd)
     {
         uint32_t size=uint32_t(in[0])|(uint32_t(in[1])<<8);
