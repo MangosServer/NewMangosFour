@@ -341,21 +341,6 @@ int WorldSocket::open(void* a)
         return -1;
     }
 
-    // Send startup packet.
-    WorldPacket packet (SMSG_AUTH_CHALLENGE, 37);
-    for (uint32 i = 0; i < 8; i++)
-    {
-        packet << uint32(0);
-    }
-
-    packet << m_Seed;
-    packet << uint8(1);
-
-    if (SendPacket(packet) == -1)
-    {
-        return -1;
-    }
-
     // Register with ACE Reactor
     if (reactor()->register_handler(this, ACE_Event_Handler::READ_MASK | ACE_Event_Handler::WRITE_MASK) == -1)
     {
