@@ -615,6 +615,12 @@ void Player::BuildPetTalentsInfoData(WorldPacket* data)
 
 void Player::SendTalentsInfoData(bool pet)
 {
+    // Only the session's active in-world player should push client state (see Player::SendProficiency):
+    // a char-create temp Player must not emit this SMSG at the character screen on its pre-MoP value.
+    if (GetSession()->GetPlayer() != this)
+    {
+        return;
+    }
     WorldPacket data(SMSG_TALENT_UPDATE, 50);
     data << uint8(pet ? 1 : 0);
     if (pet)

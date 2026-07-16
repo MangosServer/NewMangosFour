@@ -110,6 +110,12 @@ void Player::SendAttackSwingCantAttack()
  */
 void Player::SendAttackSwingCancelAttack()
 {
+    // Only the session's active in-world player should push client state (see Player::SendProficiency):
+    // a char-create temp Player must not emit this SMSG at the character screen on its pre-MoP value.
+    if (GetSession()->GetPlayer() != this)
+    {
+        return;
+    }
     WorldPacket data(SMSG_CANCEL_COMBAT, 0);
     GetSession()->SendPacket(&data);
 }

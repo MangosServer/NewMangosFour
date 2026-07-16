@@ -88,8 +88,8 @@ namespace
 
             p >> u;                                   // op1  +132
             rdGuid(cm, cg, 1);                        // op2
-            p >> e.race;                              // op3
-            p >> e.hairColor;                         // op4
+            p >> e.slot;                              // op3  +57
+            p >> e.hairStyle;                         // op4  +63
             rdGuid(gm, gg, 2);                        // op5
             rdGuid(gm, gg, 0);                        // op6
             rdGuid(gm, gg, 6);                        // op7
@@ -98,8 +98,8 @@ namespace
             rdGuid(gm, gg, 3);                        // op9
             p >> e.posX;                              // op10
             p >> e.petFamily;                         // op11
-            p >> e.hairStyle;                         // op12
-            p >> e.gender;                            // op13
+            p >> e.face;                              // op12 +62
+            p >> e.class_;                            // op13 +59
             rdGuid(gm, gg, 5);                        // op14
             for (int s = 0; s < 23; ++s)              // op15
             {
@@ -113,15 +113,15 @@ namespace
             p >> u;                                   // op19 +120
             rdGuid(gm, gg, 4);                        // op20
             p >> e.zone;                              // op21
-            p >> e.class_;                            // op22
-            p >> e.face;                              // op23
+            p >> e.race;                              // op22 +58
+            p >> e.skin;                              // op23 +61
             rdGuid(gm, gg, 1);                        // op24
-            p >> e.slot;                              // op25
+            p >> e.level;                             // op25 +66
             rdGuid(cm, cg, 0);                        // op26
             rdGuid(cm, cg, 2);                        // op27
-            p >> e.facialHair;                        // op28
-            p >> e.skin;                              // op29
-            p >> e.level;                             // op30
+            p >> e.hairColor;                         // op28 +64
+            p >> e.gender;                            // op29 +60
+            p >> e.facialHair;                        // op30 +65
             p >> e.customizeFlags;                    // op31
             rdGuid(cm, cg, 4);                        // op32
             rdGuid(cm, cg, 7);                        // op33

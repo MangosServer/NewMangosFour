@@ -4234,6 +4234,13 @@ void Player::SendExplorationExperience(uint32 Area, uint32 Experience)
 // send Proficiency
 void Player::SendProficiency(ItemClass itemClass, uint32 itemSubclassMask)
 {
+    // Only the session's active in-world player should push client state. Character creation builds
+    // a throwaway Player to write the DB row; its init would otherwise emit this SMSG at the
+    // character screen -- still on a pre-MoP opcode value -- so suppress it for a non-bound player.
+    if (GetSession()->GetPlayer() != this)
+    {
+        return;
+    }
     WorldPacket data(SMSG_SET_PROFICIENCY, 4 + 1);
     data << uint32(itemSubclassMask) << uint8(itemClass) ;
     GetSession()->SendPacket(&data);

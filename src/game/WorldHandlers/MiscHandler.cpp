@@ -928,32 +928,43 @@ void WorldSession::HandleUpdateAccountData(WorldPacket& recv_data)
 {
     DETAIL_LOG("WORLD: Received opcode CMSG_UPDATE_ACCOUNT_DATA");
 
-    uint32 type, timestamp, decompressedSize;
-    recv_data >> type >> timestamp >> decompressedSize;
-
-    DEBUG_LOG("UAD: type %u, time %u, decompressedSize %u", type, timestamp, decompressedSize);
-
-    if (type > NUM_ACCOUNT_DATA_TYPES)
+    // MoP 5.4.8.18414 layout, captured from the live client (FACTS_mop548_account_data):
+    //   u32 decompressedSize, u32 timestamp, u32 compressedSize, then <compressedSize> zlib bytes,
+    //   then the account-data type in the low 3 bits of the FINAL byte. The pre-MoP handler read the
+    //   type FIRST as a full u32 (wrong order), and the opcode carried a stale value and was never
+    //   registered -- so the client's upload only showed up as "not handled opcode UNKNOWN (0x0068)".
+    if (recv_data.size() < 13)                              // 3x u32 header + at least the trailing type byte
     {
         return;
     }
 
-    if (decompressedSize == 0)                              // erase
+    uint32 decompressedSize, timestamp, compressedSize;
+    recv_data >> decompressedSize >> timestamp >> compressedSize;
+
+    // The account-data type is bit-packed into the low 3 bits of the FINAL byte, and the zlib body is
+    // consumed by pointer -- so the byte cursor never advances to the end on its own. Capture the blob
+    // pointer + remaining length, read the type from the tail byte, then consume the whole packet up
+    // front so the dispatcher does not flag spurious "unprocessed tail data".
+    uint8 const* compressed = recv_data.contents() + recv_data.rpos();
+    uint32 available = uint32(recv_data.size() - recv_data.rpos());
+    uint8 type = recv_data.contents()[recv_data.size() - 1] & 0x07;   // 3-bit account-data slot, at the tail
+    recv_data.rpos(recv_data.size());
+
+    if (type >= NUM_ACCOUNT_DATA_TYPES)
+    {
+        return;
+    }
+
+    if (decompressedSize == 0)                              // client cleared this slot
     {
         SetAccountData(AccountDataType(type), 0, "");
-
-        WorldPacket data(SMSG_UPDATE_ACCOUNT_DATA_COMPLETE, 4 + 4);
-        data << uint32(type);
-        data << uint32(0);
-        SendPacket(&data);
-
+        DETAIL_LOG("Account data updated by client: type %u cleared", type);
         return;
     }
 
-    if (decompressedSize > 0xFFFF)
+    if (decompressedSize > 0xFFFF || compressedSize > available)
     {
-        recv_data.rpos(recv_data.wpos());                   // unnneded warning spam in this case
-        sLog.outError("UAD: Account data packet too big, size %u", decompressedSize);
+        sLog.outError("UAD: bad account-data sizes (decompressed %u, compressed %u)", decompressedSize, compressedSize);
         return;
     }
 
@@ -961,24 +972,21 @@ void WorldSession::HandleUpdateAccountData(WorldPacket& recv_data)
     dest.resize(decompressedSize);
 
     uLongf realSize = decompressedSize;
-    if (uncompress(const_cast<uint8*>(dest.contents()), &realSize, const_cast<uint8*>(recv_data.contents() + recv_data.rpos()), recv_data.size() - recv_data.rpos()) != Z_OK)
+    if (uncompress(const_cast<uint8*>(dest.contents()), &realSize,
+                   const_cast<uint8*>(compressed), compressedSize) != Z_OK)
     {
-        recv_data.rpos(recv_data.wpos());                   // unneded warning spam in this case
-        sLog.outError("UAD: Failed to decompress account data");
+        sLog.outError("UAD: failed to decompress account data (type %u)", type);
         return;
     }
 
-    recv_data.rpos(recv_data.wpos());                       // uncompress read (recv_data.size() - recv_data.rpos())
-
-    std::string adata;
-    dest >> adata;
-
+    std::string adata(reinterpret_cast<char const*>(dest.contents()), decompressedSize);
     SetAccountData(AccountDataType(type), timestamp, adata);
 
-    WorldPacket data(SMSG_UPDATE_ACCOUNT_DATA_COMPLETE, 4 + 4);
-    data << uint32(type);
-    data << uint32(0);
-    SendPacket(&data);
+    DETAIL_LOG("Account data updated by client: type %u, %u bytes (ts %u)", type, decompressedSize, timestamp);
+
+    // The SMSG_UPDATE_ACCOUNT_DATA_COMPLETE ack still carries a stale (>0x1FFF, un-framable) value and
+    // the client does not block on it, so it is intentionally not sent yet (Phase 1b opcode remap
+    // restores it with the correct 5.4.8 value).
 }
 
 /**

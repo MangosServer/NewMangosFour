@@ -225,6 +225,18 @@ void WorldSession::HandleCharEnumOpcode(WorldPacket & /*recv_data*/)
     DEBUG_LOG("WorldSession::HandleCharEnumOpcode: CMSG_CHAR_ENUM dispatched for account %u.",
               GetAccountId());
 
+    SendCharacterEnum();
+}
+
+/**
+ * @brief Queries the account's characters and sends the SMSG_CHAR_ENUM response.
+ *
+ * Factored out of HandleCharEnumOpcode so the server can (re)send the character list without a
+ * client request. The 5.4.8 client does not refresh the list on its own after a character delete;
+ * it renders whatever enumeration the server pushes, so HandleCharDeleteOpcode calls this directly.
+ */
+void WorldSession::SendCharacterEnum()
+{
     /// get all the data necessary for loading all characters (along with their pets) on the account
     CharacterDatabase.AsyncPQuery(&chrHandler, &CharacterHandler::HandleCharEnumCallback, GetAccountId(),
                                   !sWorld.getConfig(CONFIG_BOOL_DECLINED_NAMES_USED) ?
@@ -641,8 +653,13 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleCharDeleteOpcode(WorldPacket& recv_data)
 {
+    // MoP 5.4.8 sends the character GUID bit-packed (mask bits, then XOR'd present bytes),
+    // NOT a flat uint64. Reading it as a plain ObjectGuid yields the wrong GUID, the DB
+    // lookup misses, and the delete silently no-ops. Mask/byte order verified against
+    // SkyFire 5.4.8.18414 ReadCharacterDeleteRequest.
     ObjectGuid guid;
-    recv_data >> guid;
+    recv_data.ReadGuidMask<1, 3, 2, 7, 4, 6, 0, 5>(guid);
+    recv_data.ReadGuidBytes<7, 1, 6, 0, 3, 4, 2, 5>(guid);
 
     // can't delete loaded character
     if (sObjectMgr.GetPlayer(guid))
@@ -713,6 +730,13 @@ void WorldSession::HandleCharDeleteOpcode(WorldPacket& recv_data)
     WorldPacket data(SMSG_CHAR_DELETE, 1);
     data << (uint8)CHAR_DELETE_SUCCESS;
     SendPacket(&data);
+
+    // On a successful delete, push the refreshed character list. The 5.4.8 client does not
+    // re-request it on its own -- reversing the client shows the delete path is dialog -> send
+    // CMSG_CHAR_DELETE -> wait, with no self-refresh -- so it keeps showing the stale list (the
+    // player observed it only updated after a realm round-trip) until the server sends a new
+    // enumeration. See claude/FACTS_mop548_char_delete.md.
+    SendCharacterEnum();
 }
 
 /**

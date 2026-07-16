@@ -54,6 +54,7 @@
 #include <ace/Reactor.h>
 #include <ace/Auto_Ptr.h>
 
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <exception>
@@ -223,9 +224,22 @@ int WorldSocket::SendPacket(const WorldPacket& pct, bool* sent)
     const bool postCrypt = m_Crypt.IsInitialized();
     if (!MopWire::BuildServerHeader(postCrypt, pct.size(), pct.GetOpcode(), header))
     {
-        sLog.outError("WorldSocket::SendPacket: frame out of range (size=%zu opcode=0x%.4X postCrypt=%d)",
-                      pct.size(), pct.GetOpcode(), int(postCrypt));
-        return -1;
+        // The opcode does not fit the 13-bit MoP frame -- almost always an SMSG that still carries a
+        // pre-MoP placeholder value (> 0x1FFF; the full table is remapped in Phase 1b, e.g.
+        // SMSG_TALENT_UPDATE still holds the 4.3.4 value 0x6F26). DROP the packet instead of returning
+        // -1: BuildServerHeader fails BEFORE EncryptSend, so the crypt keystream is untouched, and a
+        // single un-remapped opcode must not tear down the connection (this was disconnecting the client
+        // mid character-create when the new player's init packets fired). `sent` stays false so callers
+        // see it was not transmitted. Report each offending opcode ONCE per run -- Phase 1b needs the
+        // list, but hot init paths (char-create/login) would otherwise flood the log dozens of times.
+        static std::atomic<bool> s_reportedDrop[0x10000];
+        if (!s_reportedDrop[pct.GetOpcode()].exchange(true))
+        {
+            sLog.outError("WorldSocket::SendPacket: opcode 0x%.4X (%s) not framable in MoP -- still on a "
+                          "placeholder value; dropping it and further such packets silently.",
+                          pct.GetOpcode(), LookupOpcodeName(DIR_SERVER, pct.GetOpcode()));
+        }
+        return 0;
     }
     if (postCrypt && !m_Crypt.EncryptSend(header, sizeof(header)))
     {

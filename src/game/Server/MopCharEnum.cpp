@@ -83,19 +83,25 @@ void MopCharEnum::Build(WorldPacket& out, const std::vector<Entry>& chars)
     // ---- per-character byte block (exact sec.5 order, 41 ops) ----
     for (const Entry& c : chars)
     {
-        out << uint32(0);                                 // op1  +132 MoP-extra [capture-confirm]
+        // The client reader stores these single bytes to record offsets +57..+66;
+        // the UI-populate (sub_140A6FA00) then copies +58..+66 -> glue+400..+408 as
+        // race,class,gender,skin,face,hairStyle,hairColor,facialHair,level. The wire
+        // op->reader-offset routing is fixed by the client, so each op must carry the
+        // field the consumer expects at its offset. Verified byte-for-byte vs a live
+        // crash minidump (Human Paladin: glue+400=race,+401=class,+402=gender,...).
+        out << uint32(0);                                 // op1  +132 -> glue+396 (0)
         WriteGuidByteXor(out, c.charGuid, 1);             // op2  charGUID[1]
-        out << uint8(c.race);                             // op3  +57 race
-        out << uint8(c.hairColor);                        // op4  +63 hairColor
+        out << uint8(c.slot);                             // op3  +57  -> glue+57 (list byte; not read by char-list) [capture-confirm]
+        out << uint8(c.hairStyle);                        // op4  +63  -> glue+405 hairStyle
         WriteGuidByteXor(out, c.guildGuid, 2);            // op5  guildGUID[2]
         WriteGuidByteXor(out, c.guildGuid, 0);            // op6  guildGUID[0]
         WriteGuidByteXor(out, c.guildGuid, 6);            // op7  guildGUID[6]
         out.append(c.name.c_str(), c.name.length());      // op8  +8 name (no NUL)
         WriteGuidByteXor(out, c.guildGuid, 3);            // op9  guildGUID[3]
-        out << float(c.posX);                             // op10 +76 posX
-        out << uint32(c.petFamily);                       // op11 +104 pet cluster [capture-confirm]
-        out << uint8(c.hairStyle);                        // op12 +62 hairStyle
-        out << uint8(c.gender);                           // op13 +59 gender
+        out << float(c.posX);                             // op10 +76 posX -> glue+80
+        out << uint32(c.petFamily);                       // op11 +104 -> glue+388 petFamily
+        out << uint8(c.face);                             // op12 +62  -> glue+404 face
+        out << uint8(c.class_);                           // op13 +59  -> glue+401 class (was gender; NULL ChrClasses -> #132)
         WriteGuidByteXor(out, c.guildGuid, 5);            // op14 guildGUID[5]
         for (int e = 0; e < 23; ++e)                      // op15 equipment x23 (wire order)
         {
@@ -108,16 +114,16 @@ void MopCharEnum::Build(WorldPacket& out, const std::vector<Entry>& chars)
         WriteGuidByteXor(out, c.charGuid, 5);             // op18 charGUID[5]
         out << uint32(0);                                 // op19 +120 flags cluster [capture-confirm]
         WriteGuidByteXor(out, c.guildGuid, 4);            // op20 guildGUID[4]
-        out << uint32(c.zone);                            // op21 +72 zone [capture-confirm]
-        out << uint8(c.class_);                           // op22 +58 class
-        out << uint8(c.face);                             // op23 +61 face
+        out << uint32(c.zone);                            // op21 +72 zone -> glue+60
+        out << uint8(c.race);                             // op22 +58  -> glue+400 race (was class)
+        out << uint8(c.skin);                             // op23 +61  -> glue+403 skin
         WriteGuidByteXor(out, c.guildGuid, 1);            // op24 guildGUID[1]
-        out << uint8(c.slot);                             // op25 +66 slot [capture-confirm]
+        out << uint8(c.level);                            // op25 +66  -> glue+408 level (was slot)
         WriteGuidByteXor(out, c.charGuid, 0);             // op26 charGUID[0]
         WriteGuidByteXor(out, c.charGuid, 2);             // op27 charGUID[2]
-        out << uint8(c.facialHair);                       // op28 +64 facialHair
-        out << uint8(c.skin);                             // op29 +60 skin
-        out << uint8(c.level);                            // op30 +65 level [capture-confirm]
+        out << uint8(c.hairColor);                        // op28 +64  -> glue+406 hairColor
+        out << uint8(c.gender);                           // op29 +60  -> glue+402 gender
+        out << uint8(c.facialHair);                       // op30 +65  -> glue+407 facialHair
         out << uint32(c.customizeFlags);                  // op31 +116 flags cluster [capture-confirm]
         WriteGuidByteXor(out, c.charGuid, 4);             // op32 charGUID[4]
         WriteGuidByteXor(out, c.charGuid, 7);             // op33 charGUID[7]
