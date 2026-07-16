@@ -65,6 +65,7 @@
 #include "SocialMgr.h"
 #include "Auth/AuthCrypt.h"
 #include "Auth/HMACSHA1.h"
+#include "Auth/MopAuthKey.h"
 #include "zlib.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
@@ -1467,10 +1468,20 @@ void WorldSession::SendRedirectClient(std::string& ip, uint16 port)
 
     pkt << uint32(0);                                       // unknown
 
-    HMACSHA1 sha1(40, m_Socket->GetSessionKey().AsByteArray());
+    // GetSessionKey() returns m_s -- the SRP6 SALT, not K -- and AsByteArray() returns
+    // GetNumBytes() bytes while this asked for 40: a heap OVER-READ whenever the value is shorter.
+    // Both are fixed by using the canonical raw-40 K. (SendRedirectClient has ZERO call sites, so
+    // neither bug is live today; it is migrated because Phase 3 puts it on a reachable path and
+    // because leaving one BigNumber K consumer behind is how the short-K bug returns.)
+    HMACSHA1 sha1(uint32(MopAuth::SESSION_KEY_LEN), m_Socket->GetSessionKeyRaw());
     sha1.UpdateData((uint8*)&ip2, 4);
     sha1.UpdateData((uint8*)&port, 2);
     sha1.Finalize();
+    if (!sha1.IsValid())
+    {
+        sLog.outError("WorldSession::SendRedirectClient: HMAC-SHA1 failed; redirect not sent.");
+        return;
+    }
     pkt.append(sha1.GetDigest(), 20);                       // hmacsha1(ip+port) w/ sessionkey as seed
 
     SendPacket(&pkt);

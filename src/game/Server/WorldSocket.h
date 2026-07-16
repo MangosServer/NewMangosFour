@@ -136,6 +136,11 @@ class WorldSocket : protected WorldHandler
         /// Return the session key
         BigNumber& GetSessionKey() { return m_s; }
 
+        /// Return the canonical session key: EXACTLY MopAuth::SESSION_KEY_LEN raw bytes.
+        /// Valid only after HandleAuthSession has populated it. NOT the same thing as
+        /// GetSessionKey(), which returns m_s -- the SRP6 SALT, despite its name (Task 5 deletes it).
+        const uint8* GetSessionKeyRaw() const { return m_sessionKey; }
+
     protected:
         /// things called by ACE framework.
         WorldSocket(void);
@@ -263,6 +268,11 @@ class WorldSocket : protected WorldHandler
         uint32 m_Seed;
 
         BigNumber m_s;
+
+        /// Canonical raw-40 session key: converted ONCE at the DB read and used verbatim by every
+        /// consumer (proof digest, both crypt directions, redirect). Never round-tripped through
+        /// BigNumber -- see MopAuthKey.h.
+        uint8 m_sessionKey[MopAuth::SESSION_KEY_LEN];
 
         /// Phase 2 wire framing: current handshake state (unused until later tasks).
         MopHs::ConnectionState m_connState;

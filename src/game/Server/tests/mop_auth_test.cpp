@@ -26,6 +26,7 @@
 #include "MopSocketDrain.h"
 #include "Utilities/ByteBuffer.h"
 #include "Auth/MopAuthKey.h"
+#include "Auth/AuthCrypt.h"
 #include "Auth/BigNumber.h"
 #include <openssl/crypto.h>
 #include <cstdio>
@@ -477,6 +478,185 @@ static void test_sessionkey_from_hex_roundtrip()
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// AuthCrypt -- the two-phase Prepare()/Activate() crypt and its MoP world seeds
+// (Auth/AuthCrypt.h / .cpp, Auth/ARC4.*, Auth/HMACSHA1.*).
+// ---------------------------------------------------------------------------------------------
+
+// AuthCrypt known-answer test. Fixtures from the spec-derived oracle (tools/mop_stage2_fixtures.py),
+// which asserts these vectors genuinely discriminate: direction (A != B), the 1024-byte drop
+// (drop != no-drop), and short-K (40 bytes != 39). A test that cannot fail on those is decorative.
+//
+// Seeds are BINARY-CONFIRMED in both client binaries (spec 3.1):
+//   A server-encrypt/client-decrypt 08F1959F47E5D2DBA13D778F3F3EE700  Wow-64 0x140F4CCA0 / Wow 0xDC6FD0
+//   B server-decrypt/client-encrypt 40AAD392267143473A3108A6E7DC982A  Wow-64 0x140F4CCB0 / Wow 0xDC6FE0
+static void test_authcrypt_kat()
+{
+    static const uint8 kK_FULL[40] = {
+        0x03,0x0A,0x11,0x18,0x1F,0x26,0x2D,0x34,0x3B,0x42,0x49,0x50,0x57,0x5E,0x65,0x6C,
+        0x73,0x7A,0x81,0x88,0x8F,0x96,0x9D,0xA4,0xAB,0xB2,0xB9,0xC0,0xC7,0xCE,0xD5,0xDC,
+        0xE3,0xEA,0xF1,0xF8,0xFF,0x06,0x0D,0x14 };
+    static const uint8 kKs_SeedA_serverEncrypt[4] = { 0xF6, 0x05, 0x69, 0xC6 };
+    static const uint8 kKs_SeedB_serverDecrypt[4] = { 0x18, 0xEF, 0x76, 0x35 };
+
+    AuthCrypt crypt;
+    CHECK(!crypt.IsInitialized());
+    CHECK(crypt.IsUsable());                       // RC4 selected + sized by the ctor
+    CHECK(crypt.Prepare(kK_FULL));
+    crypt.Activate();
+    CHECK(crypt.IsInitialized());
+
+    // Encrypting zeros yields the keystream verbatim (ARC4 is XOR), so this pins seed A's
+    // direction AND the drop-1024 in one assertion. The return value is CHECKED: a silent false
+    // would leave `send` as zeros, and an unchecked call would then "pass" nothing at all.
+    uint8 send[4] = { 0, 0, 0, 0 };
+    CHECK(crypt.EncryptSend(send, 4));
+    for (int i = 0; i < 4; ++i)
+    {
+        CHECK(send[i] == kKs_SeedA_serverEncrypt[i]);
+    }
+
+    uint8 recv[4] = { 0, 0, 0, 0 };
+    CHECK(crypt.DecryptRecv(recv, 4));
+    for (int i = 0; i < 4; ++i)
+    {
+        CHECK(recv[i] == kKs_SeedB_serverDecrypt[i]);
+    }
+}
+
+// THE STAGE 1 BLOCKER, closed. IsInitialized() used to be a RAN-TO-COMPLETION flag, not a SUCCEEDED
+// flag: AuthCrypt set _initialized = true unconditionally while ARC4 discarded every EVP return
+// value. Since IsInitialized() is the codec discriminator (WorldSocket.cpp:218 send / :862 recv), a
+// failed init would have framed PLAINTEXT headers as HDR_POSTCRYPT.
+static void test_authcrypt_prepare_reports_success()
+{
+    static const uint8 kK_FULL[40] = { 0x03,0x0A,0x11,0x18,0x1F,0x26,0x2D,0x34,0x3B,0x42,
+                                       0x49,0x50,0x57,0x5E,0x65,0x6C,0x73,0x7A,0x81,0x88,
+                                       0x8F,0x96,0x9D,0xA4,0xAB,0xB2,0xB9,0xC0,0xC7,0xCE,
+                                       0xD5,0xDC,0xE3,0xEA,0xF1,0xF8,0xFF,0x06,0x0D,0x14 };
+    AuthCrypt crypt;
+    const bool prepared = crypt.Prepare(kK_FULL);
+    CHECK(prepared);
+    crypt.Activate();
+    CHECK(crypt.IsInitialized());                  // success, not merely two false values agreeing
+}
+
+// *** THE COMMIT-REGION INVARIANT, AS A TEST. ***
+// Between Prepare() and Activate() the ARC4 contexts are fully keyed -- but the crypt must still be
+// INERT: IsInitialized() false, so Decrypt/Encrypt no-op AND the wire codec discriminator
+// (WorldSocket.cpp:218/862) still frames PRE-crypt. That is what lets HandleAuthSession do every
+// fallible thing -- allocate the session, load account data, inflate addons -- AFTER the crypt is
+// prepared, with a throw still leaving the socket exactly as unauthenticated as it started.
+//
+// Stage 1's equivalent ordering rule was load-bearing and its own ledger said "NO TEST COVERS THIS".
+// This is that test.
+static void test_authcrypt_prepare_does_not_activate()
+{
+    static const uint8 kK_FULL[40] = { 0x03,0x0A,0x11,0x18,0x1F,0x26,0x2D,0x34,0x3B,0x42,
+                                       0x49,0x50,0x57,0x5E,0x65,0x6C,0x73,0x7A,0x81,0x88,
+                                       0x8F,0x96,0x9D,0xA4,0xAB,0xB2,0xB9,0xC0,0xC7,0xCE,
+                                       0xD5,0xDC,0xE3,0xEA,0xF1,0xF8,0xFF,0x06,0x0D,0x14 };
+    AuthCrypt crypt;
+    CHECK(crypt.Prepare(kK_FULL));
+    CHECK(!crypt.IsInitialized());                 // keyed, but NOT published
+
+    uint8 header[4] = { 0xDE, 0xAD, 0xBE, 0xEF };
+    CHECK(!crypt.EncryptSend(header, 4));          // still refuses...
+    CHECK(header[0] == 0xDE && header[3] == 0xEF); // ...and has not touched the buffer
+
+    crypt.Activate();
+    CHECK(crypt.IsInitialized());
+    CHECK(crypt.EncryptSend(header, 4));           // only now
+}
+
+// FAIL-CLOSED: Activate() without a successful Prepare() must leave the crypt inert, never
+// half-active. If this ever passes as "initialized", a failed Prepare would publish an unkeyed
+// crypt and the codec would frame plaintext as post-crypt -- the blocker, by another route.
+static void test_authcrypt_activate_without_prepare_is_inert()
+{
+    AuthCrypt crypt;
+    crypt.Activate();                              // no Prepare
+    CHECK(!crypt.IsInitialized());
+
+    uint8 header[4] = { 0x11, 0x22, 0x33, 0x44 };
+    CHECK(!crypt.EncryptSend(header, 4));
+    CHECK(header[0] == 0x11 && header[3] == 0x44);
+}
+
+// A repeated Prepare while PREPARED is an invalid transition. It must poison the unpublished
+// preparation so a caller that ignores the false return cannot Activate stale key material.
+static void test_authcrypt_second_prepare_cannot_activate_stale_key()
+{
+    static const uint8 kK_FULL[40] = { 0x03,0x0A,0x11,0x18,0x1F,0x26,0x2D,0x34,0x3B,0x42,
+                                       0x49,0x50,0x57,0x5E,0x65,0x6C,0x73,0x7A,0x81,0x88,
+                                       0x8F,0x96,0x9D,0xA4,0xAB,0xB2,0xB9,0xC0,0xC7,0xCE,
+                                       0xD5,0xDC,0xE3,0xEA,0xF1,0xF8,0xFF,0x06,0x0D,0x14 };
+    AuthCrypt crypt;
+    CHECK(crypt.Prepare(kK_FULL));
+    CHECK(!crypt.Prepare(kK_FULL));                // rejected before either context is touched
+    CHECK(!crypt.Prepare(kK_FULL));                // FAILED is terminal; no retry/re-key path
+    crypt.Activate();                              // must NOT publish the earlier preparation
+    CHECK(!crypt.IsInitialized());
+}
+
+// Prepare after activation must be rejected before touching the live stream. The next four bytes
+// must therefore be bytes 4..7 of the SAME keystream, not a restarted/re-keyed stream.
+static void test_authcrypt_prepare_after_activate_does_not_mutate_stream()
+{
+    static const uint8 kK_FULL[40] = { 0x03,0x0A,0x11,0x18,0x1F,0x26,0x2D,0x34,0x3B,0x42,
+                                       0x49,0x50,0x57,0x5E,0x65,0x6C,0x73,0x7A,0x81,0x88,
+                                       0x8F,0x96,0x9D,0xA4,0xAB,0xB2,0xB9,0xC0,0xC7,0xCE,
+                                       0xD5,0xDC,0xE3,0xEA,0xF1,0xF8,0xFF,0x06,0x0D,0x14 };
+    // Both arrays are emitted by tools/mop_stage2_fixtures.py's independent RC4 oracle.
+    static const uint8 first[4] = { 0xF6, 0x05, 0x69, 0xC6 };
+    static const uint8 next[4]  = { 0x3A, 0xED, 0x33, 0xFB };
+
+    AuthCrypt crypt;
+    CHECK(crypt.Prepare(kK_FULL));
+    crypt.Activate();
+
+    uint8 bytes[4] = { 0, 0, 0, 0 };
+    CHECK(crypt.EncryptSend(bytes, 4));
+    CHECK(std::memcmp(bytes, first, 4) == 0);
+
+    CHECK(!crypt.Prepare(kK_FULL));                 // ACTIVE -> Prepare rejected, stream untouched
+    CHECK(crypt.IsInitialized());
+    std::memset(bytes, 0, sizeof(bytes));
+    CHECK(crypt.EncryptSend(bytes, 4));
+    CHECK(std::memcmp(bytes, next, 4) == 0);
+}
+
+// An UNINITIALIZED crypt must REFUSE, never silently pass the data through. This is the property
+// that makes the blocker unreachable: if the crypt cannot encrypt, the caller must find out rather
+// than ship the buffer untouched.
+static void test_authcrypt_refuses_before_init()
+{
+    AuthCrypt crypt;
+    CHECK(!crypt.IsInitialized());
+
+    uint8 header[4] = { 0xDE, 0xAD, 0xBE, 0xEF };
+    CHECK(!crypt.EncryptSend(header, 4));          // must report failure...
+    CHECK(header[0] == 0xDE && header[1] == 0xAD && header[2] == 0xBE && header[3] == 0xEF);
+    CHECK(!crypt.DecryptRecv(header, 4));          // ...and leave the buffer untouched
+    CHECK(header[0] == 0xDE && header[1] == 0xAD && header[2] == 0xBE && header[3] == 0xEF);
+}
+
+// MopAuth::IsPlausibleSessionKeyHex edge cases -- the text half of the sessionkey rule
+// (Auth/MopAuthKey.h). test_sessionkey_from_hex_roundtrip covers it THROUGH the adapter; this pins
+// the predicate's own edges, where the "even and <=80 admits the empty string" bug lived.
+static void test_sessionkey_hex_validation()
+{
+    CHECK(!MopAuth::IsPlausibleSessionKeyHex(NULL));
+    CHECK(!MopAuth::IsPlausibleSessionKeyHex(""));            // empty -> would zero-fill; REJECT
+    CHECK(!MopAuth::IsPlausibleSessionKeyHex("ABC"));         // odd length
+    CHECK(!MopAuth::IsPlausibleSessionKeyHex("ABCG"));        // non-hex
+    CHECK(!MopAuth::IsPlausibleSessionKeyHex(std::string(82, 'A').c_str()));  // 41 bytes
+    CHECK(MopAuth::IsPlausibleSessionKeyHex(std::string(80, 'A').c_str()));   // 40 bytes, normal
+    CHECK(MopAuth::IsPlausibleSessionKeyHex(std::string(78, 'A').c_str()));   // one leading zero
+    CHECK(MopAuth::IsPlausibleSessionKeyHex(std::string(76, 'A').c_str()));   // two -- also normal
+    CHECK(MopAuth::IsPlausibleSessionKeyHex(std::string(2, 'A').c_str()));    // no floor exists
+}
+
 // NOTE: linking 'shared' drags in ACE, whose OS_main.h rewrites main() to ace_main_i() and
 // requires the (int, char**) signature. A no-argument main() therefore fails to link (LNK2019).
 int main(int /*argc*/, char** /*argv*/)
@@ -505,6 +685,14 @@ int main(int /*argc*/, char** /*argv*/)
     test_drain_never_requests_reactor_reentry();
     test_raw40_from_littleendian();
     test_sessionkey_from_hex_roundtrip();
+    test_authcrypt_kat();
+    test_authcrypt_prepare_reports_success();
+    test_authcrypt_prepare_does_not_activate();
+    test_authcrypt_activate_without_prepare_is_inert();
+    test_authcrypt_second_prepare_cannot_activate_stale_key();
+    test_authcrypt_prepare_after_activate_does_not_mutate_stream();
+    test_authcrypt_refuses_before_init();
+    test_sessionkey_hex_validation();
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;
 }

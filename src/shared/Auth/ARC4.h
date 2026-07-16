@@ -45,31 +45,51 @@ class ARC4
          */
         ARC4(uint8 len);
         /**
-         * @brief Constructor with seed data
-         * @param seed Pointer to the seed/key data
-         * @param len Length of the seed data in bytes
-         */
-        ARC4(uint8 *seed, uint8 len);
-        /**
          * @brief Destructor
          */
         ~ARC4();
+
         /**
-         * @brief Initialize the cipher with seed data
-         * @param seed Pointer to the seed/key data
+         * @brief Install or replace the cipher key.
+         * @return false if the cipher is not ready or OpenSSL rejected the key. On false the
+         *         object is left UNUSABLE (m_keyed cleared) rather than half-keyed.
          */
-        void Init(uint8 *seed);
+        bool Init(uint8* seed);
+
         /**
-         * @brief Update/encrypt data using the cipher
-         * @param len Length of the data to process
-         * @param data Pointer to the data to encrypt/decrypt
+         * @brief Encrypt/decrypt in place. Advances the ONE continuous RC4 keystream.
+         *
+         * Does NOT finalize: RC4 is a stream cipher and this context lives for the whole socket, so
+         * there is nothing to flush between headers and finalizing would end the stream.
+         *
+         * @return false if the cipher is not ready, OpenSSL failed, or the output length did not
+         *         match the input. On false `data`'s contents are UNDEFINED -- EVP works in place
+         *         and may have partially written before failing -- so the caller must DISCARD the
+         *         frame or packet. It must never be sent or parsed, and it must not be assumed
+         *         unchanged.
          */
-        void UpdateData(int len, uint8 *data);
+        bool UpdateData(int len, uint8* data);
+
+        /**
+         * @brief Whether this cipher is selected, key-length-accepted and keyed -- i.e. UpdateData
+         *        can be expected to work.
+         *
+         * NOT a pointer check. m_cipherContext can be non-null while the cipher was never given
+         * EVP_rc4() (the ctor returns early if the OpenSSL 3 legacy provider is unavailable, and
+         * RC4 lives in that provider). Asking the pointer would answer "fine" on a box that cannot
+         * do RC4 at all.
+         */
+        bool IsReady() const { return m_ready && m_keyed; }
+
+        /// Cipher selected and key length accepted; a key may not be installed yet.
+        bool IsSelected() const { return m_ready; }
     private:
 #if defined(OPENSSL_VERSION_MAJOR) && (OPENSSL_VERSION_MAJOR >= 3)
         OpenSSLProviderManager m_providerManager;  /**< RAII provider management */
 #endif
         OpenSSLCipherContext m_cipherContext;        /**< RAII cipher context */
+        bool m_ready;                                /**< cipher selected + key length accepted */
+        bool m_keyed;                                /**< a key has been installed */
 };
 
 #endif

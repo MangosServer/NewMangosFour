@@ -52,14 +52,14 @@
  * @note On OpenSSL 3.x, this automatically initializes the legacy provider
  * required for ARC4 support.
  */
-ARC4::ARC4(uint8 len) : m_cipherContext()
+ARC4::ARC4(uint8 len) : m_cipherContext(), m_ready(false), m_keyed(false)
 {
 #if defined(OPENSSL_VERSION_MAJOR) && (OPENSSL_VERSION_MAJOR >= 3)
     // Provider management is now handled by OpenSSLProviderManager
     if (!m_providerManager.IsInitialized())
     {
         sLog.outError("ARC4: Failed to initialize OpenSSL providers");
-        return;
+        return;                                  // m_ready stays false -- the context is NOT usable
     }
 #endif
 
@@ -69,42 +69,28 @@ ARC4::ARC4(uint8 len) : m_cipherContext()
         return;
     }
 
-    EVP_EncryptInit_ex(m_cipherContext.Get(), EVP_rc4(), NULL, NULL, NULL);
-    EVP_CIPHER_CTX_set_key_length(m_cipherContext.Get(), len);
-}
-
-/**
- * @brief Construct ARC4 cipher with initial key
- * @param seed Pointer to the key bytes
- * @param len Length of the key in bytes
- *
- * Creates an ARC4 cipher context and initializes it with the provided key.
- * The cipher is ready to use for encryption/decryption immediately after
- * construction.
- *
- * @note On OpenSSL 3.x, this automatically initializes the legacy provider
- * required for ARC4 support.
- */
-ARC4::ARC4(uint8 *seed, uint8 len) : m_cipherContext()
-{
-#if defined(OPENSSL_VERSION_MAJOR) && (OPENSSL_VERSION_MAJOR >= 3)
-    // Provider management is now handled by OpenSSLProviderManager
-    if (!m_providerManager.IsInitialized())
+    // EVP_rc4() returns NULL when RC4 is unavailable. On OpenSSL 3 RC4 is a LEGACY algorithm, so
+    // this is a real deployment failure, not a theoretical one -- and the old code ignored it.
+    const EVP_CIPHER* cipher = EVP_rc4();
+    if (!cipher)
     {
-        sLog.outError("ARC4: Failed to initialize OpenSSL providers");
-        return;
-    }
-#endif
-
-    if (!m_cipherContext.IsValid())
-    {
-        sLog.outError("ARC4: Failed to create cipher context");
+        sLog.outError("ARC4: RC4 cipher unavailable (OpenSSL legacy provider not loaded?)");
         return;
     }
 
-    EVP_EncryptInit_ex(m_cipherContext.Get(), EVP_rc4(), NULL, NULL, NULL);
-    EVP_CIPHER_CTX_set_key_length(m_cipherContext.Get(), len);
-    EVP_EncryptInit_ex(m_cipherContext.Get(), NULL, NULL, seed, NULL);
+    if (EVP_EncryptInit_ex(m_cipherContext.Get(), cipher, NULL, NULL, NULL) != 1)
+    {
+        sLog.outError("ARC4: EVP_EncryptInit_ex(RC4) failed");
+        return;
+    }
+
+    if (EVP_CIPHER_CTX_set_key_length(m_cipherContext.Get(), len) != 1)
+    {
+        sLog.outError("ARC4: EVP_CIPHER_CTX_set_key_length(%u) failed", uint32(len));
+        return;
+    }
+
+    m_ready = true;                              // selected + sized; still needs a key via Init()
 }
 
 /**
@@ -127,12 +113,25 @@ ARC4::~ARC4()
  *
  * @note The key length must match the length specified in the constructor.
  */
-void ARC4::Init(uint8 *seed)
+bool ARC4::Init(uint8* seed)
 {
-    if (m_cipherContext.IsValid())
+    if (!m_ready)
     {
-        EVP_EncryptInit_ex(m_cipherContext.Get(), NULL, NULL, seed, NULL);
+        sLog.outError("ARC4::Init: cipher was never selected; refusing to key.");
+        return false;
     }
+
+    if (EVP_EncryptInit_ex(m_cipherContext.Get(), NULL, NULL, seed, NULL) != 1)
+    {
+        // Fail CLOSED: after a rejected re-key the cipher's internal state is unknown, so it must
+        // not be treated as usable just because it was usable a moment ago.
+        sLog.outError("ARC4::Init: EVP_EncryptInit_ex(key) failed");
+        m_keyed = false;
+        return false;
+    }
+
+    m_keyed = true;
+    return true;
 }
 
 /**
@@ -147,15 +146,45 @@ void ARC4::Init(uint8 *seed)
  * @warning The cipher must be initialized with a key before calling this.
  * @note The output length will always equal the input length for ARC4.
  */
-void ARC4::UpdateData(int len, uint8 *data)
+bool ARC4::UpdateData(int len, uint8* data)
 {
-    if (!m_cipherContext.IsValid())
+    if (!IsReady())
     {
-        sLog.outError("ARC4: Invalid cipher context, cannot update data");
-        return;
+        sLog.outError("ARC4::UpdateData: cipher not ready; refusing to process %d bytes.", len);
+        return false;
     }
 
+    // NO EVP_EncryptFinal_ex. The old code called it after EVERY chunk, which is wrong twice over:
+    //   1. OpenSSL's contract: after EVP_EncryptFinal_ex "the encryption operation is finished and
+    //      no further calls to EVP_EncryptUpdate() should be made". This context is used for the
+    //      1024-byte drop and then for EVERY packet header for the socket's whole life, so
+    //      finalizing between chunks ends the very stream we depend on continuing.
+    //   2. RC4 is a STREAM cipher: there is no block to flush and no padding to write, so Final has
+    //      nothing to do. It "worked" only because EVP short-circuits Final for block_size == 1 --
+    //      an implementation detail, not a guarantee, and one the OpenSSL 3 provider path is under
+    //      no obligation to preserve.
+    // Removing it changes no bytes on the wire (Final produced none) and removes a documented-
+    // invalid call. NOTE this also removes a hazard the return-value checks would otherwise have
+    // INTRODUCED: had a provider ever returned 0 from that Final, the old code ignored it while a
+    // checked version would have failed the whole auth.
     int outlen = 0;
-    EVP_EncryptUpdate(m_cipherContext.Get(), data, &outlen, data, len);
-    EVP_EncryptFinal_ex(m_cipherContext.Get(), data, &outlen);
+    if (EVP_EncryptUpdate(m_cipherContext.Get(), data, &outlen, data, len) != 1)
+    {
+        // Fail CLOSED: after a failed operation the keystream position is unknown, so every later
+        // header would be garbage even if the next call "succeeds". Refuse to be used again.
+        sLog.outError("ARC4::UpdateData: EVP_EncryptUpdate failed on %d bytes; cipher invalidated.", len);
+        m_keyed = false;
+        return false;
+    }
+
+    // A stream cipher must consume and produce exactly len. Anything else means the keystream and
+    // the data have desynchronised, which on the wire is indistinguishable from a wrong key.
+    if (outlen != len)
+    {
+        sLog.outError("ARC4::UpdateData: produced %d bytes for %d in; cipher invalidated.", outlen, len);
+        m_keyed = false;
+        return false;
+    }
+
+    return true;
 }

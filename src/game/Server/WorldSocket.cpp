@@ -106,6 +106,9 @@ WorldSocket::WorldSocket(void) :
 {
     reference_counting_policy().value(ACE_Event_Handler::Reference_Counting_Policy::ENABLED);
 
+    // Canonical raw-40 session key: populated by HandleAuthSession via MopAuth::SessionKeyFromHex.
+    memset(m_sessionKey, 0, sizeof(m_sessionKey));
+
     msg_queue()->high_water_mark(8 * 1024 * 1024);
     msg_queue()->low_water_mark(8 * 1024 * 1024);
 }
@@ -222,9 +225,14 @@ int WorldSocket::SendPacket(const WorldPacket& pct, bool* sent)
                       pct.size(), pct.GetOpcode(), int(postCrypt));
         return -1;
     }
-    if (postCrypt)
+    if (postCrypt && !m_Crypt.EncryptSend(header, sizeof(header)))
     {
-        m_Crypt.EncryptSend(header, sizeof(header));
+        // The header is UNDEFINED on an EVP failure: in-place processing may have partially written
+        // it. Dropping the packet is the only safe answer; the socket closes rather than transmit
+        // plaintext or garbage under a post-crypt frame.
+        sLog.outError("WorldSocket::SendPacket: header encryption failed (opcode 0x%.4X); closing.",
+                      pct.GetOpcode());
+        return -1;
     }
 
     if (m_OutBuffer->space() >= pct.size() + sizeof(header) && msg_queue()->is_empty())
@@ -930,8 +938,19 @@ int WorldSocket::handle_input_missing_data(void)
 /// MopFrameReader::DecryptFn hook (Phase 2 wire framing): in-place ARC4 on the header only.
 bool WorldSocket::DecryptHeaderHook(void* ctx, uint8* header, size_t len)
 {
-    static_cast<WorldSocket*>(ctx)->m_Crypt.DecryptRecv(header, len);
-    return true;   // no-op pre-crypt (m_Crypt.DecryptRecv() is itself a no-op before Init())
+    WorldSocket* const self = static_cast<WorldSocket*>(ctx);
+
+    // Pre-crypt frames are not decrypted at all -- the reader must not treat that as a failure.
+    // AuthCrypt::DecryptRecv returns false when not ACTIVE, which is the pre-crypt case, so the
+    // question has to be asked HERE rather than inferred from the return value.
+    if (!self->m_Crypt.IsInitialized())
+    {
+        return true;
+    }
+
+    // Post-crypt: a false return means the header is UNDECRYPTED, so parsing it would read garbage.
+    // Reject the frame (MF_DECRYPT) instead of guessing.
+    return self->m_Crypt.DecryptRecv(header, len);
 }
 
 /// MopFrameReader::CmdValidFn hook (Phase 2 wire framing): game rule; false rejects the frame.
@@ -1171,7 +1190,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     LocaleConstant locale;
     std::string account;
     Sha1Hash sha1;
-    BigNumber v, s, g, N, K;
+    BigNumber v, s, g, N;
 
     // Read the content of the packet.
     // The read order, the scattered digest[] indices and the missing leading ReadBit() before
@@ -1287,7 +1306,35 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
         security = SEC_ADMINISTRATOR;
     }
 
-    K.SetHexStr(fields[2].GetString());
+    // ---- Ladder step 1 (spec 5.1): guard the sessionkey with its own distinct log line. -------
+    // Until now K.SetHexStr(fields[2].GetString()) ran UNGUARDED: a NULL or empty value yields a
+    // garbage BigNumber and an AUTH_FAILED indistinguishable from a wrong seed, a wrong
+    // permutation, or a byte-reversed K. Naming the cause is the whole point.
+    //
+    // VALIDATE STRUCTURALLY -- NEVER BRANCH ON A SPECIFIC LENGTH. realmd stores K via AsHexStr()
+    // (= BN_bn2hex), which DROPS LEADING ZERO BYTES: one leading zero gives 78 hex chars, two give
+    // 76, and so on with NO floor. Rule: non-NULL, non-empty, hex-only, EVEN length, <= 80 ->
+    // convert -> assert the CONVERTED value is 1..40 bytes. "" is vacuously hex-only, even (0) and
+    // <= 80, and would zero-fill into forty 0x00s -- a K of zeros that looks well-formed to every
+    // consumer downstream; that confounder is precisely what this guard catches, so empty is a
+    // HARD REJECT.
+    const char* const sessionKeyHex = fields[2].GetString();
+
+    // ONE call owns the whole chain: validate -> BigNumber -> raw-40 -> re-check. Do NOT
+    // re-implement any of it here. SessionKeyFromHex is covered end-to-end by
+    // test_sessionkey_from_hex_roundtrip, which drives realmd's own SetBinary/AsHexStr write path.
+    // sessionKeyHex points INTO the query result, so this must run BEFORE any `delete result`.
+    if (!MopAuth::SessionKeyFromHex(sessionKeyHex, m_sessionKey))
+    {
+        delete result;                                        // 'fields' dies with it -- see below
+        // Payload-free by construction: the account id only, never the key text. `id` is a LOCAL
+        // copy taken above, so it survives the delete; fields[] does NOT.
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session "
+                      "(account %u has a NULL, empty or malformed sessionkey; realmd may not have "
+                      "authenticated this account yet).",
+                      id);
+        return BeginAuthErrorDrain(AUTH_SESSION_EXPIRED);
+    }
 
     time_t mutetime = time_t (fields[8].GetUInt64());
 
@@ -1351,13 +1398,31 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     sha.UpdateData((uint8*) & t, 4);
     sha.UpdateData((uint8*) & clientSeed, 4);
     sha.UpdateData((uint8*) & seed, 4);
-    sha.UpdateBigNumbers(&K, NULL);
+    // Task 3 bridge: hash the canonical raw-40 K (not a BigNumber). This is exactly what Task 4's
+    // MopAuth::ComputeAuthProof will formalize; it also fixes the short-K bug (UpdateBigNumbers
+    // hashed GetNumBytes(), which is 39 on ~1/256 of logins). Removing the last BigNumber K
+    // consumer here is what lets the K local be dropped.
+    sha.UpdateData(m_sessionKey, int(MopAuth::SESSION_KEY_LEN));
     sha.Finalize();
 
     if (memcmp(sha.GetDigest(), digest, 20))
     {
         sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (authentication failed).");
         return BeginAuthErrorDrain(AUTH_FAILED);
+    }
+
+    // ---- Crypt: PREPARE here, ACTIVATE in the commit region. --------------------------------
+    // Everything about the crypt that can fail happens HERE: the HMAC-SHA1 key derivation, both
+    // ARC4 keyings, and the 1024-byte drop. All of it precedes ACE_NEW_RETURN, so a failure has
+    // nothing allocated to clean up and can simply drain an error like every other rejection in
+    // this function. Prepare() does NOT publish: IsInitialized() stays false until Activate(), so
+    // the crypt is inert and the wire codec still frames PRE-crypt through the fallible loads below.
+    if (!m_Crypt.Prepare(m_sessionKey))
+    {
+        // Payload-free: no K, no digest. Prepare has already logged the specific OpenSSL cause.
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session "
+                      "(crypt could not be prepared for account %u).", id);
+        return BeginAuthErrorDrain(AUTH_SYSTEM_ERROR);
     }
 
     std::string address = GetRemoteAddress();
@@ -1393,34 +1458,19 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // appear between the three commit statements.
     ACE_OS::sleep(ACE_Time_Value(0, 10000));
 
-    // ================ COMMIT REGION -- no program failure path exists below ================
-    // Exactly three statements, in this order, with nothing between them: no log, no packet send,
-    // no validation, no branch, no delay, no allocation, no early return. Publication ends the
-    // region. The claim is precise: no early return, no explicit failure and no fallible call
-    // appears below the commit point -- NOT that no exception can be thrown here.
+    // ================ COMMIT REGION ================
+    // Everything fallible already ran ABOVE: crypt Prepare() (HMAC, ARC4 keying, drop-1024), the
+    // session allocation, the DB loads and the addon inflate. Activate() is the ONLY
+    // PREPARED->ACTIVE transition and is infallible -- a single state store. It publishes the
+    // prepared crypt: from here IsInitialized() is true, so the wire codec frames POST-crypt.
+    // Because success is now observable (Prepare returned true above), this is no longer merely a
+    // SOURCE-ordering guarantee as it was in Stage 1 -- a silently failed init cannot reach here.
     //
-    // A throw IS possible: m_Crypt.Init(&K) -> HMACSHA1::ComputeHash -> BigNumber::AsByteArray
-    // does new uint8[length] and can throw std::bad_alloc inside this region's FIRST statement.
-    // The invariant survives it for two reasons, both of which live in AuthCrypt::Init:
-    //   (a) _initialized = true is the LAST statement of AuthCrypt::Init (AuthCrypt.cpp:71), and
-    //       DecryptRecv/EncryptSend early-return on !_initialized -- so a mid-Init throw leaves
-    //       the crypt inert, not half-keyed.
-    //   (b) both throw sites precede _clientDecrypt.Init/_serverEncrypt.Init (AuthCrypt.cpp:55-56),
-    //       so a throw also leaves the ARC4 contexts un-keyed.
-    // A bad_alloc therefore unwinds past an unauthenticated, non-crypting session -- the same
-    // outcome as an ordinary early return.
-    //
-    // WARNING TO STAGE 2: that guarantee is SILENT and structural. Stage 2 reworks AuthCrypt::Init
-    // for the raw-40 K migration; this region's correctness depends on _initialized = true staying
-    // the last statement of Init. It must not be hoisted above the ARC4 setup, and no early return
-    // may be added on a partial-init path -- either change turns a throw here into a half-keyed
-    // crypt on an unauthenticated session, silently. NO TEST COVERS THIS.
-    //
-    // LIMITATION (Stage 1 scope): AuthCrypt::Init is void and does NOT report OpenSSL failure, so
-    // this proves SOURCE ORDERING only -- it cannot prove initialisation SUCCEEDED. Stage 2 owns
-    // making init success observable during its atomic raw-40 K migration, before activation.
-    // Do not read this region as a proof of cryptographic atomicity.
-    m_Crypt.Init(&K);
+    // INTERMEDIATE STATE (Task 3): sWorld.AddSession below is still the old one-arg fallible call,
+    // so this region is NOT yet cutover-ready. Task 8 replaces it with the queue-lock publication
+    // transaction (reserve node locked -> Activate -> CONN_AUTHED -> unlock/publish). The handler
+    // is dormant (zero call sites) until Task 9, so this intermediate ordering is unreachable.
+    m_Crypt.Activate();
     m_connState = MopHs::CONN_AUTHED;
     sWorld.AddSession(m_Session);
 
