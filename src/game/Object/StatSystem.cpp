@@ -252,7 +252,16 @@ void Player::UpdateArmor()
  */
 float Player::GetHealthBonusFromStamina()
 {
-    GtOCTHpPerStaminaEntry const* hpBase = sGtOCTHpPerStaminaStore.LookupEntry((getClass() - 1) * GT_MAX_LEVEL + getLevel() - 1);
+    // MoP 5.4.8: gtOCTHpPerStamina is a flat per-LEVEL table (100 rows, class-independent) -- the
+    // per-class dimension was removed vs pre-MoP (base HP still varies by class via gtOCTBaseHPByClass).
+    // The old (getClass()-1)*GT_MAX_LEVEL + getLevel()-1 index overshoots for every non-Warrior class
+    // (Paladin L1 -> index 100 -> NULL -> crash). Index by level only.
+    uint32 level = getLevel();
+    if (level > GT_MAX_LEVEL)
+    {
+        level = GT_MAX_LEVEL;
+    }
+    GtOCTHpPerStaminaEntry const* hpBase = sGtOCTHpPerStaminaStore.LookupEntry(level - 1);
 
     float stamina = GetStat(STAT_STAMINA);
 
@@ -263,7 +272,8 @@ float Player::GetHealthBonusFromStamina()
         moreStam = 0.0f;
     }
 
-    return baseStam + moreStam * hpBase->Data;
+    float ratio = hpBase ? hpBase->Data : 10.0f;           // defensive default if the level row is missing
+    return baseStam + moreStam * ratio;
 }
 
 /**
