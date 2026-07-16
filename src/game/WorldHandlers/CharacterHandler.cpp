@@ -263,11 +263,19 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
     std::string name;
     uint8 race_, class_, gender, skin, face, hairStyle, hairColor, facialHair, outfitId;
 
-    recv_data >> gender >> hairColor >> outfitId;
-    recv_data >> race_ >> class_ >> face>> facialHair >> skin >> hairStyle;
+    // MoP 5.4.8.18414 CMSG_CHAR_CREATE wire order -- CAPTURE-CONFIRMED against real client packets
+    // (see claude/facts/FACTS_mop548_phase5_char_create.md): 9 flat bytes, then a 6-bit name length
+    // + 1-bit flag, then the raw name bytes, then an optional trailing dword iff the flag is set.
+    recv_data >> outfitId >> hairStyle >> class_ >> skin >> face >> race_ >> facialHair >> gender >> hairColor;
 
-    uint8 nameLength = recv_data.ReadBits(7);
+    uint32 nameLength = recv_data.ReadBits(6);
+    uint8 unkFlag = recv_data.ReadBit();
     name = recv_data.ReadString(nameLength);
+    if (unkFlag)
+    {
+        uint32 unkTail;
+        recv_data >> unkTail;                              // boost/template payload, currently unused
+    }
 
     WorldPacket data(SMSG_CHAR_CREATE, 1);                  // returned with diff.values in all cases
 
@@ -305,14 +313,11 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
         return;
     }
 
-    // prevent character creating Expansion race without Expansion account
-    if (raceEntry->Race_related > Expansion())
-    {
-        data << (uint8)CHAR_CREATE_EXPANSION;
-        sLog.outError("Expansion %u account:[%d] tried to Create character with expansion %u race (%u)", Expansion(), GetAccountId(), raceEntry->Race_related, race_);
-        SendPacket(&data);
-        return;
-    }
+    // Expansion race gating DISABLED (Phase 5): ChrRacesEntry::Race_related (field 20,
+    // "m_required_expansion") is misaligned in Four's MoP ChrRaces schema -- it returned 8 for
+    // race 3 (an impossible expansion value), so this gate rejected every race. Re-enable once the
+    // correct required-expansion DBC column is mapped. SkyFire 548 likewise does not DBC-gate
+    // creation; the config racemask/classmask check below still applies.
 
     //// prevent character creating Expansion class without Expansion account
     //if (classEntry->expansion > Expansion())
