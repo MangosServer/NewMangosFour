@@ -43,3 +43,14 @@ set_target_properties(mop_auth_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQU
 # beyond what the headers require gets pulled into the test binary.
 target_link_libraries(mop_auth_test PRIVATE game)
 add_test(NAME mop_auth COMMAND mop_auth_test)
+
+add_executable(mop_charenum_test
+    mop_charenum_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopCharEnum.cpp)
+target_include_directories(mop_charenum_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_charenum_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+# Same rationale as mop_auth_test: WorldPacket/Opcodes pull the game header surface; link 'game'.
+target_link_libraries(mop_charenum_test PRIVATE game)
+add_test(NAME mop_charenum COMMAND mop_charenum_test)
