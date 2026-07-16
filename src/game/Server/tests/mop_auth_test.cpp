@@ -23,6 +23,7 @@
  */
 
 #include "MopAuthSession.h"
+#include "MopAuthProof.h"
 #include "MopSocketDrain.h"
 #include "Utilities/ByteBuffer.h"
 #include "Auth/MopAuthKey.h"
@@ -657,6 +658,78 @@ static void test_sessionkey_hex_validation()
     CHECK(MopAuth::IsPlausibleSessionKeyHex(std::string(2, 'A').c_str()));    // no floor exists
 }
 
+// ---------------------------------------------------------------------------------------------
+// MopAuth::ComputeAuthProof / ProofEquals -- the spec 3.2 five-chunk SHA1 proof digest, over the
+// canonical raw-40 K, and its constant-time compare (Server/MopAuthProof.h / .cpp).
+// ---------------------------------------------------------------------------------------------
+
+// Spec 3.2's five chunks, in order:
+//   account name (strlen, no NUL) | zero dword (4) | clientSeed (4 LE) | serverSeed (4 LE) | K (40 raw)
+// Total = strlen(account) + 52. There is NO de-interleave step -- one SHA1_Final writes 20
+// contiguous bytes; the forks' "digest[18]; digest[14]; ..." models the SERIALIZER's scatter, which
+// is a different thing entirely and lives in the decoder.
+//
+// CIRCULARITY, STATED HONESTLY (spec 10.7): these expected digests are a FIXTURE derived from 3.2's
+// field table by a standalone script (tools/mop_stage2_fixtures.py) written from the SPEC TEXT,
+// not from this source. They are NOT an independent oracle: a mis-transcription of 3.2 itself would
+// propagate into both and this test would pass. The only true oracle is a real capture, and it
+// cannot serve -- verifying a digest needs that session's K, which is long gone. What this DOES
+// catch is the implementation drifting from the spec, which is what it is for.
+static void test_auth_proof_digest()
+{
+    static const uint8 kK_FULL[40] = {
+        0x03,0x0A,0x11,0x18,0x1F,0x26,0x2D,0x34,0x3B,0x42,0x49,0x50,0x57,0x5E,0x65,0x6C,
+        0x73,0x7A,0x81,0x88,0x8F,0x96,0x9D,0xA4,0xAB,0xB2,0xB9,0xC0,0xC7,0xCE,0xD5,0xDC,
+        0xE3,0xEA,0xF1,0xF8,0xFF,0x06,0x0D,0x14 };
+    static const uint8 kExpect_K_FULL[20] = {
+        0xA7,0x90,0x8C,0xC2,0x5A,0xF4,0xA7,0x21,0x21,0x9A,
+        0x7E,0x7F,0x27,0x36,0x82,0x65,0xF7,0x71,0x32,0xB3 };
+
+    uint8 got[20] = { 0 };
+    MopAuth::ComputeAuthProof("TESTACCOUNT", 0x11223344, 0x55667788, kK_FULL, got);
+    for (int i = 0; i < 20; ++i)
+    {
+        CHECK(got[i] == kExpect_K_FULL[i]);
+    }
+}
+
+// THE ~1/256 CASE. A 40-byte fixture has GetNumBytes() == 40 and takes the no-pad path, so it
+// passes while the bug is fully present. This vector is the one that fails if K is ever hashed as
+// 39 bytes (Sha1Hash::UpdateBigNumbers) or byte-rotated (BigNumber::AsByteArray(40)).
+static void test_auth_proof_digest_zero_top_byte_k()
+{
+    static const uint8 kK_ZERO_TOP[40] = {
+        0x03,0x0A,0x11,0x18,0x1F,0x26,0x2D,0x34,0x3B,0x42,0x49,0x50,0x57,0x5E,0x65,0x6C,
+        0x73,0x7A,0x81,0x88,0x8F,0x96,0x9D,0xA4,0xAB,0xB2,0xB9,0xC0,0xC7,0xCE,0xD5,0xDC,
+        0xE3,0xEA,0xF1,0xF8,0xFF,0x06,0x0D,0x00 };
+    static const uint8 kExpect_K_ZERO_TOP[20] = {
+        0xB3,0xC7,0x52,0xB8,0x7B,0x64,0xE2,0x64,0x98,0x14,
+        0xAA,0x65,0x58,0x36,0x70,0x1E,0x3E,0xC2,0x03,0xD2 };
+
+    uint8 got[20] = { 0 };
+    MopAuth::ComputeAuthProof("TESTACCOUNT", 0x11223344, 0x55667788, kK_ZERO_TOP, got);
+    for (int i = 0; i < 20; ++i)
+    {
+        CHECK(got[i] == kExpect_K_ZERO_TOP[i]);
+    }
+    // The two K vectors differ ONLY in the most-significant byte, so identical digests would mean
+    // the 40th byte never reached the hash.
+    static const uint8 kExpect_K_FULL_first = 0xA7;
+    CHECK(got[0] != kExpect_K_FULL_first);
+}
+
+static void test_proof_equals_constant_time()
+{
+    uint8 a[20], b[20];
+    for (int i = 0; i < 20; ++i) { a[i] = uint8(i); b[i] = uint8(i); }
+    CHECK(MopAuth::ProofEquals(a, b));
+    b[19] ^= 0x01;                                   // last byte -- the one a short compare misses
+    CHECK(!MopAuth::ProofEquals(a, b));
+    b[19] ^= 0x01;
+    b[0] ^= 0x80;
+    CHECK(!MopAuth::ProofEquals(a, b));
+}
+
 // NOTE: linking 'shared' drags in ACE, whose OS_main.h rewrites main() to ace_main_i() and
 // requires the (int, char**) signature. A no-argument main() therefore fails to link (LNK2019).
 int main(int /*argc*/, char** /*argv*/)
@@ -693,6 +766,9 @@ int main(int /*argc*/, char** /*argv*/)
     test_authcrypt_prepare_after_activate_does_not_mutate_stream();
     test_authcrypt_refuses_before_init();
     test_sessionkey_hex_validation();
+    test_auth_proof_digest();
+    test_auth_proof_digest_zero_top_byte_k();
+    test_proof_equals_constant_time();
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;
 }

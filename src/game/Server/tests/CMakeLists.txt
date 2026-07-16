@@ -24,7 +24,8 @@ add_test(NAME mop_framing COMMAND mop_framing_test)
 
 add_executable(mop_auth_test
     mop_auth_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../MopAuthSession.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopAuthSession.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopAuthProof.cpp)
 target_include_directories(mop_auth_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/shared)

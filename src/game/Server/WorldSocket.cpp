@@ -61,6 +61,7 @@
 #include "Common.h"
 #include "MopWireCodec.h"
 #include "MopAuthSession.h"
+#include "MopAuthProof.h"
 
 #include "Util.h"
 #include "World.h"
@@ -1189,7 +1190,6 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     uint8 expansion = 0;
     LocaleConstant locale;
     std::string account;
-    Sha1Hash sha1;
     BigNumber v, s, g, N;
 
     // Read the content of the packet.
@@ -1388,24 +1388,13 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     //    first encrypted server packet -- ahead of SMSG_AUTH_RESPONSE. Re-enabling must decide
     //    that ordering deliberately rather than inherit it.
 
-    // Check that Key and account name are the same on client and server
-    Sha1Hash sha;
+    // Check that Key and account name are the same on client and server (spec 3.2).
+    uint8 serverProof[MopAuth::AUTH_PROOF_LEN];
+    MopAuth::ComputeAuthProof(account, clientSeed, m_Seed, m_sessionKey, serverProof);
 
-    uint32 t = 0;
-    uint32 seed = m_Seed;
-
-    sha.UpdateData(account);
-    sha.UpdateData((uint8*) & t, 4);
-    sha.UpdateData((uint8*) & clientSeed, 4);
-    sha.UpdateData((uint8*) & seed, 4);
-    // Task 3 bridge: hash the canonical raw-40 K (not a BigNumber). This is exactly what Task 4's
-    // MopAuth::ComputeAuthProof will formalize; it also fixes the short-K bug (UpdateBigNumbers
-    // hashed GetNumBytes(), which is 39 on ~1/256 of logins). Removing the last BigNumber K
-    // consumer here is what lets the K local be dropped.
-    sha.UpdateData(m_sessionKey, int(MopAuth::SESSION_KEY_LEN));
-    sha.Finalize();
-
-    if (memcmp(sha.GetDigest(), digest, 20))
+    // CRYPTO_memcmp, not memcmp: a short-circuiting compare leaks how many leading proof bytes an
+    // attacker guessed right, one online attempt at a time.
+    if (!MopAuth::ProofEquals(serverProof, digest))
     {
         sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (authentication failed).");
         return BeginAuthErrorDrain(AUTH_FAILED);
