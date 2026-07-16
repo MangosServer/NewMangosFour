@@ -1190,7 +1190,6 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     uint8 expansion = 0;
     LocaleConstant locale;
     std::string account;
-    BigNumber v, s, g, N;
 
     // Read the content of the packet.
     // The read order, the scattered digest[] indices and the missing leading ReadBit() before
@@ -1225,17 +1224,17 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
         addonsData.append(authFields.addonData.data(), authFields.addonData.size());
     }
 
-    DEBUG_LOG("WorldSocket::HandleAuthSession: client build %u, account %s, clientseed %X",
-              BuiltNumberClient,
-              account.c_str(),
-              clientSeed);
+    DEBUG_LOG("WorldSocket::HandleAuthSession: client build %u.", BuiltNumberClient);
 
     // Check the version of client trying to connect
     if (!IsAcceptableClientBuild(BuiltNumberClient))
     {
         // Claims only the decision, not the delivery: BeginAuthErrorDrain can return -1 having sent
         // nothing, and it reports the actual send outcome itself. Keep payload-free.
-        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (version mismatch).");
+        // BASIC_LOG, not sLog.outError: operator-actionable and low volume (a version mismatch
+        // means a client/server build skew, not an attacker), so it belongs at default log level
+        // rather than error level.
+        BASIC_LOG("WorldSocket::HandleAuthSession: rejecting auth session (version mismatch).");
         return BeginAuthErrorDrain(AUTH_VERSION_MISMATCH);
     }
 
@@ -1244,6 +1243,12 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     LoginDatabase.escape_string(safe_account);
     // No SQL injection, username escaped.
 
+    // ACCEPTED RISK, scoped precisely (spec 2): the account name is a query parameter, so it
+    // reaches the DB layer's SQL log whenever SQL logging is enabled. That logging is config-gated,
+    // OFF by default, pre-existing, and lives in code SHARED WITH REALMD -- Phase 3 cannot suppress
+    // it without violating "never touch realmd". Account name only, SQL layer only, opt-in only.
+    // NO exception exists for K, the proof, s or v: none of them is a query parameter, and after
+    // this task v and s are not even SELECTed.
     QueryResult* result =
         LoginDatabase.PQuery("SELECT "
                              "`id`, "                      // 0
@@ -1251,11 +1256,9 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
                              "`sessionkey`, "              // 2
                              "`last_ip`, "                 // 3
                              "`locked`, "                  // 4
-                             "`v`, "                       // 5
-                             "`s`, "                       // 6
-                             "`expansion`, "               // 7
-                             "`mutetime`, "                // 8
-                             "`locale` "                   // 9
+                             "`expansion`, "               // 5  (was 7)
+                             "`mutetime`, "                // 6  (was 8)
+                             "`locale` "                   // 7  (was 9)
                              "FROM `account` "
                              "WHERE `username` = '%s'",
                              safe_account.c_str());
@@ -1263,30 +1266,16 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // Stop if the account is not found
     if (!result)
     {
-        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (unknown account).");
+        // DEBUG_LOG, not sLog.outError: attacker-driven volume on an unauthenticated path -- a
+        // typo'd or scanned username is not an operator event and must not drive unbounded
+        // error-level disk writes.
+        DEBUG_LOG("WorldSocket::HandleAuthSession: rejecting auth session (unknown account).");
         return BeginAuthErrorDrain(AUTH_UNKNOWN_ACCOUNT);
     }
 
     Field* fields = result->Fetch();
 
-    expansion = ((sWorld.getConfig(CONFIG_UINT32_EXPANSION) > fields[7].GetUInt8()) ? fields[7].GetUInt8() : sWorld.getConfig(CONFIG_UINT32_EXPANSION));
-
-    N.SetHexStr("894B645E89E1535BBDAD5B8B290650530801B18EBFBF5E8FAB3C82872A3E9BB7");
-    g.SetDword(7);
-
-    v.SetHexStr(fields[5].GetString());
-    s.SetHexStr(fields[6].GetString());
-    m_s = s;
-
-    const char* sStr = s.AsHexStr();                        // Must be freed by OPENSSL_free()
-    const char* vStr = v.AsHexStr();                        // Must be freed by OPENSSL_free()
-
-    DEBUG_LOG("WorldSocket::HandleAuthSession: (s,v) check s: %s v: %s",
-              sStr,
-              vStr);
-
-    OPENSSL_free((void*) sStr);
-    OPENSSL_free((void*) vStr);
+    expansion = ((sWorld.getConfig(CONFIG_UINT32_EXPANSION) > fields[5].GetUInt8()) ? fields[5].GetUInt8() : sWorld.getConfig(CONFIG_UINT32_EXPANSION));
 
     ///- Re-check ip locking (same check as in realmd).
     if (fields[4].GetUInt8() == 1)  // if ip is locked
@@ -1329,16 +1318,19 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
         delete result;                                        // 'fields' dies with it -- see below
         // Payload-free by construction: the account id only, never the key text. `id` is a LOCAL
         // copy taken above, so it survives the delete; fields[] does NOT.
-        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session "
-                      "(account %u has a NULL, empty or malformed sessionkey; realmd may not have "
-                      "authenticated this account yet).",
-                      id);
+        // BASIC_LOG, not sLog.outError: ladder step 1 (spec 5.1) must stay visible at default log
+        // level -- it is the gate's first question, and demoting it below default would hide the
+        // most common ordering mistake (HandleAuthSession racing realmd's own auth write).
+        BASIC_LOG("WorldSocket::HandleAuthSession: rejecting auth session "
+                  "(account %u has a NULL, empty or malformed sessionkey; realmd may not have "
+                  "authenticated this account yet).",
+                  id);
         return BeginAuthErrorDrain(AUTH_SESSION_EXPIRED);
     }
 
-    time_t mutetime = time_t (fields[8].GetUInt64());
+    time_t mutetime = time_t (fields[6].GetUInt64());
 
-    locale = LocaleConstant(fields[9].GetUInt8());
+    locale = LocaleConstant(fields[7].GetUInt8());
     if (locale >= MAX_LOCALE)
     {
         locale = LOCALE_enUS;
@@ -1357,7 +1349,9 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     {
         delete banresult;
 
-        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (account banned).");
+        // BASIC_LOG, not sLog.outError: operator-actionable and bounded by the size of the ban
+        // list, so it belongs at default log level rather than error level.
+        BASIC_LOG("WorldSocket::HandleAuthSession: rejecting auth session (account banned).");
         return BeginAuthErrorDrain(AUTH_BANNED);
     }
 
@@ -1396,7 +1390,10 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // attacker guessed right, one online attempt at a time.
     if (!MopAuth::ProofEquals(serverProof, digest))
     {
-        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (authentication failed).");
+        // DEBUG_LOG, not sLog.outError: this is the credential-spray path -- an attacker driving
+        // wrong-password attempts against valid or invalid usernames alike hits this rejection on
+        // every try, so at error level that traffic drives unbounded error-level disk writes.
+        DEBUG_LOG("WorldSocket::HandleAuthSession: rejecting auth session (authentication failed).");
         return BeginAuthErrorDrain(AUTH_FAILED);
     }
 
@@ -1416,16 +1413,15 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     std::string address = GetRemoteAddress();
 
-    DEBUG_LOG("WorldSocket::HandleAuthSession: Client '%s' authenticated successfully from %s.",
-              account.c_str(),
+    DEBUG_LOG("WorldSocket::HandleAuthSession: account %u authenticated successfully from %s.",
+              id,
               address.c_str());
 
-    // Update the last_ip in the database
-    // No SQL injection, username escaped.
-    static SqlStatementID updAccount;
-
-    SqlStatement stmt = LoginDatabase.CreateStatement(updAccount, "UPDATE `account` SET `last_ip` = ? WHERE `username` = ?");
-    stmt.PExecute(address.c_str(), account.c_str());
+    // Phase 3 performs NO writes to the `account` row on the auth path (spec 2, 6.7). This
+    // last_ip UPDATE was the only one, and it is not load-bearing: realmd rewrites last_ip on
+    // EVERY authentication (src/realmd/Auth/AuthSocket.cpp:714), so the column stays current
+    // without it. It also fed the account NAME to the SQL layer a second time, on a path that had
+    // no need to.
 
     // NOTE ATM the socket is single-threaded, have this in mind ...
     // Allocation stays ahead of its own load calls below; ACE_NEW_RETURN is an explicit early

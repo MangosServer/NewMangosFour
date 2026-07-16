@@ -133,12 +133,9 @@ class WorldSocket : protected WorldHandler
         /// Remove reference to this object.
         long RemoveReference(void);
 
-        /// Return the session key
-        BigNumber& GetSessionKey() { return m_s; }
-
         /// Return the canonical session key: EXACTLY MopAuth::SESSION_KEY_LEN raw bytes.
-        /// Valid only after HandleAuthSession has populated it. NOT the same thing as
-        /// GetSessionKey(), which returns m_s -- the SRP6 SALT, despite its name (Task 5 deletes it).
+        /// Valid only after HandleAuthSession has populated it. Task 5 deleted the old
+        /// GetSessionKey(), which returned m_s -- the SRP6 SALT, despite its name.
         const uint8* GetSessionKeyRaw() const { return m_sessionKey; }
 
     protected:
@@ -266,8 +263,6 @@ class WorldSocket : protected WorldHandler
         std::atomic<bool> m_sendInFlight;
 
         uint32 m_Seed;
-
-        BigNumber m_s;
 
         /// Canonical raw-40 session key: converted ONCE at the DB read and used verbatim by every
         /// consumer (proof digest, both crypt directions, redirect). Never round-tripped through
