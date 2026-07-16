@@ -24,10 +24,22 @@ add_test(NAME mop_framing COMMAND mop_framing_test)
 
 add_executable(mop_auth_test
     mop_auth_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../MopAuthSession.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopAuthSession.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopAuthProof.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopAuthResponse.cpp)
 target_include_directories(mop_auth_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/shared)
 set_target_properties(mop_auth_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(mop_auth_test PRIVATE shared)
+# MopAuthResponse.cpp includes Opcodes.h, which (per its own comment, ":39") includes the FULL
+# WorldSession.h so the opcode table's OpcodeHandler struct size matches across translation units.
+# That chain pulls in Item.h/AuctionHouseMgr.h/LFGMgr.h/DBCStructure.h/Object.h/Eluna's LuaValue.h --
+# i.e. most of the game module's own header surface. Adding those include dirs one at a time here
+# (Object, then AuctionHouseBot, then vmap, then Eluna, ...) chases an unbounded list; linking the
+# real 'game' target instead inherits its already-correct PUBLIC include set (and, when
+# SCRIPT_LIB_ELUNA is on, Eluna's own include dirs) via CMake usage requirements, which is bounded
+# and matches how Server/*.cpp already compiles inside the real game library. mop_auth_test itself
+# calls nothing from 'game' -- only enum values and struct layouts are used -- so no game .obj
+# beyond what the headers require gets pulled into the test binary.
+target_link_libraries(mop_auth_test PRIVATE game)
 add_test(NAME mop_auth COMMAND mop_auth_test)

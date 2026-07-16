@@ -26,9 +26,12 @@
 #include "WorldSession.h"
 #include "WorldPacket.h"
 #include "Opcodes.h"
+#include "MopAuthResponse.h"
 #include "Player.h"
 #include "Database/DatabaseEnv.h"
 #include "Log.h"
+
+#include <exception>
 
 /**
  * @file WorldSessionMgr.cpp
@@ -94,15 +97,50 @@ bool World::RemoveSession(uint32 id)
 }
 
 /**
- * @brief Queues a new session for addition during the world update.
+ * @brief Enqueues a new session and publishes the authenticated commit as one queue-lock transaction.
  *
- * @param s The session to add.
+ * The ONLY fallible operation -- queue insertion -- runs first, while the lock is held. Only after
+ * it succeeds does the infallible commit callback run, still under the lock, so the world thread
+ * cannot observe or pop the queued session until crypt and connection state have been committed.
+ * Releasing the lock is the externally visible publication point.
+ *
+ * @param s       The session to add.
+ * @param commit  Infallible (noexcept) callback performing the auth commit; runs only on success.
+ * @param context Opaque argument forwarded to @p commit.
+ * @return true once the session is enqueued and committed; false with no queue change and without
+ *         invoking @p commit if the arguments are invalid or enqueue fails.
  */
-void World::AddSession(WorldSession* s)
+bool World::AddSession(WorldSession* s, SessionPublishCommit commit, void* context)
 {
-    std::lock_guard<std::mutex> guard(m_sessionAddQueueLock);
+    if (!s || !commit || !context)
+    {
+        sLog.outError("World::AddSession: refusing invalid publication arguments.");
+        return false;
+    }
 
-    m_sessionAddQueue.push_back(s);
+    try
+    {
+        std::lock_guard<std::mutex> guard(m_sessionAddQueueLock);
+
+        // std::deque::push_back has the strong exception guarantee here: if allocation throws,
+        // the queue is unchanged and the commit callback has not run.
+        m_sessionAddQueue.push_back(s);
+
+        // Still under the queue lock: the world thread cannot observe/pop the new session yet.
+        // The function-pointer type is noexcept and the callback performs stores only.
+        commit(context);
+        return true;                    // guard unlocks: THIS is externally visible publication
+    }
+    catch (std::exception const& e)
+    {
+        sLog.outError("World::AddSession: could not enqueue session: %s", e.what());
+        return false;
+    }
+    catch (...)
+    {
+        sLog.outError("World::AddSession: could not enqueue session (unknown exception).");
+        return false;
+    }
 }
 
 void
@@ -162,18 +200,9 @@ World::AddSession_(WorldSession* s)
         return;
     }
 
-    WorldPacket packet(SMSG_AUTH_RESPONSE, 17);
-
-    packet.WriteBit(false);                                 // has queue
-    packet.WriteBit(true);                                  // has account info
-
-    packet << uint32(0);                                    // Unknown - 4.3.2
-    packet << uint8(s->Expansion());                        // 0 - normal, 1 - TBC, 2 - WotLK, 3 - CT. must be set in database manually for each account
-    packet << uint32(0);                                    // BillingTimeRemaining
-    packet << uint8(s->Expansion());                        // 0 - normal, 1 - TBC, 2 - WotLK, 3 - CT. Must be set in database manually for each account.
-    packet << uint32(0);                                    // BillingTimeRested
-    packet << uint8(0);                                     // BillingPlanFlags
-    packet << uint8(AUTH_OK);
+    WorldPacket packet;
+    MopAuth::BuildAuthResponseAccepted(packet, s->Expansion(),
+                                       uint8(getConfig(CONFIG_UINT32_EXPANSION)));
 
     s->SendPacket(&packet);
 
@@ -233,20 +262,9 @@ void World::AddQueuedSession(WorldSession* sess)
     m_QueuedSessions.push_back(sess);
 
     // The 1st SMSG_AUTH_RESPONSE needs to contain other info too.
-    WorldPacket packet (SMSG_AUTH_RESPONSE, 21);
-
-    packet.WriteBit(true);                                  // has queue
-    packet.WriteBit(false);                                 // unk queue-related
-    packet.WriteBit(true);                                  // has account data
-
-    packet << uint32(0);                                    // Unknown - 4.3.2
-    packet << uint8(sess->Expansion());                     // 0 - normal, 1 - TBC, 2 - WotLK, 3 - CT. must be set in database manually for each account
-    packet << uint32(0);                                    // BillingTimeRemaining
-    packet << uint8(sess->Expansion());                     // 0 - normal, 1 - TBC, 2 - WotLK, 3 - CT. Must be set in database manually for each account.
-    packet << uint32(0);                                    // BillingTimeRested
-    packet << uint8(0);                                     // BillingPlanFlags
-    packet << uint8(AUTH_WAIT_QUEUE);
-    packet << uint32(GetQueuedSessionPos(sess));            // position in queue
+    WorldPacket packet;
+    MopAuth::BuildAuthResponseQueued(packet, GetQueuedSessionPos(sess), sess->Expansion(),
+                                     uint8(getConfig(CONFIG_UINT32_EXPANSION)));
 
     sess->SendPacket(&packet);
 }

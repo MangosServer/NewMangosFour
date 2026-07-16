@@ -336,9 +336,15 @@ void WardenWin::RequestData()
             {
                 uint32 seed = rand32();
                 buff << uint32(seed);
-                HMACSHA1 hmac(4, (uint8*)&seed);
+                HMACSHA1 hmac(sizeof(seed), reinterpret_cast<const uint8*>(&seed));
                 hmac.UpdateData(wd->Str);
                 hmac.Finalize();
+                if (!hmac.IsValid())
+                {
+                    sLog.outWarden("MODULE_CHECK HMAC-SHA1 failed, CheckId %u account Id %u",
+                                   *itr, _session->GetAccountId());
+                    return;                       // do not encrypt/send a request with a bad digest
+                }
                 buff.append(hmac.GetDigest(), hmac.GetLength());
                 break;
             }

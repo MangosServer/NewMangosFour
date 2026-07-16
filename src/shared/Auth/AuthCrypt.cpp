@@ -25,74 +25,156 @@
 #include "AuthCrypt.h"
 #include "HMACSHA1.h"
 #include "Log/Log.h"
-#include "BigNumber.h"
 
 /**
  * Initializes the authentication crypt state in an uninitialized state.
  */
 AuthCrypt::AuthCrypt() : _clientDecrypt(SHA_DIGEST_LENGTH), _serverEncrypt(SHA_DIGEST_LENGTH)
 {
-    _initialized = false;
+    _state = CRYPT_FRESH;
 }
 
 AuthCrypt::~AuthCrypt()
 {
 }
 
-void AuthCrypt::Init(BigNumber* K)
+// World-crypt HMAC seeds for 5.4.8.18414. BINARY-CONFIRMED IN BOTH CLIENT BINARIES (spec 3.1) --
+// not fork-derived. Construction confirmed at sub_140A7F0B0 / sub_A6331B; the object is the world
+// PacketPipe. Direction was DERIVED from the client's send/recv paths, not assumed.
+//
+// DO NOT substitute the Battle.net seeds (68E0C72E.../DEA965AE... @ 0x14100DD10): different
+// subsystem (BSN::Hard::Decoder, SHA256).
+//
+// These REPLACED the 4.3.4-era seeds (CC98AE04... / C2B3723C...) that shipped here through Stage 1.
+// Those are wrong for MoP and fail the crypt indistinguishably from a wrong K.
+
+/// Server-encrypt / client-decrypt. Wow-64 VA 0x140F4CCA0 / Wow.exe VA 0xDC6FD0.
+static const uint8 SeedServerEncrypt[SEED_KEY_SIZE] =
 {
-    uint8 ServerEncryptionKey[SEED_KEY_SIZE] = { 0xCC, 0x98, 0xAE, 0x04, 0xE8, 0x97, 0xEA, 0xCA, 0x12, 0xDD, 0xC0, 0x93, 0x42, 0x91, 0x53, 0x57 };
+    0x08, 0xF1, 0x95, 0x9F, 0x47, 0xE5, 0xD2, 0xDB, 0xA1, 0x3D, 0x77, 0x8F, 0x3F, 0x3E, 0xE7, 0x00
+};
 
-    HMACSHA1 serverEncryptHmac(SEED_KEY_SIZE, (uint8*)ServerEncryptionKey);
-    uint8* encryptHash = serverEncryptHmac.ComputeHash(K);
+/// Server-decrypt / client-encrypt. Wow-64 VA 0x140F4CCB0 / Wow.exe VA 0xDC6FE0.
+static const uint8 SeedServerDecrypt[SEED_KEY_SIZE] =
+{
+    0x40, 0xAA, 0xD3, 0x92, 0x26, 0x71, 0x43, 0x47, 0x3A, 0x31, 0x08, 0xA6, 0xE7, 0xDC, 0x98, 0x2A
+};
 
-    uint8 ServerDecryptionKey[SEED_KEY_SIZE] = { 0xC2, 0xB3, 0x72, 0x3C, 0xC6, 0xAE, 0xD9, 0xB5, 0x34, 0x3C, 0x53, 0xEE, 0x2F, 0x43, 0x67, 0xCE };
+bool AuthCrypt::Prepare(const uint8 (&K)[MopAuth::SESSION_KEY_LEN])
+{
+    // ONE-SHOT STATE MACHINE. Reject repeats before touching either live stream.
+    //
+    // A repeated call while PREPARED poisons that unpublished preparation: a caller that ignored
+    // the false return must not be able to Activate() stale key material from the earlier success.
+    // A call while ACTIVE is rejected without changing state or touching either ARC4 context, so it
+    // cannot corrupt an already-live stream.
+    if (_state != CRYPT_FRESH)
+    {
+        sLog.outError("AuthCrypt::Prepare: invalid state transition from %u.", uint32(_state));
+        if (_state == CRYPT_PREPARED)
+        {
+            _state = CRYPT_FAILED;
+        }
+        return false;
+    }
 
-    HMACSHA1 clientDecryptHmac(SEED_KEY_SIZE, (uint8*)ServerDecryptionKey);
-    uint8* decryptHash = clientDecryptHmac.ComputeHash(K);
+    // Pessimistically enter FAILED before the first fallible operation. Every early return below
+    // therefore leaves an explicit terminal failure state, never a fresh-looking or activatable
+    // half-keyed object.
+    _state = CRYPT_FAILED;
 
-    // SARC4 _serverDecrypt(encryptHash);
-    _clientDecrypt.Init(decryptHash);
-    _serverEncrypt.Init(encryptHash);
-    // SARC4 _clientEncrypt(decryptHash);
+    if (!IsUsable())
+    {
+        sLog.outError("AuthCrypt::Prepare: RC4 unavailable; crypt NOT prepared.");
+        return false;
+    }
 
+    // Per direction: HMAC-SHA1(key = 16-byte seed, message = K [40 raw]) -> 20-byte digest
+    //             -> ARC4 KSA -> drop-1024. Shape binary-confirmed; drop-1024 binary-confirmed.
+    // The raw-40 K is passed straight through: HMACSHA1::ComputeHash(BigNumber*) would hash
+    // GetNumBytes(), not 40, reintroducing the short-K bug this migration removes.
+    HMACSHA1 serverEncryptHmac(SEED_KEY_SIZE, SeedServerEncrypt);
+    serverEncryptHmac.UpdateData(K, int(MopAuth::SESSION_KEY_LEN));
+    serverEncryptHmac.Finalize();
+
+    HMACSHA1 clientDecryptHmac(SEED_KEY_SIZE, SeedServerDecrypt);
+    clientDecryptHmac.UpdateData(K, int(MopAuth::SESSION_KEY_LEN));
+    clientDecryptHmac.Finalize();
+
+    if (!serverEncryptHmac.IsValid() || !clientDecryptHmac.IsValid())
+    {
+        sLog.outError("AuthCrypt::Prepare: HMAC-SHA1 failed; crypt NOT prepared.");
+        return false;
+    }
+
+    uint8* encryptHash = serverEncryptHmac.GetDigest();
+    uint8* decryptHash = clientDecryptHmac.GetDigest();
+
+    // EVERY step below is checked. This is the whole point of the task: ARC4 used to swallow every
+    // EVP failure, so "Init ran" and "Init worked" were indistinguishable -- and IsInitialized() is
+    // what selects the post-crypt header, so the difference is plaintext on the wire.
+    if (!_clientDecrypt.Init(decryptHash) || !_serverEncrypt.Init(encryptHash))
+    {
+        sLog.outError("AuthCrypt::Prepare: ARC4 keying failed; crypt NOT prepared.");
+        return false;
+    }
+
+    // drop-1024 (binary-confirmed). Checked too: a failed drop leaves the keystream at the wrong
+    // position, which desynchronises every subsequent header exactly like a wrong key -- and
+    // silently.
     uint8 syncBuf[1024];
 
     memset(syncBuf, 0, 1024);
-
-    _serverEncrypt.UpdateData(1024, syncBuf);
-    //_clientEncrypt.UpdateData(1024, syncBuf);
+    if (!_serverEncrypt.UpdateData(1024, syncBuf))
+    {
+        sLog.outError("AuthCrypt::Prepare: server-encrypt drop-1024 failed; crypt NOT prepared.");
+        return false;
+    }
 
     memset(syncBuf, 0, 1024);
+    if (!_clientDecrypt.UpdateData(1024, syncBuf))
+    {
+        sLog.outError("AuthCrypt::Prepare: client-decrypt drop-1024 failed; crypt NOT prepared.");
+        return false;
+    }
 
-    //_serverDecrypt.UpdateData(1024, syncBuf);
-    _clientDecrypt.UpdateData(1024, syncBuf);
-
-    _initialized = true;
+    // MUST REMAIN THE LAST STATE CHANGE, and it is only reached when the ENTIRE chain succeeded:
+    // RC4 selected -> HMAC digests valid -> both directions keyed -> drop-1024 applied to both.
+    //
+    // NOTE THIS SETS PREPARED, NOT ACTIVE. The crypt is now fully keyed but still INERT:
+    // IsInitialized() is false, so Decrypt/Encrypt no-op and the wire codec still frames pre-crypt.
+    // Only Activate() publishes it. That separation is what makes the caller's commit region
+    // infallible -- see Activate()'s doc and Task 8.
+    //
+    // Hoisting this, or adding an early return BELOW it, silently turns a failure into an
+    // activatable half-keyed crypt. The state-transition tests pin fresh, prepared, failed and
+    // active behaviour -- unlike Stage 1, where the equivalent rule had no test.
+    _state = CRYPT_PREPARED;
+    return true;
 }
 
 /**
  * Decrypts the fixed-size encrypted receive header in place.
  */
-void AuthCrypt::DecryptRecv(uint8* data, size_t len)
+bool AuthCrypt::DecryptRecv(uint8* data, size_t len)
 {
-    if (!_initialized)
+    if (_state != CRYPT_ACTIVE)
     {
-        return;
+        return false;                            // pre-crypt: nothing to do, and nothing was done
     }
 
-    _clientDecrypt.UpdateData(len, data);
+    return _clientDecrypt.UpdateData(int(len), data);
 }
 
 /**
  * Encrypts the fixed-size outgoing packet header in place.
  */
-void AuthCrypt::EncryptSend(uint8* data, size_t len)
+bool AuthCrypt::EncryptSend(uint8* data, size_t len)
 {
-    if (!_initialized)
+    if (_state != CRYPT_ACTIVE)
     {
-        return;
+        return false;
     }
 
-    _serverEncrypt.UpdateData(len, data);
+    return _serverEncrypt.UpdateData(int(len), data);
 }

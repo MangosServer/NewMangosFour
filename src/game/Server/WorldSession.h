@@ -441,13 +441,12 @@ class WorldSession
 
         bool Update(PacketFilter& updater);
 
-        /// Handle the authentication waiting queue (to be completed)
+        /// Sends SMSG_AUTH_RESPONSE for the login queue (see MopAuthResponse.h).
         void SendAuthWaitQue(uint32 position);
 
         void SendNameQueryOpcode(Player* p);
         void SendNameQueryOpcodeFromDB(ObjectGuid guid);
         static void SendNameQueryOpcodeFromDBCallBack(QueryResult* result, uint32 accountId);
-        void SendAuthResponse(uint8 code, bool queued, uint32 queuePos = 0);
 
         void SendTrainerList(ObjectGuid guid);
         void SendTrainerList(ObjectGuid guid, const std::string& strTitle);
@@ -1087,6 +1086,12 @@ class WorldSession
 
         void HandleLoadScreenOpcode(WorldPacket& recvPacket);
     private:
+        friend class WorldSocket;
+
+        /// Release the session's extra socket reference without closing the socket. Valid only
+        /// before the session has been published to World.
+        void AbandonUnpublishedSocket() noexcept;
+
         // private trade methods
         void moveItems(Item* myItems[], Item* hisItems[]);
         bool VerifyMovementInfo(MovementInfo const& movementInfo, ObjectGuid const& guid) const;

@@ -219,6 +219,17 @@ void WorldSession::HandleCharEnum(QueryResult* result)
  */
 void WorldSession::HandleCharEnumOpcode(WorldPacket & /*recv_data*/)
 {
+    // GATE 3b EVIDENCE (Phase 3). Reaching this line PROVES dispatch past the opcode legality
+    // check: CMSG_CHAR_ENUM is registered STATUS_AUTHED (opcode_register.inc:4), so ExecuteOpcode
+    // is the only route in and it runs only for an authenticated session. WorldSocket's inbound
+    // packet-logging (before the state-legality check) happens BEFORE that check, so a "CLIENT:"
+    // line proves receipt only -- which is why this marker exists rather than a grep of the
+    // packet log.
+    // Payload-free: account id only, never the name (spec 2). Kept beyond Phase 3: Phase 4 builds
+    // the character response here and will want the same boundary marked.
+    DEBUG_LOG("WorldSession::HandleCharEnumOpcode: CMSG_CHAR_ENUM dispatched for account %u.",
+              GetAccountId());
+
     /// get all the data necessary for loading all characters (along with their pets) on the account
     CharacterDatabase.AsyncPQuery(&chrHandler, &CharacterHandler::HandleCharEnumCallback, GetAccountId(),
                                   !sWorld.getConfig(CONFIG_BOOL_DECLINED_NAMES_USED) ?

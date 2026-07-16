@@ -533,7 +533,13 @@ class World
         void CleanupsBeforeStop();
 
         WorldSession* FindSession(uint32 id) const;
-        void AddSession(WorldSession* s);
+
+        /// Infallible auth-commit callback invoked by AddSession while the add-queue lock is held.
+        using SessionPublishCommit = void (*)(void*) noexcept;
+
+        /// Reserve/enqueue while locked, invoke the infallible auth commit, then unlock/publish.
+        /// Returns false with no queue change and without invoking commit when lock/allocation fails.
+        bool AddSession(WorldSession* s, SessionPublishCommit commit, void* context);
         bool RemoveSession(uint32 id);
         /// Get the number of current active sessions
         void UpdateMaxSessionCounters();

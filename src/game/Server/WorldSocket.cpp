@@ -56,11 +56,14 @@
 
 #include <cstdio>
 #include <cstring>
+#include <exception>
 
 #include "WorldSocket.h"
 #include "Common.h"
 #include "MopWireCodec.h"
 #include "MopAuthSession.h"
+#include "MopAuthProof.h"
+#include "MopAuthResponse.h"
 
 #include "Util.h"
 #include "World.h"
@@ -69,7 +72,6 @@
 #include "ByteBuffer.h"
 #include "Opcodes.h"
 #include "Database/DatabaseEnv.h"
-#include "Auth/Sha1.h"
 #include "WorldSession.h"
 #include "WorldSocketMgr.h"
 #include "Log.h"
@@ -105,6 +107,9 @@ WorldSocket::WorldSocket(void) :
     m_lastDecodeLog(ACE_Time_Value::zero)
 {
     reference_counting_policy().value(ACE_Event_Handler::Reference_Counting_Policy::ENABLED);
+
+    // Canonical raw-40 session key: populated by HandleAuthSession via MopAuth::SessionKeyFromHex.
+    memset(m_sessionKey, 0, sizeof(m_sessionKey));
 
     msg_queue()->high_water_mark(8 * 1024 * 1024);
     msg_queue()->low_water_mark(8 * 1024 * 1024);
@@ -222,9 +227,14 @@ int WorldSocket::SendPacket(const WorldPacket& pct, bool* sent)
                       pct.size(), pct.GetOpcode(), int(postCrypt));
         return -1;
     }
-    if (postCrypt)
+    if (postCrypt && !m_Crypt.EncryptSend(header, sizeof(header)))
     {
-        m_Crypt.EncryptSend(header, sizeof(header));
+        // The header is UNDEFINED on an EVP failure: in-place processing may have partially written
+        // it. Dropping the packet is the only safe answer; the socket closes rather than transmit
+        // plaintext or garbage under a post-crypt frame.
+        sLog.outError("WorldSocket::SendPacket: header encryption failed (opcode 0x%.4X); closing.",
+                      pct.GetOpcode());
+        return -1;
     }
 
     if (m_OutBuffer->space() >= pct.size() + sizeof(header) && msg_queue()->is_empty())
@@ -465,11 +475,9 @@ int WorldSocket::BeginAuthErrorDrain(uint8 code)
         return -1;                                            // nothing queued yet
     }
 
-    // 3. Construct the legacy error response (unchanged wire shape).
-    WorldPacket packet(SMSG_AUTH_RESPONSE, 1);
-    packet.WriteBit(0); // has account info
-    packet.WriteBit(0); // has queue info
-    packet << uint8(code);
+    // 3. Construct the error response via the canonical serializer (unchanged wire shape).
+    WorldPacket packet;
+    MopAuth::BuildAuthResponseError(packet, code);
 
     // 4. Queue it. If it never reached the buffer there is nothing to drain, so close now.
     bool sent = false;
@@ -930,8 +938,19 @@ int WorldSocket::handle_input_missing_data(void)
 /// MopFrameReader::DecryptFn hook (Phase 2 wire framing): in-place ARC4 on the header only.
 bool WorldSocket::DecryptHeaderHook(void* ctx, uint8* header, size_t len)
 {
-    static_cast<WorldSocket*>(ctx)->m_Crypt.DecryptRecv(header, len);
-    return true;   // no-op pre-crypt (m_Crypt.DecryptRecv() is itself a no-op before Init())
+    WorldSocket* const self = static_cast<WorldSocket*>(ctx);
+
+    // Pre-crypt frames are not decrypted at all -- the reader must not treat that as a failure.
+    // AuthCrypt::DecryptRecv returns false when not ACTIVE, which is the pre-crypt case, so the
+    // question has to be asked HERE rather than inferred from the return value.
+    if (!self->m_Crypt.IsInitialized())
+    {
+        return true;
+    }
+
+    // Post-crypt: a false return means the header is UNDECRYPTED, so parsing it would read garbage.
+    // Reject the frame (MF_DECRYPT) instead of guessing.
+    return self->m_Crypt.DecryptRecv(header, len);
 }
 
 /// MopFrameReader::CmdValidFn hook (Phase 2 wire framing): game rule; false rejects the frame.
@@ -1056,13 +1075,32 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
             case CMSG_PING:
                 return HandlePing(*new_pct);
             case CMSG_AUTH_SESSION:
-                // Phase 2: framing proven. Do NOT enter the legacy auth path (HandleAuthSession -> m_Crypt.Init).
-                // The allowlist above guarantees we are in CONN_CHALLENGED here, so this is the LEGAL transition.
-                // The ENABLE_ELUNA OnPacketReceive hook for this opcode is intentionally NOT invoked here;
-                // it is deferred to Phase 3 along with the rest of the auth path.
+                // THE PHASE 3 STAGE 2 CUTOVER. Phase 2 proved framing here and deliberately returned
+                // -1 without authenticating; Stage 1 restructured the dormant handler; Stage 2 gave
+                // it correct semantics. This line is where all of it becomes reachable.
+                //
+                // The allowlist above guarantees CONN_CHALLENGED here, so this is the legal
+                // transition. HandleAuthSession owns every outcome from here:
+                //   0  = EITHER the session committed (crypt -> CONN_AUTHED -> publish), OR a
+                //        rejection was queued and the drain armed -- BeginAuthErrorDrain returns 0
+                //        on success, and the socket stays open until Update() sees it drained and
+                //        closes it. Returning 0 is what lets the error reach the client.
+                //   -1 = nothing was queued (cancel_wakeup failed / SendPacket failed / Eluna
+                //        vetoed), so there is nothing to drain and the socket closes immediately.
+                // DO NOT "fix" this to return -1 on rejection: that closes the socket on top of the
+                // unsent response and reintroduces the exact Stage 1 defect (Codex C1) that
+                // BeginAuthErrorDrain exists to fix.
+                //
+                // The 6->4-byte inbound header switch needs no code: the reader derives the header
+                // kind fresh per call from m_Crypt.IsInitialized() (see DecryptHeaderHook below), so
+                // the first frame after a successful commit is read post-crypt automatically.
+                //
+                // The Eluna OnPacketReceive hook for this opcode remains deliberately NOT invoked:
+                // Phase 2 deferred it to Phase 3 along with the rest of the auth path, and invoking
+                // it here would let a script observe the raw auth body, including the proof, which
+                // spec 2 forbids. This is a Phase 4 decision, not an oversight.
                 m_connState = MopHs::CONN_AUTHENTICATING;
-                DEBUG_LOG("WorldSocket: CMSG_AUTH_SESSION accepted; CONN_CHALLENGED -> CONN_AUTHENTICATING; auth deferred to Phase 3 (framing OK, len %zu, body redacted); closing.", new_pct->size());
-                return -1;
+                return HandleAuthSession(*new_pct);
             case CMSG_KEEP_ALIVE:
                 DEBUG_LOG("CMSG_KEEP_ALIVE ,size: %zu ", new_pct->size());
 
@@ -1156,6 +1194,46 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
 }
 
 /**
+ * @brief Tears down a WorldSession allocated but never published to World.
+ *
+ * The single cleanup path for every post-allocation rejection in HandleAuthSession.
+ * AbandonUnpublishedSocket() nulls the session's m_Socket before this deletes it, so
+ * ~WorldSession() does NOT CloseSocket() the socket we are still draining an auth error through,
+ * and it releases exactly the one extra reference the WorldSession constructor took.
+ */
+void WorldSocket::DestroyUnpublishedSession() noexcept
+{
+    if (!m_Session)
+    {
+        return;
+    }
+
+    m_Session->AbandonUnpublishedSocket();
+    delete m_Session;
+    // Unlocked write is safe ONLY because this runs on the reactor upcall path (HandleAuthSession),
+    // which the reactor serializes against handle_close(), and m_Session is not yet published to
+    // World -- no other thread can observe or race this store. If this cleanup is ever moved off
+    // the upcall path, re-add the m_SessionLock guard used elsewhere in this file.
+    m_Session = NULL;
+}
+
+/**
+ * @brief Infallible auth commit run by World::AddSession under the add-queue lock.
+ *
+ * Activates the prepared crypt (PREPARED -> ACTIVE, a single state store that cannot fail) and
+ * stores CONN_AUTHED. Runs while the queue lock is held and the queued session is not yet visible
+ * to the world thread; unlocking after this returns is the publication point. Must stay noexcept.
+ *
+ * @param context The originating WorldSocket, passed opaque through AddSession.
+ */
+void WorldSocket::CommitAuthenticatedSession(void* context) noexcept
+{
+    WorldSocket* socket = static_cast<WorldSocket*>(context);
+    socket->m_Crypt.Activate();
+    socket->m_connState = MopHs::CONN_AUTHED;
+}
+
+/**
  * @brief Authenticates a new client session and creates the world session.
  *
  * @param recvPacket The authentication packet.
@@ -1170,8 +1248,6 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     uint8 expansion = 0;
     LocaleConstant locale;
     std::string account;
-    Sha1Hash sha1;
-    BigNumber v, s, g, N, K;
 
     // Read the content of the packet.
     // The read order, the scattered digest[] indices and the missing leading ReadBit() before
@@ -1206,17 +1282,17 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
         addonsData.append(authFields.addonData.data(), authFields.addonData.size());
     }
 
-    DEBUG_LOG("WorldSocket::HandleAuthSession: client build %u, account %s, clientseed %X",
-              BuiltNumberClient,
-              account.c_str(),
-              clientSeed);
+    DEBUG_LOG("WorldSocket::HandleAuthSession: client build %u.", BuiltNumberClient);
 
     // Check the version of client trying to connect
     if (!IsAcceptableClientBuild(BuiltNumberClient))
     {
         // Claims only the decision, not the delivery: BeginAuthErrorDrain can return -1 having sent
         // nothing, and it reports the actual send outcome itself. Keep payload-free.
-        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (version mismatch).");
+        // BASIC_LOG, not sLog.outError: operator-actionable and low volume (a version mismatch
+        // means a client/server build skew, not an attacker), so it belongs at default log level
+        // rather than error level.
+        BASIC_LOG("WorldSocket::HandleAuthSession: rejecting auth session (version mismatch).");
         return BeginAuthErrorDrain(AUTH_VERSION_MISMATCH);
     }
 
@@ -1225,6 +1301,12 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     LoginDatabase.escape_string(safe_account);
     // No SQL injection, username escaped.
 
+    // ACCEPTED RISK, scoped precisely (spec 2): the account name is a query parameter, so it
+    // reaches the DB layer's SQL log whenever SQL logging is enabled. That logging is config-gated,
+    // OFF by default, pre-existing, and lives in code SHARED WITH REALMD -- Phase 3 cannot suppress
+    // it without violating "never touch realmd". Account name only, SQL layer only, opt-in only.
+    // NO exception exists for K, the proof, s or v: none of them is a query parameter, and after
+    // this task v and s are not even SELECTed.
     QueryResult* result =
         LoginDatabase.PQuery("SELECT "
                              "`id`, "                      // 0
@@ -1232,11 +1314,9 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
                              "`sessionkey`, "              // 2
                              "`last_ip`, "                 // 3
                              "`locked`, "                  // 4
-                             "`v`, "                       // 5
-                             "`s`, "                       // 6
-                             "`expansion`, "               // 7
-                             "`mutetime`, "                // 8
-                             "`locale` "                   // 9
+                             "`expansion`, "               // 5  (was 7)
+                             "`mutetime`, "                // 6  (was 8)
+                             "`locale` "                   // 7  (was 9)
                              "FROM `account` "
                              "WHERE `username` = '%s'",
                              safe_account.c_str());
@@ -1244,30 +1324,16 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // Stop if the account is not found
     if (!result)
     {
-        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (unknown account).");
+        // DEBUG_LOG, not sLog.outError: attacker-driven volume on an unauthenticated path -- a
+        // typo'd or scanned username is not an operator event and must not drive unbounded
+        // error-level disk writes.
+        DEBUG_LOG("WorldSocket::HandleAuthSession: rejecting auth session (unknown account).");
         return BeginAuthErrorDrain(AUTH_UNKNOWN_ACCOUNT);
     }
 
     Field* fields = result->Fetch();
 
-    expansion = ((sWorld.getConfig(CONFIG_UINT32_EXPANSION) > fields[7].GetUInt8()) ? fields[7].GetUInt8() : sWorld.getConfig(CONFIG_UINT32_EXPANSION));
-
-    N.SetHexStr("894B645E89E1535BBDAD5B8B290650530801B18EBFBF5E8FAB3C82872A3E9BB7");
-    g.SetDword(7);
-
-    v.SetHexStr(fields[5].GetString());
-    s.SetHexStr(fields[6].GetString());
-    m_s = s;
-
-    const char* sStr = s.AsHexStr();                        // Must be freed by OPENSSL_free()
-    const char* vStr = v.AsHexStr();                        // Must be freed by OPENSSL_free()
-
-    DEBUG_LOG("WorldSocket::HandleAuthSession: (s,v) check s: %s v: %s",
-              sStr,
-              vStr);
-
-    OPENSSL_free((void*) sStr);
-    OPENSSL_free((void*) vStr);
+    expansion = ((sWorld.getConfig(CONFIG_UINT32_EXPANSION) > fields[5].GetUInt8()) ? fields[5].GetUInt8() : sWorld.getConfig(CONFIG_UINT32_EXPANSION));
 
     ///- Re-check ip locking (same check as in realmd).
     if (fields[4].GetUInt8() == 1)  // if ip is locked
@@ -1287,11 +1353,42 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
         security = SEC_ADMINISTRATOR;
     }
 
-    K.SetHexStr(fields[2].GetString());
+    // ---- Ladder step 1 (spec 5.1): guard the sessionkey with its own distinct log line. -------
+    // Until now K.SetHexStr(fields[2].GetString()) ran UNGUARDED: a NULL or empty value yields a
+    // garbage BigNumber and an AUTH_FAILED indistinguishable from a wrong seed, a wrong
+    // permutation, or a byte-reversed K. Naming the cause is the whole point.
+    //
+    // VALIDATE STRUCTURALLY -- NEVER BRANCH ON A SPECIFIC LENGTH. realmd stores K via AsHexStr()
+    // (= BN_bn2hex), which DROPS LEADING ZERO BYTES: one leading zero gives 78 hex chars, two give
+    // 76, and so on with NO floor. Rule: non-NULL, non-empty, hex-only, EVEN length, <= 80 ->
+    // convert -> assert the CONVERTED value is 1..40 bytes. "" is vacuously hex-only, even (0) and
+    // <= 80, and would zero-fill into forty 0x00s -- a K of zeros that looks well-formed to every
+    // consumer downstream; that confounder is precisely what this guard catches, so empty is a
+    // HARD REJECT.
+    const char* const sessionKeyHex = fields[2].GetString();
 
-    time_t mutetime = time_t (fields[8].GetUInt64());
+    // ONE call owns the whole chain: validate -> BigNumber -> raw-40 -> re-check. Do NOT
+    // re-implement any of it here. SessionKeyFromHex is covered end-to-end by
+    // test_sessionkey_from_hex_roundtrip, which drives realmd's own SetBinary/AsHexStr write path.
+    // sessionKeyHex points INTO the query result, so this must run BEFORE any `delete result`.
+    if (!MopAuth::SessionKeyFromHex(sessionKeyHex, m_sessionKey))
+    {
+        delete result;                                        // 'fields' dies with it -- see below
+        // Payload-free by construction: the account id only, never the key text. `id` is a LOCAL
+        // copy taken above, so it survives the delete; fields[] does NOT.
+        // BASIC_LOG, not sLog.outError: ladder step 1 (spec 5.1) must stay visible at default log
+        // level -- it is the gate's first question, and demoting it below default would hide the
+        // most common ordering mistake (HandleAuthSession racing realmd's own auth write).
+        BASIC_LOG("WorldSocket::HandleAuthSession: rejecting auth session "
+                  "(account %u has a NULL, empty or malformed sessionkey; realmd may not have "
+                  "authenticated this account yet).",
+                  id);
+        return BeginAuthErrorDrain(AUTH_SESSION_EXPIRED);
+    }
 
-    locale = LocaleConstant(fields[9].GetUInt8());
+    time_t mutetime = time_t (fields[6].GetUInt64());
+
+    locale = LocaleConstant(fields[7].GetUInt8());
     if (locale >= MAX_LOCALE)
     {
         locale = LOCALE_enUS;
@@ -1310,7 +1407,9 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     {
         delete banresult;
 
-        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (account banned).");
+        // BASIC_LOG, not sLog.outError: operator-actionable and bounded by the size of the ban
+        // list, so it belongs at default log level rather than error level.
+        BASIC_LOG("WorldSocket::HandleAuthSession: rejecting auth session (account banned).");
         return BeginAuthErrorDrain(AUTH_BANNED);
     }
 
@@ -1341,37 +1440,46 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     //    first encrypted server packet -- ahead of SMSG_AUTH_RESPONSE. Re-enabling must decide
     //    that ordering deliberately rather than inherit it.
 
-    // Check that Key and account name are the same on client and server
-    Sha1Hash sha;
+    // Check that Key and account name are the same on client and server (spec 3.2).
+    uint8 serverProof[MopAuth::AUTH_PROOF_LEN];
+    MopAuth::ComputeAuthProof(account, clientSeed, m_Seed, m_sessionKey, serverProof);
 
-    uint32 t = 0;
-    uint32 seed = m_Seed;
-
-    sha.UpdateData(account);
-    sha.UpdateData((uint8*) & t, 4);
-    sha.UpdateData((uint8*) & clientSeed, 4);
-    sha.UpdateData((uint8*) & seed, 4);
-    sha.UpdateBigNumbers(&K, NULL);
-    sha.Finalize();
-
-    if (memcmp(sha.GetDigest(), digest, 20))
+    // CRYPTO_memcmp, not memcmp: a short-circuiting compare leaks how many leading proof bytes an
+    // attacker guessed right, one online attempt at a time.
+    if (!MopAuth::ProofEquals(serverProof, digest))
     {
-        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session (authentication failed).");
+        // DEBUG_LOG, not sLog.outError: this is the credential-spray path -- an attacker driving
+        // wrong-password attempts against valid or invalid usernames alike hits this rejection on
+        // every try, so at error level that traffic drives unbounded error-level disk writes.
+        DEBUG_LOG("WorldSocket::HandleAuthSession: rejecting auth session (authentication failed).");
         return BeginAuthErrorDrain(AUTH_FAILED);
+    }
+
+    // ---- Crypt: PREPARE here, ACTIVATE in the commit region. --------------------------------
+    // Everything about the crypt that can fail happens HERE: the HMAC-SHA1 key derivation, both
+    // ARC4 keyings, and the 1024-byte drop. All of it precedes ACE_NEW_RETURN, so a failure has
+    // nothing allocated to clean up and can simply drain an error like every other rejection in
+    // this function. Prepare() does NOT publish: IsInitialized() stays false until Activate(), so
+    // the crypt is inert and the wire codec still frames PRE-crypt through the fallible loads below.
+    if (!m_Crypt.Prepare(m_sessionKey))
+    {
+        // Payload-free: no K, no digest. Prepare has already logged the specific OpenSSL cause.
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session "
+                      "(crypt could not be prepared for account %u).", id);
+        return BeginAuthErrorDrain(AUTH_SYSTEM_ERROR);
     }
 
     std::string address = GetRemoteAddress();
 
-    DEBUG_LOG("WorldSocket::HandleAuthSession: Client '%s' authenticated successfully from %s.",
-              account.c_str(),
+    DEBUG_LOG("WorldSocket::HandleAuthSession: account %u authenticated successfully from %s.",
+              id,
               address.c_str());
 
-    // Update the last_ip in the database
-    // No SQL injection, username escaped.
-    static SqlStatementID updAccount;
-
-    SqlStatement stmt = LoginDatabase.CreateStatement(updAccount, "UPDATE `account` SET `last_ip` = ? WHERE `username` = ?");
-    stmt.PExecute(address.c_str(), account.c_str());
+    // Phase 3 performs NO writes to the `account` row on the auth path (spec 2, 6.7). This
+    // last_ip UPDATE was the only one, and it is not load-bearing: realmd rewrites last_ip on
+    // EVERY authentication (src/realmd/Auth/AuthSocket.cpp:714), so the column stays current
+    // without it. It also fed the account NAME to the SQL layer a second time, on a path that had
+    // no need to.
 
     // NOTE ATM the socket is single-threaded, have this in mind ...
     // Allocation stays ahead of its own load calls below; ACE_NEW_RETURN is an explicit early
@@ -1380,50 +1488,76 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     // Every fallible step -- DB loads, addon inflate -- runs BEFORE the commit region. Their
     // internal semantics are unchanged from the pre-Task-4 code; only their position moved above
-    // m_Crypt.Init. This is what makes the region atomic BY ORDERING: once the commit region is
-    // entered nothing below it can fail, so no failure path can observe an initialised crypt on an
-    // unauthenticated session. AuthCrypt has no rollback and deliberately does not gain one --
-    // rollback would exist only to paper over the ordering defect this reorder removes.
-    m_Session->LoadGlobalAccountData();
-    m_Session->LoadTutorialsData();
-    m_Session->ReadAddonsInfo(addonsData);
+    // the crypt Prepare()/Activate() split (Prepare() already ran above, before session
+    // allocation; Activate() runs inside the AUTH PUBLICATION TRANSACTION below). This is what
+    // makes the region atomic BY ORDERING: once the commit region is entered nothing below it can
+    // fail, so no failure path can observe an activated crypt on an unauthenticated session.
+    // AuthCrypt has no rollback and deliberately does not gain one -- rollback would exist only to
+    // paper over the ordering defect this reorder removes.
+    //
+    // ReadAddonsInfo inflates attacker-controlled zlib and CAN throw ByteBufferException. Without
+    // this local catch the outer ProcessIncoming ByteBufferException handler would close the socket
+    // while handle_close() only nulls m_Session, leaking the freshly allocated session. Every catch
+    // routes through the single DestroyUnpublishedSession() path and drains an error. Never log
+    // addon bytes.
+    try
+    {
+        m_Session->LoadGlobalAccountData();
+        m_Session->LoadTutorialsData();
+        m_Session->ReadAddonsInfo(addonsData);
+    }
+    catch (ByteBufferException const&)
+    {
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session "
+                      "(malformed addon data for account %u).", id);
+        DestroyUnpublishedSession();
+        return BeginAuthErrorDrain(AUTH_FAILED);
+    }
+    catch (std::exception const& e)
+    {
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session "
+                      "(session load failed for account %u: %s).", id, e.what());
+        DestroyUnpublishedSession();
+        return BeginAuthErrorDrain(AUTH_SYSTEM_ERROR);
+    }
+    catch (...)
+    {
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session "
+                      "(unknown session-load failure for account %u).", id);
+        DestroyUnpublishedSession();
+        return BeginAuthErrorDrain(AUTH_SYSTEM_ERROR);
+    }
 
     // In case needed sometime the second arg is in microseconds 1 000 000 = 1 sec
     // Legacy delay, semantics unchanged; hoisted above the commit region because a delay may not
     // appear between the three commit statements.
     ACE_OS::sleep(ACE_Time_Value(0, 10000));
 
-    // ================ COMMIT REGION -- no program failure path exists below ================
-    // Exactly three statements, in this order, with nothing between them: no log, no packet send,
-    // no validation, no branch, no delay, no allocation, no early return. Publication ends the
-    // region. The claim is precise: no early return, no explicit failure and no fallible call
-    // appears below the commit point -- NOT that no exception can be thrown here.
+    // ================= AUTH PUBLICATION TRANSACTION =================
+    // Everything fallible already ran ABOVE: crypt Prepare() (HMAC, ARC4 keying, drop-1024), the
+    // session allocation, the DB loads and the addon inflate. World::AddSession now performs the
+    // ONLY remaining fallible operation -- queue insertion -- while its lock is held. Only after
+    // that succeeds does it invoke CommitAuthenticatedSession(), still under the lock, so the world
+    // thread cannot observe the queued session until crypt and state are committed. Unlock is the
+    // publication point:
+    //   reserve queue node (locked) -> crypt ACTIVE -> CONN_AUTHED -> unlock/publish.
+    // Activate() is the ONLY PREPARED->ACTIVE transition and is infallible -- a single state store.
     //
-    // A throw IS possible: m_Crypt.Init(&K) -> HMACSHA1::ComputeHash -> BigNumber::AsByteArray
-    // does new uint8[length] and can throw std::bad_alloc inside this region's FIRST statement.
-    // The invariant survives it for two reasons, both of which live in AuthCrypt::Init:
-    //   (a) _initialized = true is the LAST statement of AuthCrypt::Init (AuthCrypt.cpp:71), and
-    //       DecryptRecv/EncryptSend early-return on !_initialized -- so a mid-Init throw leaves
-    //       the crypt inert, not half-keyed.
-    //   (b) both throw sites precede _clientDecrypt.Init/_serverEncrypt.Init (AuthCrypt.cpp:55-56),
-    //       so a throw also leaves the ARC4 contexts un-keyed.
-    // A bad_alloc therefore unwinds past an unauthenticated, non-crypting session -- the same
-    // outcome as an ordinary early return.
-    //
-    // WARNING TO STAGE 2: that guarantee is SILENT and structural. Stage 2 reworks AuthCrypt::Init
-    // for the raw-40 K migration; this region's correctness depends on _initialized = true staying
-    // the last statement of Init. It must not be hoisted above the ARC4 setup, and no early return
-    // may be added on a partial-init path -- either change turns a throw here into a half-keyed
-    // crypt on an unauthenticated session, silently. NO TEST COVERS THIS.
-    //
-    // LIMITATION (Stage 1 scope): AuthCrypt::Init is void and does NOT report OpenSSL failure, so
-    // this proves SOURCE ORDERING only -- it cannot prove initialisation SUCCEEDED. Stage 2 owns
-    // making init success observable during its atomic raw-40 K migration, before activation.
-    // Do not read this region as a proof of cryptographic atomicity.
-    m_Crypt.Init(&K);
-    m_connState = MopHs::CONN_AUTHED;
-    sWorld.AddSession(m_Session);
+    // On false the callback did not run: crypt remains PREPARED/inert, state remains
+    // CONN_AUTHENTICATING, and the queue is unchanged. DestroyUnpublishedSession releases the
+    // session's extra socket reference without closing this socket, allowing the auth error to
+    // drain normally.
+    if (!sWorld.AddSession(m_Session, &WorldSocket::CommitAuthenticatedSession, this))
+    {
+        DestroyUnpublishedSession();
+        return BeginAuthErrorDrain(AUTH_SYSTEM_ERROR);
+    }
 
+    // GATE 3b EVIDENCE. AddSession returned only after unlocking, so the queue entry is now visible
+    // and crypt/state were committed before publication. This does NOT claim AddSession_ has already
+    // inserted into m_sessions or sent SMSG_AUTH_RESPONSE; those happen on the world thread.
+    DEBUG_LOG("WorldSocket::HandleAuthSession: account %u CONN_AUTHED "
+              "(crypt activated, session enqueue published).", id);
     return 0;
 }
 

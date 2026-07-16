@@ -48,7 +48,7 @@ public:
      * @param len Length of the seed
      * @param seed Pointer to seed data
      */
-    HMACSHA1(uint32 len, uint8 *seed);
+    HMACSHA1(uint32 len, const uint8 *seed);
     /**
      * @brief Destructor
      */
@@ -89,6 +89,8 @@ public:
      * @return SHA_DIGEST_LENGTH (20 bytes)
      */
     int GetLength() { return SHA_DIGEST_LENGTH; }
+    /// Whether the context exists and every HMAC call so far has succeeded.
+    bool IsValid() const { return m_valid; }
 private:
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     HMAC_CTX m_ctx; /**< OpenSSL HMAC context (pre-1.1.0) */
@@ -96,5 +98,6 @@ private:
     HMAC_CTX* m_ctx; /**< OpenSSL HMAC context (1.1.0+) */
 #endif
     uint8 m_digest[SHA_DIGEST_LENGTH]; /**< Computed hash digest */
+    bool m_valid; /**< true while the context and every HMAC call so far have succeeded */
 };
 #endif

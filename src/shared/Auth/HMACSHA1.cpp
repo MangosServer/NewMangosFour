@@ -24,16 +24,25 @@
 
 #include "Auth/HMACSHA1.h"
 #include "BigNumber.h"
+#include <cstring>
 
-HMACSHA1::HMACSHA1(uint32 len, uint8 *seed)
+HMACSHA1::HMACSHA1(uint32 len, const uint8 *seed) : m_valid(false)
 {
+    memset(m_digest, 0, sizeof(m_digest));
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     HMAC_CTX_init(&m_ctx);
-    HMAC_Init_ex(&m_ctx, seed, len, EVP_sha1(), NULL);
+    if (HMAC_Init_ex(&m_ctx, seed, len, EVP_sha1(), NULL) != 1)
+    {
+        return;
+    }
 #else
     m_ctx = HMAC_CTX_new();
-    HMAC_Init_ex(m_ctx, seed, len, EVP_sha1(), NULL);
+    if (!m_ctx || HMAC_Init_ex(m_ctx, seed, len, EVP_sha1(), NULL) != 1)
+    {
+        return;
+    }
 #endif
+    m_valid = true;
 }
 
 HMACSHA1::~HMACSHA1()
@@ -52,11 +61,20 @@ void HMACSHA1::UpdateBigNumber(BigNumber *bn)
 
 void HMACSHA1::UpdateData(const uint8 *data, int length)
 {
+    if (!m_valid)
+    {
+        return;
+    }
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-    HMAC_Update(&m_ctx, data, length);
+    const int ok = HMAC_Update(&m_ctx, data, length);
 #else
-    HMAC_Update(m_ctx, data, length);
+    const int ok = HMAC_Update(m_ctx, data, length);
 #endif
+    if (ok != 1)
+    {
+        m_valid = false;
+        memset(m_digest, 0, sizeof(m_digest));
+    }
 }
 
 void HMACSHA1::UpdateData(const std::string &str)
@@ -66,22 +84,29 @@ void HMACSHA1::UpdateData(const std::string &str)
 
 void HMACSHA1::Finalize()
 {
+    if (!m_valid)
+    {
+        return;
+    }
+
     uint32 length = 0;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-    HMAC_Final(&m_ctx, (uint8*)m_digest, &length);
+    const int ok = HMAC_Final(&m_ctx, (uint8*)m_digest, &length);
 #else
-    HMAC_Final(m_ctx, (uint8*)m_digest, &length);
+    const int ok = HMAC_Final(m_ctx, (uint8*)m_digest, &length);
 #endif
-    MANGOS_ASSERT(length == SHA_DIGEST_LENGTH);
+    // MANGOS_ASSERT is elided in RelWithDebInfo (/DNDEBUG), so a short digest would slip through it.
+    // A real if is the only guard that actually fails closed here.
+    if (ok != 1 || length != SHA_DIGEST_LENGTH)
+    {
+        m_valid = false;
+        memset(m_digest, 0, sizeof(m_digest));
+    }
 }
 
 uint8 *HMACSHA1::ComputeHash(BigNumber *bn)
 {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    HMAC_Update(&m_ctx, bn->AsByteArray(), bn->GetNumBytes());
-#else
-    HMAC_Update(m_ctx, bn->AsByteArray(), bn->GetNumBytes());
-#endif
+    UpdateBigNumber(bn);
     Finalize();
     return (uint8*)m_digest;
 }

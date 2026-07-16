@@ -36,10 +36,19 @@ class ByteBuffer;
  * @brief Bounded decoder for the legacy CMSG_AUTH_SESSION body.
  *
  * This is a behaviour-preserving extraction of the inline reads that used to live in
- * WorldSocket::HandleAuthSession. The read/skip order and the digest[] scatter are
- * reproduced bug-for-bug on purpose: notably ReadBits(11) is issued with NO preceding
- * ReadBit(), which is wrong for a real 5.4.8 client but is what the legacy path did.
- * Correcting the wire semantics is deliberately out of scope here.
+ * WorldSocket::HandleAuthSession, EXCEPT for the name-length bit read, which Stage 2 corrected.
+ *
+ * The name-length block reads ONE flag bit then an 11-bit length (spec 3.4), which is what a real
+ * 5.4.8 client writes: the gate2 capture's `00 D0` decodes to flag=0, length=13 only under this
+ * reading. Stage 1 preserved the legacy ReadBits(11)-with-no-leading-ReadBit bug-for-bug while the
+ * handler was dormant; Stage 2 corrected it.
+ *
+ * The digest[] scatter and the seven read_skips are NOT a legacy quirk and must not be "cleaned
+ * up": they reproduce the client serializer's own permutation, binary-confirmed in both x86 and
+ * x64 (facts/FACTS_mop548_digest_permutation.md 2; campaign research doc, not in this tree).
+ * Body 23 is a constant 1 -- not digest[20] --
+ * and body 28 is an 8-byte field the server deliberately does NOT interpret (spec 3.3 trap 2:
+ * [OPEN]; the facts doc's 5 still claims it must be echoed -- that claim was RETRACTED).
  *
  * The added value over the inline version is malformed-input safety: every read is
  * bounds-checked up front and the output is written atomically (only on Ok), so a
@@ -72,6 +81,7 @@ namespace MopAuth
         uint32_t addonSize;
         std::vector<uint8_t> addonData;
         std::string account;
+        bool useIPv6;               // body 420 flag bit; name inferred (TC), OFFSET confirmed
     };
 
     /**

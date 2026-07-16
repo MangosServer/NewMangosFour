@@ -65,6 +65,8 @@
 #include "SocialMgr.h"
 #include "Auth/AuthCrypt.h"
 #include "Auth/HMACSHA1.h"
+#include "Auth/MopAuthKey.h"
+#include "MopAuthResponse.h"
 #include "zlib.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
@@ -191,6 +193,24 @@ WorldSession::~WorldSession()
     {
         delete packet;
     }
+}
+
+/// Release the session's extra socket reference without closing the socket.
+///
+/// Valid only before the session has been published to World: it balances the single
+/// sock->AddReference() taken by the constructor. m_Socket is nulled FIRST so ~WorldSession()
+/// skips its own CloseSocket()/RemoveReference() teardown -- the socket must stay alive to drain
+/// an auth error through it, and re-releasing here would over-release the reference.
+void WorldSession::AbandonUnpublishedSocket() noexcept
+{
+    if (!m_Socket)
+    {
+        return;
+    }
+
+    WorldSocket* socket = m_Socket;
+    m_Socket = NULL;                    // destructor must not CloseSocket() on the auth-error drain
+    socket->RemoveReference();          // release the AddReference() taken by the constructor
 }
 
 /**
@@ -991,117 +1011,19 @@ void WorldSession::Handle_Deprecated(WorldPacket& recvPacket)
  */
 void WorldSession::SendAuthWaitQue(uint32 position)
 {
-    if (position == 0)
-    {
-        WorldPacket packet( SMSG_AUTH_RESPONSE, 2 );
-        packet.WriteBit(false);
-        packet.WriteBit(false);
-        packet << uint8(AUTH_OK);
-        SendPacket(&packet);
-    }
-    else
-    {
-        WorldPacket packet(SMSG_AUTH_RESPONSE, 1 + 4 + 1);
-        packet.WriteBit(false);
-        packet.WriteBit(true);
-        packet.WriteBit(false);
-        packet << uint8(AUTH_WAIT_QUEUE);
-        packet << uint32(position);
-        SendPacket(&packet);
-    }
-}
-struct ExpansionInfoStrunct
-{
-    uint8 raceOrClass;
-    uint8 expansion;
-};
-
-ExpansionInfoStrunct classExpansionInfo[MAX_CLASSES - 1] =
-{
-    { 1, 0 },
-    { 2, 0 },
-    { 3, 0 },
-    { 4, 0 },
-    { 5, 0 },
-    { 6, 2 },
-    { 7, 0 },
-    { 8, 0 },
-    { 9, 0 },
-    { 10, 4 },
-    { 11, 0 }
-};
-
-ExpansionInfoStrunct raceExpansionInfo[MAX_PLAYABLE_RACES] =
-{
-    { 1, 0 },
-    { 2, 0 },
-    { 3, 0 },
-    { 4, 0 },
-    { 5, 0 },
-    { 6, 0 },
-    { 7, 0 },
-    { 8, 0 },
-    { 9, 3 },
-    { 10, 1 },
-    { 11, 1 },
-    { 22, 3 },
-    { 24, 4 },
-    { 25, 4 },
-    { 26, 4 }
-};
-
-void WorldSession::SendAuthResponse(uint8 code, bool queued, uint32 queuePos)
-{
-    bool hasAccountData = true;
-
-    WorldPacket packet(SMSG_AUTH_RESPONSE, 1 /*bits*/ + 4 + 1 + 4 + 1 + 4 + 1 + 1 + (queued ? 4 : 0));
-    packet << uint8(code);
-    packet.WriteBit(queued);                            // IsInQueue
-    if (queued)
-    {
-        packet.WriteBit(1);                             // unk
-    }
-
-    packet.WriteBit(hasAccountData);
-
-    if (hasAccountData)
-    {
-        packet.WriteBits(MAX_CLASSES - 1, 23);
-        packet.WriteBits(0, 21);
-        packet.WriteBit(0);
-        packet.WriteBit(0);
-        packet.WriteBit(0);
-        packet.WriteBit(0);
-        packet.WriteBits(MAX_PLAYABLE_RACES, 23);
-        packet.WriteBit(0);
-
-        for (uint8 i = 0; i < MAX_PLAYABLE_RACES; ++i)
-        {
-            packet << uint8(raceExpansionInfo[i].expansion);
-            packet << uint8(raceExpansionInfo[i].raceOrClass);
-        }
-
-        for (uint8 i = 0; i < MAX_CLASSES - 1; ++i)
-        {
-            packet << uint8(classExpansionInfo[i].raceOrClass);
-            packet << uint8(classExpansionInfo[i].expansion);
-        }
-
-        packet << uint32(0);
-        packet << uint8(Expansion());
-        packet << uint32(Expansion());
-        packet << uint32(0);
-        packet << uint8(Expansion());
-        packet << uint32(0);
-        packet << uint32(0);
-        packet << uint32(0);
-    }
-
-    if (queued)
-    {
-        packet << uint32(queuePos);
-    }
-
+    // position 0 is the RELEASE, and it is BYTE-IDENTICAL to ACCEPTED -- not a bare AUTH_OK.
+    // The old code sent AUTH_OK with hasAccountData=0, which the client rewrites to AUTH_FAILED
+    // (13); with queued=0 there is no queue branch to mask it, so the release was the one packet
+    // where the defect actually bit.
+    //
+    // Expansion() is the account's entitlement ALREADY CLAMPED to the realm (see
+    // WorldSocket::HandleAuthSession's expansion clamp); the config value is the realm's own cap.
+    // They differ only for a restricted account.
+    // BuildAuthResponseQueued routes position 0 to Accepted itself, so the release rule lives in
+    // the serializer rather than in every caller that has to remember it.
+    WorldPacket packet;
+    MopAuth::BuildAuthResponseQueued(packet, position, Expansion(),
+                                     uint8(sWorld.getConfig(CONFIG_UINT32_EXPANSION)));
     SendPacket(&packet);
 }
 
@@ -1467,10 +1389,20 @@ void WorldSession::SendRedirectClient(std::string& ip, uint16 port)
 
     pkt << uint32(0);                                       // unknown
 
-    HMACSHA1 sha1(40, m_Socket->GetSessionKey().AsByteArray());
+    // GetSessionKey() returns m_s -- the SRP6 SALT, not K -- and AsByteArray() returns
+    // GetNumBytes() bytes while this asked for 40: a heap OVER-READ whenever the value is shorter.
+    // Both are fixed by using the canonical raw-40 K. (SendRedirectClient has ZERO call sites, so
+    // neither bug is live today; it is migrated because Phase 3 puts it on a reachable path and
+    // because leaving one BigNumber K consumer behind is how the short-K bug returns.)
+    HMACSHA1 sha1(uint32(MopAuth::SESSION_KEY_LEN), m_Socket->GetSessionKeyRaw());
     sha1.UpdateData((uint8*)&ip2, 4);
     sha1.UpdateData((uint8*)&port, 2);
     sha1.Finalize();
+    if (!sha1.IsValid())
+    {
+        sLog.outError("WorldSession::SendRedirectClient: HMAC-SHA1 failed; redirect not sent.");
+        return;
+    }
     pkt.append(sha1.GetDigest(), 20);                       // hmacsha1(ip+port) w/ sessionkey as seed
 
     SendPacket(&pkt);

@@ -48,7 +48,6 @@
 
 #include "Common.h"
 #include "Auth/AuthCrypt.h"
-#include "Auth/BigNumber.h"
 #include "MopHandshake.h"
 #include "MopFrameReader.h"
 #include "MopSocketDrain.h"
@@ -133,8 +132,10 @@ class WorldSocket : protected WorldHandler
         /// Remove reference to this object.
         long RemoveReference(void);
 
-        /// Return the session key
-        BigNumber& GetSessionKey() { return m_s; }
+        /// Return the canonical session key: EXACTLY MopAuth::SESSION_KEY_LEN raw bytes.
+        /// Valid only after HandleAuthSession has populated it. Task 5 deleted the old
+        /// GetSessionKey(), which returned m_s -- the SRP6 SALT, despite its name.
+        const uint8* GetSessionKeyRaw() const { return m_sessionKey; }
 
     protected:
         /// things called by ACE framework.
@@ -189,6 +190,16 @@ class WorldSocket : protected WorldHandler
         static bool DecryptHeaderHook(void*, uint8*, size_t);
         /// MopFrameReader::CmdValidFn hook (Phase 2 wire framing).
         static bool CmdValidHook(void*, uint32, bool);
+
+        /// Tear down a WorldSession that was allocated but never published to World. Releases the
+        /// session's extra socket reference WITHOUT closing this socket, so an auth error can still
+        /// drain through it. One cleanup path for every post-allocation rejection in HandleAuthSession.
+        void DestroyUnpublishedSession() noexcept;
+
+        /// Infallible auth commit invoked by World::AddSession while the add-queue lock is held:
+        /// activates the prepared crypt and stores CONN_AUTHED. Must stay noexcept -- the queue
+        /// lock is held across it and the function-pointer type statically enforces noexcept.
+        static void CommitAuthenticatedSession(void* context) noexcept;
 
     private:
         /// Queue the legacy auth error response and enter the drain state.
@@ -262,7 +273,10 @@ class WorldSocket : protected WorldHandler
 
         uint32 m_Seed;
 
-        BigNumber m_s;
+        /// Canonical raw-40 session key: converted ONCE at the DB read and used verbatim by every
+        /// consumer (proof digest, both crypt directions, redirect). Never round-tripped through
+        /// BigNumber -- see MopAuthKey.h.
+        uint8 m_sessionKey[MopAuth::SESSION_KEY_LEN];
 
         /// Phase 2 wire framing: current handshake state (unused until later tasks).
         MopHs::ConnectionState m_connState;
