@@ -74,7 +74,10 @@ void MopCharEnum::Build(WorldPacket& out, const std::vector<Entry>& chars)
         out.WriteBit(GuidByte(c.guildGuid, 5) != 0);
     }
 
-    out.WriteBit(!chars.empty());   // hasData bit, read LAST by the client
+    out.WriteBit(1);                // hasData/success bit, read LAST. Always 1 = a valid response;
+                                    // the 16-bit count field carries emptiness. An empty list must
+                                    // still report success or the client shows "error retrieving
+                                    // character list". [capture-confirm: empty-list value]
     out.FlushBits();                // byte-align before the byte block (also fixes zero-char case)
 
     // ---- per-character byte block (exact sec.5 order, 41 ops) ----

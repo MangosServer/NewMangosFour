@@ -185,7 +185,7 @@ int main(int /*argc*/, char** /*argv*/)
         DecodeHeader h = DecodePreambleAndEntries(p, dec);
         CHECK(h.ext == 0);
         CHECK(h.count == 0);
-        CHECK(h.hasData == 0);
+        CHECK(h.hasData == 1);   // empty list still reports success (valid response, count==0)
     }
 
     // Test A/D: round-trip two characters (one with a guild + zero GUID bytes, one without).
