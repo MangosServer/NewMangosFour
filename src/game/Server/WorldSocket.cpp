@@ -62,6 +62,7 @@
 #include "MopWireCodec.h"
 #include "MopAuthSession.h"
 #include "MopAuthProof.h"
+#include "MopAuthResponse.h"
 
 #include "Util.h"
 #include "World.h"
@@ -474,11 +475,9 @@ int WorldSocket::BeginAuthErrorDrain(uint8 code)
         return -1;                                            // nothing queued yet
     }
 
-    // 3. Construct the legacy error response (unchanged wire shape).
-    WorldPacket packet(SMSG_AUTH_RESPONSE, 1);
-    packet.WriteBit(0); // has account info
-    packet.WriteBit(0); // has queue info
-    packet << uint8(code);
+    // 3. Construct the error response via the canonical serializer (unchanged wire shape).
+    WorldPacket packet;
+    MopAuth::BuildAuthResponseError(packet, code);
 
     // 4. Queue it. If it never reached the buffer there is nothing to drain, so close now.
     bool sent = false;

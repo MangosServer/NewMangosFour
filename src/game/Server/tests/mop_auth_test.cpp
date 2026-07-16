@@ -25,7 +25,11 @@
 #include "MopAuthSession.h"
 #include "MopAuthProof.h"
 #include "MopSocketDrain.h"
+#include "MopAuthResponse.h"
 #include "Utilities/ByteBuffer.h"
+#include "Utilities/WorldPacket.h"
+#include "Opcodes.h"
+#include "SharedDefines.h"
 #include "Auth/MopAuthKey.h"
 #include "Auth/AuthCrypt.h"
 #include "Auth/BigNumber.h"
@@ -819,6 +823,192 @@ static void test_proof_equals_constant_time()
     CHECK(!MopAuth::ProofEquals(a, b));
 }
 
+// ---------------------------------------------------------------------------------------------
+// MopAuth::BuildAuthResponse{Accepted,Queued,Error} -- the ONE canonical SMSG_AUTH_RESPONSE
+// serializer (Server/MopAuthResponse.h / .cpp). Full byte vectors from tools/mop_stage2_fixtures.py
+// (spec/plan §S5), not spot-checks -- see the file header there for why a size/first-bit check
+// gates nothing.
+// ---------------------------------------------------------------------------------------------
+
+// The five variants (spec 6.6a), from the client's own parser (sub_140A70980):
+//   1. hasQueueInfo=0 REQUIRES hasAccountData=1, or AUTH_OK (12) is FORCED to AUTH_FAILED (13).
+//   2. code 27 (AUTH_WAIT_QUEUE) is NEVER sent -- the client SYNTHESISES it from the queued bit.
+//   3. With hasQueueInfo=1 the queue branch overwrites the forced 13, MASKING hasAccountData=0 on
+//      updates so it only bites on the RELEASE. That is why SkyFire never caught it.
+//
+// [HYPOTHESIS] The BIT ORDER these vectors encode is SkyFire-derived and NOT confirmed; only the
+// shape is corroborated by the client struct. If Gate 3b fails, the builder and
+// tools/mop_stage2_fixtures.py are wrong TOGETHER and must be changed together -- keeping them
+// independent is what makes that a two-place edit instead of a silent one.
+static void check_bytes(WorldPacket const& pkt, uint8 const* expect, size_t expectLen,
+                        char const* label)
+{
+    CHECK(pkt.size() == expectLen);
+    if (pkt.size() != expectLen)
+    {
+        std::fprintf(stderr, "  %s: size %zu, expected %zu\n", label, pkt.size(), expectLen);
+        return;
+    }
+    for (size_t i = 0; i < expectLen; ++i)
+    {
+        if (pkt.contents()[i] != expect[i])
+        {
+            std::fprintf(stderr, "  %s: byte %zu = 0x%02X, expected 0x%02X\n",
+                         label, i, pkt.contents()[i], expect[i]);
+        }
+        CHECK(pkt.contents()[i] == expect[i]);
+    }
+}
+
+// ACCEPTED: AUTH_OK, hasAccountData=1 + full block, queued=0. account/server expansion both MISTS.
+static const uint8 kExpectResponse_Accepted[91] = {
+    0x80, 0x00, 0x00, 0x00, 0x00, 0x58, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x00, 0x01, 0x00, 0x02,
+    0x00, 0x03, 0x00, 0x04, 0x00, 0x05, 0x00, 0x06, 0x00, 0x07, 0x00, 0x08, 0x03, 0x09, 0x01, 0x0A,
+    0x01, 0x0B, 0x03, 0x16, 0x04, 0x18, 0x04, 0x19, 0x04, 0x1A, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03,
+    0x00, 0x04, 0x00, 0x05, 0x02, 0x06, 0x00, 0x07, 0x00, 0x08, 0x00, 0x09, 0x04, 0x0A, 0x00, 0x0B,
+    0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0C };
+
+// INITIAL QUEUE: AUTH_OK, hasAccountData=1, queued=1, position 2. Exactly ACCEPTED + a u32.
+static const uint8 kExpectResponse_InitialQueue[95] = {
+    0x80, 0x00, 0x00, 0x00, 0x00, 0x58, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7A, 0x02, 0x00, 0x00, 0x00,
+    0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x04, 0x00, 0x05, 0x00, 0x06, 0x00, 0x07, 0x00, 0x08,
+    0x03, 0x09, 0x01, 0x0A, 0x01, 0x0B, 0x03, 0x16, 0x04, 0x18, 0x04, 0x19, 0x04, 0x1A, 0x00, 0x01,
+    0x00, 0x02, 0x00, 0x03, 0x00, 0x04, 0x00, 0x05, 0x02, 0x06, 0x00, 0x07, 0x00, 0x08, 0x00, 0x09,
+    0x04, 0x0A, 0x00, 0x0B, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0C };
+
+// QUEUE UPDATE: identical to INITIAL QUEUE but position 1 -- pins the position's OFFSET and its
+// little-endian encoding, which a size-only check cannot.
+static const uint8 kExpectResponse_QueueUpdate[95] = {
+    0x80, 0x00, 0x00, 0x00, 0x00, 0x58, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7A, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x04, 0x00, 0x05, 0x00, 0x06, 0x00, 0x07, 0x00, 0x08,
+    0x03, 0x09, 0x01, 0x0A, 0x01, 0x0B, 0x03, 0x16, 0x04, 0x18, 0x04, 0x19, 0x04, 0x1A, 0x00, 0x01,
+    0x00, 0x02, 0x00, 0x03, 0x00, 0x04, 0x00, 0x05, 0x02, 0x06, 0x00, 0x07, 0x00, 0x08, 0x00, 0x09,
+    0x04, 0x0A, 0x00, 0x0B, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0C };
+
+// ERROR: code != 12, so hasAccountData=0 is SAFE (it never enters the forcing branch). Two bytes:
+// one flushed bit-byte, then the code. NOTE this is byte-identical to what Stage 1 already emits
+// at WorldSocket.cpp:469-472 -- the ERROR path's wire output does NOT change in Stage 2, which is
+// a useful negative result: a Gate 3b error-render regression cannot be blamed on these bytes.
+static const uint8 kExpectResponse_Error[2] = { 0x00, 0x14 };
+
+// ACCEPTED with the account restricted BELOW the realm cap -- the ONLY case where the two
+// expansion fields differ. Pins that they occupy DISTINCT offsets; passing one value for both
+// (as every legacy emitter did) makes this vector unreachable.
+static const uint8 kExpectResponse_AcceptedSplitExpansion[91] = {
+    0x80, 0x00, 0x00, 0x00, 0x00, 0x58, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x00, 0x01, 0x00, 0x02,
+    0x00, 0x03, 0x00, 0x04, 0x00, 0x05, 0x00, 0x06, 0x00, 0x07, 0x00, 0x08, 0x03, 0x09, 0x01, 0x0A,
+    0x01, 0x0B, 0x03, 0x16, 0x04, 0x18, 0x04, 0x19, 0x04, 0x1A, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03,
+    0x00, 0x04, 0x00, 0x05, 0x02, 0x06, 0x00, 0x07, 0x00, 0x08, 0x00, 0x09, 0x04, 0x0A, 0x00, 0x0B,
+    0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0C };
+
+static void test_auth_response_byte_vectors()
+{
+    WorldPacket accepted;
+    MopAuth::BuildAuthResponseAccepted(accepted, EXPANSION_MOP, EXPANSION_MOP);
+    check_bytes(accepted, kExpectResponse_Accepted, sizeof(kExpectResponse_Accepted), "ACCEPTED");
+
+    WorldPacket initial;
+    MopAuth::BuildAuthResponseQueued(initial, 2, EXPANSION_MOP, EXPANSION_MOP);
+    check_bytes(initial, kExpectResponse_InitialQueue, sizeof(kExpectResponse_InitialQueue),
+                "INITIAL QUEUE");
+
+    WorldPacket update;
+    MopAuth::BuildAuthResponseQueued(update, 1, EXPANSION_MOP, EXPANSION_MOP);
+    check_bytes(update, kExpectResponse_QueueUpdate, sizeof(kExpectResponse_QueueUpdate),
+                "QUEUE UPDATE");
+
+    WorldPacket error;
+    MopAuth::BuildAuthResponseError(error, AUTH_VERSION_MISMATCH);
+    check_bytes(error, kExpectResponse_Error, sizeof(kExpectResponse_Error), "ERROR");
+}
+
+// RELEASE is not a variant of its own: position 0 must produce ACCEPTED, byte for byte. A bare
+// AUTH_OK -- what SendAuthWaitQue(0) sent before Stage 2 -- is PROVEN HARMFUL: with queued=0 there
+// is no queue branch to overwrite the forced 13, so the release was the one packet where
+// hasAccountData=0 actually bit.
+static void test_auth_response_release_is_byte_identical_to_accepted()
+{
+    WorldPacket release;
+    MopAuth::BuildAuthResponseQueued(release, 0, EXPANSION_MOP, EXPANSION_MOP);  // pos 0 = RELEASE
+    check_bytes(release, kExpectResponse_Accepted, sizeof(kExpectResponse_Accepted), "RELEASE");
+}
+
+// The two expansion fields must land at DISTINCT offsets. Exactly one byte may differ from
+// ACCEPTED; if the builder collapsed them, either zero or two bytes would.
+static void test_auth_response_expansions_are_distinct_fields()
+{
+    WorldPacket split;
+    MopAuth::BuildAuthResponseAccepted(split, EXPANSION_WOTLK, EXPANSION_MOP);
+    check_bytes(split, kExpectResponse_AcceptedSplitExpansion,
+                sizeof(kExpectResponse_AcceptedSplitExpansion), "ACCEPTED split-expansion");
+
+    size_t differing = 0;
+    for (size_t i = 0; i < sizeof(kExpectResponse_Accepted); ++i)
+    {
+        if (kExpectResponse_AcceptedSplitExpansion[i] != kExpectResponse_Accepted[i])
+        {
+            ++differing;
+        }
+    }
+    CHECK(differing == 1);
+}
+
+// The forcing rule is the whole reason this serializer exists; assert a CALLER cannot violate it.
+static void test_auth_ok_always_carries_account_data()
+{
+    static const uint32 positions[] = { 0, 1, 5 };
+    for (uint32 pos : positions)
+    {
+        WorldPacket pkt;
+        MopAuth::BuildAuthResponseQueued(pkt, pos, EXPANSION_MOP, EXPANSION_MOP);
+        CHECK((pkt.contents()[0] & 0x80) != 0);
+        CHECK(pkt.contents()[pkt.size() - 1] == AUTH_OK);
+    }
+
+    WorldPacket accepted;
+    MopAuth::BuildAuthResponseAccepted(accepted, EXPANSION_MOP, EXPANSION_MOP);
+    CHECK((accepted.contents()[0] & 0x80) != 0);
+}
+
+// Code 27 must never reach the wire -- the client SYNTHESISES it from the queued bit, and an emitted
+// 27 lands in the != 12 path and delivers failure.
+//
+// This asserts SERIALIZER ENFORCEMENT, not caller discipline. An earlier draft only ever called the
+// builder with AUTH_OK and then declared "never emits 27" -- which proved what that test did, not
+// what the serializer permits. The Accepted/Queued entry points cannot express 27 at all (they hard-
+// code AUTH_OK), and Error REJECTS it. Both halves are checked.
+static void test_auth_response_never_emits_code_27()
+{
+    // (a) the AUTH_OK paths cannot express 27: there is no code parameter to pass it through.
+    static const uint32 positions[] = { 0, 1, 3 };
+    for (uint32 pos : positions)
+    {
+        WorldPacket pkt;
+        MopAuth::BuildAuthResponseQueued(pkt, pos, EXPANSION_MOP, EXPANSION_MOP);
+        CHECK(pkt.contents()[pkt.size() - 1] == AUTH_OK);
+    }
+
+    // (b) the ERROR path REJECTS it -- the serializer coerces to AUTH_FAILED and logs.
+    {
+        WorldPacket pkt;
+        MopAuth::BuildAuthResponseError(pkt, AUTH_WAIT_QUEUE);
+        CHECK(pkt.contents()[pkt.size() - 1] == AUTH_FAILED);
+        CHECK(pkt.contents()[pkt.size() - 1] != AUTH_WAIT_QUEUE);
+    }
+
+    // (c) and it rejects AUTH_OK on the error path too: an "error" of 12 with no account block is
+    //     rewritten by the client to 13 anyway, so passing it is a caller bug worth surfacing.
+    {
+        WorldPacket pkt;
+        MopAuth::BuildAuthResponseError(pkt, AUTH_OK);
+        CHECK(pkt.contents()[pkt.size() - 1] == AUTH_FAILED);
+    }
+}
+
 // NOTE: linking 'shared' drags in ACE, whose OS_main.h rewrites main() to ace_main_i() and
 // requires the (int, char**) signature. A no-argument main() therefore fails to link (LNK2019).
 int main(int /*argc*/, char** /*argv*/)
@@ -861,6 +1051,11 @@ int main(int /*argc*/, char** /*argv*/)
     test_auth_proof_digest();
     test_auth_proof_digest_zero_top_byte_k();
     test_proof_equals_constant_time();
+    test_auth_response_byte_vectors();
+    test_auth_response_release_is_byte_identical_to_accepted();
+    test_auth_response_expansions_are_distinct_fields();
+    test_auth_ok_always_carries_account_data();
+    test_auth_response_never_emits_code_27();
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;
 }
