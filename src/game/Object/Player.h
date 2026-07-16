@@ -98,6 +98,8 @@ class Item;
 
 struct AreaTrigger;
 
+namespace MopCharEnum { struct Entry; }
+
 #include <memory>
 #include "CinematicFlyover.h"
 
@@ -1087,7 +1089,7 @@ class Player : public Unit
 
         void Update(uint32 update_diff, uint32 time) override; // Update the player
 
-        static bool BuildEnumData(QueryResult* result, ByteBuffer* data, ByteBuffer* buffer);
+        static bool BuildEnumEntry(QueryResult* result, MopCharEnum::Entry& entry);
 
         void SetInWater(bool apply); // Set the player in water
 

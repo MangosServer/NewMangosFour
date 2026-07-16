@@ -57,12 +57,15 @@
 #include "Database/DatabaseImpl.h"
 #include "PlayerDump.h"
 #include "SocialMgr.h"
+#include "Server/MopCharEnum.h"
 #include "Util.h"
 #include "Language.h"
 #include "SpellMgr.h"
 #include "Calendar.h"
 #include "GameTime.h"
 #include "Timer.h"
+#include <utility>
+#include <vector>
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
@@ -183,32 +186,24 @@ class CharacterHandler
  */
 void WorldSession::HandleCharEnum(QueryResult* result)
 {
-    WorldPacket data(SMSG_CHAR_ENUM, 270);
-
-    ByteBuffer buffer;
-
-    data.WriteBits(0, 23);
-    data.WriteBit(1);
-    data.WriteBits(result ? result->GetRowCount() : 0, 17);
-
+    std::vector<MopCharEnum::Entry> entries;
     if (result)
     {
         do
         {
-            sLog.outDetail("Loading char guid %u from account %u.", (*result)[0].GetUInt32(), GetAccountId());
-
-            if (!Player::BuildEnumData(result, &data, &buffer))
+            MopCharEnum::Entry e;
+            if (!Player::BuildEnumEntry(result, e))
             {
-                sLog.outError("Building enum data for SMSG_CHAR_ENUM has failed, aborting");
+                sLog.outError("Building enum entry for SMSG_CHAR_ENUM has failed, aborting");
                 return;
             }
+            entries.push_back(std::move(e));
         }
         while (result->NextRow());
-
-        data.FlushBits();
-        data.append(buffer);
     }
 
+    WorldPacket data(SMSG_CHAR_ENUM, 100 + entries.size() * 350);
+    MopCharEnum::Build(data, entries);
     SendPacket(&data);
 }
 
