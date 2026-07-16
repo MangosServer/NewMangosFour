@@ -28,6 +28,8 @@ set(SRC_GRP_AUTH
   Auth/BigNumber.h
   Auth/HMACSHA1.cpp
   Auth/HMACSHA1.h
+  Auth/MopAuthKey.cpp
+  Auth/MopAuthKey.h
   Auth/OpenSSLProvider.cpp
   Auth/OpenSSLProvider.h
   Auth/Sha1.cpp

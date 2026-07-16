@@ -25,7 +25,11 @@
 #include "MopAuthSession.h"
 #include "MopSocketDrain.h"
 #include "Utilities/ByteBuffer.h"
+#include "Auth/MopAuthKey.h"
+#include "Auth/BigNumber.h"
+#include <openssl/crypto.h>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <type_traits>
 
@@ -331,6 +335,148 @@ static void test_wire_field_widths()
     CHECK(sizeof(MopAuth::AuthSessionFields{}.builtNumberClient) == 2);
 }
 
+// ---------------------------------------------------------------------------------------------
+// MopAuth::SessionKeyFromHex -- the canonical account.sessionkey hex -> raw-40 K adapter
+// (Auth/MopAuthKey.h / .cpp).
+// ---------------------------------------------------------------------------------------------
+
+// The pure primitive: copy little-endian bytes, pad the TAIL. A named function rather than an
+// inline memcpy so the tail-vs-head rule has one place to live and one place to be tested.
+static void test_raw40_from_littleendian()
+{
+    // (a) full 40 bytes: a straight copy.
+    {
+        uint8 le[40];
+        for (int i = 0; i < 40; ++i)
+        {
+            le[i] = uint8(i);
+        }
+        uint8 out[40] = { 0xEE };
+        CHECK(MopAuth::Raw40FromLittleEndian(le, 40, out));
+        for (int i = 0; i < 40; ++i)
+        {
+            CHECK(out[i] == uint8(i));
+        }
+    }
+    // (b) THE TRAP: a short value pads at the TAIL. AsByteArray(40) pads at the HEAD and shifts
+    //     every real byte by one.
+    {
+        uint8 le[39];
+        for (int i = 0; i < 39; ++i)
+        {
+            le[i] = uint8(i);
+        }
+        uint8 out[40] = { 0xEE };
+        CHECK(MopAuth::Raw40FromLittleEndian(le, 39, out));
+        for (int i = 0; i < 39; ++i)
+        {
+            CHECK(out[i] == uint8(i));
+        }
+        CHECK(out[39] == 0x00);
+    }
+    // (c) TWO leading zeros -> 38. "LENGTH IN (78,80)" was an incomplete enumeration: there is no
+    //     floor. BN_bn2hex emits the BIGNUM's numeric byte count.
+    {
+        uint8 le[38] = { 0 };
+        uint8 out[40] = { 0xEE };
+        CHECK(MopAuth::Raw40FromLittleEndian(le, 38, out));
+        CHECK(out[38] == 0x00);
+        CHECK(out[39] == 0x00);
+    }
+    // (d) over-long must be REJECTED, never truncated.
+    {
+        uint8 le[41] = { 0 };
+        uint8 out[40] = { 0xEE };
+        CHECK(!MopAuth::Raw40FromLittleEndian(le, 41, out));
+    }
+    // (e) null input rejected.
+    {
+        uint8 out[40] = { 0xEE };
+        CHECK(!MopAuth::Raw40FromLittleEndian(NULL, 0, out));
+    }
+    // (f) a ZERO-LENGTH decode is REJECTED, not silently zero-filled (spec 6.2a, Codex round 3 H3).
+    //     "" is vacuously hex-only, even-length and <= 80; it converts to zero bytes, which would
+    //     pad into forty 0x00s -- a K of all zeros that looks well-formed to every consumer
+    //     downstream. That is EXACTLY the stale/NULL-K confounder the ladder exists to eliminate.
+    {
+        uint8 le[1] = { 0 };
+        uint8 out[40] = { 0xEE };
+        CHECK(!MopAuth::Raw40FromLittleEndian(le, 0, out));
+    }
+}
+
+// *** THE TEST THAT CATCHES THE DOUBLE REVERSAL. ***
+//
+// It drives the REAL adapter over the REAL chain, simulating realmd's own write path:
+//     realmd:  vK[40] --SetBinary--> BigNumber --AsHexStr--> account.sessionkey
+//     world:   hex --SessionKeyFromHex--> canonical raw-40 K
+// and asserts the round trip returns vK BYTE FOR BYTE.
+//
+// This is the ONLY test that can see an endianness mismatch. Plan v2 fed AsByteArray() -- which is
+// ALREADY little-endian (BigNumber.cpp:194 std::reverse) -- into a helper that reverses, producing
+// a big-endian K, a deterministic proof failure, and a total auth outage. Every hand-crafted
+// byte-array test still passed, because none of them ever called BigNumber. The defect lived in the
+// SEAM between the helper's contract and the call site, so the test has to span the seam.
+static void test_sessionkey_from_hex_roundtrip()
+{
+    // (a) all 40 bytes significant -> BN_num_bytes() == 40 -> 80 hex chars, the no-pad path.
+    {
+        uint8 vK[40];
+        for (int i = 0; i < 40; ++i)
+        {
+            vK[i] = uint8(i * 7 + 3);
+        }
+        CHECK(vK[39] != 0);
+
+        BigNumber bn;                              // exactly what realmd does (AuthSocket.cpp:668)
+        bn.SetBinary(vK, 40);
+        const char* hex = bn.AsHexStr();           // AuthSocket.cpp:707 -> the DB column
+        CHECK(hex != NULL);
+        CHECK(std::strlen(hex) == 80);
+
+        uint8 out[40] = { 0xEE };
+        CHECK(MopAuth::SessionKeyFromHex(hex, out));
+        for (int i = 0; i < 40; ++i)
+        {
+            CHECK(out[i] == vK[i]);                // a reversed K fails on byte 0
+        }
+        OPENSSL_free((void*)hex);                  // AsHexStr = BN_bn2hex; the caller frees
+    }
+    // (b) THE ~1/256 CASE: most-significant raw byte zero -> BN_bn2hex DROPS it -> 78 hex chars.
+    //     78 is NORMAL, not corruption. The tail pad must restore vK[39] == 0.
+    {
+        uint8 vK[40];
+        for (int i = 0; i < 40; ++i)
+        {
+            vK[i] = uint8(i * 7 + 3);
+        }
+        vK[39] = 0x00;
+
+        BigNumber bn;
+        bn.SetBinary(vK, 40);
+        const char* hex = bn.AsHexStr();
+        CHECK(hex != NULL);
+        CHECK(std::strlen(hex) == 78);             // the row IS short, and that is FINE
+
+        uint8 out[40] = { 0xEE };
+        CHECK(MopAuth::SessionKeyFromHex(hex, out));
+        for (int i = 0; i < 40; ++i)
+        {
+            CHECK(out[i] == vK[i]);                // incl. out[39] == 0x00, padded at the TAIL
+        }
+        OPENSSL_free((void*)hex);
+    }
+    // (c) the adapter REJECTS what it must, at its own boundary.
+    {
+        uint8 out[40] = { 0xEE };
+        CHECK(!MopAuth::SessionKeyFromHex(NULL, out));
+        CHECK(!MopAuth::SessionKeyFromHex("", out));                 // empty -> would be K of zeros
+        CHECK(!MopAuth::SessionKeyFromHex("ABC", out));              // odd length
+        CHECK(!MopAuth::SessionKeyFromHex("ZZZZ", out));             // non-hex
+        CHECK(!MopAuth::SessionKeyFromHex(std::string(82, 'A').c_str(), out));   // 41 bytes
+    }
+}
+
 // NOTE: linking 'shared' drags in ACE, whose OS_main.h rewrites main() to ace_main_i() and
 // requires the (int, char**) signature. A no-argument main() therefore fails to link (LNK2019).
 int main(int /*argc*/, char** /*argv*/)
@@ -357,6 +503,8 @@ int main(int /*argc*/, char** /*argv*/)
     test_in_flight_send_vetoes_with_pending_output();
     test_open_state_never_closes();
     test_drain_never_requests_reactor_reentry();
+    test_raw40_from_littleendian();
+    test_sessionkey_from_hex_roundtrip();
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;
 }
