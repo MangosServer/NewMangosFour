@@ -38,8 +38,9 @@
 static int g_fail = 0;
 #define CHECK(c) do { if (!(c)) { std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); ++g_fail; } } while (0)
 
-// The legacy 11-bit name length is read MSB-first across two bytes with no leading ReadBit(),
-// so the encoded value is (bits0 << 3) | (bits1 >> 5). Vectors below are hand-encoded to that.
+// The name-length block is ONE flag bit then an 11-bit length, both MSB-first (spec 3.4):
+//   value = ((bits0 & 0x7F) << 4) | (bits1 >> 4)
+// Vectors below are hand-encoded to that (see name_bits0()/name_bits1() further down).
 static ByteBuffer make_legacy_body(uint32_t addonSize, uint32_t inflatedSize,
                                    uint8_t nameBits0, uint8_t nameBits1,
                                    char const* name, size_t nameBytes)
@@ -92,7 +93,7 @@ static void test_short_body_rejected()
 // Structure only: the legacy decode is bug-compatible, so field values are deliberately not asserted.
 static void test_exact_valid_structure_accepted()
 {
-    ByteBuffer in = make_legacy_body(4, 1, 0x00, 0x20, "A", 1);   // 11-bit name length 1
+    ByteBuffer in = make_legacy_body(4, 1, 0x00, 0x10, "A", 1);   // flag=0, name length 1
     CHECK(decode(in) == MopAuth::DecodeResult::Ok);
 }
 
@@ -116,7 +117,7 @@ static void test_small_addon_sizes_accepted()
 {
     for (uint32_t addonSize = 0; addonSize < 4; ++addonSize)
     {
-        ByteBuffer in = make_legacy_body(addonSize, 0, 0x00, 0x20, "A", 1);
+        ByteBuffer in = make_legacy_body(addonSize, 0, 0x00, 0x10, "A", 1);
         MopAuth::AuthSessionFields out{};
         CHECK(MopAuth::DecodeAuthSession(in, out) == MopAuth::DecodeResult::Ok);
         CHECK(out.addonSize == addonSize);
@@ -143,7 +144,7 @@ static void test_addon_size_beyond_remaining_rejected()
 // and simply returns -- it does not reject the login. Auth must be equally tolerant.
 static void test_inflated_size_zero_accepted()
 {
-    ByteBuffer in = make_legacy_body(4, 0, 0x00, 0x20, "A", 1);
+    ByteBuffer in = make_legacy_body(4, 0, 0x00, 0x10, "A", 1);
     CHECK(decode(in) == MopAuth::DecodeResult::Ok);
 }
 
@@ -151,13 +152,13 @@ static void test_inflated_size_zero_accepted()
 // skipped addon parse, not a failed authentication.
 static void test_inflated_size_over_maximum_accepted()
 {
-    ByteBuffer in = make_legacy_body(4, 0x100000, 0x00, 0x20, "A", 1);
+    ByteBuffer in = make_legacy_body(4, 0x100000, 0x00, 0x10, "A", 1);
     CHECK(decode(in) == MopAuth::DecodeResult::Ok);
 }
 
 static void test_inflated_size_at_maximum_accepted()
 {
-    ByteBuffer in = make_legacy_body(4, 0xFFFFF, 0x00, 0x20, "A", 1);
+    ByteBuffer in = make_legacy_body(4, 0xFFFFF, 0x00, 0x10, "A", 1);
     CHECK(decode(in) == MopAuth::DecodeResult::Ok);
 }
 
@@ -198,17 +199,19 @@ static void test_missing_name_bitfield_rejected()
     CHECK(decode(partial) == MopAuth::DecodeResult::ShortBody);
 }
 
-// The 11-bit name length is read MSB-first across two bytes with no leading ReadBit(), so the
-// encoded value is (bits0 << 3) | (bits1 >> 5). Derived rather than hand-written: 2047 in
-// particular is easy to mis-encode by hand.
-static uint8_t name_bits0(uint32_t len)
+// The name-length block is ONE flag bit then an 11-bit length, both MSB-first (spec 3.4):
+//   value = ((bits0 & 0x7F) << 4) | (bits1 >> 4)
+// Self-check against the gate2 capture: len=13, flag=0 -> bits0=0x00, bits1=0xD0 -> `00 D0`, which
+// is byte-for-byte what the real client sent. Derived rather than hand-written: 2047 in particular
+// is easy to mis-encode by hand.
+static uint8_t name_bits0(uint32_t len, bool flag)
 {
-    return uint8_t(len >> 3);
+    return uint8_t((flag ? 0x80 : 0x00) | ((len >> 4) & 0x7F));
 }
 
 static uint8_t name_bits1(uint32_t len)
 {
-    return uint8_t((len & 7) << 5);
+    return uint8_t((len & 0xF) << 4);
 }
 
 // The decoder applies NO cap to the name length, because the legacy path applied none:
@@ -232,7 +235,7 @@ static void test_name_lengths_uncapped()
     for (uint32_t len : lengths)
     {
         std::string const name(len, 'A');
-        ByteBuffer in = make_legacy_body(4, 1, name_bits0(len), name_bits1(len),
+        ByteBuffer in = make_legacy_body(4, 1, name_bits0(len, false), name_bits1(len),
                                          name.c_str(), name.size());
         MopAuth::AuthSessionFields out{};
         CHECK(MopAuth::DecodeAuthSession(in, out) == MopAuth::DecodeResult::Ok);
@@ -243,8 +246,94 @@ static void test_name_lengths_uncapped()
 // ReadString() truncates silently at end-of-buffer; the decoder must reject rather than shorten.
 static void test_name_truncated_rejected()
 {
-    ByteBuffer in = make_legacy_body(4, 1, 0x00, 0x40, "A", 1);   // length 2, one byte remaining
+    ByteBuffer in = make_legacy_body(4, 1, 0x00, 0x20, "A", 1);   // length 2, one byte remaining
     CHECK(decode(in) == MopAuth::DecodeResult::TruncatedName);
+}
+
+// Pins the PRODUCTION decoder's digest scatter to the binary-derived map in
+// facts/FACTS_mop548_digest_permutation.md 2 (serializer x86 sub_66F7E0 / x64 sub_1403DFD80,
+// vtable off_140ED6F70 slot 1; digest base PROVEN via SHA1_Final's destination, not assumed).
+//
+// A bijection check is NOT sufficient -- a transposed table is still a bijection, which is exactly
+// how an earlier design's test would have passed on a wrong map. This asserts ENTRY BY ENTRY.
+//
+// It works by marking each body offset with its own index, so the decoded digest[] reads back the
+// offset each slot came from. That tests the shipped read sequence rather than a table copied
+// alongside it -- there IS no table, and deliberately so: the permutation lives in the decoder as
+// straight-line reads, so there is nothing to hand-copy and nothing to transpose.
+static void test_digest_scatter_matches_binary()
+{
+    // digestIndex -> bodyOffset, written out independently from the facts doc's inverse map.
+    static const uint8_t kExpectDigestToBody[20] = {
+        12, 50, 25, 10, 11, 41, 42, 47, 43, 26, 51, 17, 27, 48, 9, 49, 40, 46, 8, 22
+    };
+
+    // A 56-byte prefix where body[i] == i, so a digest byte reveals its own source offset.
+    // Offsets 0..51 are all < 52, so every marker is unambiguous.
+    ByteBuffer in;
+    for (uint32_t i = 0; i < 52; ++i)
+    {
+        in << uint8_t(i);
+    }
+    in << uint32_t(4);                                     // addonSize at body 52..55
+    in << uint32_t(1);                                     // the 4-byte addon blob
+    in << name_bits0(1, false) << name_bits1(1);           // flag=0, name length 1
+    in << uint8_t('A');
+
+    MopAuth::AuthSessionFields out{};
+    CHECK(MopAuth::DecodeAuthSession(in, out) == MopAuth::DecodeResult::Ok);
+
+    for (uint8_t d = 0; d < 20; ++d)
+    {
+        CHECK(out.digest[d] == kExpectDigestToBody[d]);    // catches ANY transposition
+    }
+
+    // The capture anchors the permutation had no freedom to fit (facts 4). clientSeed is at body
+    // 18..21, so with body[i] == i it reads back 0x15141312 little-endian.
+    CHECK(out.clientSeed == 0x15141312u);
+    CHECK(out.builtNumberClient == 0x2D2Cu);               // body 44..45
+    CHECK(out.addonSize == 4u);                            // body 52..55
+
+    // TRAP (facts 5): body 23 is the constant 1, NOT digest[20]. It must never appear in digest[].
+    // With body[i] == i, marker 23 in any digest slot would mean an off-by-one past the digest.
+    for (uint8_t d = 0; d < 20; ++d)
+    {
+        CHECK(out.digest[d] != 23);
+    }
+}
+
+// Spec 3.4 / facts 4: body 420 is ONE flag bit (TC calls it "UseIPv6"; the OFFSET is confirmed, the
+// NAME is inferred) followed by an 11-bit name length. The legacy path issued ReadBits(11) with NO
+// leading ReadBit(), which silently reads the WRONG 11 bits.
+//
+// The capture settles it. gate2 carries strlen=13, flag=0, wire bytes `00 D0`:
+//   ReadBits(11) alone      -> byte0[7:0] then byte1[7:5] -> 0b00000000110 = 6   WRONG
+//   ReadBit() + ReadBits(11)-> flag=byte0[7]; byte0[6:0] then byte1[7:4] -> 0b00000001101 = 13  RIGHT
+// This is not a style question: today's decoder mis-reads every real client's name length.
+//
+// (This does NOT reopen "11 vs 12 bits" -- both readings consume the same 12 bits. It is about
+// which model the code states. A 12-bit read is equivalent ONLY while the flag is 0, and silently
+// rejects a valid packet -- length >= 2048 -- the moment it is ever 1.)
+static void test_name_length_flag_bit_then_11_bits()
+{
+    // The capture's own bytes, byte-for-byte.
+    ByteBuffer in = make_legacy_body(4, 1, 0x00, 0xD0, "ACCOUNTNAME13", 13);
+    MopAuth::AuthSessionFields out{};
+    CHECK(MopAuth::DecodeAuthSession(in, out) == MopAuth::DecodeResult::Ok);
+    CHECK(out.account == "ACCOUNTNAME13");
+    CHECK(out.account.size() == 13);
+    CHECK(out.useIPv6 == false);
+}
+
+// The flag must be READ, not skipped, and must not corrupt the length. With flag=1 the 11 bits are
+// unchanged; a 12-bit read would yield 2048+13 and reject a perfectly valid packet.
+static void test_name_length_flag_set()
+{
+    ByteBuffer in = make_legacy_body(4, 1, name_bits0(13, true), name_bits1(13), "ACCOUNTNAME13", 13);
+    MopAuth::AuthSessionFields out{};
+    CHECK(MopAuth::DecodeAuthSession(in, out) == MopAuth::DecodeResult::Ok);
+    CHECK(out.account.size() == 13);
+    CHECK(out.useIPv6 == true);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -746,6 +835,9 @@ int main(int /*argc*/, char** /*argv*/)
     test_missing_name_bitfield_rejected();
     test_name_lengths_uncapped();
     test_name_truncated_rejected();
+    test_digest_scatter_matches_binary();
+    test_name_length_flag_bit_then_11_bits();
+    test_name_length_flag_set();
     test_wire_field_widths();
     test_open_state_processes_input();
     test_flushing_state_rejects_coalesced_next_frame();

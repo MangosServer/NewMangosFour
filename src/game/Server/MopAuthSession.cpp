@@ -108,15 +108,19 @@ namespace MopAuth
             // usable addon info", never "reject this login". The blob is passed through as-is and
             // ReadAddonsInfo applies its own bound at the point it actually inflates.
 
-            // ReadBits(11) consumes two bytes; require them explicitly rather than via a throw.
+            // The flag bit + the 11-bit length span two bytes; require them explicitly rather than
+            // via a throw.
             if (in.size() - in.rpos() < 2)
             {
                 return DecodeResult::ShortBody;
             }
 
-            // BUG-FOR-BUG: the legacy path issued ReadBits(11) with NO preceding ReadBit().
-            // That is wrong for a real 5.4.8 client, but correcting it is out of scope here;
-            // this extraction must not change behaviour for input the legacy code accepted.
+            // Spec 3.4: ONE flag bit, THEN an 11-bit length -- both MSB-first. The legacy path
+            // issued ReadBits(11) with no leading ReadBit(), which reads the wrong 11 bits: the
+            // gate2 capture's `00 D0` (strlen 13, flag 0) decodes to 6 that way and to 13 this way.
+            // Do NOT collapse this into a single ReadBits(12): equivalent only while the flag is 0,
+            // and it silently rejects a valid packet (length >= 2048) the moment it is ever 1.
+            parsed.useIPv6 = in.ReadBit() != 0;
             uint32_t const nameLength = in.ReadBits(11);
 
             // There is deliberately NO cap on nameLength, and no rejection of 0. The legacy path
