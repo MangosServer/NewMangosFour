@@ -1076,13 +1076,32 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
             case CMSG_PING:
                 return HandlePing(*new_pct);
             case CMSG_AUTH_SESSION:
-                // Phase 2: framing proven. Do NOT enter the legacy auth path (HandleAuthSession -> m_Crypt.Init).
-                // The allowlist above guarantees we are in CONN_CHALLENGED here, so this is the LEGAL transition.
-                // The ENABLE_ELUNA OnPacketReceive hook for this opcode is intentionally NOT invoked here;
-                // it is deferred to Phase 3 along with the rest of the auth path.
+                // THE PHASE 3 STAGE 2 CUTOVER. Phase 2 proved framing here and deliberately returned
+                // -1 without authenticating; Stage 1 restructured the dormant handler; Stage 2 gave
+                // it correct semantics. This line is where all of it becomes reachable.
+                //
+                // The allowlist above guarantees CONN_CHALLENGED here, so this is the legal
+                // transition. HandleAuthSession owns every outcome from here:
+                //   0  = EITHER the session committed (crypt -> CONN_AUTHED -> publish), OR a
+                //        rejection was queued and the drain armed -- BeginAuthErrorDrain returns 0
+                //        on success, and the socket stays open until Update() sees it drained and
+                //        closes it. Returning 0 is what lets the error reach the client.
+                //   -1 = nothing was queued (cancel_wakeup failed / SendPacket failed / Eluna
+                //        vetoed), so there is nothing to drain and the socket closes immediately.
+                // DO NOT "fix" this to return -1 on rejection: that closes the socket on top of the
+                // unsent response and reintroduces the exact Stage 1 defect (Codex C1) that
+                // BeginAuthErrorDrain exists to fix.
+                //
+                // The 6->4-byte inbound header switch needs no code: the reader derives the header
+                // kind fresh per call from m_Crypt.IsInitialized() (:862), so the first frame after
+                // a successful commit is read post-crypt automatically.
+                //
+                // The Eluna OnPacketReceive hook for this opcode remains deliberately NOT invoked:
+                // Phase 2 deferred it to Phase 3 along with the rest of the auth path, and invoking
+                // it here would let a script observe the raw auth body, including the proof, which
+                // spec 2 forbids. This is a Phase 4 decision, not an oversight.
                 m_connState = MopHs::CONN_AUTHENTICATING;
-                DEBUG_LOG("WorldSocket: CMSG_AUTH_SESSION accepted; CONN_CHALLENGED -> CONN_AUTHENTICATING; auth deferred to Phase 3 (framing OK, len %zu, body redacted); closing.", new_pct->size());
-                return -1;
+                return HandleAuthSession(*new_pct);
             case CMSG_KEEP_ALIVE:
                 DEBUG_LOG("CMSG_KEEP_ALIVE ,size: %zu ", new_pct->size());
 
