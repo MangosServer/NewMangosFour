@@ -195,6 +195,24 @@ WorldSession::~WorldSession()
     }
 }
 
+/// Release the session's extra socket reference without closing the socket.
+///
+/// Valid only before the session has been published to World: it balances the single
+/// sock->AddReference() taken by the constructor. m_Socket is nulled FIRST so ~WorldSession()
+/// skips its own CloseSocket()/RemoveReference() teardown -- the socket must stay alive to drain
+/// an auth error through it, and re-releasing here would over-release the reference.
+void WorldSession::AbandonUnpublishedSocket() noexcept
+{
+    if (!m_Socket)
+    {
+        return;
+    }
+
+    WorldSocket* socket = m_Socket;
+    m_Socket = NULL;                    // destructor must not CloseSocket() on the auth-error drain
+    socket->RemoveReference();          // release the AddReference() taken by the constructor
+}
+
 /**
  * @brief Logs an invalid client packet size for the current opcode.
  *

@@ -56,6 +56,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <exception>
 
 #include "WorldSocket.h"
 #include "Common.h"
@@ -1175,6 +1176,42 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
 }
 
 /**
+ * @brief Tears down a WorldSession allocated but never published to World.
+ *
+ * The single cleanup path for every post-allocation rejection in HandleAuthSession.
+ * AbandonUnpublishedSocket() nulls the session's m_Socket before this deletes it, so
+ * ~WorldSession() does NOT CloseSocket() the socket we are still draining an auth error through,
+ * and it releases exactly the one extra reference the WorldSession constructor took.
+ */
+void WorldSocket::DestroyUnpublishedSession() noexcept
+{
+    if (!m_Session)
+    {
+        return;
+    }
+
+    m_Session->AbandonUnpublishedSocket();
+    delete m_Session;
+    m_Session = NULL;
+}
+
+/**
+ * @brief Infallible auth commit run by World::AddSession under the add-queue lock.
+ *
+ * Activates the prepared crypt (PREPARED -> ACTIVE, a single state store that cannot fail) and
+ * stores CONN_AUTHED. Runs while the queue lock is held and the queued session is not yet visible
+ * to the world thread; unlocking after this returns is the publication point. Must stay noexcept.
+ *
+ * @param context The originating WorldSocket, passed opaque through AddSession.
+ */
+void WorldSocket::CommitAuthenticatedSession(void* context) noexcept
+{
+    WorldSocket* socket = static_cast<WorldSocket*>(context);
+    socket->m_Crypt.Activate();
+    socket->m_connState = MopHs::CONN_AUTHED;
+}
+
+/**
  * @brief Authenticates a new client session and creates the world session.
  *
  * @param recvPacket The authentication packet.
@@ -1433,31 +1470,70 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     // entered nothing below it can fail, so no failure path can observe an initialised crypt on an
     // unauthenticated session. AuthCrypt has no rollback and deliberately does not gain one --
     // rollback would exist only to paper over the ordering defect this reorder removes.
-    m_Session->LoadGlobalAccountData();
-    m_Session->LoadTutorialsData();
-    m_Session->ReadAddonsInfo(addonsData);
+    //
+    // ReadAddonsInfo inflates attacker-controlled zlib and CAN throw ByteBufferException. Without
+    // this local catch the outer ProcessIncoming ByteBufferException handler would close the socket
+    // while handle_close() only nulls m_Session, leaking the freshly allocated session. Every catch
+    // routes through the single DestroyUnpublishedSession() path and drains an error. Never log
+    // addon bytes.
+    try
+    {
+        m_Session->LoadGlobalAccountData();
+        m_Session->LoadTutorialsData();
+        m_Session->ReadAddonsInfo(addonsData);
+    }
+    catch (ByteBufferException const&)
+    {
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session "
+                      "(malformed addon data for account %u).", id);
+        DestroyUnpublishedSession();
+        return BeginAuthErrorDrain(AUTH_FAILED);
+    }
+    catch (std::exception const& e)
+    {
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session "
+                      "(session load failed for account %u: %s).", id, e.what());
+        DestroyUnpublishedSession();
+        return BeginAuthErrorDrain(AUTH_SYSTEM_ERROR);
+    }
+    catch (...)
+    {
+        sLog.outError("WorldSocket::HandleAuthSession: rejecting auth session "
+                      "(unknown session-load failure for account %u).", id);
+        DestroyUnpublishedSession();
+        return BeginAuthErrorDrain(AUTH_SYSTEM_ERROR);
+    }
 
     // In case needed sometime the second arg is in microseconds 1 000 000 = 1 sec
     // Legacy delay, semantics unchanged; hoisted above the commit region because a delay may not
     // appear between the three commit statements.
     ACE_OS::sleep(ACE_Time_Value(0, 10000));
 
-    // ================ COMMIT REGION ================
+    // ================= AUTH PUBLICATION TRANSACTION =================
     // Everything fallible already ran ABOVE: crypt Prepare() (HMAC, ARC4 keying, drop-1024), the
-    // session allocation, the DB loads and the addon inflate. Activate() is the ONLY
-    // PREPARED->ACTIVE transition and is infallible -- a single state store. It publishes the
-    // prepared crypt: from here IsInitialized() is true, so the wire codec frames POST-crypt.
-    // Because success is now observable (Prepare returned true above), this is no longer merely a
-    // SOURCE-ordering guarantee as it was in Stage 1 -- a silently failed init cannot reach here.
+    // session allocation, the DB loads and the addon inflate. World::AddSession now performs the
+    // ONLY remaining fallible operation -- queue insertion -- while its lock is held. Only after
+    // that succeeds does it invoke CommitAuthenticatedSession(), still under the lock, so the world
+    // thread cannot observe the queued session until crypt and state are committed. Unlock is the
+    // publication point:
+    //   reserve queue node (locked) -> crypt ACTIVE -> CONN_AUTHED -> unlock/publish.
+    // Activate() is the ONLY PREPARED->ACTIVE transition and is infallible -- a single state store.
     //
-    // INTERMEDIATE STATE (Task 3): sWorld.AddSession below is still the old one-arg fallible call,
-    // so this region is NOT yet cutover-ready. Task 8 replaces it with the queue-lock publication
-    // transaction (reserve node locked -> Activate -> CONN_AUTHED -> unlock/publish). The handler
-    // is dormant (zero call sites) until Task 9, so this intermediate ordering is unreachable.
-    m_Crypt.Activate();
-    m_connState = MopHs::CONN_AUTHED;
-    sWorld.AddSession(m_Session);
+    // On false the callback did not run: crypt remains PREPARED/inert, state remains
+    // CONN_AUTHENTICATING, and the queue is unchanged. DestroyUnpublishedSession releases the
+    // session's extra socket reference without closing this socket, allowing the auth error to
+    // drain normally.
+    if (!sWorld.AddSession(m_Session, &WorldSocket::CommitAuthenticatedSession, this))
+    {
+        DestroyUnpublishedSession();
+        return BeginAuthErrorDrain(AUTH_SYSTEM_ERROR);
+    }
 
+    // GATE 3b EVIDENCE. AddSession returned only after unlocking, so the queue entry is now visible
+    // and crypt/state were committed before publication. This does NOT claim AddSession_ has already
+    // inserted into m_sessions or sent SMSG_AUTH_RESPONSE; those happen on the world thread.
+    DEBUG_LOG("WorldSocket::HandleAuthSession: account %u CONN_AUTHED "
+              "(crypt activated, session enqueue published).", id);
     return 0;
 }
 

@@ -1086,6 +1086,12 @@ class WorldSession
 
         void HandleLoadScreenOpcode(WorldPacket& recvPacket);
     private:
+        friend class WorldSocket;
+
+        /// Release the session's extra socket reference without closing the socket. Valid only
+        /// before the session has been published to World.
+        void AbandonUnpublishedSocket() noexcept;
+
         // private trade methods
         void moveItems(Item* myItems[], Item* hisItems[]);
         bool VerifyMovementInfo(MovementInfo const& movementInfo, ObjectGuid const& guid) const;

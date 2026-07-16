@@ -31,6 +31,8 @@
 #include "Database/DatabaseEnv.h"
 #include "Log.h"
 
+#include <exception>
+
 /**
  * @file WorldSessionMgr.cpp
  * @brief Cohesion split of World.cpp -- session management: zone player lookup, session add/remove and the login wait-queue. Same World class; no behaviour change. CMake file(GLOB) picks this file up automatically; World.h is unchanged.
@@ -95,15 +97,50 @@ bool World::RemoveSession(uint32 id)
 }
 
 /**
- * @brief Queues a new session for addition during the world update.
+ * @brief Enqueues a new session and publishes the authenticated commit as one queue-lock transaction.
  *
- * @param s The session to add.
+ * The ONLY fallible operation -- queue insertion -- runs first, while the lock is held. Only after
+ * it succeeds does the infallible commit callback run, still under the lock, so the world thread
+ * cannot observe or pop the queued session until crypt and connection state have been committed.
+ * Releasing the lock is the externally visible publication point.
+ *
+ * @param s       The session to add.
+ * @param commit  Infallible (noexcept) callback performing the auth commit; runs only on success.
+ * @param context Opaque argument forwarded to @p commit.
+ * @return true once the session is enqueued and committed; false with no queue change and without
+ *         invoking @p commit if the arguments are invalid or enqueue fails.
  */
-void World::AddSession(WorldSession* s)
+bool World::AddSession(WorldSession* s, SessionPublishCommit commit, void* context)
 {
-    std::lock_guard<std::mutex> guard(m_sessionAddQueueLock);
+    if (!s || !commit || !context)
+    {
+        sLog.outError("World::AddSession: refusing invalid publication arguments.");
+        return false;
+    }
 
-    m_sessionAddQueue.push_back(s);
+    try
+    {
+        std::lock_guard<std::mutex> guard(m_sessionAddQueueLock);
+
+        // std::deque::push_back has the strong exception guarantee here: if allocation throws,
+        // the queue is unchanged and the commit callback has not run.
+        m_sessionAddQueue.push_back(s);
+
+        // Still under the queue lock: the world thread cannot observe/pop the new session yet.
+        // The function-pointer type is noexcept and the callback performs stores only.
+        commit(context);
+        return true;                    // guard unlocks: THIS is externally visible publication
+    }
+    catch (std::exception const& e)
+    {
+        sLog.outError("World::AddSession: could not enqueue session: %s", e.what());
+        return false;
+    }
+    catch (...)
+    {
+        sLog.outError("World::AddSession: could not enqueue session (unknown exception).");
+        return false;
+    }
 }
 
 void

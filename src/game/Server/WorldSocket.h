@@ -192,6 +192,16 @@ class WorldSocket : protected WorldHandler
         /// MopFrameReader::CmdValidFn hook (Phase 2 wire framing).
         static bool CmdValidHook(void*, uint32, bool);
 
+        /// Tear down a WorldSession that was allocated but never published to World. Releases the
+        /// session's extra socket reference WITHOUT closing this socket, so an auth error can still
+        /// drain through it. One cleanup path for every post-allocation rejection in HandleAuthSession.
+        void DestroyUnpublishedSession() noexcept;
+
+        /// Infallible auth commit invoked by World::AddSession while the add-queue lock is held:
+        /// activates the prepared crypt and stores CONN_AUTHED. Must stay noexcept -- the queue
+        /// lock is held across it and the function-pointer type statically enforces noexcept.
+        static void CommitAuthenticatedSession(void* context) noexcept;
+
     private:
         /// Queue the legacy auth error response and enter the drain state.
         ///
