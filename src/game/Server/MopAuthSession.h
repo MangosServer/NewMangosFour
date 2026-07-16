@@ -45,7 +45,8 @@ class ByteBuffer;
  *
  * The digest[] scatter and the seven read_skips are NOT a legacy quirk and must not be "cleaned
  * up": they reproduce the client serializer's own permutation, binary-confirmed in both x86 and
- * x64 (facts/FACTS_mop548_digest_permutation.md 2). Body 23 is a constant 1 -- not digest[20] --
+ * x64 (facts/FACTS_mop548_digest_permutation.md 2; campaign research doc, not in this tree).
+ * Body 23 is a constant 1 -- not digest[20] --
  * and body 28 is an 8-byte field the server deliberately does NOT interpret (spec 3.3 trap 2:
  * [OPEN]; the facts doc's 5 still claims it must be echoed -- that claim was RETRACTED).
  *

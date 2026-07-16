@@ -64,9 +64,10 @@ class AuthCrypt
          *         while ACTIVE is rejected before touching the live streams.
          *         On false the object is INERT unless it was already ACTIVE.
          *         DecryptRecv/EncryptSend no-op while not ACTIVE and
-         *         IsInitialized() -- the wire codec discriminator (WorldSocket.cpp:218/862) --
-         *         still reports pre-crypt. Callers MUST check it: proceeding on false puts
-         *         PLAINTEXT HEADERS on the wire framed as encrypted.
+         *         IsInitialized() -- the wire codec discriminator (WorldSocket::SendPacket's
+         *         post-crypt branch / WorldSocket::DecryptHeaderHook) -- still reports pre-crypt.
+         *         Callers MUST check it: proceeding on false puts PLAINTEXT HEADERS on the wire
+         *         framed as encrypted.
          */
         bool Prepare(const uint8 (&K)[MopAuth::SESSION_KEY_LEN]);
 
@@ -80,8 +81,9 @@ class AuthCrypt
          *
          * Between Prepare() and Activate() the ARC4 contexts are fully keyed but IsInitialized()
          * still reports FALSE -- so Decrypt/Encrypt no-op and, critically, the wire codec
-         * discriminator (WorldSocket.cpp:218/862) still frames PRE-crypt. A throw or early return
-         * in that window therefore leaves the socket exactly as unauthenticated as it started.
+         * discriminator (WorldSocket::SendPacket's post-crypt branch /
+         * WorldSocket::DecryptHeaderHook) still frames PRE-crypt. A throw or early return in that
+         * window therefore leaves the socket exactly as unauthenticated as it started.
          *
          * FAIL-CLOSED: activating from any state other than PREPARED is a no-op. Do not "simplify"
          * this to an unconditional boolean store.

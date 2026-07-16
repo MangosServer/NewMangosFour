@@ -48,7 +48,6 @@
 
 #include "Common.h"
 #include "Auth/AuthCrypt.h"
-#include "Auth/BigNumber.h"
 #include "MopHandshake.h"
 #include "MopFrameReader.h"
 #include "MopSocketDrain.h"

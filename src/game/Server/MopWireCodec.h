@@ -48,8 +48,10 @@ namespace MopWire
     /// "frame out of range" and returns -1 -- never silent). 536 values in Opcodes.h still exceed
     /// 0x1FFF (279 of them SMSG, e.g. SMSG_MESSAGECHAT = 0x2026) because they retain their 4.3.4
     /// values. This is UNREACHABLE for all of Phase 2 (crypt is never initialized, so postCrypt is
-    /// always false), but once Phase 3 calls m_Crypt.Init() those sends begin failing unless the
-    /// Phase 1b opcode-table migration has already remapped them into the 13-bit space.
+    /// always false), but as of the Phase 3 cutover -- once `AuthCrypt::Prepare()` /
+    /// `AuthCrypt::Activate()` have run for a session -- this is LIVE for every authenticated
+    /// send unless the Phase 1b opcode-table migration has already remapped the opcode into the
+    /// 13-bit space.
     inline bool BuildServerHeader(bool postCrypt, size_t payloadSize, uint32_t cmd, uint8_t out[4])
     {
         if (postCrypt)

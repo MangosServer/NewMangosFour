@@ -43,9 +43,9 @@ namespace
     // SkyFire-derived and do not exist in this tree -- the values above are what is used.)
     //
     // GOTCHA: the bit section counts CLASS-then-RACE, but the payload is RACE-then-CLASS (see
-    // Build() below). Both loops here use { expansion, id } order -- the legacy class loop at
-    // WorldSession.cpp:1086-1087 wrote { id, expansion }, inconsistent with its own race loop;
-    // that inconsistency is the tell it was wrong.
+    // Build() below). Both loops here use { expansion, id } order -- the (now-deleted) legacy
+    // WorldSession::SendAuthResponse class loop wrote { id, expansion }, inconsistent with its
+    // own race loop; that inconsistency is the tell it was wrong.
     const ExpansionInfo kClassExpansion[MAX_CLASSES - 1] =
     {
         { 1, 0 }, { 2, 0 }, { 3, 0 }, { 4, 0 }, { 5, 0 }, { 6, 2 },

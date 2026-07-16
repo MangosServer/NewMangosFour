@@ -1016,8 +1016,9 @@ void WorldSession::SendAuthWaitQue(uint32 position)
     // (13); with queued=0 there is no queue branch to mask it, so the release was the one packet
     // where the defect actually bit.
     //
-    // Expansion() is the account's entitlement ALREADY CLAMPED to the realm (WorldSocket.cpp:1253);
-    // the config value is the realm's own cap. They differ only for a restricted account.
+    // Expansion() is the account's entitlement ALREADY CLAMPED to the realm (see
+    // WorldSocket::HandleAuthSession's expansion clamp); the config value is the realm's own cap.
+    // They differ only for a restricted account.
     // BuildAuthResponseQueued routes position 0 to Accepted itself, so the release rule lives in
     // the serializer rather than in every caller that has to remember it.
     WorldPacket packet;

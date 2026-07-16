@@ -72,7 +72,6 @@
 #include "ByteBuffer.h"
 #include "Opcodes.h"
 #include "Database/DatabaseEnv.h"
-#include "Auth/Sha1.h"
 #include "WorldSession.h"
 #include "WorldSocketMgr.h"
 #include "Log.h"
@@ -1093,8 +1092,8 @@ int WorldSocket::ProcessIncoming(WorldPacket* new_pct)
                 // BeginAuthErrorDrain exists to fix.
                 //
                 // The 6->4-byte inbound header switch needs no code: the reader derives the header
-                // kind fresh per call from m_Crypt.IsInitialized() (:862), so the first frame after
-                // a successful commit is read post-crypt automatically.
+                // kind fresh per call from m_Crypt.IsInitialized() (see DecryptHeaderHook below), so
+                // the first frame after a successful commit is read post-crypt automatically.
                 //
                 // The Eluna OnPacketReceive hook for this opcode remains deliberately NOT invoked:
                 // Phase 2 deferred it to Phase 3 along with the rest of the auth path, and invoking
@@ -1211,6 +1210,10 @@ void WorldSocket::DestroyUnpublishedSession() noexcept
 
     m_Session->AbandonUnpublishedSocket();
     delete m_Session;
+    // Unlocked write is safe ONLY because this runs on the reactor upcall path (HandleAuthSession),
+    // which the reactor serializes against handle_close(), and m_Session is not yet published to
+    // World -- no other thread can observe or race this store. If this cleanup is ever moved off
+    // the upcall path, re-add the m_SessionLock guard used elsewhere in this file.
     m_Session = NULL;
 }
 
@@ -1485,10 +1488,12 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
     // Every fallible step -- DB loads, addon inflate -- runs BEFORE the commit region. Their
     // internal semantics are unchanged from the pre-Task-4 code; only their position moved above
-    // m_Crypt.Init. This is what makes the region atomic BY ORDERING: once the commit region is
-    // entered nothing below it can fail, so no failure path can observe an initialised crypt on an
-    // unauthenticated session. AuthCrypt has no rollback and deliberately does not gain one --
-    // rollback would exist only to paper over the ordering defect this reorder removes.
+    // the crypt Prepare()/Activate() split (Prepare() already ran above, before session
+    // allocation; Activate() runs inside the AUTH PUBLICATION TRANSACTION below). This is what
+    // makes the region atomic BY ORDERING: once the commit region is entered nothing below it can
+    // fail, so no failure path can observe an activated crypt on an unauthenticated session.
+    // AuthCrypt has no rollback and deliberately does not gain one -- rollback would exist only to
+    // paper over the ordering defect this reorder removes.
     //
     // ReadAddonsInfo inflates attacker-controlled zlib and CAN throw ByteBufferException. Without
     // this local catch the outer ProcessIncoming ByteBufferException handler would close the socket

@@ -103,7 +103,7 @@ namespace MopAuth
 
             // The blob's self-described inflated size is deliberately NOT inspected here, and must
             // never decide authentication. The real consumer, WorldSession::ReadAddonsInfo
-            // (WorldSession.cpp:1329-1341), treats both out-of-range cases as benign: size 0 returns
+            // (WorldSession::ReadAddonsInfo), treats both out-of-range cases as benign: size 0 returns
             // immediately, and size > 0xFFFFF logs "addon info too big" and returns. Both mean "no
             // usable addon info", never "reject this login". The blob is passed through as-is and
             // ReadAddonsInfo applies its own bound at the point it actually inflates.

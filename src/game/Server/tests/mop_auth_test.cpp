@@ -144,7 +144,7 @@ static void test_addon_size_beyond_remaining_rejected()
 }
 
 // The embedded inflated size must NOT decide authentication. The real consumer,
-// WorldSession::ReadAddonsInfo (WorldSession.cpp:1329-1341), treats size 0 as "no addon info"
+// WorldSession::ReadAddonsInfo, treats size 0 as "no addon info"
 // and simply returns -- it does not reject the login. Auth must be equally tolerant.
 static void test_inflated_size_zero_accepted()
 {
@@ -255,8 +255,9 @@ static void test_name_truncated_rejected()
 }
 
 // Pins the PRODUCTION decoder's digest scatter to the binary-derived map in
-// facts/FACTS_mop548_digest_permutation.md 2 (serializer x86 sub_66F7E0 / x64 sub_1403DFD80,
-// vtable off_140ED6F70 slot 1; digest base PROVEN via SHA1_Final's destination, not assumed).
+// facts/FACTS_mop548_digest_permutation.md 2 (campaign research doc, not in this tree; serializer
+// x86 sub_66F7E0 / x64 sub_1403DFD80, vtable off_140ED6F70 slot 1; digest base PROVEN via
+// SHA1_Final's destination, not assumed).
 //
 // A bijection check is NOT sufficient -- a transposed table is still a bijection, which is exactly
 // how an earlier design's test would have passed on a wrong map. This asserts ENTRY BY ENTRY.
@@ -268,7 +269,7 @@ static void test_name_truncated_rejected()
 static void test_digest_scatter_matches_binary()
 {
     // digestIndex -> bodyOffset, written out independently from the facts doc's inverse map.
-    static const uint8_t kExpectDigestToBody[20] = {
+    static constexpr uint8_t kExpectDigestToBody[20] = {
         12, 50, 25, 10, 11, 41, 42, 47, 43, 26, 51, 17, 27, 48, 9, 49, 40, 46, 8, 22
     };
 
@@ -620,8 +621,9 @@ static void test_authcrypt_kat()
 
 // THE STAGE 1 BLOCKER, closed. IsInitialized() used to be a RAN-TO-COMPLETION flag, not a SUCCEEDED
 // flag: AuthCrypt set _initialized = true unconditionally while ARC4 discarded every EVP return
-// value. Since IsInitialized() is the codec discriminator (WorldSocket.cpp:218 send / :862 recv), a
-// failed init would have framed PLAINTEXT headers as HDR_POSTCRYPT.
+// value. Since IsInitialized() is the codec discriminator (WorldSocket::SendPacket's post-crypt
+// branch on send / WorldSocket::DecryptHeaderHook on recv), a failed init would have framed
+// PLAINTEXT headers as HDR_POSTCRYPT.
 static void test_authcrypt_prepare_reports_success()
 {
     static const uint8 kK_FULL[40] = { 0x03,0x0A,0x11,0x18,0x1F,0x26,0x2D,0x34,0x3B,0x42,
@@ -638,9 +640,10 @@ static void test_authcrypt_prepare_reports_success()
 // *** THE COMMIT-REGION INVARIANT, AS A TEST. ***
 // Between Prepare() and Activate() the ARC4 contexts are fully keyed -- but the crypt must still be
 // INERT: IsInitialized() false, so Decrypt/Encrypt no-op AND the wire codec discriminator
-// (WorldSocket.cpp:218/862) still frames PRE-crypt. That is what lets HandleAuthSession do every
-// fallible thing -- allocate the session, load account data, inflate addons -- AFTER the crypt is
-// prepared, with a throw still leaving the socket exactly as unauthenticated as it started.
+// (WorldSocket::SendPacket's post-crypt branch / WorldSocket::DecryptHeaderHook) still frames
+// PRE-crypt. That is what lets HandleAuthSession do every fallible thing -- allocate the session,
+// load account data, inflate addons -- AFTER the crypt is prepared, with a throw still leaving the
+// socket exactly as unauthenticated as it started.
 //
 // Stage 1's equivalent ordering rule was load-bearing and its own ledger said "NO TEST COVERS THIS".
 // This is that test.
@@ -654,9 +657,11 @@ static void test_authcrypt_prepare_does_not_activate()
     CHECK(crypt.Prepare(kK_FULL));
     CHECK(!crypt.IsInitialized());                 // keyed, but NOT published
 
-    uint8 header[4] = { 0xDE, 0xAD, 0xBE, 0xEF };
-    CHECK(!crypt.EncryptSend(header, 4));          // still refuses...
-    CHECK(header[0] == 0xDE && header[3] == 0xEF); // ...and has not touched the buffer
+    static const uint8 kOriginal[4] = { 0xDE, 0xAD, 0xBE, 0xEF };
+    uint8 header[4];
+    std::memcpy(header, kOriginal, 4);
+    CHECK(!crypt.EncryptSend(header, 4));                          // still refuses...
+    CHECK(std::memcmp(header, kOriginal, 4) == 0);                 // ...and has not touched the buffer
 
     crypt.Activate();
     CHECK(crypt.IsInitialized());
@@ -672,9 +677,11 @@ static void test_authcrypt_activate_without_prepare_is_inert()
     crypt.Activate();                              // no Prepare
     CHECK(!crypt.IsInitialized());
 
-    uint8 header[4] = { 0x11, 0x22, 0x33, 0x44 };
+    static const uint8 kOriginal[4] = { 0x11, 0x22, 0x33, 0x44 };
+    uint8 header[4];
+    std::memcpy(header, kOriginal, 4);
     CHECK(!crypt.EncryptSend(header, 4));
-    CHECK(header[0] == 0x11 && header[3] == 0x44);
+    CHECK(std::memcmp(header, kOriginal, 4) == 0);
 }
 
 // A repeated Prepare while PREPARED is an invalid transition. It must poison the unpublished
@@ -890,8 +897,9 @@ static const uint8 kExpectResponse_QueueUpdate[95] = {
 
 // ERROR: code != 12, so hasAccountData=0 is SAFE (it never enters the forcing branch). Two bytes:
 // one flushed bit-byte, then the code. NOTE this is byte-identical to what Stage 1 already emits
-// at WorldSocket.cpp:469-472 -- the ERROR path's wire output does NOT change in Stage 2, which is
-// a useful negative result: a Gate 3b error-render regression cannot be blamed on these bytes.
+// at the MopAuth::BuildAuthResponseError call site in WorldSocket::HandleAuthSession's error
+// drain -- the ERROR path's wire output does NOT change in Stage 2, which is a useful negative
+// result: a Gate 3b error-render regression cannot be blamed on these bytes.
 static const uint8 kExpectResponse_Error[2] = { 0x00, 0x14 };
 
 // ACCEPTED with the account restricted BELOW the realm cap -- the ONLY case where the two

@@ -441,7 +441,7 @@ class WorldSession
 
         bool Update(PacketFilter& updater);
 
-        /// Handle the authentication waiting queue (to be completed)
+        /// Sends SMSG_AUTH_RESPONSE for the login queue (see MopAuthResponse.h).
         void SendAuthWaitQue(uint32 position);
 
         void SendNameQueryOpcode(Player* p);
