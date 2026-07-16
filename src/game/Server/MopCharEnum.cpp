@@ -90,9 +90,9 @@ void MopCharEnum::Build(WorldPacket& out, const std::vector<Entry>& chars)
         out.append(c.name.c_str(), c.name.length());      // op8  +8 name (no NUL)
         WriteGuidByteXor(out, c.guildGuid, 3);            // op9  guildGUID[3]
         out << float(c.posX);                             // op10 +76 posX
-        out << uint32(c.petFamily);                        // op11 +104 pet cluster [capture-confirm]
+        out << uint32(c.petFamily);                       // op11 +104 pet cluster [capture-confirm]
         out << uint8(c.hairStyle);                        // op12 +62 hairStyle
-        out << uint8(c.gender);                            // op13 +59 gender
+        out << uint8(c.gender);                           // op13 +59 gender
         WriteGuidByteXor(out, c.guildGuid, 5);            // op14 guildGUID[5]
         for (int e = 0; e < 23; ++e)                      // op15 equipment x23 (wire order)
         {
