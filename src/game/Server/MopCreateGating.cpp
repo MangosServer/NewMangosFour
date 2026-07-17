@@ -26,43 +26,22 @@
 #include "SharedDefines.h"
 
 // See MopCreateGating.h for why these are hard-coded game facts rather than a DBC column read.
-
-uint8 MopCreateGating::RaceRequiredExpansion(uint8 race)
-{
-    switch (race)
-    {
-        // The Burning Crusade races.
-        case RACE_BLOODELF:                 // 10
-        case RACE_DRAENEI:                  // 11
-            return EXPANSION_TBC;
-
-        // Cataclysm races.
-        case RACE_GOBLIN:                   // 9
-        case RACE_WORGEN:                   // 22
-            return EXPANSION_CATA;
-
-        // Mists of Pandaria races (24 is the neutral create-race; 25/26 are the post level-10
-        // faction-choice variants, gated the same for completeness).
-        case RACE_PANDAREN_NEUTRAL:         // 24
-        case RACE_PANDAREN_ALLI:            // 25
-        case RACE_PANDAREN_HORDE:           // 26
-            return EXPANSION_MOP;
-
-        // Classic races (RACE_HUMAN..RACE_TROLL) and anything else.
-        default:
-            return EXPANSION_NONE;
-    }
-}
+//
+// There is deliberately NO race requirement. Since patch 5.0.4 every playable race -- Pandaren
+// included -- is creatable regardless of the account's expansion ("All Races Available in Patch
+// 5.0.4", Blizzard). Only certain classes stayed expansion-gated, and expansion-specific *content*
+// (levels 86-90 / the continent of Pandaria; the Pandaren Wandering Isle start remains open) is
+// enforced separately at enter-world, not at character creation.
 
 uint8 MopCreateGating::ClassRequiredExpansion(uint8 class_)
 {
     switch (class_)
     {
-        case CLASS_DEATH_KNIGHT:            // 6  -> Wrath of the Lich King
-            return EXPANSION_WOTLK;
-
-        case CLASS_MONK:                    // 10 -> Mists of Pandaria
+        case CLASS_MONK:                    // 10 -> Mists of Pandaria (confirmed: Monk needs MoP)
             return EXPANSION_MOP;
+
+        case CLASS_DEATH_KNIGHT:            // 6  -> Wrath of the Lich King (the hero class also needs a
+            return EXPANSION_WOTLK;         //        level-55 character, enforced elsewhere)
 
         // All other classes are available from Classic.
         default:

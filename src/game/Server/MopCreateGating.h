@@ -28,26 +28,26 @@
 #include "Common.h"
 
 /**
- * @brief Character-creation expansion entitlement rules for WoW 5.4.8.18414.
+ * @brief Character-creation class-expansion entitlement for WoW 5.4.8.18414.
  *
  * Returns the minimum account expansion (see enum Expansions: EXPANSION_NONE..EXPANSION_MOP)
- * required to create a character of a given race / class. HandleCharCreateOpcode compares the
- * result against WorldSession::Expansion() and rejects with CHAR_CREATE_EXPANSION /
- * CHAR_CREATE_EXPANSION_CLASS if the account is not entitled.
+ * required to create a character of a given class. HandleCharCreateOpcode compares the result
+ * against WorldSession::Expansion() and rejects with CHAR_CREATE_EXPANSION_CLASS if the account is
+ * not entitled.
  *
- * WHY A HELPER AND NOT A DBC READ: the 5.4.8.18414 client ChrRaces.dbc / ChrClasses.dbc carry
- * NO graded required-expansion column. ChrRaces col 20 (which TrinityCore reads as `expansion`
- * and older MaNGOS labelled `m_required_expansion`) is actually m_enemyRace (Human->Orc,
- * Dwarf->Troll, ...); ChrClasses col 10 is AttackPowerPerStrength. No column anywhere holds
- * Pandaren=4, so the field simply does not exist in this build's DBCs -- the reference forks'
- * `raceEntry->expansion` reads are misaligned against the actual client data. These per-race /
- * per-class expansion requirements are fixed, immutable game facts, so we encode them directly.
+ * RACES ARE NOT GATED: since patch 5.0.4 every playable race -- Pandaren included -- is creatable
+ * regardless of account expansion ("All Races Available in Patch 5.0.4", Blizzard). Only certain
+ * classes stayed gated, and expansion-specific *content* (levels 86-90 / the continent of Pandaria;
+ * the Pandaren Wandering Isle start stays open) is enforced at enter-world, not at creation. So
+ * there is intentionally no race function here.
+ *
+ * WHY A HELPER AND NOT A DBC READ: the 5.4.8.18414 client ChrClasses.dbc carries NO graded
+ * required-expansion column -- col 10 (which TrinityCore reads as `expansion`) is actually
+ * AttackPowerPerStrength, so the reference forks' `classEntry->expansion` reads are misaligned
+ * against the real client data. The class->expansion requirement is a fixed game fact, encoded here.
  */
 namespace MopCreateGating
 {
-    /// Minimum account expansion required to create the given race (default EXPANSION_NONE).
-    uint8 RaceRequiredExpansion(uint8 race);
-
     /// Minimum account expansion required to create the given class (default EXPANSION_NONE).
     uint8 ClassRequiredExpansion(uint8 class_);
 }

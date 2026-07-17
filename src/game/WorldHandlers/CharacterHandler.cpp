@@ -326,19 +326,11 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
         return;
     }
 
-    // Expansion entitlement gate. The 5.4.8 client ChrRaces/ChrClasses DBCs carry no graded
-    // required-expansion column (ChrRaces col 20 is m_enemyRace, ChrClasses col 10 is
-    // AttackPowerPerStrength -- the reference forks' raceEntry->expansion reads are misaligned
-    // against the real client data), so the requirement is sourced from MopCreateGating instead
-    // of a DBC field. Blocks a lower-expansion account from creating higher-expansion content.
-    if (MopCreateGating::RaceRequiredExpansion(race_) > Expansion())
-    {
-        data << (uint8)CHAR_CREATE_EXPANSION;
-        SendPacket(&data);
-        sLog.outError("Expansion %u account:[%d] tried to Create character with expansion %u race (%u)", Expansion(), GetAccountId(), MopCreateGating::RaceRequiredExpansion(race_), race_);
-        return;
-    }
-
+    // Class-expansion entitlement gate. Races are intentionally NOT gated: since patch 5.0.4 every
+    // race (Pandaren included) is creatable regardless of account expansion; only certain classes are,
+    // and expansion-specific content (levels 86-90 / Pandaria) is enforced later at enter-world, not
+    // here. The requirement is sourced from MopCreateGating -- the client DBCs carry no usable
+    // expansion column (see MopCreateGating.h).
     if (MopCreateGating::ClassRequiredExpansion(class_) > Expansion())
     {
         data << (uint8)CHAR_CREATE_EXPANSION_CLASS;

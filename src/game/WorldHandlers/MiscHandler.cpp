@@ -1035,21 +1035,29 @@ void WorldSession::HandleRequestAccountData(WorldPacket& recv_data)
 
     dest.resize(destSize);
 
-    // SMSG_UPDATE_ACCOUNT_DATA reply, MoP bit-packed -- confirmed accepted by the live 18414 client
-    // 2026-07-17 (45-byte reply, client parsed it and proceeded to char-select). Layout: a 3-bit type
-    // then an 8-bit all-zero player-guid mask (no player is bound in the account/global-cache phase, so
-    // no guid bytes follow), FlushBits, then u32 decompressed size, u32 compressed size, the zlib blob,
-    // and u32 unix time.
-    WorldPacket data(SMSG_UPDATE_ACCOUNT_DATA, 2 + 4 + 4 + destSize + 4);
+    // SMSG_UPDATE_ACCOUNT_DATA reply, MoP bit-packed. The player guid is empty for the pre-character
+    // global-cache phase (_player null) and the logged-in character's guid for the in-world
+    // per-character phase (SendAccountDataTimes(PER_CHARACTER_CACHE_MASK) is issued in the login path)
+    // so the client associates the data with that character. Layout: a 3-bit type, an 8-bit guid mask,
+    // FlushBits, the low guid bytes, u32 decompressed size, u32 compressed size, the zlib blob, the
+    // high guid bytes, u32 unix time. For an empty guid the mask is 8 zero bits and no guid bytes are
+    // written -- reproducing the 45-byte reply confirmed accepted by the live 18414 client 2026-07-17.
+    // The non-empty (per-character) guid byte order is SkyFire-referenced and awaits a Phase-6 in-world
+    // capture. [capture-confirm: per-character guid order]
+    uint64 guid = _player ? _player->GetObjectGuid().GetRawValue() : uint64(0);
+    static uint8 guidMaskOrder[8]  = { 5, 1, 3, 7, 0, 4, 2, 6 };
+    static uint8 guidBytesPre[3]   = { 3, 1, 5 };
+    static uint8 guidBytesPost[5]  = { 7, 4, 0, 6, 2 };
+
+    WorldPacket data(SMSG_UPDATE_ACCOUNT_DATA, 2 + 8 + 4 + 4 + destSize + 4);
     data.WriteBits(type, 3);                               // account-data type (0-7)
-    for (int i = 0; i < 8; ++i)
-    {
-        data.WriteBit(0);                                  // empty player-guid mask
-    }
+    data.WriteGuidMask(guid, guidMaskOrder, 8);            // 8-bit guid mask (all zero if no player)
     data.FlushBits();
+    data.WriteGuidBytes(guid, guidBytesPre, 3, 0);         // low guid bytes (none if no player)
     data << uint32(size);                                  // decompressed length
     data << uint32(destSize);                              // compressed length
     data.append(dest);                                     // compressed data
+    data.WriteGuidBytes(guid, guidBytesPost, 5, 0);        // high guid bytes (none if no player)
     data << uint32(adata->Time);                           // unix time
     SendPacket(&data);
 }

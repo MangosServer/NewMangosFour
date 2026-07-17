@@ -36,44 +36,27 @@ int main(int /*argc*/, char** /*argv*/)
 {
     using namespace MopCreateGating;
 
-    // --- Races ---
-    // Classic (0): representative sample across both factions.
-    CHECK(RaceRequiredExpansion(1)  == 0);   // Human
-    CHECK(RaceRequiredExpansion(2)  == 0);   // Orc
-    CHECK(RaceRequiredExpansion(3)  == 0);   // Dwarf   (this is the one the old DBC gate rejected: enemyRace=8)
-    CHECK(RaceRequiredExpansion(4)  == 0);   // NightElf
-    CHECK(RaceRequiredExpansion(5)  == 0);   // Undead
-    CHECK(RaceRequiredExpansion(6)  == 0);   // Tauren
-    CHECK(RaceRequiredExpansion(7)  == 0);   // Gnome
-    CHECK(RaceRequiredExpansion(8)  == 0);   // Troll
-    // TBC (1)
-    CHECK(RaceRequiredExpansion(10) == 1);   // BloodElf
-    CHECK(RaceRequiredExpansion(11) == 1);   // Draenei
-    // Cata (3)
-    CHECK(RaceRequiredExpansion(9)  == 3);   // Goblin
-    CHECK(RaceRequiredExpansion(22) == 3);   // Worgen
-    // MoP (4)
-    CHECK(RaceRequiredExpansion(24) == 4);   // Pandaren (neutral, the create-race)
-    CHECK(RaceRequiredExpansion(25) == 4);   // Pandaren (Alliance)
-    CHECK(RaceRequiredExpansion(26) == 4);   // Pandaren (Horde)
+    // Races are NOT expansion-gated in 5.4.8: patch 5.0.4 made every race -- Pandaren included --
+    // creatable at any expansion, so MopCreateGating exposes no race function. Nothing to assert for
+    // races; only classes carry a requirement.
 
-    // --- Classes ---
+    // --- Class expansion requirements ---
     CHECK(ClassRequiredExpansion(1)  == 0);  // Warrior
     CHECK(ClassRequiredExpansion(2)  == 0);  // Paladin
+    CHECK(ClassRequiredExpansion(3)  == 0);  // Hunter
     CHECK(ClassRequiredExpansion(5)  == 0);  // Priest
     CHECK(ClassRequiredExpansion(11) == 0);  // Druid
     CHECK(ClassRequiredExpansion(6)  == 2);  // DeathKnight -> WotLK
     CHECK(ClassRequiredExpansion(10) == 4);  // Monk        -> MoP
 
-    // --- Gate semantics: a Classic account (Expansion()==0) is blocked from MoP content,
-    //     a MoP account (Expansion()==4) is entitled to everything. ---
+    // --- Gate semantics: a lower-expansion account is blocked from the gated classes only. ---
     const uint8 classicAccount = 0;
     const uint8 mopAccount     = 4;
-    CHECK(RaceRequiredExpansion(24)  > classicAccount);   // Pandaren blocked on Classic
-    CHECK(ClassRequiredExpansion(10) > classicAccount);   // Monk blocked on Classic
-    CHECK(!(RaceRequiredExpansion(24)  > mopAccount));    // Pandaren allowed on MoP
-    CHECK(!(ClassRequiredExpansion(10) > mopAccount));    // Monk allowed on MoP
-    CHECK(!(RaceRequiredExpansion(1)   > classicAccount));// Human always allowed
+    CHECK(ClassRequiredExpansion(10) > classicAccount);    // Monk blocked on a Classic account
+    CHECK(!(ClassRequiredExpansion(10) > mopAccount));     // Monk allowed on a MoP account
+    CHECK(ClassRequiredExpansion(6)  > classicAccount);    // DeathKnight blocked on a Classic account
+    CHECK(!(ClassRequiredExpansion(6)  > mopAccount));     // DeathKnight allowed on a MoP account
+    CHECK(!(ClassRequiredExpansion(1)  > classicAccount)); // Warrior always allowed
 
     if (g_failures == 0) { std::printf("ALL PASS\n"); return 0; }
     std::printf("%d FAILURES\n", g_failures);
