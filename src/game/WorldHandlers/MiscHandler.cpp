@@ -928,32 +928,45 @@ void WorldSession::HandleUpdateAccountData(WorldPacket& recv_data)
 {
     DETAIL_LOG("WORLD: Received opcode CMSG_UPDATE_ACCOUNT_DATA");
 
-    uint32 type, timestamp, decompressedSize;
-    recv_data >> type >> timestamp >> decompressedSize;
-
-    DEBUG_LOG("UAD: type %u, time %u, decompressedSize %u", type, timestamp, decompressedSize);
-
-    if (type > NUM_ACCOUNT_DATA_TYPES)
+    // MoP 5.4.8.18414 layout, captured from the live client (FACTS_mop548_account_data):
+    //   u32 decompressedSize, u32 timestamp, u32 compressedSize, then <compressedSize> zlib bytes,
+    //   then the account-data type in the low 3 bits of the FINAL byte. The pre-MoP handler read the
+    //   type FIRST as a full u32 (wrong order), and the opcode carried a stale value and was never
+    //   registered -- so the client's upload only showed up as "not handled opcode UNKNOWN (0x0068)".
+    if (recv_data.size() < 13)                              // 3x u32 header + at least the trailing type byte
     {
         return;
     }
 
-    if (decompressedSize == 0)                              // erase
+    uint32 decompressedSize, timestamp, compressedSize;
+    recv_data >> decompressedSize >> timestamp >> compressedSize;
+
+    // The account-data type is bit-packed into the FINAL byte, and the zlib body is consumed by pointer
+    // -- so the byte cursor never advances to the end on its own. Capture the blob pointer + remaining
+    // length, read the type from the tail byte, then consume the whole packet up front so the dispatcher
+    // does not flag spurious "unprocessed tail data". WriteBits/ReadBits are MSB-first in this ByteBuffer,
+    // so a byte-aligned 3-bit field lands in bits 7-5 -- shift down by 5 (masking the LOW bits would read
+    // 0 for every non-zero slot, e.g. type 4 == 0x80).
+    uint8 const* compressed = recv_data.contents() + recv_data.rpos();
+    uint32 available = uint32(recv_data.size() - recv_data.rpos());
+    uint8 type = (recv_data.contents()[recv_data.size() - 1] >> 5) & 0x07;   // 3-bit slot in bits 7-5 (MSB-first)
+    recv_data.rpos(recv_data.size());
+
+    if (type >= NUM_ACCOUNT_DATA_TYPES)
+    {
+        return;
+    }
+
+    if (decompressedSize == 0)                              // client cleared this slot
     {
         SetAccountData(AccountDataType(type), 0, "");
-
-        WorldPacket data(SMSG_UPDATE_ACCOUNT_DATA_COMPLETE, 4 + 4);
-        data << uint32(type);
-        data << uint32(0);
-        SendPacket(&data);
-
+        DETAIL_LOG("Account data updated by client: type %u cleared", type);
         return;
     }
 
-    if (decompressedSize > 0xFFFF)
+    if (decompressedSize > 0xFFFF || compressedSize > available)
     {
-        recv_data.rpos(recv_data.wpos());                   // unnneded warning spam in this case
-        sLog.outError("UAD: Account data packet too big, size %u", decompressedSize);
+        sLog.outError("UAD: bad account-data sizes (decompressed %u, compressed %u)", decompressedSize, compressedSize);
         return;
     }
 
@@ -961,24 +974,21 @@ void WorldSession::HandleUpdateAccountData(WorldPacket& recv_data)
     dest.resize(decompressedSize);
 
     uLongf realSize = decompressedSize;
-    if (uncompress(const_cast<uint8*>(dest.contents()), &realSize, const_cast<uint8*>(recv_data.contents() + recv_data.rpos()), recv_data.size() - recv_data.rpos()) != Z_OK)
+    if (uncompress(const_cast<uint8*>(dest.contents()), &realSize,
+                   const_cast<uint8*>(compressed), compressedSize) != Z_OK)
     {
-        recv_data.rpos(recv_data.wpos());                   // unneded warning spam in this case
-        sLog.outError("UAD: Failed to decompress account data");
+        sLog.outError("UAD: failed to decompress account data (type %u)", type);
         return;
     }
 
-    recv_data.rpos(recv_data.wpos());                       // uncompress read (recv_data.size() - recv_data.rpos())
-
-    std::string adata;
-    dest >> adata;
-
+    std::string adata(reinterpret_cast<char const*>(dest.contents()), decompressedSize);
     SetAccountData(AccountDataType(type), timestamp, adata);
 
-    WorldPacket data(SMSG_UPDATE_ACCOUNT_DATA_COMPLETE, 4 + 4);
-    data << uint32(type);
-    data << uint32(0);
-    SendPacket(&data);
+    DETAIL_LOG("Account data updated by client: type %u, %u bytes (ts %u)", type, decompressedSize, timestamp);
+
+    // The SMSG_UPDATE_ACCOUNT_DATA_COMPLETE ack still carries a stale (>0x1FFF, un-framable) value and
+    // the client does not block on it, so it is intentionally not sent yet (Phase 1b opcode remap
+    // restores it with the correct 5.4.8 value).
 }
 
 /**
@@ -990,13 +1000,21 @@ void WorldSession::HandleRequestAccountData(WorldPacket& recv_data)
 {
     DETAIL_LOG("WORLD: Received opcode CMSG_REQUEST_ACCOUNT_DATA");
 
-    uint32 type;
-    recv_data >> type;
+    // The request is a single byte carrying the 3-bit account-data type in bits 7-5 (WriteBits/ReadBits
+    // are MSB-first). Confirmed by live capture 2026-07-17: the client sends 0x00 -> type 0, 0x40 -> type
+    // 2, 0x80 -> type 4 (a low-bits mask would collapse every non-zero slot to 0).
+    uint32 type = 0;
+    if (recv_data.size() >= 1)
+    {
+        type = (recv_data.contents()[recv_data.size() - 1] >> 5) & 0x07;
+    }
+    recv_data.rpos(recv_data.size());                      // consume fully (no unprocessed-tail warning)
 
     DEBUG_LOG("RAD: type %u", type);
 
-    if (type > NUM_ACCOUNT_DATA_TYPES)
+    if (type >= NUM_ACCOUNT_DATA_TYPES)
     {
+        sLog.outError("RAD: out-of-range account-data type %u (max %u); ignoring", type, NUM_ACCOUNT_DATA_TYPES - 1);
         return;
     }
 
@@ -1017,12 +1035,30 @@ void WorldSession::HandleRequestAccountData(WorldPacket& recv_data)
 
     dest.resize(destSize);
 
-    WorldPacket data(SMSG_UPDATE_ACCOUNT_DATA, 8 + 4 + 4 + 4 + destSize);
-    data << (_player ? _player->GetObjectGuid() : ObjectGuid());// player guid
-    data << uint32(type);                                   // type (0-7)
-    data << uint32(adata->Time);                            // unix time
-    data << uint32(size);                                   // decompressed length
-    data.append(dest);                                      // compressed data
+    // SMSG_UPDATE_ACCOUNT_DATA reply, MoP bit-packed. The player guid is empty for the pre-character
+    // global-cache phase (_player null) and the logged-in character's guid for the in-world
+    // per-character phase (SendAccountDataTimes(PER_CHARACTER_CACHE_MASK) is issued in the login path)
+    // so the client associates the data with that character. Layout: a 3-bit type, an 8-bit guid mask,
+    // FlushBits, the low guid bytes, u32 decompressed size, u32 compressed size, the zlib blob, the
+    // high guid bytes, u32 unix time. For an empty guid the mask is 8 zero bits and no guid bytes are
+    // written -- reproducing the 45-byte reply confirmed accepted by the live 18414 client 2026-07-17.
+    // The non-empty (per-character) guid byte order is SkyFire-referenced and awaits a Phase-6 in-world
+    // capture. [capture-confirm: per-character guid order]
+    uint64 guid = _player ? _player->GetObjectGuid().GetRawValue() : uint64(0);
+    static uint8 guidMaskOrder[8]  = { 5, 1, 3, 7, 0, 4, 2, 6 };
+    static uint8 guidBytesPre[3]   = { 3, 1, 5 };
+    static uint8 guidBytesPost[5]  = { 7, 4, 0, 6, 2 };
+
+    WorldPacket data(SMSG_UPDATE_ACCOUNT_DATA, 2 + 8 + 4 + 4 + destSize + 4);
+    data.WriteBits(type, 3);                               // account-data type (0-7)
+    data.WriteGuidMask(guid, guidMaskOrder, 8);            // 8-bit guid mask (all zero if no player)
+    data.FlushBits();
+    data.WriteGuidBytes(guid, guidBytesPre, 3, 0);         // low guid bytes (none if no player)
+    data << uint32(size);                                  // decompressed length
+    data << uint32(destSize);                              // compressed length
+    data.append(dest);                                     // compressed data
+    data.WriteGuidBytes(guid, guidBytesPost, 5, 0);        // high guid bytes (none if no player)
+    data << uint32(adata->Time);                           // unix time
     SendPacket(&data);
 }
 

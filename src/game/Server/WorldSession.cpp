@@ -1332,50 +1332,45 @@ void WorldSession::SendAddonsInfo()
         0x0D, 0x36, 0xEA, 0x01, 0xE0, 0xAA, 0x91, 0x20, 0x54, 0xF0, 0x72, 0xD8, 0x1E, 0xC7, 0x89, 0xD2
     };
 
-    WorldPacket data(SMSG_ADDON_INFO, 4);
+    // MoP 5.4.8 SMSG_ADDON_INFO is BIT-PACKED. The pre-MoP FLAT layout that used to live here is why
+    // the 18414 client rejected every addon (all shown disabled / "download an updated version"):
+    // it cannot parse a single field of the flat form. Layout: header = banned-addon count (18 bits)
+    // + addon count (23 bits); then ONE 3-bit flag group per addon (hasUrl, enabled, serverSendsKey),
+    // byte-aligned via FlushBits; then per-addon byte data; then the banned block. This first pass
+    // omits the server public key (serverSendsKey = 0) to validate the packed framing against the live
+    // client -- the 256-byte key and its scatter permutation are added once the framing is confirmed.
+    // Enable/ban/allow policy will move into a dedicated module (AddonRegistry). tdata (the Blizzard
+    // public key) is kept for that follow-up.
+    WorldPacket data(SMSG_ADDON_INFO);
 
-    for (AddonsList::iterator itr = m_addonsList.begin(); itr != m_addonsList.end(); ++itr)
+    data.WriteBits(0, 18);                                  // banned-addon count (none yet)
+    data.WriteBits(uint32(m_addonsList.size()), 23);        // addon count
+    for (AddonsList::const_iterator itr = m_addonsList.begin(); itr != m_addonsList.end(); ++itr)
     {
-        uint8 state = 2;                                    // 2 is sent here
-        data << uint8(state);
+        data.WriteBit(0);                                   // has URL file
+        data.WriteBit(1);                                   // enabled
+        data.WriteBit(1);                                   // server includes its public key (REQUIRED)
+    }
+    data.FlushBits();
 
-        uint8 unk1 = 1;                                     // 1 is sent here
-        data << uint8(unk1);
-        if (unk1)
-        {
-            uint8 unk2 = (itr->CRC != 0x4c1c776d);          // If addon is Standard addon CRC
-            data << uint8(unk2);                            // if 1, than add addon public signature
-            if (unk2)                                       // if CRC is wrong, add public key (client need it)
-            {
-                data.append(tdata, sizeof(tdata));
-            }
-
-            data << uint32(0);
-        }
-
-        uint8 unk3 = 0;                                     // 0 is sent here
-        data << uint8(unk3);                                // use <Addon>\<Addon>.url file or not
-        if (unk3)
-        {
-            // String, 256 (null terminated?)
-            data << uint8(0);
-        }
+    for (AddonsList::const_iterator itr = m_addonsList.begin(); itr != m_addonsList.end(); ++itr)
+    {
+        // serverSendsKey bit set -> the 256-byte RSA public key. The client uses this key directly as
+        // the RSA modulus to verify the addon signature; a MISSING key left the modulus 0 and the client
+        // faulted INT_DIVIDE_BY_ZERO inside its bignum modular-reduce (sub_1402E2B20). Sent raw this pass
+        // to confirm the key is what the parser needs -- if the addons validate, the raw byte order is
+        // correct; if they stay disabled (no crash), the order needs the scatter permutation and I'll
+        // derive it from the client parser.
+        data.append(tdata, sizeof(tdata));
+        // 'enabled' bit was set -> { u8 enabled, u32 reserved }; then the state byte (2 = valid/loaded).
+        data << uint8(1);
+        data << uint32(0);
+        data << uint8(2);
     }
 
     m_addonsList.clear();
 
-    uint32 count = 0;
-    data << uint32(count);                                  // BannedAddons count
-    /*for(uint32 i = 0; i < count; ++i)
-    {
-        uint32
-        string (16 bytes)
-        string (16 bytes)
-        uint32
-        uint32
-        uint32
-    }*/
-
+    // banned-addon block is empty (count 0 in the header)
     SendPacket(&data);
 }
 

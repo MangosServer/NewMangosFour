@@ -153,4 +153,36 @@ void InitializeOpcodes()
     }
 #include "opcode_register.inc"     // login closure only (Phase 1a); greeting NOT registered
     AssertLoginClosureIntegrity();
+
+    // --- Opcodes registered beyond the Phase 1a login closure (kept here so they survive
+    //     regeneration of opcode_register.inc). ---
+
+    // CMSG_CHAR_DELETE (0x04E2) / SMSG_CHAR_DELETE (0x0C9F): delete a character from char-select.
+    // The handler already exists; MoP sends the GUID bit-packed (decoded in HandleCharDeleteOpcode).
+    DefC(CMSG_CHAR_DELETE, "CMSG_CHAR_DELETE", STATUS_AUTHED, PROCESS_THREADUNSAFE, &WorldSession::HandleCharDeleteOpcode);
+    DefS(SMSG_CHAR_DELETE, "SMSG_CHAR_DELETE");
+
+    // CMSG_UPDATE_ACCOUNT_DATA (0x0068): the client uploads its account-level saved config (tutorial
+    // flags, macros, etc.). Its 18414 value differs from the enum's stale 0x0800 and it was never
+    // registered, so it only showed as "not handled opcode UNKNOWN (0x0068)". Registered by literal
+    // value; the handler parses the captured MoP layout.
+    DefC(0x0068, "CMSG_UPDATE_ACCOUNT_DATA", STATUS_AUTHED, PROCESS_THREADUNSAFE, &WorldSession::HandleUpdateAccountData);
+
+    // CMSG_REQUEST_ACCOUNT_DATA (0x1D8A): the DOWNLOAD counterpart of the upload above. The client
+    // sends it when its local cache is older than the server's stored account data (as reported by
+    // SMSG_ACCOUNT_DATA_TIMES); without this it dispatched as UNKNOWN and saved macros/config were
+    // never served back (Codex PR #15 finding). The enum value is already correct for 18414 (matches
+    // SkyFire) so it is registered by name. The reply's exact MoP wire format is being confirmed by
+    // live capture -- see FACTS_mop548_codex_pr15_followup.md.
+    DefC(CMSG_REQUEST_ACCOUNT_DATA, "CMSG_REQUEST_ACCOUNT_DATA", STATUS_AUTHED, PROCESS_THREADUNSAFE, &WorldSession::HandleRequestAccountData);
+    // SMSG_UPDATE_ACCOUNT_DATA (0x0AAE): the download reply the handler above sends. Not in
+    // opcode_register.inc, so register it by name here -- otherwise the outbound packet logs as
+    // UNKNOWN (0x0AAE) and muddies the RAD live-capture.
+    DefS(SMSG_UPDATE_ACCOUNT_DATA, "SMSG_UPDATE_ACCOUNT_DATA");
+
+    // CMSG_BATTLE_PAY_GET_PURCHASE_LIST (0x18B2): benign in-game Shop catalog probe at char-select
+    // (value from SkyFire 5.4.8.18414). We do not implement the store, so consume it as a recognized
+    // no-op (Handle_NULL) instead of letting it dispatch as an UNKNOWN "not handled" opcode. The
+    // client tolerates no reply; this only clarifies the log.
+    DefC(0x18B2, "CMSG_BATTLE_PAY_GET_PURCHASE_LIST", STATUS_AUTHED, PROCESS_INPLACE, &WorldSession::Handle_NULL);
 }

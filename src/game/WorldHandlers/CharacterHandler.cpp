@@ -57,12 +57,16 @@
 #include "Database/DatabaseImpl.h"
 #include "PlayerDump.h"
 #include "SocialMgr.h"
+#include "Server/MopCharEnum.h"
+#include "Server/MopCreateGating.h"
 #include "Util.h"
 #include "Language.h"
 #include "SpellMgr.h"
 #include "Calendar.h"
 #include "GameTime.h"
 #include "Timer.h"
+#include <utility>
+#include <vector>
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
@@ -183,32 +187,24 @@ class CharacterHandler
  */
 void WorldSession::HandleCharEnum(QueryResult* result)
 {
-    WorldPacket data(SMSG_CHAR_ENUM, 270);
-
-    ByteBuffer buffer;
-
-    data.WriteBits(0, 23);
-    data.WriteBit(1);
-    data.WriteBits(result ? result->GetRowCount() : 0, 17);
-
+    std::vector<MopCharEnum::Entry> entries;
     if (result)
     {
         do
         {
-            sLog.outDetail("Loading char guid %u from account %u.", (*result)[0].GetUInt32(), GetAccountId());
-
-            if (!Player::BuildEnumData(result, &data, &buffer))
+            MopCharEnum::Entry e;
+            if (!Player::BuildEnumEntry(result, e))
             {
-                sLog.outError("Building enum data for SMSG_CHAR_ENUM has failed, aborting");
+                sLog.outError("Building enum entry for SMSG_CHAR_ENUM has failed, aborting");
                 return;
             }
+            entries.push_back(std::move(e));
         }
         while (result->NextRow());
-
-        data.FlushBits();
-        data.append(buffer);
     }
 
+    WorldPacket data(SMSG_CHAR_ENUM, 100 + entries.size() * 350);
+    MopCharEnum::Build(data, entries);
     SendPacket(&data);
 }
 
@@ -230,6 +226,18 @@ void WorldSession::HandleCharEnumOpcode(WorldPacket & /*recv_data*/)
     DEBUG_LOG("WorldSession::HandleCharEnumOpcode: CMSG_CHAR_ENUM dispatched for account %u.",
               GetAccountId());
 
+    SendCharacterEnum();
+}
+
+/**
+ * @brief Queries the account's characters and sends the SMSG_CHAR_ENUM response.
+ *
+ * Factored out of HandleCharEnumOpcode so the server can (re)send the character list without a
+ * client request. The 5.4.8 client does not refresh the list on its own after a character delete;
+ * it renders whatever enumeration the server pushes, so HandleCharDeleteOpcode calls this directly.
+ */
+void WorldSession::SendCharacterEnum()
+{
     /// get all the data necessary for loading all characters (along with their pets) on the account
     CharacterDatabase.AsyncPQuery(&chrHandler, &CharacterHandler::HandleCharEnumCallback, GetAccountId(),
                                   !sWorld.getConfig(CONFIG_BOOL_DECLINED_NAMES_USED) ?
@@ -268,11 +276,19 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
     std::string name;
     uint8 race_, class_, gender, skin, face, hairStyle, hairColor, facialHair, outfitId;
 
-    recv_data >> gender >> hairColor >> outfitId;
-    recv_data >> race_ >> class_ >> face>> facialHair >> skin >> hairStyle;
+    // MoP 5.4.8.18414 CMSG_CHAR_CREATE wire order -- CAPTURE-CONFIRMED against real client packets
+    // (see claude/facts/FACTS_mop548_phase5_char_create.md): 9 flat bytes, then a 6-bit name length
+    // + 1-bit flag, then the raw name bytes, then an optional trailing dword iff the flag is set.
+    recv_data >> outfitId >> hairStyle >> class_ >> skin >> face >> race_ >> facialHair >> gender >> hairColor;
 
-    uint8 nameLength = recv_data.ReadBits(7);
+    uint32 nameLength = recv_data.ReadBits(6);
+    uint8 unkFlag = recv_data.ReadBit();
     name = recv_data.ReadString(nameLength);
+    if (unkFlag)
+    {
+        uint32 unkTail;
+        recv_data >> unkTail;                              // boost/template payload, currently unused
+    }
 
     WorldPacket data(SMSG_CHAR_CREATE, 1);                  // returned with diff.values in all cases
 
@@ -310,23 +326,18 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
         return;
     }
 
-    // prevent character creating Expansion race without Expansion account
-    if (raceEntry->Race_related > Expansion())
+    // Class-expansion entitlement gate. Races are intentionally NOT gated: since patch 5.0.4 every
+    // race (Pandaren included) is creatable regardless of account expansion; only certain classes are,
+    // and expansion-specific content (levels 86-90 / Pandaria) is enforced later at enter-world, not
+    // here. The requirement is sourced from MopCreateGating -- the client DBCs carry no usable
+    // expansion column (see MopCreateGating.h).
+    if (MopCreateGating::ClassRequiredExpansion(class_) > Expansion())
     {
-        data << (uint8)CHAR_CREATE_EXPANSION;
-        sLog.outError("Expansion %u account:[%d] tried to Create character with expansion %u race (%u)", Expansion(), GetAccountId(), raceEntry->Race_related, race_);
+        data << (uint8)CHAR_CREATE_EXPANSION_CLASS;
         SendPacket(&data);
+        sLog.outError("Expansion %u account:[%d] tried to Create character with expansion %u class (%u)", Expansion(), GetAccountId(), MopCreateGating::ClassRequiredExpansion(class_), class_);
         return;
     }
-
-    //// prevent character creating Expansion class without Expansion account
-    //if (classEntry->expansion > Expansion())
-    //{
-    //    data << (uint8)CHAR_CREATE_EXPANSION_CLASS;
-    //    sLog.outError("Expansion %u account:[%d] tried to Create character with expansion %u class (%u)", Expansion(), GetAccountId(), classEntry->expansion, class_);
-    //    SendPacket(&data);
-    //    return;
-    //}
 
     // prevent character creating with invalid name
     if (!normalizePlayerName(name))
@@ -641,8 +652,13 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleCharDeleteOpcode(WorldPacket& recv_data)
 {
+    // MoP 5.4.8 sends the character GUID bit-packed (mask bits, then XOR'd present bytes),
+    // NOT a flat uint64. Reading it as a plain ObjectGuid yields the wrong GUID, the DB
+    // lookup misses, and the delete silently no-ops. Mask/byte order verified against
+    // SkyFire 5.4.8.18414 ReadCharacterDeleteRequest.
     ObjectGuid guid;
-    recv_data >> guid;
+    recv_data.ReadGuidMask<1, 3, 2, 7, 4, 6, 0, 5>(guid);
+    recv_data.ReadGuidBytes<7, 1, 6, 0, 3, 4, 2, 5>(guid);
 
     // can't delete loaded character
     if (sObjectMgr.GetPlayer(guid))
@@ -713,6 +729,13 @@ void WorldSession::HandleCharDeleteOpcode(WorldPacket& recv_data)
     WorldPacket data(SMSG_CHAR_DELETE, 1);
     data << (uint8)CHAR_DELETE_SUCCESS;
     SendPacket(&data);
+
+    // On a successful delete, push the refreshed character list. The 5.4.8 client does not
+    // re-request it on its own -- reversing the client shows the delete path is dialog -> send
+    // CMSG_CHAR_DELETE -> wait, with no self-refresh -- so it keeps showing the stale list (the
+    // player observed it only updated after a realm round-trip) until the server sends a new
+    // enumeration. See claude/FACTS_mop548_char_delete.md.
+    SendCharacterEnum();
 }
 
 /**
