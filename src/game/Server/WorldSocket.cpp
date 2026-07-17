@@ -383,7 +383,7 @@ int WorldSocket::HandleWowConnection(WorldPacket& recvPacket)
 {
     std::string ClientToServerMsg;
     recvPacket >> ClientToServerMsg;
-    DEBUG_LOG("Received MSG_WOW_CONNECTION FROM %s", m_Session ? m_Session->GetRemoteAddress().c_str() : "<unk>");
+    DEBUG_LOG("Received MSG_WOW_CONNECTION FROM %s", GetRemoteAddress().c_str());   // socket's own peer IP (set in open(), available pre-session) — was "<unk>" via the not-yet-created m_Session
     // Mirror of the greeting we send ("RLD OF WARCRAFT CONNECTION - SERVER TO CLIENT"): the leading
     // "WO" of "WORLD" is carried by the header's cmd field (0x4F57 == "WO" little-endian), so the
     // payload legitimately begins at "RLD".
