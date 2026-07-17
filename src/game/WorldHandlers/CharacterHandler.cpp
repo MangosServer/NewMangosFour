@@ -58,6 +58,7 @@
 #include "PlayerDump.h"
 #include "SocialMgr.h"
 #include "Server/MopCharEnum.h"
+#include "Server/MopCreateGating.h"
 #include "Util.h"
 #include "Language.h"
 #include "SpellMgr.h"
@@ -325,20 +326,26 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
         return;
     }
 
-    // Expansion race gating DISABLED (Phase 5): ChrRacesEntry::Race_related (field 20,
-    // "m_required_expansion") is misaligned in Four's MoP ChrRaces schema -- it returned 8 for
-    // race 3 (an impossible expansion value), so this gate rejected every race. Re-enable once the
-    // correct required-expansion DBC column is mapped. SkyFire 548 likewise does not DBC-gate
-    // creation; the config racemask/classmask check below still applies.
+    // Expansion entitlement gate. The 5.4.8 client ChrRaces/ChrClasses DBCs carry no graded
+    // required-expansion column (ChrRaces col 20 is m_enemyRace, ChrClasses col 10 is
+    // AttackPowerPerStrength -- the reference forks' raceEntry->expansion reads are misaligned
+    // against the real client data), so the requirement is sourced from MopCreateGating instead
+    // of a DBC field. Blocks a lower-expansion account from creating higher-expansion content.
+    if (MopCreateGating::RaceRequiredExpansion(race_) > Expansion())
+    {
+        data << (uint8)CHAR_CREATE_EXPANSION;
+        SendPacket(&data);
+        sLog.outError("Expansion %u account:[%d] tried to Create character with expansion %u race (%u)", Expansion(), GetAccountId(), MopCreateGating::RaceRequiredExpansion(race_), race_);
+        return;
+    }
 
-    //// prevent character creating Expansion class without Expansion account
-    //if (classEntry->expansion > Expansion())
-    //{
-    //    data << (uint8)CHAR_CREATE_EXPANSION_CLASS;
-    //    sLog.outError("Expansion %u account:[%d] tried to Create character with expansion %u class (%u)", Expansion(), GetAccountId(), classEntry->expansion, class_);
-    //    SendPacket(&data);
-    //    return;
-    //}
+    if (MopCreateGating::ClassRequiredExpansion(class_) > Expansion())
+    {
+        data << (uint8)CHAR_CREATE_EXPANSION_CLASS;
+        SendPacket(&data);
+        sLog.outError("Expansion %u account:[%d] tried to Create character with expansion %u class (%u)", Expansion(), GetAccountId(), MopCreateGating::ClassRequiredExpansion(class_), class_);
+        return;
+    }
 
     // prevent character creating with invalid name
     if (!normalizePlayerName(name))

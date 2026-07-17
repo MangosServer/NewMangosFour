@@ -941,13 +941,15 @@ void WorldSession::HandleUpdateAccountData(WorldPacket& recv_data)
     uint32 decompressedSize, timestamp, compressedSize;
     recv_data >> decompressedSize >> timestamp >> compressedSize;
 
-    // The account-data type is bit-packed into the low 3 bits of the FINAL byte, and the zlib body is
-    // consumed by pointer -- so the byte cursor never advances to the end on its own. Capture the blob
-    // pointer + remaining length, read the type from the tail byte, then consume the whole packet up
-    // front so the dispatcher does not flag spurious "unprocessed tail data".
+    // The account-data type is bit-packed into the FINAL byte, and the zlib body is consumed by pointer
+    // -- so the byte cursor never advances to the end on its own. Capture the blob pointer + remaining
+    // length, read the type from the tail byte, then consume the whole packet up front so the dispatcher
+    // does not flag spurious "unprocessed tail data". WriteBits/ReadBits are MSB-first in this ByteBuffer,
+    // so a byte-aligned 3-bit field lands in bits 7-5 -- shift down by 5 (masking the LOW bits would read
+    // 0 for every non-zero slot, e.g. type 4 == 0x80).
     uint8 const* compressed = recv_data.contents() + recv_data.rpos();
     uint32 available = uint32(recv_data.size() - recv_data.rpos());
-    uint8 type = recv_data.contents()[recv_data.size() - 1] & 0x07;   // 3-bit account-data slot, at the tail
+    uint8 type = (recv_data.contents()[recv_data.size() - 1] >> 5) & 0x07;   // 3-bit slot in bits 7-5 (MSB-first)
     recv_data.rpos(recv_data.size());
 
     if (type >= NUM_ACCOUNT_DATA_TYPES)
@@ -998,13 +1000,21 @@ void WorldSession::HandleRequestAccountData(WorldPacket& recv_data)
 {
     DETAIL_LOG("WORLD: Received opcode CMSG_REQUEST_ACCOUNT_DATA");
 
-    uint32 type;
-    recv_data >> type;
+    // The request is a single byte carrying the 3-bit account-data type in bits 7-5 (WriteBits/ReadBits
+    // are MSB-first). Confirmed by live capture 2026-07-17: the client sends 0x00 -> type 0, 0x40 -> type
+    // 2, 0x80 -> type 4 (a low-bits mask would collapse every non-zero slot to 0).
+    uint32 type = 0;
+    if (recv_data.size() >= 1)
+    {
+        type = (recv_data.contents()[recv_data.size() - 1] >> 5) & 0x07;
+    }
+    recv_data.rpos(recv_data.size());                      // consume fully (no unprocessed-tail warning)
 
     DEBUG_LOG("RAD: type %u", type);
 
-    if (type > NUM_ACCOUNT_DATA_TYPES)
+    if (type >= NUM_ACCOUNT_DATA_TYPES)
     {
+        sLog.outError("RAD: out-of-range account-data type %u (max %u); ignoring", type, NUM_ACCOUNT_DATA_TYPES - 1);
         return;
     }
 
@@ -1025,12 +1035,22 @@ void WorldSession::HandleRequestAccountData(WorldPacket& recv_data)
 
     dest.resize(destSize);
 
-    WorldPacket data(SMSG_UPDATE_ACCOUNT_DATA, 8 + 4 + 4 + 4 + destSize);
-    data << (_player ? _player->GetObjectGuid() : ObjectGuid());// player guid
-    data << uint32(type);                                   // type (0-7)
-    data << uint32(adata->Time);                            // unix time
-    data << uint32(size);                                   // decompressed length
-    data.append(dest);                                      // compressed data
+    // SMSG_UPDATE_ACCOUNT_DATA reply, MoP bit-packed -- confirmed accepted by the live 18414 client
+    // 2026-07-17 (45-byte reply, client parsed it and proceeded to char-select). Layout: a 3-bit type
+    // then an 8-bit all-zero player-guid mask (no player is bound in the account/global-cache phase, so
+    // no guid bytes follow), FlushBits, then u32 decompressed size, u32 compressed size, the zlib blob,
+    // and u32 unix time.
+    WorldPacket data(SMSG_UPDATE_ACCOUNT_DATA, 2 + 4 + 4 + destSize + 4);
+    data.WriteBits(type, 3);                               // account-data type (0-7)
+    for (int i = 0; i < 8; ++i)
+    {
+        data.WriteBit(0);                                  // empty player-guid mask
+    }
+    data.FlushBits();
+    data << uint32(size);                                  // decompressed length
+    data << uint32(destSize);                              // compressed length
+    data.append(dest);                                     // compressed data
+    data << uint32(adata->Time);                           // unix time
     SendPacket(&data);
 }
 
