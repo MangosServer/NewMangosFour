@@ -303,7 +303,7 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
             {
                 case ALLIANCE: disabled = mask & (1 << 0); break;
                 case HORDE:    disabled = mask & (1 << 1); break;
-                default: break;
+                default:       disabled = (mask & 3) == 3; break;   // neutral blocked only if BOTH sides disabled
             }
 
             if (disabled)
@@ -579,15 +579,7 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
 
     LoginDatabase.PExecute("DELETE FROM `realmcharacters` WHERE `acctid`= '%u' AND `realmid`= '%u'", GetAccountId(), realmID);
     LoginDatabase.PExecute("INSERT INTO `realmcharacters` (`numchars`, `acctid`, `realmid`) VALUES (%u, %u, %u)",  charcount, GetAccountId(), realmID);
-    uint32 pet_id = 1;
-    if (CharacterDatabase.PQuery("SELECT id FROM character_pet ORDER BY id DESC LIMIT 1"))
-    {
-        Field* fields = CharacterDatabase.PQuery("SELECT id FROM character_pet ORDER BY id DESC LIMIT 1")->Fetch();
-        pet_id = fields[0].GetUInt32();
-        pet_id += 1;
-    }
-    //else
-        //pet_id = 1;
+    uint32 pet_id = sObjectMgr.GeneratePetNumber();
 
     if (class_ == CLASS_WARLOCK)
     {
@@ -632,6 +624,9 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
             break;
         case RACE_WORGEN: // Dog
             CharacterDatabase.PExecute("REPLACE INTO character_pet (`id`, `entry`, `owner`, `modelid`, `CreatedBySpell`, `PetType`, `level`, `exp`, `Reactstate`, `name`, `renamed`, `slot`, `curhealth`, `curmana`, `savetime`, `resettalents_cost`, `resettalents_time`, `abdata`) VALUES (%u, 42722, %u, 30221, 13481, 1, 1, 0, 0, ' ', 0, 0, 192, 0, 1295728219, 0, 0, '7 2 7 1 7 0 129 2649 129 17253 1 0 1 0 6 2 6 1 6 0 ')", pet_id, pNewChar->GetGUIDLow());
+            break;
+        case RACE_PANDAREN_NEUTRAL: // Turtle
+            CharacterDatabase.PExecute("REPLACE INTO character_pet (`id`, `entry`, `owner`, `modelid`, `CreatedBySpell`, `PetType`, `level`, `exp`, `Reactstate`, `name`, `renamed`, `slot`, `curhealth`, `curmana`, `savetime`, `resettalents_cost`, `resettalents_time`, `abdata`) VALUES (%u, 34029, %u, 42656, 13481, 1, 1, 0, 0, ' ', 0, 0, 202, 0, 1295727347, 0, 0, '7 2 7 1 7 0 129 2649 129 17253 1 0 1 0 6 2 6 1 6 0 ')", pet_id, pNewChar->GetGUIDLow());
             break;
         }
         //CharacterDatabase.PExecute("UPDATE characters SET currentPetSlot = '0', petSlotUsed = '1' WHERE guid = %u", pNewChar->GetGUIDLow());
