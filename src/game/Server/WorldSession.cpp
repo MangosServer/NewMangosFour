@@ -1279,7 +1279,7 @@ void WorldSession::ReadAddonsInfo(ByteBuffer &data)
         {
             std::string addonName;
             uint8 enabled;
-            uint32 crc, unk1;
+            uint32 crc, urlHash;       // per client RE (FACTS_mop548_addon_info): name, usePubKey, crc, urlHash
 
             // check next addon data format correctness
             if (addonInfo.rpos() + 1 > addonInfo.size())
@@ -1289,15 +1289,15 @@ void WorldSession::ReadAddonsInfo(ByteBuffer &data)
 
             addonInfo >> addonName;
 
-            addonInfo >> enabled >> crc >> unk1;
+            addonInfo >> enabled >> crc >> urlHash;
 
-            DEBUG_LOG("ADDON: Name: %s, Enabled: 0x%x, CRC: 0x%x, Unknown2: 0x%x", addonName.c_str(), enabled, crc, unk1);
+            DEBUG_LOG("ADDON: Name: %s, Enabled: 0x%x, CRC: 0x%x, UrlHash: 0x%x", addonName.c_str(), enabled, crc, urlHash);
 
             m_addonsList.push_back(AddonInfo(addonName, enabled, crc));
         }
 
-        uint32 unk2;
-        addonInfo >> unk2;
+        uint32 currentTime;        // trailing field after the addon list (client RE)
+        addonInfo >> currentTime;
 
         if (addonInfo.rpos() != addonInfo.size())
         {
