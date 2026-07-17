@@ -23,7 +23,9 @@
  */
 
 #include "MopCreateGating.h"
+#include "SharedDefines.h"
 #include <cstdio>
+#include <vector>
 
 // RelWithDebInfo elides assert(); use a non-elidable check (mirrors mop_charenum_test).
 static int g_failures = 0;
@@ -57,6 +59,22 @@ int main(int /*argc*/, char** /*argv*/)
     CHECK(ClassRequiredExpansion(6)  > classicAccount);    // DeathKnight blocked on a Classic account
     CHECK(!(ClassRequiredExpansion(6)  > mopAccount));     // DeathKnight allowed on a MoP account
     CHECK(!(ClassRequiredExpansion(1)  > classicAccount)); // Warrior always allowed
+
+    // --- Two-side create gate (neutral-safe) ---
+    using MopCreateGating::TwoSideCreateViolation;
+    // Neutral request is always allowed, regardless of existing chars.
+    CHECK(!TwoSideCreateViolation(TEAM_NONE, {ALLIANCE, HORDE}));
+    // Fresh account: any request allowed.
+    CHECK(!TwoSideCreateViolation(ALLIANCE, {}));
+    CHECK(!TwoSideCreateViolation(HORDE, {}));
+    // Same faction present: allowed.
+    CHECK(!TwoSideCreateViolation(ALLIANCE, {ALLIANCE, TEAM_NONE}));
+    // Opposing faction present: blocked (neutral chars ignored).
+    CHECK(TwoSideCreateViolation(ALLIANCE, {TEAM_NONE, HORDE}));
+    CHECK(TwoSideCreateViolation(HORDE, {ALLIANCE}));
+    // Account with only neutral chars: any faction allowed (the neutral->faction case).
+    CHECK(!TwoSideCreateViolation(ALLIANCE, {TEAM_NONE}));
+    CHECK(!TwoSideCreateViolation(HORDE, {TEAM_NONE}));
 
     if (g_failures == 0) { std::printf("ALL PASS\n"); return 0; }
     std::printf("%d FAILURES\n", g_failures);

@@ -428,14 +428,37 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
     // if 0 then allowed creating without any characters
     bool have_req_level_for_heroic = (req_level_for_heroic == 0);
 
+    // Neutral-safe two-side create gate: a neutral (Pandaren) request is always allowed, and
+    // existing neutral characters never lock the account to a faction. Only an existing
+    // non-neutral team that differs from a non-neutral request is a PvP-teams violation.
+    if (!AllowTwoSideAccounts)
+    {
+        Team newTeam = Player::TeamForRace(race_);
+        QueryResult* teamRes = CharacterDatabase.PQuery(
+            "SELECT DISTINCT `race` FROM `characters` WHERE `account` = '%u'", GetAccountId());
+        std::vector<Team> existingTeams;
+        if (teamRes)
+        {
+            do
+            {
+                existingTeams.push_back(Player::TeamForRace(teamRes->Fetch()[0].GetUInt32()));
+            } while (teamRes->NextRow());
+            delete teamRes;
+        }
+        if (MopCreateGating::TwoSideCreateViolation(newTeam, existingTeams))
+        {
+            data << (uint8)CHAR_CREATE_PVP_TEAMS_VIOLATION;
+            SendPacket(&data);
+            return;
+        }
+    }
+
     if (!AllowTwoSideAccounts || skipCinematics == CINEMATICS_SKIP_SAME_RACE || class_ == CLASS_DEATH_KNIGHT)
     {
         QueryResult* result2 = CharacterDatabase.PQuery("SELECT `level`,`race`,`class` FROM `characters` WHERE `account` = '%u' %s",
                                GetAccountId(), (skipCinematics == CINEMATICS_SKIP_SAME_RACE || class_ == CLASS_DEATH_KNIGHT) ? "" : "LIMIT 1");
         if (result2)
         {
-            Team team_ = Player::TeamForRace(race_);
-
             Field* field = result2->Fetch();
             uint8 acc_race  = field[1].GetUInt32();
 
@@ -468,18 +491,7 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
                 }
             }
 
-            // need to check team only for first character
-            // TODO: what to if account already has characters of both races?
-            if (!AllowTwoSideAccounts)
-            {
-                if (acc_race == 0 || Player::TeamForRace(acc_race) != team_)
-                {
-                    data << (uint8)CHAR_CREATE_PVP_TEAMS_VIOLATION;
-                    SendPacket(&data);
-                    delete result2;
-                    return;
-                }
-            }
+            // Two-side team enforcement is handled above by the neutral-safe gate.
 
             // search same race for cinematic or same class if need
             // TODO: check if cinematic already shown? (already logged in?; cinematic field)

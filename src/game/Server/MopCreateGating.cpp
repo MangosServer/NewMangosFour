@@ -48,3 +48,23 @@ uint8 MopCreateGating::ClassRequiredExpansion(uint8 class_)
             return EXPANSION_NONE;
     }
 }
+
+bool MopCreateGating::TwoSideCreateViolation(Team newTeam, const std::vector<Team>& existingTeams)
+{
+    if (newTeam == TEAM_NONE)
+    {
+        return false;
+    }
+    for (Team t : existingTeams)
+    {
+        if (t == TEAM_NONE)
+        {
+            continue;
+        }
+        if (t != newTeam)
+        {
+            return true;
+        }
+    }
+    return false;
+}

@@ -26,6 +26,8 @@
 #define MANGOS_H_MOPCREATEGATING
 
 #include "Common.h"
+#include "SharedDefines.h"
+#include <vector>
 
 /**
  * @brief Character-creation class-expansion entitlement for WoW 5.4.8.18414.
@@ -50,6 +52,10 @@ namespace MopCreateGating
 {
     /// Minimum account expansion required to create the given class (default EXPANSION_NONE).
     uint8 ClassRequiredExpansion(uint8 class_);
+
+    // Neutral (TEAM_NONE) is always allowed; existing neutral chars are ignored.
+    // Returns true iff an existing non-neutral team differs from a non-neutral request.
+    bool TwoSideCreateViolation(Team newTeam, const std::vector<Team>& existingTeams);
 }
 
 #endif
