@@ -826,62 +826,34 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     data << pCurrChar->GetPositionZ();
     SendPacket(&data);
 
-    // -------------------------------------------------------------- PHASE 6b
-    // Send the MoP 5.4.8.18414 self-player create-block so the client leaves the
-    // loading screen and renders the character standing. Values come from the loaded
-    // Player via semantic accessors (decoupled from Four's 17538 update-field storage).
-    // Essential-field bootstrap: minimal set to stand; the full field set + the real
-    // world-add follow in a later slice once this is live-verified.
+    // -------------------------------------------------------------- PHASE 6c (A)
+    // Real world-add. Tell the client it controls its player (SMSG_MOVE_SET_ACTIVE_MOVER),
+    // then fall through to the normal login flow: it adds the player to the map (which
+    // sends the MoP self create-block via the modernised Map::SendInitSelf) and KEEPS the
+    // player. m_suppressWorldSends silences the remaining Cata-format login/after-add sends
+    // (only the create-block + active-mover reach the client). Movement/time-sync opcodes
+    // are left unregistered (movement is client-authoritative -- the client walks locally,
+    // the server drops them). Validated on the empty start map (Pandaren, Wandering Isle);
+    // nearby-object create-blocks on populated maps still use the Cata path (Option B).
     {
-        MopUpdateObject::SelfPlayer sp;
-        sp.guid = pCurrChar->GetObjectGuid().GetRawValue();
-        sp.mapId = uint16(pCurrChar->GetMapId());
-        sp.x = pCurrChar->GetPositionX();
-        sp.y = pCurrChar->GetPositionY();
-        sp.z = pCurrChar->GetPositionZ();
-        sp.o = pCurrChar->GetOrientation();
-        sp.moveTime = GameTime::GetGameTimeMS();
-        sp.speedWalk = pCurrChar->GetSpeed(MOVE_WALK);
-        sp.speedRun = pCurrChar->GetSpeed(MOVE_RUN);
-        sp.speedRunBack = pCurrChar->GetSpeed(MOVE_RUN_BACK);
-        sp.speedSwim = pCurrChar->GetSpeed(MOVE_SWIM);
-        sp.speedSwimBack = pCurrChar->GetSpeed(MOVE_SWIM_BACK);
-        sp.speedFlight = pCurrChar->GetSpeed(MOVE_FLIGHT);
-        sp.speedFlightBack = pCurrChar->GetSpeed(MOVE_FLIGHT_BACK);
-        sp.speedTurn = pCurrChar->GetSpeed(MOVE_TURN_RATE);
-        sp.speedPitch = pCurrChar->GetSpeed(MOVE_PITCH_RATE);
-        Powers pw = pCurrChar->GetPowerType();
-        sp.race = pCurrChar->getRace();
-        sp.class_ = pCurrChar->getClass();
-        sp.gender = pCurrChar->getGender();
-        sp.powerType = uint8(pw);
-        sp.health = pCurrChar->GetHealth();
-        sp.maxHealth = pCurrChar->GetMaxHealth();
-        sp.power = pCurrChar->GetPower(pw);
-        sp.maxPower = pCurrChar->GetMaxPower(pw);
-        sp.level = uint8(pCurrChar->getLevel());
-        sp.faction = pCurrChar->getFaction();
-        sp.unitFlags = 0;
-        sp.scale = pCurrChar->GetObjectScale();
-        sp.boundingRadius = pCurrChar->GetObjectBoundingRadius();
-        sp.combatReach = 1.5f;               // default; exact reach not needed to stand
-        sp.displayId = pCurrChar->GetDisplayId();
-        sp.nativeDisplayId = pCurrChar->GetNativeDisplayId();
-
-        WorldPacket uo;
-        MopUpdateObject::BuildSelfCreate(uo, sp);
-        SendPacket(&uo);
+        // SMSG_MOVE_SET_ACTIVE_MOVER: packed guid of the active mover (the player).
+        const uint64 mg = pCurrChar->GetObjectGuid().GetRawValue();
+        static const int amMask[8] = { 5, 1, 4, 2, 3, 7, 0, 6 };
+        static const int amByte[8] = { 4, 6, 2, 0, 3, 7, 5, 1 };
+        WorldPacket am(SMSG_MOVE_SET_ACTIVE_MOVER, 9);
+        for (int i = 0; i < 8; ++i)
+        {
+            am.WriteBit(uint8(mg >> (amMask[i] * 8)) != 0);
+        }
+        am.FlushBits();
+        for (int i = 0; i < 8; ++i)
+        {
+            am.WriteByteSeq(uint8(mg >> (amByte[i] * 8)));
+        }
+        SendPacket(&am, true);
     }
-
-    // Stay connected; the player is not yet added to the world/object accessor (the
-    // real world-add + movement come in a later slice). Teardown mirrors the
-    // LoadFromDB-fail path above, minus KickPlayer. Clean standalone delete.
-    SetPlayer(nullptr);
-    delete pCurrChar;
-    delete holder;
-    m_playerLoading = false;
-    return;
-    // ------------------------------------------------------------ END PHASE 6b
+    m_suppressWorldSends = true;
+    // ------------------------------------------------------------ END PHASE 6c (A)
 
     // load player specific part before send times
     LoadAccountData(holder->GetResult(PLAYER_LOGIN_QUERY_LOADACCOUNTDATA), PER_CHARACTER_CACHE_MASK);

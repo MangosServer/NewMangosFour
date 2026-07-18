@@ -154,7 +154,7 @@ bool WorldSessionFilter::Process(WorldPacket* packet)
 /// WorldSession constructor
 WorldSession::WorldSession(uint32 id, WorldSocket* sock, AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale) :
     m_muteTime(mute_time), _player(NULL), m_Socket(sock), _security(sec), _accountId(id), m_expansion(expansion), _logoutTime(0),
-    m_inQueue(false), m_playerLoading(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false),
+    m_inQueue(false), m_playerLoading(false), m_suppressWorldSends(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false),
     m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)), m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)),
     m_latency(0), m_clientTimeDelay(0), m_tutorialState(TUTORIALDATA_UNCHANGED)
 {
@@ -232,7 +232,7 @@ char const* WorldSession::GetPlayerName() const
 }
 
 /// Send a packet to the client
-void WorldSession::SendPacket(WorldPacket const* packet)
+void WorldSession::SendPacket(WorldPacket const* packet, bool bypassSuppress)
 {
 #ifdef ENABLE_PLAYERBOTS
     //if (GetPlayer()) {
@@ -248,6 +248,17 @@ void WorldSession::SendPacket(WorldPacket const* packet)
 #endif
 
     if (!m_Socket)
+    {
+        return;
+    }
+
+    // PHASE 6c (MoP enter-world bring-up): once a player has entered the world, drop the
+    // remaining Cata-format sends. Only the packets explicitly built for the 18414 client
+    // pass, via bypassSuppress=true at their call sites (the self create-block in
+    // Map::SendInitSelf, and the active-mover). This also drops the Cata self-VALUES updates
+    // and nearby-object create-blocks that would otherwise corrupt the client. Cleared on
+    // logout. Temporary port scaffold, lifted once the object-update/preamble paths convert.
+    if (m_suppressWorldSends && !bypassSuppress)
     {
         return;
     }
@@ -517,6 +528,8 @@ void WorldSession::HandleBotPackets()
 /// %Log the player out
 void WorldSession::LogoutPlayer(bool Save)
 {
+    m_suppressWorldSends = false;   // PHASE 6c: re-enable sends (logout/teleport packets) once leaving the world
+
     // finish pending transfers before starting the logout
     while (_player && _player->IsBeingTeleportedFar())
     {

@@ -357,7 +357,7 @@ class WorldSession
         void ReadAddonsInfo(ByteBuffer &data);
         void SendAddonsInfo();
 
-        void SendPacket(WorldPacket const* packet);
+        void SendPacket(WorldPacket const* packet, bool bypassSuppress = false);
         void SendNotification(const char* format, ...) ATTR_PRINTF(2, 3);
         void SendNotification(int32 string_id, ...);
         void SendPetNameInvalid(uint32 error, const std::string& name, DeclinedName* declinedName);
@@ -1121,6 +1121,7 @@ class WorldSession
         time_t _logoutTime;
         bool m_inQueue;                                     // session wait in auth.queue
         bool m_playerLoading;                               // code processed in LoginPlayer
+        bool m_suppressWorldSends;                          // PHASE 6c: silence Cata-format sends after enter-world (MoP port scaffold)
         bool m_playerLogout;                                // code processed in LogoutPlayer
         bool m_playerRecentlyLogout;
         bool m_playerSave;                                  // code processed in LogoutPlayer with save request

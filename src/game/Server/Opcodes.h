@@ -246,6 +246,7 @@ enum OpcodesList
     CMSG_CHANNEL_MODERATE                        = 0x2944, // 4.3.4 15595
     SMSG_UPDATE_OBJECT                           = 0x1792, // 5.4.8 18414
     SMSG_DESTROY_OBJECT                          = 0x4724, // 4.3.4 15595
+    SMSG_MOVE_SET_ACTIVE_MOVER                  = 0x0C6D, // 5.4.8 18414
     CMSG_USE_ITEM                                = 0x2C06, // 4.3.4 15595
     CMSG_OPEN_ITEM                               = 0x6A34, // 4.3.4 15595
     CMSG_READ_ITEM                               = 0x2F16, // 4.3.4 15595

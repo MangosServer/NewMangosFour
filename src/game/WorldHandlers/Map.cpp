@@ -44,6 +44,8 @@
 #include "Map.h"
 #include "MapManager.h"
 #include "Player.h"
+#include "MopUpdateObject.h"
+#include "GameTime.h"
 #include "GridNotifiers.h"
 #include "Log.h"
 #include "GridStates.h"
@@ -1867,32 +1869,50 @@ void Map::SendInitSelf(Player* player)
 {
     DETAIL_LOG("Creating player data for himself %u", player->GetGUIDLow());
 
-    UpdateData data(player->GetMapId());
-
-    // attach to player data current transport data
-    if (Transport* transport = player->GetTransport())
-    {
-        transport->BuildCreateUpdateBlockForPlayer(&data, player);
-    }
-
-    // build data for self presence in world at own client (one time for map)
-    player->BuildCreateUpdateBlockForPlayer(&data, player);
-
-    // build other passengers at transport also (they always visible and marked as visible and will not send at visibility update at add to map
-    if (Transport* transport = player->GetTransport())
-    {
-        for (Transport::PlayerSet::const_iterator itr = transport->GetPassengers().begin(); itr != transport->GetPassengers().end(); ++itr)
-        {
-            if (player != (*itr) && player->HaveAtClient(*itr))
-            {
-                (*itr)->BuildCreateUpdateBlockForPlayer(&data, player);
-            }
-        }
-    }
+    // MoP 5.4.8.18414: send the self-player create-block via the dedicated MoP
+    // serializer. The inherited BuildCreateUpdateBlockForPlayer path is Cata 4.3.4
+    // (15595) format and is not read by an 18414 client. Essential-field bootstrap
+    // (the minimal field set to stand and function); the full field set is a
+    // follow-up. TODO: a self player attached to a transport (and its passengers)
+    // is not yet handled in the MoP path; rare at login.
+    MopUpdateObject::SelfPlayer sp;
+    sp.guid = player->GetObjectGuid().GetRawValue();
+    sp.mapId = uint16(player->GetMapId());
+    sp.x = player->GetPositionX();
+    sp.y = player->GetPositionY();
+    sp.z = player->GetPositionZ();
+    sp.o = player->GetOrientation();
+    sp.moveTime = GameTime::GetGameTimeMS();
+    sp.speedWalk = player->GetSpeed(MOVE_WALK);
+    sp.speedRun = player->GetSpeed(MOVE_RUN);
+    sp.speedRunBack = player->GetSpeed(MOVE_RUN_BACK);
+    sp.speedSwim = player->GetSpeed(MOVE_SWIM);
+    sp.speedSwimBack = player->GetSpeed(MOVE_SWIM_BACK);
+    sp.speedFlight = player->GetSpeed(MOVE_FLIGHT);
+    sp.speedFlightBack = player->GetSpeed(MOVE_FLIGHT_BACK);
+    sp.speedTurn = player->GetSpeed(MOVE_TURN_RATE);
+    sp.speedPitch = player->GetSpeed(MOVE_PITCH_RATE);
+    Powers pw = player->GetPowerType();
+    sp.race = player->getRace();
+    sp.class_ = player->getClass();
+    sp.gender = player->getGender();
+    sp.powerType = uint8(pw);
+    sp.health = player->GetHealth();
+    sp.maxHealth = player->GetMaxHealth();
+    sp.power = player->GetPower(pw);
+    sp.maxPower = player->GetMaxPower(pw);
+    sp.level = uint8(player->getLevel());
+    sp.faction = player->getFaction();
+    sp.unitFlags = 0;
+    sp.scale = player->GetObjectScale();
+    sp.boundingRadius = player->GetObjectBoundingRadius();
+    sp.combatReach = 1.5f;               // default; exact reach not needed to stand
+    sp.displayId = player->GetDisplayId();
+    sp.nativeDisplayId = player->GetNativeDisplayId();
 
     WorldPacket packet;
-    data.BuildPacket(&packet);
-    player->GetSession()->SendPacket(&packet);
+    MopUpdateObject::BuildSelfCreate(packet, sp);
+    player->GetSession()->SendPacket(&packet, true);   // bypass enter-world suppression: this is the MoP create-block
 }
 
 /**
