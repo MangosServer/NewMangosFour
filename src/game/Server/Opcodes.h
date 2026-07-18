@@ -992,7 +992,7 @@ enum OpcodesList
     CMSG_MOVE_CHNG_TRANSPORT                     = 0x3102, // 4.3.4 15595
     MSG_PARTY_ASSIGNMENT                         = 0x0424, // 4.3.4 15595
     SMSG_OFFER_PETITION_ERROR                    = 0x2716, // 4.3.4 15595
-    SMSG_TIME_SYNC_REQ                           = 0x0AD4, // 5.3.0 17128
+    SMSG_TIME_SYNC_REQ                           = 0x1A8F, // 5.4.8 18414
     CMSG_TIME_SYNC_RESP                          = 0x3B0C, // 4.3.4 15595
     CMSG_SEND_LOCAL_EVENT                        = 0x1393,
     CMSG_SEND_GENERAL_TRIGGER                    = 0x1394,

@@ -836,6 +836,20 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     // the server drops them). Validated on the empty start map (Pandaren, Wandering Isle);
     // nearby-object create-blocks on populated maps still use the Cata path (Option B).
     {
+        // SMSG_LOGIN_SETTIMESPEED: start the client's world clock. Without it the client
+        // renders but stays inert (dead UI, no local movement) -- the #1 activation gate
+        // (per SkyFire/Codex analysis). 18414 field order: uint32(0), packedTime, uint32(0),
+        // packedTime, gameSpeed (Four's builder had the wrong order + uint32(1) leaders).
+        const uint32 packedNow = secsToTimeBitFields(sWorld.GetGameTime());
+        WorldPacket lts(SMSG_LOGIN_SETTIMESPEED, 20);
+        lts << uint32(0);
+        lts << packedNow;
+        lts << uint32(0);
+        lts << packedNow;
+        lts << float(0.01666667f);
+        SendPacket(&lts, true);
+    }
+    {
         // SMSG_MOVE_SET_ACTIVE_MOVER: packed guid of the active mover (the player).
         const uint64 mg = pCurrChar->GetObjectGuid().GetRawValue();
         static const int amMask[8] = { 5, 1, 4, 2, 3, 7, 0, 6 };
@@ -851,6 +865,15 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
             am.WriteByteSeq(uint8(mg >> (amByte[i] * 8)));
         }
         SendPacket(&am, true);
+    }
+    // SMSG_TIME_SYNC_REQUEST: establish the time base the 18414 client needs before it will
+    // process movement input (without it the client sits discarding time-sync acks and never
+    // moves). Counter 0; the client echoes it in CMSG_TIME_SYNC_RESPONSE, which we leave
+    // unregistered/dropped. Bypasses suppression.
+    {
+        WorldPacket ts(SMSG_TIME_SYNC_REQ, 4);
+        ts << uint32(0);
+        SendPacket(&ts, true);
     }
     m_suppressWorldSends = true;
     // ------------------------------------------------------------ END PHASE 6c (A)
