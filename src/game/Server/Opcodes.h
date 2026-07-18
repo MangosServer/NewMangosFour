@@ -779,7 +779,7 @@ enum OpcodesList
     CMSG_SET_EXPLORATION                         = 0x12BF,
     CMSG_SET_ACTIONBAR_TOGGLES                   = 0x0672, // 5.4.8 18414 (Wow.exe binary)
     MSG_PETITION_RENAME                          = 0x4005, // 4.3.4 15595
-    SMSG_INIT_WORLD_STATES                       = 0x0FDC, // 5.3.0 17128
+    SMSG_INIT_WORLD_STATES                       = 0x1560, // 5.4.8 18414
     SMSG_UPDATE_WORLD_STATE                      = 0x4816, // 4.3.4 15595
     SMSG_PET_ACTION_FEEDBACK                     = 0x08C4, // 5.3.0 17128
     CMSG_CHAR_RENAME                             = 0x0963, // 5.4.8 18414 (Wow.exe binary)
