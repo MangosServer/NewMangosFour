@@ -126,7 +126,7 @@ enum OpcodesList
     SMSG_GROUP_CANCEL                            = 0x4D25, // 4.3.4 15595
     CMSG_GROUP_INVITE_RESPONSE                   = 0x0D61, // 5.4.8 18414 (Wow.exe binary)
     SMSG_GROUP_DECLINE                           = 0x6835, // 4.3.4 15595
-    CMSG_GROUP_UNINVITE                          = 0x1076,
+    CMSG_GROUP_UNINVITE                          = 0x1076, // not in 5.4.8 (legacy)
     CMSG_GROUP_UNINVITE_GUID                     = 0x0CE1, // 5.4.8 18414 (Wow.exe binary)
     SMSG_GROUP_UNINVITE                          = 0x0A07, // 4.3.4 15595
     CMSG_GROUP_SET_LEADER                        = 0x15BB, // 5.4.8 18414 (Wow.exe binary)
@@ -143,7 +143,7 @@ enum OpcodesList
     CMSG_GUILD_ACCEPT                            = 0x18A2, // 5.4.8 18414 (Wow.exe binary)
     CMSG_GUILD_DECLINE                           = 0x147B, // 5.4.8 18414 (Wow.exe binary)
     SMSG_GUILD_DECLINE                           = 0x2C07, // 4.3.4 15595
-    CMSG_GUILD_INFO                              = 0x1088,
+    CMSG_GUILD_INFO                              = 0x1088, // not in 5.4.8 (legacy)
     SMSG_GUILD_INFO                              = 0x1089,
     CMSG_GUILD_ROSTER                            = 0x1459, // 5.4.8 18414 (Wow.exe binary)
     SMSG_GUILD_ROSTER                            = 0x3DA3, // 4.3.4 15595
@@ -158,7 +158,7 @@ enum OpcodesList
     CMSG_GUILD_MOTD                              = 0x1473, // 5.4.8 18414 (Wow.exe binary)
     SMSG_GUILD_EVENT                             = 0x0705, // 4.3.4 15595
     SMSG_GUILD_COMMAND_RESULT                    = 0x7DB3, // 4.3.4 15595
-    CMSG_GUILD_AUTO_DECLINE_TOGGLE               = 0x2034, // 4.3.4 15595
+    CMSG_GUILD_AUTO_DECLINE_TOGGLE               = 0x2034, // not in 5.4.8 (legacy)
     CMSG_GUILD_AUTO_DECLINE                      = 0x06CB, // 5.4.8 18414 (Wow.exe binary, via CMSG_AUTO_DECLINE_GUILD_INVITES)
     CMSG_GUILD_QUERY_RANKS                       = 0x0D50, // 5.4.8 18414 (Wow.exe binary)
     SMSG_GUILD_QUERY_RANKS_RESULT                = 0x30B4, // 4.3.4 15595
@@ -282,7 +282,7 @@ enum OpcodesList
     CMSG_NEXT_CINEMATIC_CAMERA                   = 0x1124, // 5.4.8 18414 (Wow.exe binary)
     CMSG_COMPLETE_CINEMATIC                      = 0x1F34, // 5.4.8 18414 (Wow.exe binary)
     SMSG_TUTORIAL_FLAGS                          = 0x1B90, // 5.4.8 18414 (SkyFire)
-    CMSG_TUTORIAL_FLAG                           = 0x6C26, // 4.3.4 15595
+    CMSG_TUTORIAL_FLAG                           = 0x1D36, // 5.4.8 18414 (reference-derived; not in binary recovery)
     CMSG_TUTORIAL_CLEAR                          = 0x0F23, // 5.4.8 18414 (Wow.exe binary)
     CMSG_TUTORIAL_RESET                          = 0x0307, // 5.4.8 18414 (Wow.exe binary)
     CMSG_STANDSTATECHANGE                        = 0x03E6, // 5.4.8 18414 (Wow.exe binary)
@@ -290,7 +290,7 @@ enum OpcodesList
     SMSG_EMOTE                                   = 0x0A34, // 4.3.4 15595
     CMSG_TEXT_EMOTE                              = 0x07E9, // 5.4.8 18414 (Wow.exe binary)
     SMSG_TEXT_EMOTE                              = 0x0B05, // 4.3.4 15595
-    CMSG_AUTOEQUIP_GROUND_ITEM                   = 0x1107,
+    CMSG_AUTOEQUIP_GROUND_ITEM                   = 0x1107, // not in 5.4.8 (legacy)
     CMSG_AUTOSTORE_LOOT_ITEM                     = 0x0354, // 5.4.8 18414 (Wow.exe binary)
     CMSG_AUTOEQUIP_ITEM                          = 0x025F, // 5.4.8 18414 (Wow.exe binary)
     CMSG_AUTOSTORE_BAG_ITEM                      = 0x067C, // 5.4.8 18414 (Wow.exe binary)
@@ -547,7 +547,7 @@ enum OpcodesList
     SMSG_GOSSIP_POI                              = 0x15A7, // 5.3.0 17128
     CMSG_CHAT_IGNORED                            = 0x048A, // 5.4.8 18414 (Wow.exe binary)
     SMSG_GM_PLAYER_INFO                          = 0x1231,
-    CMSG_GUILD_RANK                              = 0x1024, // 4.3.4 15595
+    CMSG_GUILD_RANK                              = 0x1024, // not in 5.4.8 (legacy)
     CMSG_GUILD_ADD_RANK                          = 0x047A, // 5.4.8 18414 (Wow.exe binary)
     CMSG_GUILD_DEL_RANK                          = 0x0D79, // 5.4.8 18414 (Wow.exe binary)
     CMSG_GUILD_SET_NOTE                          = 0x05DA, // 5.4.8 18414 (Wow.exe binary)
@@ -627,8 +627,8 @@ enum OpcodesList
     MSG_QUERY_NEXT_MAIL_TIME                     = 0x0F04, // 4.3.4 15595
     SMSG_RECEIVED_MAIL                           = 0x2924, // 4.3.4 15595
     SMSG_RAID_GROUP_ONLY                         = 0x0D82, // 5.4.8 18414
-    CMSG_SET_PVP_RANK_CHEAT                      = 0x1289,
-    CMSG_SET_PVP_TITLE                           = 0x128C,
+    CMSG_SET_PVP_RANK_CHEAT                      = 0x1289, // not in 5.4.8 (legacy)
+    CMSG_SET_PVP_TITLE                           = 0x128C, // not in 5.4.8 (legacy)
     SMSG_PVP_CREDIT                              = 0x6015, // 4.3.4 15595
     SMSG_AUCTION_REMOVED_NOTIFICATION            = 0x2334, // 4.3.4 15595
     CMSG_GROUP_RAID_CONVERT                      = 0x032C, // 5.4.8 18414 (Wow.exe binary)
@@ -643,7 +643,7 @@ enum OpcodesList
     SMSG_SHOW_MAILBOX                            = 0x2524, // 4.3.4 15595
     SMSG_RESET_RANGED_COMBAT_TIMER               = 0x1299,
     SMSG_CHAT_NOT_IN_PARTY                       = 0x6A14, // 4.3.4 15595
-    CMSG_CANCEL_GROWTH_AURA                      = 0x0237, // 4.3.4 15595
+    CMSG_CANCEL_GROWTH_AURA                      = 0x0237, // not in 5.4.8 (legacy)
     SMSG_CANCEL_AUTO_REPEAT                      = 0x6436, // 4.3.4 15595
     SMSG_STANDSTATE_UPDATE                       = 0x6F04, // 4.3.4 15595
     SMSG_LOOT_ALL_PASSED                         = 0x0DC1, // 5.3.0 17128
@@ -829,8 +829,8 @@ enum OpcodesList
     SMSG_ARENA_TEAM_STATS                        = 0x4425, // 4.3.4 15595
     CMSG_LFG_JOIN                                = 0x046B, // 5.4.8 18414 (Wow.exe binary)
     CMSG_LFG_LEAVE                               = 0x01E0, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_LFG_SEARCH_JOIN                         = 0x135F,
-    CMSG_LFG_SEARCH_LEAVE                        = 0x1360,
+    CMSG_LFG_SEARCH_JOIN                         = 0x135F, // not in 5.4.8 (legacy)
+    CMSG_LFG_SEARCH_LEAVE                        = 0x1360, // not in 5.4.8 (legacy)
     SMSG_LFG_SEARCH_RESULTS                      = 0x1361,
     SMSG_LFG_PROPOSAL_UPDATE                     = 0x1362,
     CMSG_LFG_PROPOSAL_RESPONSE                   = 0x1D9D, // 5.4.8 18414 (Wow.exe binary, via CMSG_LFG_PROPOSAL_RESULT)
@@ -844,10 +844,10 @@ enum OpcodesList
     CMSG_LFG_SET_ROLES                           = 0x08A2, // 5.4.8 18414 (Wow.exe binary)
     CMSG_LFG_BOOT_PLAYER_VOTE                    = 0x17BE, // 5.4.8 18414 (Wow.exe binary, via CMSG_LFG_SET_BOOT_VOTE)
     SMSG_LFG_BOOT_PLAYER                         = 0x136E,
-    CMSG_LFG_GET_PLAYER_INFO                     = 0x136F,
+    CMSG_LFG_GET_PLAYER_INFO                     = 0x136F, // not in 5.4.8 (legacy)
     SMSG_LFG_PLAYER_INFO                         = 0x1370,
     CMSG_LFG_TELEPORT                            = 0x1AA6, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_LFG_GET_PARTY_INFO                      = 0x1372,
+    CMSG_LFG_GET_PARTY_INFO                      = 0x1372, // not in 5.4.8 (legacy)
     SMSG_LFG_PARTY_INFO                          = 0x1373,
     SMSG_TITLE_EARNED                            = 0x02D0, // 5.3.0 17128
     CMSG_SET_TITLE                               = 0x03C7, // 5.4.8 18414 (Wow.exe binary)
@@ -914,7 +914,7 @@ enum OpcodesList
     CMSG_COMMENTATOR_INSTANCE_COMMAND            = 0x0917, // 4.3.4 15595
     SMSG_CLEAR_TARGET                            = 0x4B26, // 4.3.4 15595
     SMSG_CROSSED_INEBRIATION_THRESHOLD           = 0x2036, // 4.3.4 15595
-    CMSG_CHEAT_PLAYER_LOGIN                      = 0x13C3,
+    CMSG_CHEAT_PLAYER_LOGIN                      = 0x13C3, // not in 5.4.8 (legacy)
     SMSG_CHEAT_PLAYER_LOOKUP                     = 0x13C5,
     SMSG_KICK_REASON                             = 0x13C6,
     MSG_RAID_READY_CHECK_FINISHED                = 0x1591, // 5.3.0 17128
@@ -961,7 +961,7 @@ enum OpcodesList
     SMSG_INSPECT_RESULTS                         = 0x4014, // 4.3.4 15595
     SMSG_GOGOGO_OBSOLETE                         = 0x13F6,
     SMSG_ECHO_PARTY_SQUELCH                      = 0x0814, // 4.3.4 15595
-    CMSG_SET_TITLE_SUFFIX                        = 0x13F8,
+    CMSG_SET_TITLE_SUFFIX                        = 0x13F8, // not in 5.4.8 (legacy)
     CMSG_SPELLCLICK                              = 0x067A, // 5.4.8 18414 (Wow.exe binary)
     SMSG_LOOT_LIST                               = 0x1199, // 5.3.0 17128
     SMSG_VOICESESSION_FULL                       = 0x6225, // 4.3.4 15595
@@ -984,7 +984,7 @@ enum OpcodesList
     CMSG_SET_GUILD_BANK_TEXT                     = 0x3023, // 4.3.4 15595
     CMSG_GRANT_LEVEL                             = 0x0662, // 5.4.8 18414 (Wow.exe binary)
     MSG_GM_CHANGE_ARENA_RATING                   = 0x1410,
-    CMSG_DECLINE_CHANNEL_INVITE                  = 0x1411,
+    CMSG_DECLINE_CHANNEL_INVITE                  = 0x1411, // not in 5.4.8 (legacy)
     SMSG_GROUPACTION_THROTTLED                   = 0x1394, // 5.3.0 17128
     SMSG_OVERRIDE_LIGHT                          = 0x4225, // 4.3.4 15595
     SMSG_TOTEM_CREATED                           = 0x2414, // 4.3.4 15595
@@ -1050,7 +1050,7 @@ enum OpcodesList
     SMSG_FORCE_PITCH_RATE_CHANGE                 = 0x145D,
     CMSG_FORCE_PITCH_RATE_CHANGE_ACK             = 0x0172, // 5.4.8 18414 (Wow.exe binary, via CMSG_MOVE_FORCE_PITCH_RATE_CHANGE_ACK)
     SMSG_SPLINE_SET_PITCH_RATE                   = 0x145F,
-    CMSG_CALENDAR_EVENT_INVITE_NOTES             = 0x1460,
+    CMSG_CALENDAR_EVENT_INVITE_NOTES             = 0x1460, // not in 5.4.8 (legacy)
     SMSG_CALENDAR_EVENT_INVITE_NOTES             = 0x1461,
     SMSG_CALENDAR_EVENT_INVITE_NOTES_ALERT       = 0x1462,
     CMSG_UPDATE_MISSILE_TRAJECTORY               = 0x781E, // 4.3.4 15595
@@ -1126,8 +1126,8 @@ enum OpcodesList
     CMSG_ON_MISSILE_TRAJECTORY_COLLISION         = 0x06D6, // 5.4.8 18414 (Wow.exe binary, via CMSG_MISSILE_TRAJECTORY_COLLISION)
     SMSG_NOTIFY_MISSILE_TRAJECTORY_COLLISION     = 0x14C0,
     SMSG_TALENT_UPDATE                           = 0x6F26, // 4.3.4 15595
-    CMSG_LEARN_TALENT_GROUP                      = 0x2415, // 4.3.4 15595
-    CMSG_PET_LEARN_TALENT_GROUP                  = 0x6E24, // 4.3.4 15595
+    CMSG_LEARN_TALENT_GROUP                      = 0x2415, // not in 5.4.8 (legacy)
+    CMSG_PET_LEARN_TALENT_GROUP                  = 0x6E24, // not in 5.4.8 (legacy)
     SMSG_DESTROY_ARENA_UNIT                      = 0x2637, // 4.3.4 15595
     SMSG_ARENA_TEAM_CHANGE_FAILED                = 0x6E34, // 4.3.4 15595
     SMSG_PROFILEDATA_RESPONSE                    = 0x14CB,
@@ -1150,7 +1150,7 @@ enum OpcodesList
     SMSG_BATTLEFIELD_MANAGER_ENTERING            = 0x14E1,
     SMSG_BATTLEFIELD_MANAGER_QUEUE_INVITE        = 0x14E2,
     CMSG_BATTLEFIELD_MANAGER_QUEUE_INVITE_RESPONSE = 0x0A97, // 5.4.8 18414 (Wow.exe binary, via CMSG_BATTLEFIELD_MGR_QUEUE_INVITE_RESPONSE)
-    CMSG_BATTLEFIELD_MANAGER_QUEUE_REQUEST       = 0x710C, // 4.3.4 15595
+    CMSG_BATTLEFIELD_MANAGER_QUEUE_REQUEST       = 0x710C, // not in 5.4.8 (legacy)
     SMSG_BATTLEFIELD_MANAGER_QUEUE_REQUEST_RESPONSE = 0x14E5,
     SMSG_BATTLEFIELD_MANAGER_EJECT_PENDING       = 0x14E6,
     SMSG_BATTLEFIELD_MANAGER_EJECTED             = 0x14E7,
@@ -1162,11 +1162,11 @@ enum OpcodesList
     SMSG_GMTICKET_GET_RESPONSE                   = 0x2E34, // 4.3.4 15595
     SMSG_GMTICKET_RESOLVE_RESPONSE               = 0x0A04, // 4.3.4 15595
     SMSG_GMTICKET_CREATE_RESPONSE_TICKET         = 0x14F3,
-    CMSG_GM_CREATE_TICKET_RESPONSE               = 0x14F4,
+    CMSG_GM_CREATE_TICKET_RESPONSE               = 0x14F4, // not in 5.4.8 (legacy)
     SMSG_SERVERINFO                              = 0x1091, // 5.3.0
     CMSG_UI_TIME_REQUEST                         = 0x15AB, // 5.4.8 18414 (Wow.exe binary)
     SMSG_UI_TIME                                 = 0x05AC, // 5.4.1 17538
-    CMSG_CHAR_RACE_CHANGE                        = 0x0D24, // 4.3.4 15595
+    CMSG_CHAR_RACE_CHANGE                        = 0x0D24, // not in 5.4.8 (legacy)
     MSG_VIEW_PHASE_SHIFT                         = 0x14FA,
     SMSG_TALENTS_INVOLUNTARILY_RESET             = 0x14FB,
     SMSG_DEBUG_SERVER_GEO                        = 0x14FD,
