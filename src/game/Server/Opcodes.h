@@ -833,7 +833,7 @@ enum OpcodesList
     CMSG_LFG_SEARCH_LEAVE                        = 0x1360,
     SMSG_LFG_SEARCH_RESULTS                      = 0x1361,
     SMSG_LFG_PROPOSAL_UPDATE                     = 0x1362,
-    CMSG_LFG_PROPOSAL_RESPONSE                   = 0x1363,
+    CMSG_LFG_PROPOSAL_RESPONSE                   = 0x1D9D, // 5.4.8 18414 (Wow.exe binary, via CMSG_LFG_PROPOSAL_RESULT)
     SMSG_LFG_ROLE_CHECK_UPDATE                   = 0x1364,
     SMSG_LFG_JOIN_RESULT                         = 0x0291, // 5.3.0 17128
     SMSG_LFG_QUEUE_STATUS                        = 0x1366,
