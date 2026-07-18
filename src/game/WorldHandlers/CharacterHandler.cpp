@@ -49,6 +49,8 @@
 #include "World.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "MopUpdateObject.h"
+#include "GameTime.h"
 #include "CinematicFlyover.h"
 #include "Guild.h"
 #include "GuildMgr.h"
@@ -824,21 +826,62 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     data << pCurrChar->GetPositionZ();
     SendPacket(&data);
 
-    // -------------------------------------------------------------- PHASE 6a stop
-    // MoP 5.4.8.18414 enter-world bring-up. SMSG_LOGIN_VERIFY_WORLD (above) puts the
-    // client on the map loading screen. The remaining login preamble and the self
-    // create-block are still legacy (pre-18414) format and would corrupt the client,
-    // so stop here: the client sits on the loading screen with the connection open.
-    // 6b converts the self create-block (which ends the loading screen); 6c the
-    // movement/time-sync preamble. Teardown mirrors the LoadFromDB-fail path above,
-    // minus KickPlayer (we intentionally stay connected). The player was never added
-    // to the map or the object accessor, so this is a clean standalone delete.
+    // -------------------------------------------------------------- PHASE 6b
+    // Send the MoP 5.4.8.18414 self-player create-block so the client leaves the
+    // loading screen and renders the character standing. Values come from the loaded
+    // Player via semantic accessors (decoupled from Four's 17538 update-field storage).
+    // Essential-field bootstrap: minimal set to stand; the full field set + the real
+    // world-add follow in a later slice once this is live-verified.
+    {
+        MopUpdateObject::SelfPlayer sp;
+        sp.guid = pCurrChar->GetObjectGuid().GetRawValue();
+        sp.mapId = uint16(pCurrChar->GetMapId());
+        sp.x = pCurrChar->GetPositionX();
+        sp.y = pCurrChar->GetPositionY();
+        sp.z = pCurrChar->GetPositionZ();
+        sp.o = pCurrChar->GetOrientation();
+        sp.moveTime = GameTime::GetGameTimeMS();
+        sp.speedWalk = pCurrChar->GetSpeed(MOVE_WALK);
+        sp.speedRun = pCurrChar->GetSpeed(MOVE_RUN);
+        sp.speedRunBack = pCurrChar->GetSpeed(MOVE_RUN_BACK);
+        sp.speedSwim = pCurrChar->GetSpeed(MOVE_SWIM);
+        sp.speedSwimBack = pCurrChar->GetSpeed(MOVE_SWIM_BACK);
+        sp.speedFlight = pCurrChar->GetSpeed(MOVE_FLIGHT);
+        sp.speedFlightBack = pCurrChar->GetSpeed(MOVE_FLIGHT_BACK);
+        sp.speedTurn = pCurrChar->GetSpeed(MOVE_TURN_RATE);
+        sp.speedPitch = pCurrChar->GetSpeed(MOVE_PITCH_RATE);
+        Powers pw = pCurrChar->GetPowerType();
+        sp.race = pCurrChar->getRace();
+        sp.class_ = pCurrChar->getClass();
+        sp.gender = pCurrChar->getGender();
+        sp.powerType = uint8(pw);
+        sp.health = pCurrChar->GetHealth();
+        sp.maxHealth = pCurrChar->GetMaxHealth();
+        sp.power = pCurrChar->GetPower(pw);
+        sp.maxPower = pCurrChar->GetMaxPower(pw);
+        sp.level = uint8(pCurrChar->getLevel());
+        sp.faction = pCurrChar->getFaction();
+        sp.unitFlags = 0;
+        sp.scale = pCurrChar->GetObjectScale();
+        sp.boundingRadius = pCurrChar->GetObjectBoundingRadius();
+        sp.combatReach = 1.5f;               // default; exact reach not needed to stand
+        sp.displayId = pCurrChar->GetDisplayId();
+        sp.nativeDisplayId = pCurrChar->GetNativeDisplayId();
+
+        WorldPacket uo;
+        MopUpdateObject::BuildSelfCreate(uo, sp);
+        SendPacket(&uo);
+    }
+
+    // Stay connected; the player is not yet added to the world/object accessor (the
+    // real world-add + movement come in a later slice). Teardown mirrors the
+    // LoadFromDB-fail path above, minus KickPlayer. Clean standalone delete.
     SetPlayer(nullptr);
     delete pCurrChar;
     delete holder;
     m_playerLoading = false;
     return;
-    // ------------------------------------------------------------ END PHASE 6a stop
+    // ------------------------------------------------------------ END PHASE 6b
 
     // load player specific part before send times
     LoadAccountData(holder->GetResult(PLAYER_LOGIN_QUERY_LOADACCOUNTDATA), PER_CHARACTER_CACHE_MASK);
