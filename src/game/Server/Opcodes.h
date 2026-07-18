@@ -349,7 +349,7 @@ enum OpcodesList
     CMSG_SPLIT_ITEM                              = 0x02EC, // 5.4.8 18414 (Wow.exe binary)
     CMSG_AUTOEQUIP_ITEM_SLOT                     = 0x036F, // 5.4.8 18414 (Wow.exe binary)
     CMSG_UNCLAIM_LICENSE                         = 0x1111,
-    CMSG_DESTROYITEM                             = 0x4A27, // 4.3.4 15595
+    CMSG_DESTROYITEM                             = 0x0026, // 5.4.8 18414 (Wow.exe binary, via CMSG_DESTROY_ITEM)
     SMSG_INVENTORY_CHANGE_FAILURE                = 0x2236, // 4.3.4 15595
     SMSG_OPEN_CONTAINER                          = 0x4714, // 4.3.4 15595
     CMSG_INSPECT                                 = 0x1259, // 5.4.8 18414 (Wow.exe binary)
@@ -504,10 +504,10 @@ enum OpcodesList
     CMSG_TAXIENABLEALLNODES                      = 0x11A8,
     CMSG_TAXISHOWNODES                           = 0x11A9,
     SMSG_SHOWTAXINODES                           = 0x2A36, // 4.3.4 15595
-    CMSG_TAXINODE_STATUS_QUERY                   = 0x2F25, // 4.3.4 15595
+    CMSG_TAXINODE_STATUS_QUERY                   = 0x02E1, // 5.4.8 18414 (Wow.exe binary, via CMSG_TAXI_NODE_STATUS_QUERY)
     SMSG_TAXINODE_STATUS                         = 0x2936, // 4.3.4 15595
-    CMSG_TAXIQUERYAVAILABLENODES                 = 0x6C06, // 4.3.4 15595
-    CMSG_ACTIVATETAXI                            = 0x6E06, // 4.3.4 15595
+    CMSG_TAXIQUERYAVAILABLENODES                 = 0x02E3, // 5.4.8 18414 (Wow.exe binary, via CMSG_TAXI_QUERY_AVAILABLE_NODES)
+    CMSG_ACTIVATETAXI                            = 0x03C9, // 5.4.8 18414 (Wow.exe binary, via CMSG_ACTIVATE_TAXI)
     SMSG_ACTIVATETAXIREPLY                       = 0x6A37, // 4.3.4 15595
     SMSG_NEW_TAXI_PATH                           = 0x4B35, // 4.3.4 15595
     CMSG_TRAINER_LIST                            = 0x034B, // 5.4.8 18414 (Wow.exe binary)
@@ -590,9 +590,9 @@ enum OpcodesList
     CMSG_UNLEARN_SKILL                           = 0x0268, // 5.4.8 18414 (Wow.exe binary)
     SMSG_REMOVED_SPELL                           = 0x4804, // 4.3.4 15595
     CMSG_DECHARGE                                = 0x1205,
-    CMSG_GMTICKET_CREATE                         = 0x0137, // 4.3.4 15595
+    CMSG_GMTICKET_CREATE                         = 0x1A86, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_TICKET_CREATE)
     SMSG_GMTICKET_CREATE                         = 0x2107, // 4.3.4 15595
-    CMSG_GMTICKET_UPDATETEXT                     = 0x0636, // 4.3.4 15595
+    CMSG_GMTICKET_UPDATETEXT                     = 0x0A26, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_TICKET_UPDATE_TEXT)
     SMSG_GMTICKET_UPDATETEXT                     = 0x6535, // 4.3.4 15595
     SMSG_ACCOUNT_DATA_TIMES                      = 0x162B, // 5.4.8 18414
     CMSG_REQUEST_ACCOUNT_DATA                    = 0x1D8A, // 5.4.8 18414 (Wow.exe binary)
@@ -602,16 +602,16 @@ enum OpcodesList
     SMSG_CHANGEPLAYER_DIFFICULTY_RESULT          = 0x2217, // 4.3.4 15595
     CMSG_GM_TEACH                                = 0x1210,
     CMSG_GM_CREATE_ITEM_TARGET                   = 0x1211,
-    CMSG_GMTICKET_GETTICKET                      = 0x0326, // 4.3.4 15595
+    CMSG_GMTICKET_GETTICKET                      = 0x1F89, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_TICKET_GET_TICKET)
     SMSG_GMTICKET_GETTICKET                      = 0x2C15, // 4.3.4 15595
     CMSG_UNLEARN_TALENTS                         = 0x1214,
     SMSG_INSTANCE_ENCOUNTER                      = 0x1215,
     SMSG_GAMEOBJECT_DESPAWN_ANIM                 = 0x0981, // 5.3.0 17128
     MSG_CORPSE_QUERY                             = 0x4336, // 4.3.4 15595
-    CMSG_GMTICKET_DELETETICKET                   = 0x6B14, // 4.3.4 15595
+    CMSG_GMTICKET_DELETETICKET                   = 0x1A23, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_TICKET_DELETE_TICKET)
     SMSG_GMTICKET_DELETETICKET                   = 0x6D17, // 4.3.4 15595
     SMSG_CHAT_WRONG_FACTION                      = 0x6724, // 4.3.4 15595
-    CMSG_GMTICKET_SYSTEMSTATUS                   = 0x4205, // 4.3.4 15595
+    CMSG_GMTICKET_SYSTEMSTATUS                   = 0x0A82, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_TICKET_SYSTEM_STATUS)
     SMSG_GMTICKET_SYSTEMSTATUS                   = 0x0D35, // 4.3.4 15595
     CMSG_SPIRIT_HEALER_ACTIVATE                  = 0x0340, // 5.4.8 18414 (Wow.exe binary)
     CMSG_SET_STAT_CHEAT                          = 0x121E,
@@ -815,7 +815,7 @@ enum OpcodesList
     CMSG_FORCE_TURN_RATE_CHANGE_ACK              = 0x12E0,
     CMSG_PVP_LOG_DATA                            = 0x14C2, // 5.4.8 18414 (Wow.exe binary)
     SMSG_PVP_LOG_DATA                            = 0x0795, // 5.3.0 17128
-    CMSG_LEAVE_BATTLEFIELD                       = 0x3018, // 4.3.4 15595
+    CMSG_LEAVE_BATTLEFIELD                       = 0x0257, // 5.4.8 18414 (Wow.exe binary, via CMSG_BATTLEFIELD_LEAVE)
     CMSG_AREA_SPIRIT_HEALER_QUERY                = 0x03F1, // 5.4.8 18414 (Wow.exe binary)
     CMSG_AREA_SPIRIT_HEALER_QUEUE                = 0x12D8, // 5.4.8 18414 (Wow.exe binary)
     SMSG_AREA_SPIRIT_HEALER_TIME                 = 0x0734, // 4.3.4 15595
@@ -864,7 +864,7 @@ enum OpcodesList
     CMSG_GM_NUKE_ACCOUNT                         = 0x1310,
     MSG_GM_DESTROY_CORPSE                        = 0x1311,
     CMSG_GM_DESTROY_ONLINE_CORPSE                = 0x1312,
-    CMSG_ACTIVATETAXIEXPRESS                     = 0x0515, // 4.3.4 15595
+    CMSG_ACTIVATETAXIEXPRESS                     = 0x06FB, // 5.4.8 18414 (Wow.exe binary, via CMSG_ACTIVATE_TAXI_EXPRESS)
     SMSG_SET_FACTION_ATWAR                       = 0x1314,
     SMSG_SET_FACTION_NOT_VISIBLE                 = 0x0000, //TODO: Needs fixing up
     SMSG_GAMETIMEBIAS_SET                        = 0x1315,
@@ -889,7 +889,7 @@ enum OpcodesList
     CMSG_GM_UPDATE_TICKET_STATUS                 = 0x1328,
     SMSG_GM_TICKET_STATUS_UPDATE                 = 0x2C25, // 4.3.4 15595
     MSG_SET_DUNGEON_DIFFICULTY                   = 0x4925, // 4.3.4 15595
-    CMSG_GMSURVEY_SUBMIT                         = 0x2724, // 4.3.4 15595
+    CMSG_GMSURVEY_SUBMIT                         = 0x073C, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_SURVEY_SUBMIT)
     SMSG_UPDATE_INSTANCE_OWNERSHIP               = 0x4915, // 4.3.4 15595
     CMSG_IGNORE_KNOCKBACK_CHEAT                  = 0x132D,
     SMSG_CHAT_PLAYER_AMBIGUOUS                   = 0x2F34, // 4.3.4 15595
@@ -1109,7 +1109,7 @@ enum OpcodesList
     CMSG_GUILD_EVENT_LOG_QUERY                   = 0x15D9, // 5.4.8 18414 (Wow.exe binary)
     SMSG_GUILD_EVENT_LOG                         = 0x10B2, // 4.3.4 15595
     CMSG_MAELSTROM_RENAME_GUILD                  = 0x1401,
-    CMSG_GET_MIRRORIMAGE_DATA                    = 0x0C25, // 4.3.4 15595
+    CMSG_GET_MIRRORIMAGE_DATA                    = 0x02A3, // 5.4.8 18414 (Wow.exe binary, via CMSG_GET_MIRROR_IMAGE_DATA)
     SMSG_MIRRORIMAGE_DATA                        = 0x2634, // 4.3.4 15595
     SMSG_FORCE_DISPLAY_UPDATE                    = 0x1404,
     SMSG_SPELL_CHANCE_RESIST_PUSHBACK            = 0x1405,
@@ -1118,7 +1118,7 @@ enum OpcodesList
     CMSG_KEEP_ALIVE                              = 0x1A87, // 5.4.8 18414 (Wow.exe binary)
     SMSG_RAID_READY_CHECK_ERROR                  = 0x1409,
     CMSG_OPT_OUT_OF_LOOT                         = 0x06E0, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_QUERY_GUILD_BANK_TEXT                   = 0x3220, // 4.3.4 15595
+    CMSG_QUERY_GUILD_BANK_TEXT                   = 0x0550, // 5.4.8 18414 (Wow.exe binary, via CMSG_GUILD_BANK_QUERY_TEXT)
     SMSG_GUILD_BANK_TEXT                         = 0x75A3, // 4.3.4 15595
     CMSG_SET_GUILD_BANK_TEXT                     = 0x3023, // 4.3.4 15595
     CMSG_SET_GRANTABLE_LEVELS                    = 0x140D,
@@ -1256,7 +1256,7 @@ enum OpcodesList
     SMSG_AUCTION_LIST_PENDING_SALES              = 0x6A27, // 4.3.4 15595
     SMSG_MODIFY_COOLDOWN                         = 0x6016, // 4.3.4 15595
     SMSG_PET_UPDATE_COMBO_POINTS                 = 0x4325, // 4.3.4 15595
-    CMSG_ENABLETAXI                              = 0x0C16, // 4.3.4 15595
+    CMSG_ENABLETAXI                              = 0x0741, // 5.4.8 18414 (Wow.exe binary, via CMSG_ENABLE_TAXI)
     SMSG_PRE_RESURRECT                           = 0x6C36, // 4.3.4 15595
     SMSG_AURA_UPDATE_ALL                         = 0x6916, // 5.3.0 17128
     SMSG_AURA_UPDATE                             = 0x4707, // 4.3.4 15595
@@ -1298,7 +1298,7 @@ enum OpcodesList
     CMSG_CALENDAR_EVENT_SIGNUP                   = 0x01E3, // 5.4.8 18414 (Wow.exe binary)
     SMSG_CALENDAR_CLEAR_PENDING_ACTION           = 0x14BC,
     SMSG_LOAD_EQUIPMENT_SET                      = 0x2E04, // 4.3.4 15595
-    CMSG_SAVE_EQUIPMENT_SET                      = 0x4F27, // 4.3.4 15595
+    CMSG_SAVE_EQUIPMENT_SET                      = 0x0669, // 5.4.8 18414 (Wow.exe binary, via CMSG_EQUIPMENT_SET_SAVE)
     CMSG_ON_MISSILE_TRAJECTORY_COLLISION         = 0x14BF,
     SMSG_NOTIFY_MISSILE_TRAJECTORY_COLLISION     = 0x14C0,
     SMSG_TALENT_UPDATE                           = 0x6F26, // 4.3.4 15595
@@ -1322,7 +1322,7 @@ enum OpcodesList
     MSG_MOVE_GRAVITY_CHNG                        = 0x14D3,
     SMSG_SPLINE_MOVE_GRAVITY_DISABLE             = 0x5DB5, // 4.3.4 15595
     SMSG_SPLINE_MOVE_GRAVITY_ENABLE              = 0x3CA6, // 4.3.4 15595
-    CMSG_USE_EQUIPMENT_SET                       = 0x0417, // 4.3.4 15595
+    CMSG_USE_EQUIPMENT_SET                       = 0x036E, // 5.4.8 18414 (Wow.exe binary, via CMSG_EQUIPMENT_SET_USE)
     SMSG_USE_EQUIPMENT_SET_RESULT                = 0x2424, // 4.3.4 15595
     CMSG_FORCE_ANIM                              = 0x14D8,
     SMSG_FORCE_ANIM                              = 0x4C05, // 4.3.4 15595
