@@ -819,7 +819,7 @@ enum OpcodesList
     MSG_MOVE_STOP_SWIM_CHEAT                     = 0x1343,
     SMSG_MOVE_SET_CAN_FLY                        = 0x178D, // 5.4.8 18414 (reference-consensus)
     SMSG_MOVE_UNSET_CAN_FLY                      = 0x0162, // 5.4.8 18414 (reference-consensus)
-    CMSG_MOVE_SET_CAN_FLY                        = 0x720E, // not a 5.4.8 CMSG (SMSG_MOVE_SET_CAN_FLY 0x178D; client sends the _ACK)
+    CMSG_MOVE_SET_CAN_FLY                        = 0x720E, // not in 5.4.8 (legacy; SMSG_MOVE_SET_CAN_FLY 0x178D; client sends the _ACK)
     CMSG_MOVE_SET_CAN_FLY_ACK                    = 0x1052, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MOVE_SET_FLY                            = 0x01F1, // 5.4.8 18414 (Wow.exe binary)
     CMSG_SOCKET_GEMS                             = 0x02CB, // 5.4.8 18414 (Wow.exe binary)
