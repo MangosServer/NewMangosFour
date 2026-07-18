@@ -762,8 +762,10 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recv_data)
 
     ObjectGuid playerGuid;
 
-    recv_data.ReadGuidMask<2, 0, 4, 3, 5, 6, 1, 7>(playerGuid);
-    recv_data.ReadGuidBytes<0, 3, 7, 6, 1, 2, 4, 5>(playerGuid);
+    float farClip;                                          // 5.4.8.18414: leading view-distance float, consumed before the guid
+    recv_data >> farClip;
+    recv_data.ReadGuidMask<1, 4, 7, 3, 2, 6, 5, 0>(playerGuid);
+    recv_data.ReadGuidBytes<5, 1, 0, 6, 2, 4, 7, 3>(playerGuid);
 
     DEBUG_LOG("WORLD: Received opcode Player Logon Message from %s", playerGuid.GetString().c_str());
 
@@ -812,15 +814,31 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     /* Validation check completely, assign player to WorldSession::_player for later use */
     SetPlayer(pCurrChar);
-    pCurrChar->SendDungeonDifficulty(false);
+    // pCurrChar->SendDungeonDifficulty(false);   // PHASE 6a: suppressed (not in the 18414 pre-map-load set); restore in 6b
 
-    WorldPacket data(SMSG_LOGIN_VERIFY_WORLD, 20);
-    data << pCurrChar->GetMapId();
+    WorldPacket data(SMSG_LOGIN_VERIFY_WORLD, 20);   // 5.4.8.18414 field order: X, O, Y, MapId, Z
     data << pCurrChar->GetPositionX();
-    data << pCurrChar->GetPositionY();
-    data << pCurrChar->GetPositionZ();
     data << pCurrChar->GetOrientation();
+    data << pCurrChar->GetPositionY();
+    data << pCurrChar->GetMapId();
+    data << pCurrChar->GetPositionZ();
     SendPacket(&data);
+
+    // -------------------------------------------------------------- PHASE 6a stop
+    // MoP 5.4.8.18414 enter-world bring-up. SMSG_LOGIN_VERIFY_WORLD (above) puts the
+    // client on the map loading screen. The remaining login preamble and the self
+    // create-block are still legacy (pre-18414) format and would corrupt the client,
+    // so stop here: the client sits on the loading screen with the connection open.
+    // 6b converts the self create-block (which ends the loading screen); 6c the
+    // movement/time-sync preamble. Teardown mirrors the LoadFromDB-fail path above,
+    // minus KickPlayer (we intentionally stay connected). The player was never added
+    // to the map or the object accessor, so this is a clean standalone delete.
+    SetPlayer(nullptr);
+    delete pCurrChar;
+    delete holder;
+    m_playerLoading = false;
+    return;
+    // ------------------------------------------------------------ END PHASE 6a stop
 
     // load player specific part before send times
     LoadAccountData(holder->GetResult(PLAYER_LOGIN_QUERY_LOADACCOUNTDATA), PER_CHARACTER_CACHE_MASK);
