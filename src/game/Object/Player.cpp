@@ -3756,6 +3756,7 @@ Team Player::TeamForRace(uint8 race)
     {
         case 7: return ALLIANCE;
         case 1: return HORDE;
+        case LANG_PANDAREN: return TEAM_NONE;   // neutral Pandaren, no spurious error
     }
 
     sLog.outError("Race %u have wrong teamid %u in DBC: wrong DBC files?", uint32(race), rEntry->BaseLanguage);

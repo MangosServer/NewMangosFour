@@ -109,7 +109,7 @@ void MopCharEnum::Build(WorldPacket& out, const std::vector<Entry>& chars)
             out << uint8(c.equipment[e].invType);         //      +144 invType
             out << uint32(c.equipment[e].displayId);      //      +136 displayId  [capture-confirm]
         }
-        out << uint32(c.petLevel);                        // op16 +100 pet cluster [capture-confirm]
+        out << uint32(c.customizeFlags);                  // op16 +100 -> customizeFlags (LIVE-CONFIRMED: client reads customize here; petLevel here made all hunters show "customize")
         WriteGuidByteXor(out, c.charGuid, 3);             // op17 charGUID[3]
         WriteGuidByteXor(out, c.charGuid, 5);             // op18 charGUID[5]
         out << uint32(0);                                 // op19 +120 flags cluster [capture-confirm]
@@ -124,14 +124,14 @@ void MopCharEnum::Build(WorldPacket& out, const std::vector<Entry>& chars)
         out << uint8(c.hairColor);                        // op28 +64  -> glue+406 hairColor
         out << uint8(c.gender);                           // op29 +60  -> glue+402 gender
         out << uint8(c.facialHair);                       // op30 +65  -> glue+407 facialHair
-        out << uint32(c.customizeFlags);                  // op31 +116 flags cluster [capture-confirm]
+        out << uint32(c.petLevel);                        // op31 +116 -> petLevel (moved off the client's customize-read slot)
         WriteGuidByteXor(out, c.charGuid, 4);             // op32 charGUID[4]
         WriteGuidByteXor(out, c.charGuid, 7);             // op33 charGUID[7]
         out << float(c.posY);                             // op34 +80 posY
-        out << uint32(c.charFlags);                       // op35 +112 flags cluster [capture-confirm]
+        out << uint32(c.petDisplayId);                    // op35 +112 -> petDisplayId (moved off the client's charFlags-read slot)
         out << uint32(0);                                 // op36 +128 MoP-extra [capture-confirm]
         WriteGuidByteXor(out, c.charGuid, 6);             // op37 charGUID[6]
-        out << uint32(c.petDisplayId);                    // op38 +96 pet cluster [capture-confirm]
+        out << uint32(c.charFlags);                       // op38 +96 -> charFlags (LIVE-CONFIRMED: client reads ghost/charFlags here; petDisplayId here ghosted any pet whose displayId had bit 0x2000, e.g. Draenei moth 29056 / Pandaren turtle 42656)
         out << uint32(c.map);                             // op39 +68 map [capture-confirm]
         WriteGuidByteXor(out, c.guildGuid, 7);            // op40 guildGUID[7]
         out << float(c.posZ);                             // op41 +84 posZ

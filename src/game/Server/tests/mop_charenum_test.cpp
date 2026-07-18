@@ -107,7 +107,7 @@ namespace
                 p >> e.equipment[s].invType;
                 p >> e.equipment[s].displayId;
             }
-            p >> e.petLevel;                          // op16
+            p >> e.customizeFlags;                    // op16 +100 -> customizeFlags (client reads customize here)
             rdGuid(cm, cg, 3);                        // op17
             rdGuid(cm, cg, 5);                        // op18
             p >> u;                                   // op19 +120
@@ -122,14 +122,14 @@ namespace
             p >> e.hairColor;                         // op28 +64
             p >> e.gender;                            // op29 +60
             p >> e.facialHair;                        // op30 +65
-            p >> e.customizeFlags;                    // op31
+            p >> e.petLevel;                          // op31 +116 -> petLevel
             rdGuid(cm, cg, 4);                        // op32
             rdGuid(cm, cg, 7);                        // op33
             p >> e.posY;                              // op34
-            p >> e.charFlags;                         // op35
+            p >> e.petDisplayId;                      // op35 +112 -> petDisplayId
             p >> u;                                   // op36 +128
             rdGuid(cm, cg, 6);                        // op37
-            p >> e.petDisplayId;                      // op38
+            p >> e.charFlags;                         // op38 +96 -> charFlags (client reads ghost/charFlags here)
             p >> e.map;                               // op39
             rdGuid(gm, gg, 7);                        // op40
             p >> e.posZ;                              // op41
