@@ -52,6 +52,20 @@
  */
 enum OpcodesList
 {
+    // === MoP 5.4.8 (18414) opcode-value provenance — CMSG classified 2026-07-18 ===
+    //   // 5.4.8 18414 (Wow.exe binary[, via CMSG_X]) = recovered clean-room from the client
+    //        binary (independent oracle); 'via' = fork alias the binary value was name-matched to.
+    //   // 5.4.8 18414 (SkyFire) | // 5.4.8 18414      = value from the reference forks / MoP port.
+    //   // 5.4.8 18414 (reference-derived)             = fork value, NOT independently binary-confirmed.
+    //   // not in 5.4.8 (legacy[; handler retained])   = absent from all 5.4.8 refs (removed/renamed);
+    //        harmless unregistered dead code (dispatch is by value via DefC(), not by enum name).
+    //   // ... NYI in 5.4.8 refs (unverified)          = refs list the name but no value; the shown
+    //        number is a stale (4.3.4) fallback, unverified for 5.4.8.
+    // CMSG totals: 493 = 398 confirmed + 1 reference-derived + 52 legacy + 42 NYI/unverified.
+    // CMSG_MOVE_* are bidirectional MSG_MOVE_* (client sends + server echoes) — already correct.
+    // SMSG is NOT part of this pass: many remain 4.3.4; 279 exceed 0x1FFF and overflow the packed
+    // 13-bit MoP header. A dedicated SMSG pass is still pending.
+    // ================================================================================
     MSG_WOW_CONNECTION                           = 0x4F57, // 5.4.8 18414 (SkyFire)
     SMSG_AUTH_CHALLENGE                          = 0x0949, // 5.4.8 18414 (SkyFire)
     CMSG_AUTH_SESSION                            = 0x00B2, // 5.4.8 18414 (Wow.exe binary)
@@ -60,8 +74,8 @@ enum OpcodesList
     SMSG_DBLOOKUP                                = 0x1004,
     SMSG_QUERY_OBJECT_POSITION                   = 0x1006,
     SMSG_QUERY_OBJECT_ROTATION                   = 0x1008,
-    CMSG_WORLD_TELEPORT                          = 0x24B2, // 4.3.4 15595
-    CMSG_TELEPORT_TO_UNIT                        = 0x4206, // 4.3.4 15595
+    CMSG_WORLD_TELEPORT                          = 0x24B2, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_TELEPORT_TO_UNIT                        = 0x4206, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_ZONE_MAP                                = 0x100C,
     SMSG_MOVE_CHARACTER_CHEAT                    = 0x100F,
     SMSG_CHECK_FOR_BOTS                          = 0x1016,
@@ -111,7 +125,7 @@ enum OpcodesList
     SMSG_CREATURE_QUERY_RESPONSE                 = 0x6024, // 4.3.4 15595
     CMSG_WHO                                     = 0x18A3, // 5.4.8 18414 (Wow.exe binary)
     SMSG_WHO                                     = 0x6907, // 4.3.4 15595
-    CMSG_WHOIS                                   = 0x0308, // 5.3.0 17128
+    CMSG_WHOIS                                   = 0x0308, // 5.3.0 17128 — NYI in 5.4.8 refs (unverified)
     SMSG_WHOIS                                   = 0x6917, // 4.3.4 15595
     CMSG_CONTACT_LIST                            = 0x0BB4, // 5.4.8 18414 (Wow.exe binary)
     SMSG_CONTACT_LIST                            = 0x6017, // 4.3.4 15595
@@ -169,7 +183,7 @@ enum OpcodesList
     CMSG_MESSAGECHAT_ADDON_RAID                  = 0x009A, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MESSAGECHAT_ADDON_WHISPER               = 0x0EBB, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MESSAGECHAT_AFK                         = 0x0EAB, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_MESSAGECHAT_BATTLEGROUND                = 0x2156, // 4.3.4 15595
+    CMSG_MESSAGECHAT_BATTLEGROUND                = 0x2156, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     CMSG_MESSAGECHAT_CHANNEL                     = 0x00BB, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MESSAGECHAT_DND                         = 0x002E, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MESSAGECHAT_EMOTE                       = 0x103E, // 5.4.8 18414 (Wow.exe binary)
@@ -200,7 +214,7 @@ enum OpcodesList
     CMSG_CHANNEL_BAN                             = 0x08BF, // 5.4.8 18414 (Wow.exe binary)
     CMSG_CHANNEL_UNBAN                           = 0x081F, // 5.4.8 18414 (Wow.exe binary)
     CMSG_CHANNEL_ANNOUNCEMENTS                   = 0x06AF, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_CHANNEL_MODERATE                        = 0x2944, // 4.3.4 15595
+    CMSG_CHANNEL_MODERATE                        = 0x2944, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_UPDATE_OBJECT                           = 0x0C65, // 5.3.0
     SMSG_DESTROY_OBJECT                          = 0x4724, // 4.3.4 15595
     CMSG_USE_ITEM                                = 0x1CC1, // 5.4.8 18414 (Wow.exe binary)
@@ -368,7 +382,7 @@ enum OpcodesList
     CMSG_RESURRECT_RESPONSE                      = 0x0B0C, // 5.4.8 18414 (Wow.exe binary)
     CMSG_RETURN_TO_GRAVEYARD                     = 0x12EA, // 5.4.8 18414 (Wow.exe binary)
     CMSG_LOOT                                    = 0x1CE2, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_LOOT_CURRENCY                           = 0x781C, // 4.3.4 15595
+    CMSG_LOOT_CURRENCY                           = 0x781C, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     CMSG_LOOT_MONEY                              = 0x02F6, // 5.4.8 18414 (Wow.exe binary)
     CMSG_LOOT_RELEASE                            = 0x0840, // 5.4.8 18414 (Wow.exe binary)
     SMSG_LOOT_RESPONSE                           = 0x4C16, // 4.3.4 15595
@@ -620,7 +634,7 @@ enum OpcodesList
     SMSG_DAMAGE_CALC_LOG                         = 0x2436, // 4.3.4 15595
     CMSG_GROUP_CHANGE_SUB_GROUP                  = 0x1799, // 5.4.8 18414 (Wow.exe binary)
     CMSG_REQUEST_PARTY_MEMBER_STATS              = 0x0806, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_GROUP_SWAP_SUB_GROUP                    = 0x1281,
+    CMSG_GROUP_SWAP_SUB_GROUP                    = 0x1281, // NYI in 5.4.8 refs (value unverified)
     CMSG_RESET_FACTION_CHEAT                     = 0x10B6, // 5.4.8 18414 (Wow.exe binary)
     CMSG_AUTOSTORE_BANK_ITEM                     = 0x02CF, // 5.4.8 18414 (Wow.exe binary)
     CMSG_AUTOBANK_ITEM                           = 0x066D, // 5.4.8 18414 (Wow.exe binary)
@@ -691,7 +705,7 @@ enum OpcodesList
     CMSG_MOVE_TIME_SKIPPED                       = 0x0150, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MOVE_FEATHER_FALL_ACK                   = 0x08D0, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MOVE_WATER_WALK_ACK                     = 0x10F2, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_MOVE_NOT_ACTIVE_MOVER                   = 0x7A1A, // 4.3.4 15595
+    CMSG_MOVE_NOT_ACTIVE_MOVER                   = 0x7A1A, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_PLAY_SOUND                              = 0x2134, // 4.3.4 15595
     CMSG_BATTLEFIELD_STATUS                      = 0x1F9E, // 5.4.8 18414 (Wow.exe binary)
     SMSG_BATTLEFIELD_STATUS                      = 0x7DA1, // 4.3.4 15595
@@ -718,7 +732,7 @@ enum OpcodesList
     SMSG_AREA_SPIRIT_HEALER_TIME                 = 0x0734, // 4.3.4 15595
     SMSG_WARDEN_DATA                             = 0x12D9, // 5.3.0 17128
     CMSG_WARDEN_DATA                             = 0x1816, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_BATTLEGROUND_PLAYER_POSITIONS           = 0x3902, // 4.3.4 15595
+    CMSG_BATTLEGROUND_PLAYER_POSITIONS           = 0x3902, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_BATTLEGROUND_PLAYER_POSITIONS           = 0x03CC, // 5.3.0
     CMSG_PET_STOP_ATTACK                         = 0x065B, // 5.4.8 18414 (Wow.exe binary)
     SMSG_BINDER_CONFIRM                          = 0x2835, // 4.3.4 15595
@@ -734,7 +748,7 @@ enum OpcodesList
     SMSG_PLAY_TIME_WARNING                       = 0x12F6,
     SMSG_MINIGAME_SETUP                          = 0x12F7,
     SMSG_MINIGAME_STATE                          = 0x12F8,
-    CMSG_MINIGAME_MOVE                           = 0x12F9,
+    CMSG_MINIGAME_MOVE                           = 0x12F9, // NYI in 5.4.8 refs (value unverified)
     SMSG_MINIGAME_MOVE_FAILED                    = 0x12FA,
     SMSG_RAID_INSTANCE_MESSAGE                   = 0x6E15, // 4.3.4 15595
     SMSG_COMPRESSED_MOVES                        = 0x0517, // 4.3.4 15595
@@ -785,7 +799,7 @@ enum OpcodesList
     MSG_DELAY_GHOST_TELEPORT                     = 0x132F,
     SMSG_SPELLINSTAKILLLOG                       = 0x6216, // 4.3.4 15595
     SMSG_SPELL_UPDATE_CHAIN_TARGETS              = 0x6006, // 4.3.4 15595
-    CMSG_CHAT_FILTERED                           = 0x0946, // 4.3.4 15595
+    CMSG_CHAT_FILTERED                           = 0x0946, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_EXPECTED_SPAM_RECORDS                   = 0x4D36, // 4.3.4 15595
     SMSG_SPELLSTEALLOG                           = 0x4E26, // 4.3.4 15595
     SMSG_LOTTERY_QUERY_RESULT_OBSOLETE           = 0x1336,
@@ -803,7 +817,7 @@ enum OpcodesList
     MSG_MOVE_STOP_SWIM_CHEAT                     = 0x1343,
     SMSG_MOVE_SET_CAN_FLY                        = 0x0F48, // 5.3.0 17128
     SMSG_MOVE_UNSET_CAN_FLY                      = 0x034D, // 5.3.0 17128
-    CMSG_MOVE_SET_CAN_FLY                        = 0x720E, // 4.3.4 15595
+    CMSG_MOVE_SET_CAN_FLY                        = 0x720E, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     CMSG_MOVE_SET_CAN_FLY_ACK                    = 0x1052, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MOVE_SET_FLY                            = 0x01F1, // 5.4.8 18414 (Wow.exe binary)
     CMSG_SOCKET_GEMS                             = 0x02CB, // 5.4.8 18414 (Wow.exe binary)
@@ -837,7 +851,7 @@ enum OpcodesList
     SMSG_LFG_ROLE_CHECK_UPDATE                   = 0x1364,
     SMSG_LFG_JOIN_RESULT                         = 0x0291, // 5.3.0 17128
     SMSG_LFG_QUEUE_STATUS                        = 0x1366,
-    CMSG_SET_LFG_COMMENT                         = 0x0530, // 4.3.4 15595
+    CMSG_SET_LFG_COMMENT                         = 0x0530, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_LFG_UPDATE_PLAYER                       = 0x1368,
     SMSG_LFG_UPDATE_PARTY                        = 0x1369,
     SMSG_LFG_UPDATE_SEARCH                       = 0x136A,
@@ -902,16 +916,16 @@ enum OpcodesList
     SMSG_VOICE_PARENTAL_CONTROLS                 = 0x0CC9, // 5.3.0 17128
     SMSG_GM_MESSAGECHAT                          = 0x6434, // 4.3.4 15595
     MSG_GM_GEARRATING                            = 0x13B5,
-    CMSG_COMMENTATOR_ENABLE                      = 0x0B07, // 4.3.4 15595
+    CMSG_COMMENTATOR_ENABLE                      = 0x0B07, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_COMMENTATOR_STATE_CHANGED               = 0x0737, // 4.3.4 15595
-    CMSG_COMMENTATOR_GET_MAP_INFO                = 0x0026, // 4.3.4 15595
+    CMSG_COMMENTATOR_GET_MAP_INFO                = 0x0026, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_COMMENTATOR_MAP_INFO                    = 0x0327, // 4.3.4 15595
-    CMSG_COMMENTATOR_GET_PLAYER_INFO             = 0x0D14, // 4.3.4 15595
+    CMSG_COMMENTATOR_GET_PLAYER_INFO             = 0x0D14, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_COMMENTATOR_GET_PLAYER_INFO             = 0x13BB,
     SMSG_COMMENTATOR_PLAYER_INFO                 = 0x2F36, // 4.3.4 15595
-    CMSG_COMMENTATOR_ENTER_INSTANCE              = 0x4105, // 4.3.4 15595
-    CMSG_COMMENTATOR_EXIT_INSTANCE               = 0x6136, // 4.3.4 15595
-    CMSG_COMMENTATOR_INSTANCE_COMMAND            = 0x0917, // 4.3.4 15595
+    CMSG_COMMENTATOR_ENTER_INSTANCE              = 0x4105, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_COMMENTATOR_EXIT_INSTANCE               = 0x6136, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_COMMENTATOR_INSTANCE_COMMAND            = 0x0917, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_CLEAR_TARGET                            = 0x4B26, // 4.3.4 15595
     SMSG_CROSSED_INEBRIATION_THRESHOLD           = 0x2036, // 4.3.4 15595
     CMSG_CHEAT_PLAYER_LOGIN                      = 0x13C3, // not in 5.4.8 (legacy)
@@ -921,21 +935,21 @@ enum OpcodesList
     CMSG_COMPLAIN                                = 0x0319, // 5.4.8 18414 (Wow.exe binary)
     SMSG_COMPLAIN_RESULT                         = 0x6D24, // 4.3.4 15595
     SMSG_FEATURE_SYSTEM_STATUS                   = 0x121E, // 5.4.8 18414 (SkyFire) (was 0x3DB7)
-    CMSG_CHANNEL_SILENCE_VOICE                   = 0x2D54, // 4.3.4 15595
-    CMSG_CHANNEL_SILENCE_ALL                     = 0x2154, // 4.3.4 15595
-    CMSG_CHANNEL_UNSILENCE_VOICE                 = 0x3146, // 4.3.4 15595
-    CMSG_CHANNEL_UNSILENCE_ALL                   = 0x2546, // 4.3.4 15595
-    CMSG_CHANNEL_DISPLAY_LIST                    = 0x2144, // 4.3.4 15595
-    CMSG_SET_ACTIVE_VOICE_CHANNEL                = 0x4305, // 4.3.4 15595
+    CMSG_CHANNEL_SILENCE_VOICE                   = 0x2D54, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_CHANNEL_SILENCE_ALL                     = 0x2154, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_CHANNEL_UNSILENCE_VOICE                 = 0x3146, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_CHANNEL_UNSILENCE_ALL                   = 0x2546, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_CHANNEL_DISPLAY_LIST                    = 0x2144, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_SET_ACTIVE_VOICE_CHANNEL                = 0x4305, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_CHANNEL_MEMBER_COUNT                    = 0x6414, // 4.3.4 15595
-    CMSG_CHANNEL_VOICE_ON                        = 0x1144, // 4.3.4 15595
-    CMSG_CHANNEL_VOICE_OFF                       = 0x13D8,
+    CMSG_CHANNEL_VOICE_ON                        = 0x1144, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_CHANNEL_VOICE_OFF                       = 0x13D8, // NYI in 5.4.8 refs (value unverified)
     SMSG_DEBUG_LIST_TARGETS                      = 0x13DA,
     SMSG_AVAILABLE_VOICE_CHANNEL                 = 0x13DB,
-    CMSG_ADD_VOICE_IGNORE                        = 0x13DC,
-    CMSG_DEL_VOICE_IGNORE                        = 0x13DD,
-    CMSG_PARTY_SILENCE                           = 0x6B26, // 4.3.4 15595
-    CMSG_PARTY_UNSILENCE                         = 0x4D24, // 4.3.4 15595
+    CMSG_ADD_VOICE_IGNORE                        = 0x13DC, // NYI in 5.4.8 refs (value unverified)
+    CMSG_DEL_VOICE_IGNORE                        = 0x13DD, // NYI in 5.4.8 refs (value unverified)
+    CMSG_PARTY_SILENCE                           = 0x6B26, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_PARTY_UNSILENCE                         = 0x4D24, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     MSG_NOTIFY_PARTY_SQUELCH                     = 0x4D06, // 4.3.4 15595
     SMSG_COMSAT_RECONNECT_TRY                    = 0x4D35, // 4.3.4 15595
     SMSG_COMSAT_DISCONNECT                       = 0x0316, // 4.3.4 15595
@@ -953,11 +967,11 @@ enum OpcodesList
     CMSG_GUILD_BANK_WITHDRAW_MONEY               = 0x07EA, // 5.4.8 18414 (Wow.exe binary)
     CMSG_GUILD_BANK_LOG_QUERY                    = 0x0CD3, // 5.4.8 18414 (Wow.exe binary)
     SMSG_GUILD_BANK_LOG_QUERY_RESULT             = 0x30B2, // 4.3.4 15595
-    CMSG_SET_CHANNEL_WATCH                       = 0x4517, // 4.3.4 15595
+    CMSG_SET_CHANNEL_WATCH                       = 0x4517, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_USERLIST_ADD                            = 0x13C5, // 5.3.0 17128
     SMSG_USERLIST_REMOVE                         = 0x0899, // 5.3.0 17128
     SMSG_USERLIST_UPDATE                         = 0x0AC5, // 5.3.0 17128
-    CMSG_CLEAR_CHANNEL_WATCH                     = 0x2604, // 4.3.4 15595
+    CMSG_CLEAR_CHANNEL_WATCH                     = 0x2604, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_INSPECT_RESULTS                         = 0x4014, // 4.3.4 15595
     SMSG_GOGOGO_OBSOLETE                         = 0x13F6,
     SMSG_ECHO_PARTY_SQUELCH                      = 0x0814, // 4.3.4 15595
@@ -981,7 +995,7 @@ enum OpcodesList
     CMSG_OPT_OUT_OF_LOOT                         = 0x06E0, // 5.4.8 18414 (Wow.exe binary)
     CMSG_QUERY_GUILD_BANK_TEXT                   = 0x0550, // 5.4.8 18414 (Wow.exe binary, via CMSG_GUILD_BANK_QUERY_TEXT)
     SMSG_GUILD_BANK_TEXT                         = 0x75A3, // 4.3.4 15595
-    CMSG_SET_GUILD_BANK_TEXT                     = 0x3023, // 4.3.4 15595
+    CMSG_SET_GUILD_BANK_TEXT                     = 0x3023, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     CMSG_GRANT_LEVEL                             = 0x0662, // 5.4.8 18414 (Wow.exe binary)
     MSG_GM_CHANGE_ARENA_RATING                   = 0x1410,
     CMSG_DECLINE_CHANNEL_INVITE                  = 0x1411, // not in 5.4.8 (legacy)
@@ -1038,10 +1052,10 @@ enum OpcodesList
     SMSG_CALENDAR_SEND_NUM_PENDING               = 0x0C17, // 4.3.4 15595
     SMSG_NOTIFY_DANCE                            = 0x4904, // 4.3.4 15595
     SMSG_PLAY_DANCE                              = 0x4704, // 4.3.4 15595
-    CMSG_STOP_DANCE                              = 0x2907, // 4.3.4 15595
+    CMSG_STOP_DANCE                              = 0x2907, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_STOP_DANCE                              = 0x4637, // 4.3.4 15595
-    CMSG_SYNC_DANCE                              = 0x0036, // 4.3.4 15595
-    CMSG_DANCE_QUERY                             = 0x4E07, // 4.3.4 15595
+    CMSG_SYNC_DANCE                              = 0x0036, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_DANCE_QUERY                             = 0x4E07, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_DANCE_QUERY_RESPONSE                    = 0x2F06, // 4.3.4 15595
     SMSG_INVALIDATE_DANCE                        = 0x0E27, // 4.3.4 15595
     SMSG_LEARNED_DANCE_MOVES                     = 0x041F, // 5.4.1 17538
@@ -1053,7 +1067,7 @@ enum OpcodesList
     CMSG_CALENDAR_EVENT_INVITE_NOTES             = 0x1460, // not in 5.4.8 (legacy)
     SMSG_CALENDAR_EVENT_INVITE_NOTES             = 0x1461,
     SMSG_CALENDAR_EVENT_INVITE_NOTES_ALERT       = 0x1462,
-    CMSG_UPDATE_MISSILE_TRAJECTORY               = 0x781E, // 4.3.4 15595
+    CMSG_UPDATE_MISSILE_TRAJECTORY               = 0x781E, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_UPDATE_ACCOUNT_DATA_COMPLETE            = 0x2015, // 4.3.4 15595
     SMSG_TRIGGER_MOVIE                           = 0x1198, // 5.3.0 17128
     CMSG_COMPLETE_MOVIE                          = 0x1362, // 5.4.8 18414 (Wow.exe binary)
@@ -1072,7 +1086,7 @@ enum OpcodesList
     CMSG_REQUEST_VEHICLE_PREV_SEAT               = 0x03C4, // 5.4.8 18414 (Wow.exe binary)
     CMSG_REQUEST_VEHICLE_NEXT_SEAT               = 0x0141, // 5.4.8 18414 (Wow.exe binary)
     CMSG_REQUEST_VEHICLE_SWITCH_SEAT             = 0x1143, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_PET_LEARN_TALENT                        = 0x6725, // 4.3.4 15595
+    CMSG_PET_LEARN_TALENT                        = 0x6725, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_SET_PHASE_SHIFT                         = 0x0BD4, // 5.3.0
     SMSG_ALL_ACHIEVEMENT_DATA                    = 0x12D1, // 5.3.0 17128
     SMSG_HEALTH_UPDATE                           = 0x4734, // 4.3.4 15595
@@ -1178,7 +1192,7 @@ enum OpcodesList
     SMSG_CAMERA_SHAKE                            = 0x4214, // 4.3.4 15595
     SMSG_SOCKET_GEMS                             = 0x6014, // 4.3.4 15595
     SMSG_CONNECT_TO                              = 0x0942, // 4.3.4 15595
-    CMSG_CONNECT_TO_FAILED                       = 0x2533, // 4.3.4 15595
+    CMSG_CONNECT_TO_FAILED                       = 0x2533, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_SUSPEND_COMMS                           = 0x4140, // 4.3.4 15595
     SMSG_RESUME_COMMS                            = 0x1512,
     CMSG_AUTH_CONTINUED_SESSION                  = 0x0F49, // 5.4.8 18414 (Wow.exe binary)
@@ -1187,7 +1201,7 @@ enum OpcodesList
     SMSG_MOVE_SET_COLLISION_HGT                  = 0x11B0, // 4.3.4 15595
     CMSG_MOVE_SET_COLLISION_HGT_ACK              = 0x09FB, // 5.4.8 18414 (Wow.exe binary, via CMSG_MOVE_SET_COLLISION_HEIGHT_ACK)
     MSG_MOVE_SET_COLLISION_HGT                   = 0x1519,
-    CMSG_COMMENTATOR_SKIRMISH_QUEUE_COMMAND      = 0x0025, // 4.3.4 15595
+    CMSG_COMMENTATOR_SKIRMISH_QUEUE_COMMAND      = 0x0025, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_COMMENTATOR_SKIRMISH_QUEUE_RESULT1      = 0x2126, // 4.3.4 15595
     SMSG_COMMENTATOR_SKIRMISH_QUEUE_RESULT2      = 0x6814, // 4.3.4 15595
     SMSG_COMPRESSED_UNKNOWN_1310                 = 0x151F,
@@ -1215,7 +1229,7 @@ enum OpcodesList
     CMSG_SET_CURRENCY_FLAGS                      = 0x03E4, // 5.4.8 18414 (Wow.exe binary)
     SMSG_WEEKLY_RESET_CURRENCIES                 = 0x3CA1, // 4.3.4 15595
     CMSG_INSPECT_RATED_BG_STATS                  = 0x0882, // 5.4.8 18414 (Wow.exe binary, via CMSG_REQUEST_INSPECT_RATED_BG_STATS)
-    CMSG_REQUEST_RATED_BG_INFO                   = 0x2423, // 4.3.4 15595
+    CMSG_REQUEST_RATED_BG_INFO                   = 0x2423, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     CMSG_REQUEST_RATED_BG_STATS                  = 0x0826, // 5.4.8 18414 (Wow.exe binary)
     SMSG_RATED_BG_STATS                          = 0x0394, // 5.3.0
     CMSG_REQUEST_PVP_REWARDS                     = 0x0375, // 5.4.8 18414 (Wow.exe binary)
