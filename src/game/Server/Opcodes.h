@@ -61,7 +61,7 @@ enum OpcodesList
     //        harmless unregistered dead code (dispatch is by value via DefC(), not by enum name).
     //   // ... NYI in 5.4.8 refs (unverified)          = refs list the name but no value; the shown
     //        number is a stale (4.3.4) fallback, unverified for 5.4.8.
-    // CMSG totals: 493 = 398 confirmed + 1 reference-derived + 52 legacy + 42 NYI/unverified.
+    // CMSG totals: 493 = 398 confirmed + 1 reference-derived + 68 legacy + 26 NYI/unverified.
     // CMSG_MOVE_* are bidirectional MSG_MOVE_* (client sends + server echoes) — already correct.
     // SMSG is NOT part of this pass: many remain 4.3.4; 279 exceed 0x1FFF and overflow the packed
     // 13-bit MoP header. A dedicated SMSG pass is still pending.
@@ -817,7 +817,7 @@ enum OpcodesList
     MSG_MOVE_STOP_SWIM_CHEAT                     = 0x1343,
     SMSG_MOVE_SET_CAN_FLY                        = 0x0F48, // 5.3.0 17128
     SMSG_MOVE_UNSET_CAN_FLY                      = 0x034D, // 5.3.0 17128
-    CMSG_MOVE_SET_CAN_FLY                        = 0x720E, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_MOVE_SET_CAN_FLY                        = 0x720E, // not a 5.4.8 CMSG (SMSG_MOVE_SET_CAN_FLY 0x178D; client sends the _ACK)
     CMSG_MOVE_SET_CAN_FLY_ACK                    = 0x1052, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MOVE_SET_FLY                            = 0x01F1, // 5.4.8 18414 (Wow.exe binary)
     CMSG_SOCKET_GEMS                             = 0x02CB, // 5.4.8 18414 (Wow.exe binary)
@@ -935,21 +935,21 @@ enum OpcodesList
     CMSG_COMPLAIN                                = 0x0319, // 5.4.8 18414 (Wow.exe binary)
     SMSG_COMPLAIN_RESULT                         = 0x6D24, // 4.3.4 15595
     SMSG_FEATURE_SYSTEM_STATUS                   = 0x121E, // 5.4.8 18414 (SkyFire) (was 0x3DB7)
-    CMSG_CHANNEL_SILENCE_VOICE                   = 0x2D54, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
-    CMSG_CHANNEL_SILENCE_ALL                     = 0x2154, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
-    CMSG_CHANNEL_UNSILENCE_VOICE                 = 0x3146, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
-    CMSG_CHANNEL_UNSILENCE_ALL                   = 0x2546, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_CHANNEL_SILENCE_VOICE                   = 0x2D54, // not in 5.4.8 (legacy)
+    CMSG_CHANNEL_SILENCE_ALL                     = 0x2154, // not in 5.4.8 (legacy)
+    CMSG_CHANNEL_UNSILENCE_VOICE                 = 0x3146, // not in 5.4.8 (legacy)
+    CMSG_CHANNEL_UNSILENCE_ALL                   = 0x2546, // not in 5.4.8 (legacy)
     CMSG_CHANNEL_DISPLAY_LIST                    = 0x2144, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
-    CMSG_SET_ACTIVE_VOICE_CHANNEL                = 0x4305, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_SET_ACTIVE_VOICE_CHANNEL                = 0x4305, // not in 5.4.8 (legacy)
     SMSG_CHANNEL_MEMBER_COUNT                    = 0x6414, // 4.3.4 15595
-    CMSG_CHANNEL_VOICE_ON                        = 0x1144, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
-    CMSG_CHANNEL_VOICE_OFF                       = 0x13D8, // NYI in 5.4.8 refs (value unverified)
+    CMSG_CHANNEL_VOICE_ON                        = 0x1144, // not in 5.4.8 (legacy)
+    CMSG_CHANNEL_VOICE_OFF                       = 0x13D8, // not in 5.4.8 (legacy)
     SMSG_DEBUG_LIST_TARGETS                      = 0x13DA,
     SMSG_AVAILABLE_VOICE_CHANNEL                 = 0x13DB,
-    CMSG_ADD_VOICE_IGNORE                        = 0x13DC, // NYI in 5.4.8 refs (value unverified)
-    CMSG_DEL_VOICE_IGNORE                        = 0x13DD, // NYI in 5.4.8 refs (value unverified)
-    CMSG_PARTY_SILENCE                           = 0x6B26, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
-    CMSG_PARTY_UNSILENCE                         = 0x4D24, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_ADD_VOICE_IGNORE                        = 0x13DC, // not in 5.4.8 (legacy)
+    CMSG_DEL_VOICE_IGNORE                        = 0x13DD, // not in 5.4.8 (legacy)
+    CMSG_PARTY_SILENCE                           = 0x6B26, // not in 5.4.8 (legacy)
+    CMSG_PARTY_UNSILENCE                         = 0x4D24, // not in 5.4.8 (legacy)
     MSG_NOTIFY_PARTY_SQUELCH                     = 0x4D06, // 4.3.4 15595
     SMSG_COMSAT_RECONNECT_TRY                    = 0x4D35, // 4.3.4 15595
     SMSG_COMSAT_DISCONNECT                       = 0x0316, // 4.3.4 15595
@@ -1052,10 +1052,10 @@ enum OpcodesList
     SMSG_CALENDAR_SEND_NUM_PENDING               = 0x0C17, // 4.3.4 15595
     SMSG_NOTIFY_DANCE                            = 0x4904, // 4.3.4 15595
     SMSG_PLAY_DANCE                              = 0x4704, // 4.3.4 15595
-    CMSG_STOP_DANCE                              = 0x2907, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_STOP_DANCE                              = 0x2907, // not in 5.4.8 (legacy)
     SMSG_STOP_DANCE                              = 0x4637, // 4.3.4 15595
-    CMSG_SYNC_DANCE                              = 0x0036, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
-    CMSG_DANCE_QUERY                             = 0x4E07, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_SYNC_DANCE                              = 0x0036, // not in 5.4.8 (legacy)
+    CMSG_DANCE_QUERY                             = 0x4E07, // not in 5.4.8 (legacy)
     SMSG_DANCE_QUERY_RESPONSE                    = 0x2F06, // 4.3.4 15595
     SMSG_INVALIDATE_DANCE                        = 0x0E27, // 4.3.4 15595
     SMSG_LEARNED_DANCE_MOVES                     = 0x041F, // 5.4.1 17538
@@ -1086,7 +1086,7 @@ enum OpcodesList
     CMSG_REQUEST_VEHICLE_PREV_SEAT               = 0x03C4, // 5.4.8 18414 (Wow.exe binary)
     CMSG_REQUEST_VEHICLE_NEXT_SEAT               = 0x0141, // 5.4.8 18414 (Wow.exe binary)
     CMSG_REQUEST_VEHICLE_SWITCH_SEAT             = 0x1143, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_PET_LEARN_TALENT                        = 0x6725, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
+    CMSG_PET_LEARN_TALENT                        = 0x6725, // not in 5.4.8 (legacy)
     SMSG_SET_PHASE_SHIFT                         = 0x0BD4, // 5.3.0
     SMSG_ALL_ACHIEVEMENT_DATA                    = 0x12D1, // 5.3.0 17128
     SMSG_HEALTH_UPDATE                           = 0x4734, // 4.3.4 15595
