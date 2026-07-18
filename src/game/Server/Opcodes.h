@@ -63,7 +63,9 @@ enum OpcodesList
     //        number is a stale (4.3.4) fallback, unverified for 5.4.8.
     // CMSG totals: 493 = 398 confirmed + 1 reference-derived + 68 legacy + 26 NYI/unverified.
     // CMSG_MOVE_* are bidirectional MSG_MOVE_* (client sends + server echoes) — already correct.
-    // SMSG (reference-tier — the client stores no send literals, so the forks are the oracle):
+    // SMSG (reference-tier — the forks are the ONLY oracle: a 6-pass binary receive-dispatch
+    // probe of Wow.exe confirmed the client routes SMSG polymorphically by internal message-id,
+    // NOT by wire value, so SMSG wire values are not statically recoverable from the client):
     // 456 values landed from fork consensus/single-source (228 of the 279 header-overflows fixed);
     // 107 legacy + 44 NYI tagged. Residual: 51 SMSG still >0x1FFF (24 NYI + 19 legacy + 8 review) —
     // must not be SENT until resolved; 32 need manual name-mapping; 174 MoP-new SMSG not yet added.
