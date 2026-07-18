@@ -298,7 +298,6 @@ enum OpcodesList
     CMSG_SWAP_INV_ITEM                           = 0x03DF, // 5.4.8 18414 (Wow.exe binary)
     CMSG_SPLIT_ITEM                              = 0x02EC, // 5.4.8 18414 (Wow.exe binary)
     CMSG_AUTOEQUIP_ITEM_SLOT                     = 0x036F, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_DESTROYITEM                             = 0x0026, // 5.4.8 18414 (Wow.exe binary, via CMSG_DESTROY_ITEM)
     SMSG_INVENTORY_CHANGE_FAILURE                = 0x2236, // 4.3.4 15595
     SMSG_OPEN_CONTAINER                          = 0x4714, // 4.3.4 15595
     CMSG_INSPECT                                 = 0x1259, // 5.4.8 18414 (Wow.exe binary)
@@ -730,7 +729,7 @@ enum OpcodesList
     CMSG_PET_UNLEARN                             = 0x12F1,
     SMSG_PET_UNLEARN_CONFIRM                     = 0x12F2,
     SMSG_PARTY_MEMBER_STATS_FULL                 = 0x0215, // 4.3.4 15595
-    CMSG_PET_SPELL_AUTOCAST                      = 0x12E9, // 5.4.8 18414 (Wow.exe binary)
+    CMSG_PET_SPELL_AUTOCAST                      = 0x06F0, // 5.4.8 18414 (Wow.exe binary) [was 0x12E9 alias of PET_SET_ACTION]
     SMSG_WEATHER                                 = 0x1391, // 5.3.0 17128
     SMSG_PLAY_TIME_WARNING                       = 0x12F6,
     SMSG_MINIGAME_SETUP                          = 0x12F7,
