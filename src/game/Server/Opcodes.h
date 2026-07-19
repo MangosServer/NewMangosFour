@@ -983,7 +983,7 @@ enum OpcodesList
     SMSG_USERLIST_REMOVE                         = 0x0AAB, // 5.4.8 18414 (reference-consensus)
     SMSG_USERLIST_UPDATE                         = 0x063A, // 5.4.8 18414 (reference-consensus)
     CMSG_CLEAR_CHANNEL_WATCH                     = 0x2604, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
-    SMSG_INSPECT_RESULTS                         = 0x4014, // 4.3.4 15595
+    SMSG_INSPECT_RESULTS                         = 0x1842, // 5.4.8 18414 (was 0x4014, 4.3.4; unframable >0x1FFF)
     SMSG_GOGOGO_OBSOLETE                         = 0x13F6, // not in 5.4.8 (legacy)
     SMSG_ECHO_PARTY_SQUELCH                      = 0x0814, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     CMSG_SET_TITLE_SUFFIX                        = 0x13F8, // not in 5.4.8 (legacy)
@@ -1005,7 +1005,7 @@ enum OpcodesList
     SMSG_RAID_READY_CHECK_ERROR                  = 0x1409,
     CMSG_OPT_OUT_OF_LOOT                         = 0x06E0, // 5.4.8 18414 (Wow.exe binary)
     CMSG_QUERY_GUILD_BANK_TEXT                   = 0x0550, // 5.4.8 18414 (Wow.exe binary, via CMSG_GUILD_BANK_QUERY_TEXT)
-    SMSG_GUILD_BANK_TEXT                         = 0x75A3, // 4.3.4 15595
+    SMSG_GUILD_BANK_TEXT                         = 0x1AE0, // 5.4.8 18414 (was 0x75A3, 4.3.4; unframable >0x1FFF)
     CMSG_SET_GUILD_BANK_TEXT                     = 0x3023, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     CMSG_GRANT_LEVEL                             = 0x0662, // 5.4.8 18414 (Wow.exe binary)
     MSG_GM_CHANGE_ARENA_RATING                   = 0x1410,
@@ -1242,7 +1242,7 @@ enum OpcodesList
     SMSG_SET_CURRENCY                            = 0x1595, // not in 5.4.8 (legacy)
     SMSG_SEND_CURRENCIES                         = 0x15A5, // not in 5.4.8 (legacy)
     CMSG_SET_CURRENCY_FLAGS                      = 0x03E4, // 5.4.8 18414 (Wow.exe binary)
-    SMSG_WEEKLY_RESET_CURRENCIES                 = 0x3CA1, // not in 5.4.8 (legacy)
+    SMSG_WEEKLY_RESET_CURRENCIES                 = 0x023E, // 5.4.8 18414 (was 0x3CA1; unframable >0x1FFF)
     CMSG_INSPECT_RATED_BG_STATS                  = 0x0882, // 5.4.8 18414 (Wow.exe binary, via CMSG_REQUEST_INSPECT_RATED_BG_STATS)
     CMSG_REQUEST_RATED_BG_INFO                   = 0x2423, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     CMSG_REQUEST_RATED_BG_STATS                  = 0x0826, // 5.4.8 18414 (Wow.exe binary)
