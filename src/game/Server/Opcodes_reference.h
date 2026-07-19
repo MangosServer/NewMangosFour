@@ -409,7 +409,7 @@ typedef uint16_t uint16;
  *   SMSG_PETITION_SHOWLIST                         0x10A3  DORMANT  [low-conf]
  *   SMSG_UNKNOWN_0x10C3                            0x10C3  DOC      [low-conf]
  *   SMSG_UNKNOWN_0x128B                            0x128B  DOC      [low-conf]
- *   SMSG_BLACK_MARKET_BID_ON_ITEM_RESULT                   0x148A  DOC      [low-conf]
+ *   SMSG_BLACK_MARKET_BID_RESULT                           0x148A  DOC      [low-conf]
  *   SMSG_UNKNOWN_0x14E0                            0x14E0  DOC      [low-conf]
  *
  *  -- DuelInfo.cpp (7) --
@@ -2383,7 +2383,7 @@ enum class OpcodesReferenceDoc : uint16
     SMSG_UNKNOWN_0x1441                              = 0x1441,
     SMSG_UNKNOWN_0x1442                              = 0x1442,
     SMSG_MOVE_UPDATE_REMOVE_MOVEMENT_FORCE           = 0x1464,
-    SMSG_BLACK_MARKET_BID_ON_ITEM_RESULT                     = 0x148A,
+    SMSG_BLACK_MARKET_BID_RESULT                             = 0x148A,
     SMSG_GM_TICKET_CASE_STATUS                       = 0x148E,
     SMSG_UNKNOWN_0x148F                              = 0x148F,
     SMSG_UNKNOWN_0x149E                              = 0x149E,
