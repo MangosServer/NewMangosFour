@@ -9,17 +9,47 @@
 // PROVENANCE (clean-room; derived from the client binary Wow.exe 5.4.8.18414):
 //   CMSG  = opcode literals read out of the client's send serializer. Strongest tier: the
 //           client materializes each value, so these are read, not inferred.
-//   SMSG  = ACCEPTANCE derived by emulating the client's receive path:
-//           ingress sub_799310 -> router sub_797CEE -> 5 computed dispatchers
-//           (sub_659694 / sub_68EC4C / sub_C80E74 / sub_68F873 / sub_C6763F).
-//           ACCEPTED = the computed selector reaches an implemented case that builds a
-//           message-parser and returns success. 881 = 660+65+29+80+47 dispatcher cases.
-//   Cross-model reviewed (APPROVE-WITH-FOLLOWUP): no acceptance false-negatives/positives.
+//   SMSG  = IMPLEMENTED WORLD-PATH DISPATCH LEAVES. This is deliberately NOT phrased as
+//           "the client accepts X" -- see SCOPE below. Derived by emulating the client's
+//           world receive path:
+//             framing  sub_A6305D           PacketPipe_CliSvr.cpp; unpacks the wire header
+//                                           (size << 13) | (opcode & 0x1FFF)
+//               -> receive root sub_799310  NetClient message root. Owns the
+//                                           "WORLD OF WARCRAFT CONNECTION - SERVER TO
+//                                           CLIENT" handshake, so it is the first consumer
+//                                           of the world stream. Handles 4 opcodes itself
+//                                           (0x0D48, 0x1148, 0x1168, 0x1568) and dispatches
+//                                           the SPECIAL_CONTROL family INLINE (see below).
+//               -> gate sub_798BBC          + dynamic-family probe sub_79795D for
+//                                           (op & 0x148) == 0x100
+//               -> queue sub_79A97F(...,23) NETEVENTQUEUENODE, event type 23
+//               -> drain -> sub_79864E      requires netState == 5, wraps payload in a reader
+//               -> router sub_797CEE        -> 5 computed dispatchers
+//                                           (sub_659694 / sub_68EC4C / sub_C80E74 /
+//                                            sub_68F873 / sub_C6763F)
+//           A LEAF EXISTS when the computed selector reaches an implemented case that
+//           builds a message-parser and returns success. 881 = 660+65+29+80+47 leaves.
+//
+// SCOPE OF THE 881 -- what it does and does not cover:
+//   The 881 counts leaves reached through the QUEUED world path only. It deliberately
+//   excludes the SPECIAL_CONTROL / services family, which never reaches the world router
+//   because the receive root dispatches it inline and returns. That family is documented
+//   separately below and IS present in this table -- 12 implemented of 32, being the 4
+//   root literals plus 8 leaves in the inline dispatcher sub_C80CDA. Those 12 are the
+//   login/services opcodes (auth challenge/response, char enum, addon info, cache version,
+//   queue status). The sibling build 5.4.7.18019 decomposes identically: 4 + 8 = 12.
+//   OPEN -- whether the type-23 queue can discard between enqueue and drain is not proven.
+//           If it can, 881 is an upper bound on what is actually dispatched.
+//   Cross-model reviewed (APPROVE-WITH-FOLLOWUP): no leaf false-negatives/positives in the
+//   dispatcher emulation. The wording above was tightened afterwards: the emulated router
+//   sits downstream of a gate and a message queue, so "implemented leaves" is the claim the
+//   evidence supports, and "the client accepts X" is not.
 //
 // STATUS (mirrors DBCStructure_reference.h):
 //   ACTIVE  = present in Opcodes.h AND registered via DefC()/DefS().
 //   DORMANT = present in Opcodes.h but never registered (enum constant only, no handler).
-//   DOC     = the client sends/accepts this value but Opcodes.h does not list it.
+//   DOC     = the client materializes this value when sending (CMSG), or the world router
+//             has a dispatch leaf for it (SMSG), but Opcodes.h does not list it.
 
 /*
  * SUBSYSTEM SUMMARY -- SMSG by client module (handler address -> owning module).
@@ -128,7 +158,7 @@
 //     transform was recovered and every store into the callback arrays swept. Only 32 are
 //     actually INSTALLED and appear here; 992 are provably NEVER installed and are omitted;
 //     1 (0x1DA3) is an orphan teardown with no install in either build -- UNPROVABLE.
-//   * 107 opcodes are ACCEPTED and PARSED but their handler is NEVER INSTALLED in this build
+//   * 107 opcodes REACH A LEAF and are PARSED, but their handler is NEVER INSTALLED in this build
 //     (the guard global is never written non-zero anywhere in the image). They are marked
 //     'handler never installed'. The client still consumes the message; nothing acts on it.
 //   * Subsystem attribution is evidence-graded (high/medium/low/none). 'low' is locality
