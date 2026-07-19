@@ -238,7 +238,7 @@ typedef uint16_t uint16;
  *   SMSG_PET_BATTLE_FINISHED                       0x04BB  DOC      [medium-conf]
  *   SMSG_PET_BATTLE_FIRST_ROUND                    0x0613  DOC      [low-conf]
  *   SMSG_PET_BATTLE_INITIAL_UPDATE                 0x0E1E  DOC      [low-conf]
- *   SMSG_PET_BATTLE_QUEUE_PROPOSE_MATCH            0x1202  DOC      [low-conf]  [name: binary-derived]
+ *   SMSG_PET_BATTLE_QUEUE_PROPOSE_MATCH            0x1202  DOC      [low-conf]
  *   SMSG_UNKNOWN_0x1A1A                            0x1A1A  DOC      [low-conf]
  *   SMSG_PET_BATTLE_FINAL_ROUND                    0x1C2F  DOC      [medium-conf]
  *   SMSG_PET_BATTLE_PVP_CHALLENGE                  0x1E0B  DOC  [name: binary-derived]
@@ -246,7 +246,7 @@ typedef uint16_t uint16;
  *  -- BattlefieldInfo.cpp (31) --
  *   SMSG_ARENA_UNIT_DESTROYED                      0x000F  DORMANT 
  *   SMSG_BATTLEFIELD_MANAGER_EJECT_PENDING         0x003E  DORMANT 
- *   SMSG_ARENA_PREP_OPPONENT_SPECIALIZATIONS       0x00BE  DOC  [name: binary-derived]
+ *   SMSG_ARENA_PREP_OPPONENT_SPECIALIZATIONS       0x00BE  DOC
  *   SMSG_BATTLEGROUND_PLAYER_LEFT                  0x0206  DORMANT 
  *   SMSG_UNKNOWN_0x023F                            0x023F  DOC     
  *   SMSG_BATTLEFIELD_STATUS                        0x0433  DORMANT 
@@ -254,11 +254,11 @@ typedef uint16_t uint16;
  *   SMSG_PVP_SEASON                                0x069B  DOC     
  *   SMSG_PVP_OPTIONS_ENABLED                       0x080A  DORMANT 
  *   SMSG_BATTLEFIELD_MGR_ENTERED                   0x081B  DOC     
- *   SMSG_BATTLEFIELD_MGR_STATE_CHANGE              0x083A  DOC  [name: binary-derived]
+ *   SMSG_BATTLEFIELD_MGR_STATE_CHANGE              0x083A  DOC
  *   SMSG_PVP_REWARDS                               0x08AA  DORMANT 
  *   SMSG_BATTLEFIELD_MANAGER_QUEUE_REQUEST_RESPONSE 0x08BE  DORMANT 
  *   SMSG_UNKNOWN_0x0C33                            0x0C33  DOC
- *   SMSG_WARGAME_REQUEST_SENT                      0x0CAE  DOC  [name: binary-derived]
+ *   SMSG_WARGAME_REQUEST_SENT                      0x0CAE  DOC
  *   SMSG_CONQUEST_FORMULA_CONSTANTS                0x0EAB  DOC     
  *   SMSG_BATTLEFIELD_RATED_INFO                    0x0EBA  DOC     
  *   SMSG_UNKNOWN_0x1027                            0x1027  DOC     
@@ -285,7 +285,7 @@ typedef uint16_t uint16;
  *   SMSG_UNKNOWN_0x1C8B                            0x1C8B  DOC      [low-conf]
  *
  *  -- CGlueMgr.cpp (8) --
- *   SMSG_DISPLAY_PROMOTION                         0x00A3  DOC  [name: binary-derived]
+ *   SMSG_DISPLAY_PROMOTION                         0x00A3  DOC
  *   SMSG_KICK_REASON                               0x0A1E  DORMANT  [medium-conf]
  *   SMSG_CHAR_RENAME                               0x0CBF  DORMANT 
  *   SMSG_UNKNOWN_0x10AF                            0x10AF  DOC     
@@ -328,7 +328,7 @@ typedef uint16_t uint16;
  *   SMSG_CALENDAR_EVENT_INITIAL_INVITE             0x16AE  DOC      [medium-conf]
  *
  *  -- CharacterCreation.cpp (2) --
- *   SMSG_CHARACTER_UPGRADE_COMPLETE                0x083B  DOC      [low-conf]  [name: binary-derived]
+ *   SMSG_CHARACTER_UPGRADE_COMPLETE                0x083B  DOC      [low-conf]
  *   SMSG_CHARACTER_UPGRADE_STARTED                 0x188A  DOC      [low-conf]
  *
  *  -- CharacterModelBase.cpp (7) --
@@ -347,7 +347,7 @@ typedef uint16_t uint16;
  *   SMSG_USERLIST_UPDATE                           0x063A  DORMANT  [medium-conf]
  *   SMSG_TITLE_EARNED                              0x068E  DORMANT  [medium-conf]
  *   SMSG_DEFENSE_MESSAGE                           0x0A1F  DORMANT  [medium-conf]
- *   SMSG_CHAT_SERVER_RECONNECTED                   0x0A2E  DOC      [medium-conf]  [name: binary-derived]
+ *   SMSG_CHAT_SERVER_RECONNECTED                   0x0A2E  DOC      [medium-conf]
  *   SMSG_USERLIST_REMOVE                           0x0AAB  DORMANT  [medium-conf]
  *   SMSG_UNKNOWN_0x0B68                            0x0B68  DOC      [medium-conf]
  *   SMSG_RAID_INSTANCE_MESSAGE                     0x0CAF  DORMANT  [medium-conf]
@@ -404,12 +404,12 @@ typedef uint16_t uint16;
  *  -- DressUpModelFrame.cpp (9) --
  *   SMSG_BLACK_MARKET_OPEN_RESULT                  0x00AE  DOC      [low-conf]
  *   SMSG_UNKNOWN_0x083E                            0x083E  DOC      [low-conf]
- *   SMSG_BLACK_MARKET_OUTBID                       0x1040  DOC      [low-conf]  [name: binary-derived]
- *   SMSG_BLACK_MARKET_WON                          0x1060  DOC      [low-conf]  [name: binary-derived]
+ *   SMSG_BLACK_MARKET_OUTBID                       0x1040  DOC      [low-conf]
+ *   SMSG_BLACK_MARKET_WON                          0x1060  DOC      [low-conf]
  *   SMSG_PETITION_SHOWLIST                         0x10A3  DORMANT  [low-conf]
  *   SMSG_UNKNOWN_0x10C3                            0x10C3  DOC      [low-conf]
  *   SMSG_UNKNOWN_0x128B                            0x128B  DOC      [low-conf]
- *   SMSG_BLACK_MARKET_BID_RESULT                   0x148A  DOC      [low-conf]  [name: binary-derived]
+ *   SMSG_BLACK_MARKET_BID_ON_ITEM_RESULT                   0x148A  DOC      [low-conf]
  *   SMSG_UNKNOWN_0x14E0                            0x14E0  DOC      [low-conf]
  *
  *  -- DuelInfo.cpp (7) --
@@ -463,7 +463,7 @@ typedef uint16_t uint16;
  *   SMSG_BREAK_TARGET                              0x021A  DORMANT 
  *   SMSG_REFER_A_FRIEND_FAILURE                    0x021E  DORMANT  [medium-conf]
  *   SMSG_CORPSE_RECLAIM_DELAY                      0x022A  DORMANT  [medium-conf]
- *   SMSG_CLEAR_BOSS_EMOTES                         0x062B  DOC      [low-conf]  [name: binary-derived]
+ *   SMSG_CLEAR_BOSS_EMOTES                         0x062B  DOC      [low-conf]
  *   SMSG_OVERRIDE_LIGHT                            0x068A  DORMANT  [medium-conf]
  *   SMSG_WEATHER                                   0x06AB  DORMANT  [medium-conf]
  *   SMSG_UNKNOWN_0x06BA                            0x06BA  DOC      [low-conf]
@@ -487,7 +487,7 @@ typedef uint16_t uint16;
  *   SMSG_PROPOSE_LEVEL_GRANT                       0x109A  DORMANT 
  *   SMSG_UPDATE_INSTANCE_OWNERSHIP                 0x10E0  DORMANT  [medium-conf]
  *   SMSG_REFER_A_FRIEND_EXPIRED                    0x1143  DORMANT  [medium-conf]
- *   SMSG_DIFFERENT_INSTANCE_FROM_PARTY             0x120B  DOC  [name: binary-derived]
+ *   SMSG_DIFFERENT_INSTANCE_FROM_PARTY             0x120B  DOC
  *   SMSG_ENCOUNTER_END                             0x120F  DOC  [name: binary-derived]
  *   SMSG_UPDATE_WORLD_STATE                        0x121B  DORMANT  [low-conf]
  *   SMSG_UNKNOWN_0x1223                            0x1223  DOC      [medium-conf]
@@ -582,7 +582,7 @@ typedef uint16_t uint16;
  *   SMSG_LFG_UPDATE_SEARCH                         0x1161  DORMANT 
  *   SMSG_LFG_PLAYER_REWARD                         0x121A  DORMANT  [low-conf]
  *   SMSG_LFG_PARTY_INFO                            0x168E  DORMANT  [low-conf]
- *   SMSG_LFG_BOOT_PROPOSAL_UPDATE                  0x183A  DOC      [low-conf]  [name: binary-derived]
+ *   SMSG_LFG_BOOT_PROPOSAL_UPDATE                  0x183A  DOC      [low-conf]
  *   SMSG_LFG_PLAYER_INFO                           0x1861  DORMANT  [low-conf]
  *   SMSG_LOOT_UPDATE                               0x1863  DORMANT  [low-conf]
  *   SMSG_LFG_JOIN_RESULT                           0x18E3  DORMANT  [low-conf]
@@ -620,7 +620,7 @@ typedef uint16_t uint16;
  *   SMSG_LOOT_ROLL_WON                             0x0A3A  DORMANT 
  *   SMSG_LOOT_START_ROLL                           0x0EAA  DORMANT 
  *   SMSG_LOOT_ALL_PASSED                           0x0EBB  DORMANT 
- *   SMSG_LOOT_ROLLS_COMPLETE                       0x101B  DOC      [low-conf]  [name: binary-derived]
+ *   SMSG_LOOT_ROLLS_COMPLETE                       0x101B  DOC      [low-conf]
  *   SMSG_LOOT_ROLL                                 0x1840  DORMANT  [medium-conf]
  *
  *  -- LossOfControlUI.cpp (8) --
@@ -687,7 +687,7 @@ typedef uint16_t uint16;
  *   SMSG_SUMMON_CANCEL                             0x000A  DORMANT  [medium-conf]
  *   SMSG_VOICE_SESSION_ROSTER_UPDATE               0x000E  DORMANT  [medium-conf]
  *   SMSG_UNKNOWN_0x0050                            0x0050  DOC     
- *   SMSG_SOR_START_EXPERIENCE_INCOMPLETE           0x0083  DOC      [medium-conf]  [name: binary-derived]
+ *   SMSG_SOR_START_EXPERIENCE_INCOMPLETE           0x0083  DOC      [medium-conf]
  *   SMSG_RAID_MARKERS_CHANGED                      0x008A  DOC      [medium-conf]
  *   SMSG_VOID_STORAGE_CONTENTS                     0x008B  DOC      [low-conf]
  *   SMSG_INSTANCE_LOCK_WARNING_QUERY               0x00A7  DOC      [medium-conf]
@@ -2383,7 +2383,7 @@ enum class OpcodesReferenceDoc : uint16
     SMSG_UNKNOWN_0x1441                              = 0x1441,
     SMSG_UNKNOWN_0x1442                              = 0x1442,
     SMSG_MOVE_UPDATE_REMOVE_MOVEMENT_FORCE           = 0x1464,
-    SMSG_BLACK_MARKET_BID_RESULT                     = 0x148A,
+    SMSG_BLACK_MARKET_BID_ON_ITEM_RESULT                     = 0x148A,
     SMSG_GM_TICKET_CASE_STATUS                       = 0x148E,
     SMSG_UNKNOWN_0x148F                              = 0x148F,
     SMSG_UNKNOWN_0x149E                              = 0x149E,
