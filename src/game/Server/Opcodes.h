@@ -834,7 +834,11 @@ enum OpcodesList
     CMSG_ARENA_TEAM_QUERY                        = 0x0514, // not in 5.4.8 (legacy; handler retained)
     SMSG_ARENA_TEAM_QUERY_RESPONSE               = 0x6336, // not in 5.4.8 (legacy)
     CMSG_ARENA_TEAM_ROSTER                       = 0x6F37, // not in 5.4.8 (legacy; handler retained)
-    SMSG_ARENA_TEAM_ROSTER                       = 0x14C0, // not in 5.4.8 (legacy)
+    SMSG_ARENA_TEAM_ROSTER                       = 0x14C0, // WRONG: 0x14C0 is SMSG_LOOT_MONEY_NOTIFY in 5.4.8.
+                                                           // Client handler is LootFrame.cpp and references
+                                                           // COPPER_AMOUNT / GOLD_AMOUNT / LOOT_MONEY_SPLIT.
+                                                           // Sending on this value is parsed as a money loot.
+                                                           // Sender: ArenaTeam.cpp:404. Correct value unknown.
     CMSG_ARENA_TEAM_INVITE                       = 0x2F27, // not in 5.4.8 (legacy; handler retained)
     SMSG_ARENA_TEAM_INVITE                       = 0x0F36, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     CMSG_ARENA_TEAM_ACCEPT                       = 0x2A25, // not in 5.4.8 (legacy; handler retained)
@@ -1041,7 +1045,11 @@ enum OpcodesList
     SMSG_CALENDAR_SEND_CALENDAR                  = 0x1A0A, // 5.4.8 18414 (reference-consensus)
     SMSG_CALENDAR_SEND_EVENT                     = 0x12AE, // 5.4.8 18414 (reference-consensus)
     SMSG_CALENDAR_FILTER_GUILD                   = 0x1439, // not in 5.4.8 (legacy)
-    SMSG_CALENDAR_ARENA_TEAM                     = 0x143A, // NYI in 5.4.8 refs (value unverified)
+    SMSG_CALENDAR_ARENA_TEAM                     = 0x143A, // WRONG: 0x143A is SMSG_CAST_FAILED in 5.4.8.
+                                                           // Client handler is Spell_C.cpp and references
+                                                           // SPELL_FAILED_UNKNOWN / SI3::PlaySpellFizzleSound.
+                                                           // Sending on this value is parsed as a cast failure.
+                                                           // Sender: ArenaTeam.cpp:890. Correct value unknown.
     SMSG_CALENDAR_EVENT_INVITE                   = 0x15C3, // 5.4.8 18414 (reference-consensus)
     SMSG_CALENDAR_EVENT_INVITE_REMOVED           = 0x00A2, // 5.4.8 18414 (reference-consensus)
     SMSG_CALENDAR_EVENT_STATUS                   = 0x143D,
