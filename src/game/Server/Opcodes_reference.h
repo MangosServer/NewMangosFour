@@ -257,7 +257,7 @@ typedef uint16_t uint16;
  *   SMSG_BATTLEFIELD_MGR_STATE_CHANGE              0x083A  DOC  [name: binary-derived]
  *   SMSG_PVP_REWARDS                               0x08AA  DORMANT 
  *   SMSG_BATTLEFIELD_MANAGER_QUEUE_REQUEST_RESPONSE 0x08BE  DORMANT 
- *   SMSG_ARENA_TEAM_CHANGE_FAILED_QUEUED           0x0C33  DOC  [name: binary-derived]
+ *   SMSG_UNKNOWN_0x0C33                            0x0C33  DOC
  *   SMSG_WARGAME_REQUEST_SENT                      0x0CAE  DOC  [name: binary-derived]
  *   SMSG_CONQUEST_FORMULA_CONSTANTS                0x0EAB  DOC     
  *   SMSG_BATTLEFIELD_RATED_INFO                    0x0EBA  DOC     
@@ -444,7 +444,7 @@ typedef uint16_t uint16;
  *
  *  -- GMTicketInfo.cpp (7) --
  *   SMSG_GM_TICKET_STATUS_UPDATE                   0x000B  DORMANT  [medium-conf]
- *   SMSG_GM_RESPONSE_DB_ERROR                      0x009B  DOC      [low-conf]  [name: binary-derived]
+ *   SMSG_UNKNOWN_0x009B                            0x009B  DOC      [low-conf]
  *   SMSG_GM_TICKET_RESPONSE                        0x0207  DOC      [medium-conf]
  *   SMSG_GM_TICKET_UPDATE                          0x02A6  DOC      [medium-conf]
  *   SMSG_GMTICKET_GETTICKET                        0x129B  DORMANT  [medium-conf]
@@ -666,7 +666,7 @@ typedef uint16_t uint16;
  *   SMSG_BATTLE_PET_JOURNAL_LOCK_DENINED           0x0203  DOC      [low-conf]
  *   SMSG_BATTLE_PET_PET_UPDATES                    0x041A  DOC     
  *   SMSG_UNKNOWN_0x068B                            0x068B  DOC      [medium-conf]
- *   SMSG_PET_BATTLE_NOT_WHILE_IN_MATCHED_BATTLE    0x06BE  DOC      [low-conf]  [name: binary-derived]
+ *   SMSG_UNKNOWN_0x06BE                            0x06BE  DOC      [low-conf]
  *   SMSG_UNKNOWN_0x0A1A                            0x0A1A  DOC      [medium-conf]
  *   SMSG_UNKNOWN_0x0E9E                            0x0E9E  DOC      [low-conf]
  *   SMSG_UNKNOWN_0x1003                            0x1003  DOC      [medium-conf]
@@ -2089,7 +2089,7 @@ enum class OpcodesReferenceDoc : uint16
     SMSG_UNKNOWN_0x0086                              = 0x0086,
     SMSG_RAID_MARKERS_CHANGED                        = 0x008A,
     SMSG_VOID_STORAGE_CONTENTS                       = 0x008B,
-    SMSG_GM_RESPONSE_DB_ERROR                        = 0x009B,
+    SMSG_UNKNOWN_0x009B                              = 0x009B,
     SMSG_DISPLAY_PROMOTION                           = 0x00A3,
     SMSG_PET_BATTLE_QUEUE_STATUS                     = 0x00A6,
     SMSG_INSTANCE_LOCK_WARNING_QUERY                 = 0x00A7,
@@ -2187,7 +2187,7 @@ enum class OpcodesReferenceDoc : uint16
     SMSG_UNKNOWN_0x069E                              = 0x069E,
     SMSG_SET_PLAY_HOVER_ANIM                         = 0x069F,
     SMSG_UNKNOWN_0x06BA                              = 0x06BA,
-    SMSG_PET_BATTLE_NOT_WHILE_IN_MATCHED_BATTLE      = 0x06BE,
+    SMSG_UNKNOWN_0x06BE                              = 0x06BE,
     SMSG_QUEST_PUSH_RESULT                           = 0x074D,
     SMSG_UNKNOWN_0x07C5                              = 0x07C5,
     SMSG_UNKNOWN_0x07F5                              = 0x07F5,
@@ -2259,7 +2259,7 @@ enum class OpcodesReferenceDoc : uint16
     SMSG_LFG_UPDATE_STATUS                           = 0x0C2E,
     SMSG_WAIT_QUEUE_UPDATE                           = 0x0C2F,
     SMSG_AE_LOOT_TARGETS                             = 0x0C32,
-    SMSG_ARENA_TEAM_CHANGE_FAILED_QUEUED             = 0x0C33,
+    SMSG_UNKNOWN_0x0C33                              = 0x0C33,
     SMSG_UNKNOWN_0x0C3B                              = 0x0C3B,
     SMSG_UNKNOWN_0x0C59                              = 0x0C59,
     SMSG_UNKNOWN_0x0C5B                              = 0x0C5B,
