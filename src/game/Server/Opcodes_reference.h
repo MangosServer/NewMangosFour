@@ -1107,10 +1107,10 @@ typedef uint16_t uint16;
  *  -- login/auth message layer (12) --
  *   SMSG_CLIENTCACHE_VERSION                       0x002A  ACTIVE  
  *   SMSG_LOGOUT_RESPONSE                           0x008F  DORMANT  [medium-conf]
- *   SMSG_UNKNOWN_0x060E                            0x060E  DOC     
+ *   SMSG_WAIT_QUEUE_FINISH                         0x060E  DOC      [name: binary-proven]
  *   SMSG_LOGOUT_CANCEL_ACK                         0x0AAF  DORMANT  [medium-conf]
  *   SMSG_AUTH_RESPONSE                             0x0ABA  ACTIVE  
- *   SMSG_UNKNOWN_0x0C2F                            0x0C2F  DOC     
+ *   SMSG_WAIT_QUEUE_UPDATE                         0x0C2F  DOC      [name: binary-proven]
  *   SMSG_CHAR_DELETE                               0x0C9F  ACTIVE   [medium-conf]
  *   SMSG_CHAR_ENUM                                 0x11C3  ACTIVE  
  *   SMSG_LOGOUT_COMPLETE                           0x142F  DORMANT  [medium-conf]
@@ -2172,7 +2172,7 @@ enum class OpcodesReferenceDoc : uint16
     SMSG_UNKNOWN_0x0569                              = 0x0569,
     SMSG_SET_RAID_DIFFICULTY                         = 0x0591,
     SMSG_UNKNOWN_0x05D8                              = 0x05D8,
-    SMSG_UNKNOWN_0x060E                              = 0x060E,
+    SMSG_WAIT_QUEUE_FINISH                           = 0x060E,
     SMSG_UNKNOWN_0x060F                              = 0x060F,
     SMSG_BATTLE_PAY_START_PURCHASE_RESPONSE          = 0x0612,
     SMSG_PET_BATTLE_FIRST_ROUND                      = 0x0613,
@@ -2257,7 +2257,7 @@ enum class OpcodesReferenceDoc : uint16
     SMSG_UNKNOWN_0x0C1F                              = 0x0C1F,
     SMSG_UNKNOWN_0x0C2B                              = 0x0C2B,
     SMSG_UNKNOWN_0x0C2E                              = 0x0C2E,
-    SMSG_UNKNOWN_0x0C2F                              = 0x0C2F,
+    SMSG_WAIT_QUEUE_UPDATE                           = 0x0C2F,
     SMSG_AE_LOOT_TARGETS                             = 0x0C32,
     SMSG_UNKNOWN_0x0C33                              = 0x0C33,
     SMSG_UNKNOWN_0x0C3B                              = 0x0C3B,
