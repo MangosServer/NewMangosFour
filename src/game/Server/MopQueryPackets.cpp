@@ -101,7 +101,7 @@ MopQueryPackets::GameObjectQueryRequest MopQueryPackets::ReadGameObjectQueryRequ
     GameObjectQueryRequest request;
     in >> request.entry;
 
-    uint8* guidBytes = reinterpret_cast<uint8*>(&request.guid);
+    std::array<uint8, 8> guidBytes{};
     guidBytes[5] = in.ReadBit();
     guidBytes[3] = in.ReadBit();
     guidBytes[6] = in.ReadBit();
@@ -119,6 +119,9 @@ MopQueryPackets::GameObjectQueryRequest MopQueryPackets::ReadGameObjectQueryRequ
     in.ReadByteSeq(guidBytes[2]);
     in.ReadByteSeq(guidBytes[7]);
     in.ReadByteSeq(guidBytes[0]);
+
+    for (size_t i = 0; i < guidBytes.size(); ++i)
+        request.guid |= uint64(guidBytes[i]) << (i * 8);
     return request;
 }
 
