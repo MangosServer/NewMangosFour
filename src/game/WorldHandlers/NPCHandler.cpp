@@ -58,6 +58,7 @@
 #include "SpellMgr.h"
 #include "Player.h"
 #include "GossipDef.h"
+#include "Server/MopTrainerBuyFailed.h"
 #include "UpdateMask.h"
 #include "ScriptMgr.h"
 #include "Creature.h"
@@ -356,7 +357,7 @@ void WorldSession::HandleTrainerBuySpellOpcode(WorldPacket& recv_data)
         GetPlayer()->RemoveSpellsCausingAura(SPELL_AURA_FEIGN_DEATH);
     }
 
-    WorldPacket sendData(SMSG_TRAINER_SERVICE, 16);
+    WorldPacket sendData(SMSG_TRAINER_BUY_FAILED, 17);
 
     uint32 trainState = 2;
 
@@ -413,9 +414,13 @@ void WorldSession::HandleTrainerBuySpellOpcode(WorldPacket& recv_data)
 
     if (trainState != 2)
     {
-        sendData << ObjectGuid(guid);
-        sendData << uint32(spellId);
-        sendData << uint32(trainState);
+        // trainState is the server's historical encoding (0 = not enough money,
+        // 1 = unavailable). The 5.4.8 client uses the OPPOSITE convention, so
+        // translate rather than pass it through. See MopTrainerBuyFailed.h.
+        uint32 failReason = (trainState == 0)
+                            ? uint32(MopTrainerBuyFailed::REASON_NOT_ENOUGH_MONEY)
+                            : uint32(MopTrainerBuyFailed::REASON_UNAVAILABLE);
+        MopTrainerBuyFailed::Build(sendData, guid.GetRawValue(), failReason, spellId);
         SendPacket(&sendData);
     }
     else
