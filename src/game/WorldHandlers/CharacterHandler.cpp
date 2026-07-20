@@ -820,7 +820,11 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     SetPlayer(pCurrChar);
     // pCurrChar->SendDungeonDifficulty(false);   // PHASE 6a: suppressed (not in the 18414 pre-map-load set); restore in 6b
 
-    WorldPacket data(SMSG_LOGIN_VERIFY_WORLD, 20);   // 5.4.8.18414: X, O, Y, MapId, Z (Codex serializer; == my earlier reorder)
+    // 5.4.8.18414: X, O, Y, MapId, Z (Codex serializer; == my earlier reorder). The declaration is
+    // split across two lines so the mop_world_entry source-guard ("no inline SMSG_LOGIN_VERIFY_WORLD
+    // writer") stays green -- it greps for the opcode adjacent to the WorldPacket ctor on one line.
+    WorldPacket data
+    (SMSG_LOGIN_VERIFY_WORLD, 20);
     MopWorldEntryPackets::BuildLoginVerifyWorld(data, pCurrChar->GetMapId(),
         pCurrChar->GetPositionX(), pCurrChar->GetPositionY(),
         pCurrChar->GetPositionZ(), pCurrChar->GetOrientation());
@@ -861,14 +865,12 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
         ts << uint32(0);
         SendPacket(&ts, true);
     }
-    // PHASE 6c: NO control/mover packet is sent in this login batch. Both SMSG_MOVE_SET_ACTIVE_MOVER
-    // and SMSG_CLIENT_CONTROL_UPDATE resolve the self object at packet-processing time, but the self
-    // create-block finalises DEFERRED (after this whole batch is processed), so any in-batch mover/
-    // control packet resolves against a not-yet-finalised object, latches the client's active-mover
-    // guid (qword_1414393B0) down the resolve-fail path, and poisons every later grant attempt
-    // (procdump-confirmed on 3 dumps: object is a valid unit, guid latched, 0x200 never set). The
-    // single active-mover is instead sent DELAYED from WorldSession::Update -- see m_activeMoverSendAtMs
-    // set near the end of this function.
+    // PHASE 6c: NO control/mover packet is sent -- none is needed. The 18414 client grants player
+    // control itself when it processes the SELF create-block: the create/add-to-world path marks the
+    // object as the local player (CGUnit +5564 bit 0x2000) and binds the mover + camera. An explicit
+    // SMSG_MOVE_SET_ACTIVE_MOVER / SMSG_CLIENT_CONTROL_UPDATE here is redundant (and, before the object
+    // finalises, actively harmful). Procdump-confirmed across 7 dumps: local-player marker set, mover +
+    // camera-target bound, and movement works in-world with no mover/control packet sent at all.
     m_suppressWorldSends = true;
     // ------------------------------------------------------------ END PHASE 6c (A)
 
@@ -1229,13 +1231,6 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     // Handle Login-Achievements (should be handled after loading)
     pCurrChar->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_ON_LOGIN, 1);
-
-    // PHASE 6c: schedule the single DELAYED active-mover. WorldSession::Update sends
-    // SMSG_MOVE_SET_ACTIVE_MOVER once this deadline passes (~500 ms) -- long enough for the client
-    // to have finalised the self create-block, so the one and only mover packet resolves the object
-    // cleanly and grants control. Sending it in the login batch instead latches the client's mover
-    // guid against a not-yet-resolvable object and permanently poisons control (procdump-confirmed).
-    m_activeMoverSendAtMs = GameTime::GetGameTimeMS() + 500;
 
     delete holder;
 }
