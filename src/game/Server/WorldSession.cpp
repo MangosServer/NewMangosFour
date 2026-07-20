@@ -242,25 +242,28 @@ char const* WorldSession::GetPlayerName() const
 // HARD RULE: never whitelist an opcode until its send emits a real 18414 body; a stale Cata body
 // reaching the 18414 client can crash it. This whole gate (and m_suppressWorldSends) is removed
 // once the after-map flow is fully at parity.
-static bool IsEnterWorldConverted(uint16 /*opcode*/)
+static bool IsEnterWorldConverted(uint16 opcode)
 {
-    // switch (opcode)
-    // {
-    //     // uncomment each case as Wave 5 converts that packet's send-function to 18414:
-    //     case SMSG_INITIAL_SPELLS:
-    //     case SMSG_SEND_UNLEARN_SPELLS:
-    //     case SMSG_ACTION_BUTTONS:
-    //     case SMSG_INITIALIZE_FACTIONS:
-    //     case SMSG_ACCOUNT_DATA_TIMES:
-    //     case SMSG_FEATURE_SYSTEM_STATUS:
-    //     case SMSG_TUTORIAL_FLAGS:
-    //     case SMSG_BINDPOINTUPDATE:
-    //     case SMSG_SET_PROFICIENCY:
-    //     case SMSG_WEATHER:
-    //     case SMSG_ALL_ACHIEVEMENT_DATA:
-    //         return true;
-    //     default: break;
-    // }
+    switch (opcode)
+    {
+        // Wave 5 (9ba498698): these after-map send-functions now emit genuine 18414 bodies
+        // (MopInitialPackets), so they pass suppression and populate the client's in-world
+        // UI/input state (spells, action bar, factions, account data, tutorials, weather, etc.).
+        case SMSG_INITIAL_SPELLS:
+        case SMSG_SEND_UNLEARN_SPELLS:
+        case SMSG_ACTION_BUTTONS:
+        case SMSG_INITIALIZE_FACTIONS:
+        case SMSG_ACCOUNT_DATA_TIMES:
+        case SMSG_FEATURE_SYSTEM_STATUS:
+        case SMSG_TUTORIAL_FLAGS:
+        case SMSG_BINDPOINTUPDATE:
+        case SMSG_SET_PROFICIENCY:
+        case SMSG_WEATHER:
+            return true;
+        // case SMSG_ALL_ACHIEVEMENT_DATA:  // Wave 5 Task 2 (two-pass GUID) -- NOT converted yet; keep suppressed
+        default:
+            break;
+    }
     return false;
 }
 
