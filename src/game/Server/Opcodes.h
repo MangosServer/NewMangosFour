@@ -363,7 +363,7 @@ enum OpcodesList
     SMSG_BINDPOINTUPDATE                         = 0x0E3B, // 5.4.8 18414
     SMSG_BINDZONEREPLY                           = 0x1158,
     SMSG_PLAYERBOUND                             = 0x12DD, // 5.3.0 17128
-    SMSG_CLIENT_CONTROL_UPDATE                   = 0x2837, // 4.3.4 15595
+    SMSG_CLIENT_CONTROL_UPDATE                   = 0x1043, // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_REPOP_REQUEST                           = 0x134A, // 5.4.8 18414 (Wow.exe binary)
     SMSG_RESURRECT_REQUEST                       = 0x0FD0, // 5.3.0 17128
     CMSG_RESURRECT_RESPONSE                      = 0x0B0C, // 5.4.8 18414 (Wow.exe binary)

@@ -827,14 +827,17 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     SendPacket(&data);
 
     // -------------------------------------------------------------- PHASE 6c (A)
-    // Real world-add. Tell the client it controls its player (SMSG_MOVE_SET_ACTIVE_MOVER),
-    // then fall through to the normal login flow: it adds the player to the map (which
-    // sends the MoP self create-block via the modernised Map::SendInitSelf) and KEEPS the
-    // player. m_suppressWorldSends silences the remaining Cata-format login/after-add sends
-    // (only the create-block + active-mover reach the client). Movement/time-sync opcodes
-    // are left unregistered (movement is client-authoritative -- the client walks locally,
-    // the server drops them). Validated on the empty start map (Pandaren, Wandering Isle);
-    // nearby-object create-blocks on populated maps still use the Cata path (Option B).
+    // Real world-add. Start the client's world clock + time-sync here, then fall through to
+    // the normal login flow: it adds the player to the map (which sends the MoP self
+    // create-block via the modernised Map::SendInitSelf) and KEEPS the player. The active-mover
+    // (control grant) is deliberately sent AFTER the map-add (see below the Map::Add call), not
+    // here -- the client's mover handler resolves the guid to a live object and clears control
+    // if it is missing, so it must follow the create-block. m_suppressWorldSends silences the
+    // remaining Cata-format login/after-add sends (only the create-block + active-mover +
+    // world-states reach the client). Movement/time-sync opcodes are left unregistered
+    // (movement is client-authoritative -- the client walks locally, the server drops them).
+    // Validated on the empty start map (Pandaren, Wandering Isle); nearby-object create-blocks
+    // on populated maps still use the Cata path (Option B).
     {
         // SMSG_LOGIN_SETTIMESPEED: start the client's world clock. Without it the client
         // renders but stays inert (dead UI, no local movement) -- the #1 activation gate
@@ -849,23 +852,6 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
         lts << float(0.01666667f);
         SendPacket(&lts, true);
     }
-    {
-        // SMSG_MOVE_SET_ACTIVE_MOVER: packed guid of the active mover (the player).
-        const uint64 mg = pCurrChar->GetObjectGuid().GetRawValue();
-        static const int amMask[8] = { 5, 1, 4, 2, 3, 7, 0, 6 };
-        static const int amByte[8] = { 4, 6, 2, 0, 3, 7, 5, 1 };
-        WorldPacket am(SMSG_MOVE_SET_ACTIVE_MOVER, 9);
-        for (int i = 0; i < 8; ++i)
-        {
-            am.WriteBit(uint8(mg >> (amMask[i] * 8)) != 0);
-        }
-        am.FlushBits();
-        for (int i = 0; i < 8; ++i)
-        {
-            am.WriteByteSeq(uint8(mg >> (amByte[i] * 8)));
-        }
-        SendPacket(&am, true);
-    }
     // SMSG_TIME_SYNC_REQUEST: establish the time base the 18414 client needs before it will
     // process movement input (without it the client sits discarding time-sync acks and never
     // moves). Counter 0; the client echoes it in CMSG_TIME_SYNC_RESPONSE, which we leave
@@ -875,6 +861,14 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
         ts << uint32(0);
         SendPacket(&ts, true);
     }
+    // PHASE 6c: NO control/mover packet is sent in this login batch. Both SMSG_MOVE_SET_ACTIVE_MOVER
+    // and SMSG_CLIENT_CONTROL_UPDATE resolve the self object at packet-processing time, but the self
+    // create-block finalises DEFERRED (after this whole batch is processed), so any in-batch mover/
+    // control packet resolves against a not-yet-finalised object, latches the client's active-mover
+    // guid (qword_1414393B0) down the resolve-fail path, and poisons every later grant attempt
+    // (procdump-confirmed on 3 dumps: object is a valid unit, guid latched, 0x200 never set). The
+    // single active-mover is instead sent DELAYED from WorldSession::Update -- see m_activeMoverSendAtMs
+    // set near the end of this function.
     m_suppressWorldSends = true;
     // ------------------------------------------------------------ END PHASE 6c (A)
 
@@ -1253,6 +1247,13 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     // Handle Login-Achievements (should be handled after loading)
     pCurrChar->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_ON_LOGIN, 1);
+
+    // PHASE 6c: schedule the single DELAYED active-mover. WorldSession::Update sends
+    // SMSG_MOVE_SET_ACTIVE_MOVER once this deadline passes (~500 ms) -- long enough for the client
+    // to have finalised the self create-block, so the one and only mover packet resolves the object
+    // cleanly and grants control. Sending it in the login batch instead latches the client's mover
+    // guid against a not-yet-resolvable object and permanently poisons control (procdump-confirmed).
+    m_activeMoverSendAtMs = GameTime::GetGameTimeMS() + 500;
 
     delete holder;
 }

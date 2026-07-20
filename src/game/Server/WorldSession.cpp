@@ -54,6 +54,7 @@
 #include "WorldSession.h"
 #include "Player.h"
 #include "ObjectMgr.h"
+#include "GameTime.h"
 #include "Group.h"
 #include "CinematicFlyover.h"
 #include "Guild.h"
@@ -154,7 +155,7 @@ bool WorldSessionFilter::Process(WorldPacket* packet)
 /// WorldSession constructor
 WorldSession::WorldSession(uint32 id, WorldSocket* sock, AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale) :
     m_muteTime(mute_time), _player(NULL), m_Socket(sock), _security(sec), _accountId(id), m_expansion(expansion), _logoutTime(0),
-    m_inQueue(false), m_playerLoading(false), m_suppressWorldSends(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false),
+    m_inQueue(false), m_playerLoading(false), m_suppressWorldSends(false), m_activeMoverSendAtMs(0), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false),
     m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)), m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)),
     m_latency(0), m_clientTimeDelay(0), m_tutorialState(TUTORIALDATA_UNCHANGED)
 {
@@ -339,6 +340,37 @@ void WorldSession::LogUnprocessedTail(WorldPacket* packet)
 /// Update the WorldSession (triggered by World update)
 bool WorldSession::Update(PacketFilter& updater)
 {
+    // PHASE 6c: delayed SMSG_MOVE_SET_ACTIVE_MOVER. The 18414 client binds player control
+    // (object+4680 bit 0x200 + camera) only when the active-mover packet resolves the self
+    // object AT PROCESSING TIME. The self create-block finalises deferred (end of the login
+    // frame), so any mover/control packet sent inside the login batch resolves against a
+    // not-yet-finalised object, latches the client's active-mover guid (qword_1414393B0) down
+    // the resolve-fail path, and poisons every later attempt (procdump-confirmed on 3 dumps).
+    // Sending it a few hundred ms later -- after the client has finalised the create-block --
+    // lets the first (and only) mover packet resolve cleanly and grant control. Bypasses the
+    // enter-world suppression.
+    if (m_activeMoverSendAtMs && GameTime::GetGameTimeMS() >= m_activeMoverSendAtMs)
+    {
+        m_activeMoverSendAtMs = 0;
+        if (Player* p = GetPlayer())
+        {
+            const uint64 mg = p->GetObjectGuid().GetRawValue();
+            static const int amMask[8] = { 5, 1, 4, 2, 3, 7, 0, 6 };
+            static const int amByte[8] = { 4, 6, 2, 0, 3, 7, 5, 1 };
+            WorldPacket am(SMSG_MOVE_SET_ACTIVE_MOVER, 9);
+            for (int i = 0; i < 8; ++i)
+            {
+                am.WriteBit(uint8(mg >> (amMask[i] * 8)) != 0);
+            }
+            am.FlushBits();
+            for (int i = 0; i < 8; ++i)
+            {
+                am.WriteByteSeq(uint8(mg >> (amByte[i] * 8)));
+            }
+            SendPacket(&am, true);
+        }
+    }
+
     ///- Retrieve packets from the receive queue and call the appropriate handlers
     /// not process packets if socket already closed
     WorldPacket* packet = NULL;

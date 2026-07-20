@@ -1122,6 +1122,7 @@ class WorldSession
         bool m_inQueue;                                     // session wait in auth.queue
         bool m_playerLoading;                               // code processed in LoginPlayer
         bool m_suppressWorldSends;                          // PHASE 6c: silence Cata-format sends after enter-world (MoP port scaffold)
+        uint32 m_activeMoverSendAtMs;                       // PHASE 6c: GetGameTimeMS() deadline to send the delayed SMSG_MOVE_SET_ACTIVE_MOVER (0 = inactive)
         bool m_playerLogout;                                // code processed in LogoutPlayer
         bool m_playerRecentlyLogout;
         bool m_playerSave;                                  // code processed in LogoutPlayer with save request
