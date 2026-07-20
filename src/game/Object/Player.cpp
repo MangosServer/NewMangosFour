@@ -54,6 +54,7 @@
 #include "GuildMgr.h"
 #include "Pet.h"
 #include "Server/MopCharEnum.h"
+#include "Server/MopControlPackets.h"
 #include "Server/MopWorldEntryPackets.h"
 #include "Util.h"
 #include "Transports.h"
@@ -4590,6 +4591,11 @@ void Player::SendInitialPacketsBeforeAddToMap()
  */
 void Player::SendInitialPacketsAfterAddToMap()
 {
+    // Map::Add has already queued the self create update. The 5.4.8 client
+    // must resolve that object before it accepts the active mover.
+    SetClientControl(this, 1);
+    SendActiveMover(this);
+
     // update zone
     uint32 newzone, newarea;
     GetZoneAndAreaId(newzone, newarea);
@@ -5129,9 +5135,17 @@ void Player::ResurectUsingRequestData()
  */
 void Player::SetClientControl(Unit* target, uint8 allowMove)
 {
-    WorldPacket data(SMSG_CLIENT_CONTROL_UPDATE, target->GetPackGUID().size() + 1);
-    data << target->GetPackGUID();
-    data << uint8(allowMove);
+    WorldPacket data(SMSG_CLIENT_CONTROL_UPDATE, 10);
+    MopControlPackets::BuildClientControlUpdate(
+        data, target->GetObjectGuid().GetRawValue(), allowMove != 0);
+    GetSession()->SendPacket(&data);
+}
+
+void Player::SendActiveMover(Unit const* target)
+{
+    WorldPacket data(SMSG_MOVE_SET_ACTIVE_MOVER, 9);
+    MopControlPackets::BuildSetActiveMover(
+        data, target->GetObjectGuid().GetRawValue());
     GetSession()->SendPacket(&data);
 }
 
