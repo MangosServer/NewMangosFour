@@ -30,6 +30,7 @@
 #include "SpellMgr.h"
 #include "World.h"
 #include "WorldPacket.h"
+#include "MopCompactPackets.h"
 #include "WorldSession.h"
 #include "UpdateMask.h"
 #include "SkillDiscovery.h"
@@ -83,7 +84,8 @@
 
 void Player::SendAttackSwingNotInRange()
 {
-    WorldPacket data(SMSG_ATTACKSWING_NOTINRANGE, 0);
+    WorldPacket data(SMSG_ATTACKSWING_ERROR, 1);
+    MopCompactPackets::BuildAttackSwingError(data, MopCompactPackets::ATTACK_SWING_NOT_IN_RANGE);
     GetSession()->SendPacket(&data);
 }
 
@@ -92,7 +94,8 @@ void Player::SendAttackSwingNotInRange()
  */
 void Player::SendAttackSwingDeadTarget()
 {
-    WorldPacket data(SMSG_ATTACKSWING_DEADTARGET, 0);
+    WorldPacket data(SMSG_ATTACKSWING_ERROR, 1);
+    MopCompactPackets::BuildAttackSwingError(data, MopCompactPackets::ATTACK_SWING_DEAD_TARGET);
     GetSession()->SendPacket(&data);
 }
 
@@ -101,7 +104,8 @@ void Player::SendAttackSwingDeadTarget()
  */
 void Player::SendAttackSwingCantAttack()
 {
-    WorldPacket data(SMSG_ATTACKSWING_CANT_ATTACK, 0);
+    WorldPacket data(SMSG_ATTACKSWING_ERROR, 1);
+    MopCompactPackets::BuildAttackSwingError(data, MopCompactPackets::ATTACK_SWING_CANT_ATTACK);
     GetSession()->SendPacket(&data);
 }
 
@@ -125,7 +129,8 @@ void Player::SendAttackSwingCancelAttack()
  */
 void Player::SendAttackSwingBadFacingAttack()
 {
-    WorldPacket data(SMSG_ATTACKSWING_BADFACING, 0);
+    WorldPacket data(SMSG_ATTACKSWING_ERROR, 1);
+    MopCompactPackets::BuildAttackSwingError(data, MopCompactPackets::ATTACK_SWING_BAD_FACING);
     GetSession()->SendPacket(&data);
 }
 

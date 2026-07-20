@@ -30,6 +30,7 @@
 #include "SpellMgr.h"
 #include "World.h"
 #include "WorldPacket.h"
+#include "MopCompactPackets.h"
 #include "WorldSession.h"
 #include "UpdateMask.h"
 #include "SkillDiscovery.h"
@@ -90,13 +91,10 @@ void Player::SendDungeonDifficulty(bool IsInGroup)
     GetSession()->SendPacket(&data);
 }
 
-void Player::SendRaidDifficulty(bool IsInGroup)
+void Player::SendRaidDifficulty(bool /*IsInGroup*/)
 {
-    uint8 val = 0x00000001;
-    WorldPacket data(MSG_SET_RAID_DIFFICULTY, 12);
-    data << uint32(GetRaidDifficulty());
-    data << uint32(val);
-    data << uint32(IsInGroup);
+    WorldPacket data(SMSG_SET_RAID_DIFFICULTY, 4);
+    MopCompactPackets::BuildSetRaidDifficulty(data, GetRaidDifficulty());
     GetSession()->SendPacket(&data);
 }
 

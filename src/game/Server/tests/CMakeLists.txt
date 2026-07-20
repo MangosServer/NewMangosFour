@@ -55,6 +55,17 @@ set_target_properties(mop_charenum_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_
 target_link_libraries(mop_charenum_test PRIVATE game)
 add_test(NAME mop_charenum COMMAND mop_charenum_test)
 
+add_executable(mop_trainerbuyfailed_test
+    mop_trainerbuyfailed_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopTrainerBuyFailed.cpp)
+target_include_directories(mop_trainerbuyfailed_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_trainerbuyfailed_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+# Same rationale as mop_auth_test: WorldPacket/Opcodes pull the game header surface; link 'game'.
+target_link_libraries(mop_trainerbuyfailed_test PRIVATE game)
+add_test(NAME mop_trainerbuyfailed COMMAND mop_trainerbuyfailed_test)
+
 add_executable(mop_creategating_test
     mop_creategating_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../MopCreateGating.cpp)
@@ -76,3 +87,42 @@ set_target_properties(mop_updateobject_test PROPERTIES CXX_STANDARD 17 CXX_STAND
 # Same rationale as mop_auth_test: WorldPacket/Opcodes pull the game header surface; link 'game'.
 target_link_libraries(mop_updateobject_test PRIVATE game)
 add_test(NAME mop_updateobject COMMAND mop_updateobject_test)
+
+add_executable(mop_opcode_foundation_test mop_opcode_foundation_test.cpp)
+target_include_directories(mop_opcode_foundation_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_opcode_foundation_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_opcode_foundation_test PRIVATE game)
+add_test(NAME mop_opcode_foundation COMMAND mop_opcode_foundation_test)
+
+add_test(NAME mop_opcode_foundation_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_opcode_foundation_source_test.cmake)
+
+add_executable(mop_compact_packets_test mop_compact_packets_test.cpp)
+target_include_directories(mop_compact_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_compact_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_compact_packets_test PRIVATE game)
+add_test(NAME mop_compact_packets COMMAND mop_compact_packets_test)
+
+add_test(NAME mop_compact_packets_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_compact_packets_source_test.cmake)
+
+add_executable(mop_world_entry_packets_test mop_world_entry_packets_test.cpp)
+target_include_directories(mop_world_entry_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_world_entry_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_world_entry_packets_test PRIVATE game)
+add_test(NAME mop_world_entry_packets COMMAND mop_world_entry_packets_test)
+
+add_test(NAME mop_world_entry_packets_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_world_entry_packets_source_test.cmake)

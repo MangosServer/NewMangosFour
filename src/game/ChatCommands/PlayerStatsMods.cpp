@@ -28,6 +28,7 @@
 #include "World.h"
 #include "AccountMgr.h"
 #include "SQLStorages.h"
+#include "MopCompactPackets.h"
 
 /**
  * @file PlayerStatsMods.cpp
@@ -917,10 +918,8 @@ bool ChatHandler::HandleModifyMountCommand(char* args)
     data << float(speed);
     chr->SendMessageToSet(&data, true);
 
-    data.Initialize(SMSG_FORCE_SWIM_SPEED_CHANGE, (8 + 4 + 4));
-    data << chr->GetPackGUID();
-    data << (uint32)0;
-    data << float(speed);
+    data.Initialize(SMSG_MOVE_SET_SWIM_SPEED, 1 + 8 + 4 + 4);
+    MopCompactPackets::BuildMoveSetSwimSpeed(data, chr->GetObjectGuid().GetRawValue(), 0, speed);
     chr->SendMessageToSet(&data, true);
 
     return true;

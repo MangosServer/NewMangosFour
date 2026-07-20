@@ -26,6 +26,7 @@
 #include "Log.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
+#include "MopCompactPackets.h"
 #include "WorldSession.h"
 #include "World.h"
 #include "ObjectMgr.h"
@@ -312,12 +313,7 @@ void Unit::SetSpeedRate(UnitMoveType mtype, float rate, bool forced, bool ignore
                 case MOVE_SWIM:
                 {
                     data.Initialize(SMSG_MOVE_SET_SWIM_SPEED, 1 + 8 + 4 + 4 );
-                    data.WriteGuidMask<5, 4, 7, 3, 2, 0, 1, 6>(guid);
-                    data.WriteGuidBytes<0>(guid);
-                    data << uint32(0);
-                    data.WriteGuidBytes<6, 3, 5, 2>(guid);
-                    data << float(GetSpeed(mtype));
-                    data.WriteGuidBytes<1, 7, 4>(guid);
+                    MopCompactPackets::BuildMoveSetSwimSpeed(data, guid.GetRawValue(), 0, GetSpeed(mtype));
                     break;
                 }
                 case MOVE_SWIM_BACK:

@@ -61,6 +61,7 @@
 #include "SocialMgr.h"
 #include "Server/MopCharEnum.h"
 #include "Server/MopCreateGating.h"
+#include "Server/MopWorldEntryPackets.h"
 #include "Util.h"
 #include "Language.h"
 #include "SpellMgr.h"
@@ -818,12 +819,10 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     SetPlayer(pCurrChar);
     // pCurrChar->SendDungeonDifficulty(false);   // PHASE 6a: suppressed (not in the 18414 pre-map-load set); restore in 6b
 
-    WorldPacket data(SMSG_LOGIN_VERIFY_WORLD, 20);   // 5.4.8.18414 field order: X, O, Y, MapId, Z
-    data << pCurrChar->GetPositionX();
-    data << pCurrChar->GetOrientation();
-    data << pCurrChar->GetPositionY();
-    data << pCurrChar->GetMapId();
-    data << pCurrChar->GetPositionZ();
+    WorldPacket data(SMSG_LOGIN_VERIFY_WORLD, 20);   // 5.4.8.18414: X, O, Y, MapId, Z (Codex serializer; == my earlier reorder)
+    MopWorldEntryPackets::BuildLoginVerifyWorld(data, pCurrChar->GetMapId(),
+        pCurrChar->GetPositionX(), pCurrChar->GetPositionY(),
+        pCurrChar->GetPositionZ(), pCurrChar->GetOrientation());
     SendPacket(&data);
 
     // -------------------------------------------------------------- PHASE 6c (A)
@@ -985,10 +984,6 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
             pCurrChar->SetGuildLevel(0);
         }
     }
-
-    data.Initialize(SMSG_LEARNED_DANCE_MOVES, 4 + 4);
-    data << uint64(0);
-    SendPacket(&data);
 
     pCurrChar->SendInitialPacketsBeforeAddToMap();
 
@@ -1376,4 +1371,3 @@ void WorldSession::HandleShowingCloakOpcode(WorldPacket & /*recv_data*/)
     DEBUG_LOG("CMSG_SHOWING_CLOAK for %s", _player->GetName());
     _player->ToggleFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_CLOAK);
 }
-

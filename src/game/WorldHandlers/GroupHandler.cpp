@@ -46,6 +46,7 @@
 #include "Opcodes.h"
 #include "Log.h"
 #include "WorldPacket.h"
+#include "MopCompactPackets.h"
 #include "WorldSession.h"
 #include "World.h"
 #include "ObjectMgr.h"
@@ -629,11 +630,8 @@ void WorldSession::HandleRandomRollOpcode(WorldPacket& recv_data)
 
     // DEBUG_LOG("ROLL: MIN: %u, MAX: %u, ROLL: %u", minimum, maximum, roll);
 
-    WorldPacket data(MSG_RANDOM_ROLL, 4 + 4 + 4 + 8);
-    data << uint32(minimum);
-    data << uint32(maximum);
-    data << uint32(roll);
-    data << GetPlayer()->GetObjectGuid();
+    WorldPacket data(SMSG_RANDOM_ROLL, 4 + 4 + 4 + 1 + 8);
+    MopCompactPackets::BuildRandomRoll(data, GetPlayer()->GetObjectGuid().GetRawValue(), minimum, maximum, roll);
     if (GetPlayer()->GetGroup())
     {
         GetPlayer()->GetGroup()->BroadcastPacket(&data, false);
