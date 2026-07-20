@@ -54,6 +54,8 @@
 #include "GuildMgr.h"
 #include "Pet.h"
 #include "Server/MopCharEnum.h"
+#include "Server/MopControlPackets.h"
+#include "Server/MopInitialPackets.h"
 #include "Server/MopWorldEntryPackets.h"
 #include "Util.h"
 #include "Transports.h"
@@ -2779,22 +2781,8 @@ void Player::InitStatsForLevel(bool reapplyMods)
  */
 void Player::SendInitialSpells()
 {
-    time_t curTime = time(NULL);
-    time_t infTime = curTime + infinityCooldownDelayCheck;
-
-    /* * * * * * * * * * * * * * * * *
-     * * START OF PACKET STRUCTURE * *
-     * * * * * * * * * * * * * * * * */
-    uint16 spellCount = 0;
-
-    WorldPacket data(SMSG_INITIAL_SPELLS, (1 + 2 + 4 * m_spells.size() + 2 + GetSpellCooldownMap().size() * (2 + 2 + 2 + 4 + 4)));
-    data << uint8(0);
-
-    /* * * * * * * * * * * * * * * * *
-     * *  END OF PACKET STRUCTURE  * *
-     * * * * * * * * * * * * * * * * */
-    size_t countPos = data.wpos();
-    data << uint16(spellCount);                             // spell count placeholder
+    std::vector<uint32> spells;
+    spells.reserve(m_spells.size());
 
     /* For each spell the player knows */
     for (PlayerSpellMap::const_iterator itr = m_spells.begin(); itr != m_spells.end(); ++itr)
@@ -2812,57 +2800,11 @@ void Player::SendInitialSpells()
             continue;
         }
 
-        /* Insert spell into vector for insertion into packet */
-        data << uint32(itr->first);
-        data << uint16(0);                                  // it's not slot id
-
-        /* Increase spell counter by 1 (sent in packet) */
-        spellCount += 1;
+        spells.push_back(itr->first);
     }
 
-    data.put<uint16>(countPos, spellCount);                 // write real count value
-
-    /* For each spell the player has on cooldown */
-    uint16 spellCooldowns = GetSpellCooldownMap().size();
-    data << uint16(spellCooldowns);
-    for (SpellCooldowns::const_iterator itr = GetSpellCooldownMap().begin(); itr != GetSpellCooldownMap().end(); ++itr)
-    {
-        /* If the spell doesn't exist in the spellbook, just ignore it */
-        SpellEntry const* sEntry = sSpellStore.LookupEntry(itr->first);
-        if (!sEntry)
-        {
-            continue;
-        }
-
-        SpellCooldown const& spellCooldown = itr->second;
-
-        data << uint32(itr->first);
-
-        data << uint32(spellCooldown.itemid);                 // cast item id
-        data << uint16(sEntry->GetCategory());              // spell category
-
-        /* send infinity cooldown in special format */
-        if (spellCooldown.end >= infTime)
-        {
-            data << uint32(1);                              // cooldown
-            data << uint32(0x80000000);                     // category cooldown
-            continue;
-        }
-
-        time_t cooldown = spellCooldown.end > curTime ? (spellCooldown.end - curTime) * IN_MILLISECONDS : 0;
-
-        if (sEntry->GetCategory())                           // may be wrong, but anyway better than nothing...
-        {
-            data << uint32(0);                              // cooldown
-            data << uint32(cooldown);                       // category cooldown
-        }
-        else
-        {
-            data << uint32(cooldown);                       // cooldown
-            data << uint32(0);                              // category cooldown
-        }
-    }
-
+    WorldPacket data(SMSG_INITIAL_SPELLS, 3 + 4 * spells.size());
+    MopInitialPackets::BuildInitialSpells(data, spells);
     GetSession()->SendPacket(&data);
 
     DETAIL_LOG("CHARACTER: Sent Initial Spells");
@@ -4206,7 +4148,7 @@ void Player::SendProficiency(ItemClass itemClass, uint32 itemSubclassMask)
         return;
     }
     WorldPacket data(SMSG_SET_PROFICIENCY, 4 + 1);
-    data << uint32(itemSubclassMask) << uint8(itemClass) ;
+    MopInitialPackets::BuildSetProficiency(data, itemSubclassMask, uint8(itemClass));
     GetSession()->SendPacket(&data);
 }
 
@@ -4508,11 +4450,8 @@ void Player::SendInitialPacketsBeforeAddToMap()
 
     // Homebind
     WorldPacket data(SMSG_BINDPOINTUPDATE, 5*4);
-    data << m_homebindZ;
-    data << m_homebindX;
-    data << (uint32) m_homebindMapId;
-    data << m_homebindY;
-    data << (uint32) m_homebindAreaId;
+    MopInitialPackets::BuildBindPointUpdate(data, m_homebindX, m_homebindY,
+        m_homebindZ, m_homebindAreaId, m_homebindMapId);
     GetSession()->SendPacket(&data);
 
     // SMSG_SET_PROFICIENCY
@@ -4542,8 +4481,8 @@ void Player::SendInitialPacketsBeforeAddToMap()
 
     SendInitialSpells();
 
-    data.Initialize(SMSG_SEND_UNLEARN_SPELLS, 4);
-    data << uint32(0);                                      // count, for (count) uint32;
+    data.Initialize(SMSG_SEND_UNLEARN_SPELLS, 3);
+    MopInitialPackets::BuildSendUnlearnSpells(data, {});
     GetSession()->SendPacket(&data);
 
     SendInitialActionButtons();
@@ -4590,6 +4529,11 @@ void Player::SendInitialPacketsBeforeAddToMap()
  */
 void Player::SendInitialPacketsAfterAddToMap()
 {
+    // Map::Add has already queued the self create update. The 5.4.8 client
+    // must resolve that object before it accepts the active mover.
+    SetClientControl(this, 1);
+    SendActiveMover(this);
+
     // update zone
     uint32 newzone, newarea;
     GetZoneAndAreaId(newzone, newarea);
@@ -5129,9 +5073,17 @@ void Player::ResurectUsingRequestData()
  */
 void Player::SetClientControl(Unit* target, uint8 allowMove)
 {
-    WorldPacket data(SMSG_CLIENT_CONTROL_UPDATE, target->GetPackGUID().size() + 1);
-    data << target->GetPackGUID();
-    data << uint8(allowMove);
+    WorldPacket data(SMSG_CLIENT_CONTROL_UPDATE, 10);
+    MopControlPackets::BuildClientControlUpdate(
+        data, target->GetObjectGuid().GetRawValue(), allowMove != 0);
+    GetSession()->SendPacket(&data);
+}
+
+void Player::SendActiveMover(Unit const* target)
+{
+    WorldPacket data(SMSG_MOVE_SET_ACTIVE_MOVER, 9);
+    MopControlPackets::BuildSetActiveMover(
+        data, target->GetObjectGuid().GetRawValue());
     GetSession()->SendPacket(&data);
 }
 

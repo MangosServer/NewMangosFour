@@ -56,6 +56,7 @@
 #include "SocialMgr.h"
 #include "VMapFactory.h"
 #include "Util.h"
+#include "Server/MopInitialPackets.h"
 #include "TemporarySummon.h"
 #include "ScriptMgr.h"
 #include "SkillDiscovery.h"
@@ -907,11 +908,8 @@ void Spell::EffectBind(SpellEffectEntry const* effect)
 
     // binding
     WorldPacket data(SMSG_BINDPOINTUPDATE, (4 + 4 + 4 + 4 + 4));
-    data << float(loc.coord_x);
-    data << float(loc.coord_y);
-    data << float(loc.coord_z);
-    data << uint32(loc.mapid);
-    data << uint32(area_id);
+    MopInitialPackets::BuildBindPointUpdate(data, loc.coord_x, loc.coord_y,
+        loc.coord_z, area_id, loc.mapid);
     player->SendDirectMessage(&data);
 
     DEBUG_LOG("New Home Position for %s: XYZ: %f %f %f on Map %u", player->GetGuidStr().c_str(), loc.coord_x, loc.coord_y, loc.coord_z, loc.mapid);
@@ -1155,4 +1153,3 @@ void Spell::EffectCreateTamedPet(SpellEffectEntry const* effect)
     newTamedPet->SavePetToDB(PET_SAVE_AS_CURRENT);
     ((Player*)unitTarget)->PetSpellInitialize();
 }
-
