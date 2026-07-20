@@ -94,3 +94,66 @@ void MopQueryPackets::BuildCreatureQueryResponse(WorldPacket& out,
     out << record.powerMultiplier;
     out << record.family;
 }
+
+MopQueryPackets::GameObjectQueryRequest MopQueryPackets::ReadGameObjectQueryRequest(
+    WorldPacket& in)
+{
+    GameObjectQueryRequest request;
+    in >> request.entry;
+
+    uint8* guidBytes = reinterpret_cast<uint8*>(&request.guid);
+    guidBytes[5] = in.ReadBit();
+    guidBytes[3] = in.ReadBit();
+    guidBytes[6] = in.ReadBit();
+    guidBytes[2] = in.ReadBit();
+    guidBytes[7] = in.ReadBit();
+    guidBytes[1] = in.ReadBit();
+    guidBytes[0] = in.ReadBit();
+    guidBytes[4] = in.ReadBit();
+
+    in.ReadByteSeq(guidBytes[1]);
+    in.ReadByteSeq(guidBytes[5]);
+    in.ReadByteSeq(guidBytes[3]);
+    in.ReadByteSeq(guidBytes[4]);
+    in.ReadByteSeq(guidBytes[6]);
+    in.ReadByteSeq(guidBytes[2]);
+    in.ReadByteSeq(guidBytes[7]);
+    in.ReadByteSeq(guidBytes[0]);
+    return request;
+}
+
+void MopQueryPackets::BuildGameObjectQueryResponse(WorldPacket& out,
+    GameObjectQueryResponse const& record)
+{
+    ByteBuffer blob(160);
+    if (record.hasData)
+    {
+        for (std::string const& name : record.names)
+            MANGOS_ASSERT(name.size() < 0x400);
+        MANGOS_ASSERT(record.iconName.size() < 0x400);
+        MANGOS_ASSERT(record.castBarCaption.size() < 0x400);
+        MANGOS_ASSERT(record.unknownString.size() < 0x400);
+        MANGOS_ASSERT(record.questItems.size() <= 0xFF);
+
+        blob << record.type;
+        blob << record.displayId;
+        for (std::string const& name : record.names)
+            blob << name;
+        blob << record.iconName;
+        blob << record.castBarCaption;
+        blob << record.unknownString;
+        for (uint32 value : record.data)
+            blob << value;
+        blob << record.size;
+        blob << uint8(record.questItems.size());
+        for (uint32 questItem : record.questItems)
+            blob << questItem;
+        blob << record.trailingUnknown;
+    }
+
+    out.WriteBit(record.hasData);
+    out.FlushBits();
+    out << record.entry;
+    out << uint32(blob.size());
+    out.append(blob);
+}

@@ -17,6 +17,7 @@
 
 #include <array>
 #include <string>
+#include <vector>
 
 class WorldPacket;
 
@@ -52,6 +53,32 @@ namespace MopQueryPackets
 
     void BuildCreatureQueryResponse(WorldPacket& out,
         CreatureQueryResponse const& record);
+
+    struct GameObjectQueryRequest
+    {
+        uint32 entry = 0;
+        uint64 guid = 0;
+    };
+
+    struct GameObjectQueryResponse
+    {
+        uint32 entry = 0;
+        bool hasData = false;
+        uint32 type = 0;
+        uint32 displayId = 0;
+        std::array<std::string, 4> names;
+        std::string iconName;
+        std::string castBarCaption;
+        std::string unknownString;
+        std::array<uint32, 32> data{};
+        float size = 0.0f;
+        std::vector<uint32> questItems;
+        uint32 trailingUnknown = 0;
+    };
+
+    GameObjectQueryRequest ReadGameObjectQueryRequest(WorldPacket& in);
+    void BuildGameObjectQueryResponse(WorldPacket& out,
+        GameObjectQueryResponse const& record);
 }
 
 #endif

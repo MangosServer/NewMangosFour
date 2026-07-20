@@ -263,66 +263,55 @@ void WorldSession::HandleCreatureQueryOpcode(WorldPacket& recv_data)
 /// Only _static_ data send in this packet !!!
 void WorldSession::HandleGameObjectQueryOpcode(WorldPacket& recv_data)
 {
-    uint32 entryID;
-    recv_data >> entryID;
-    ObjectGuid guid;
-    recv_data >> guid;
+    MopQueryPackets::GameObjectQueryRequest const request =
+        MopQueryPackets::ReadGameObjectQueryRequest(recv_data);
+    MopQueryPackets::GameObjectQueryResponse response;
+    response.entry = request.entry;
 
-    const GameObjectInfo* info = ObjectMgr::GetGameObjectInfo(entryID);
-    if (info)
+    if (GameObjectInfo const* info = ObjectMgr::GetGameObjectInfo(request.entry))
     {
-        std::string Name;
-        std::string IconName;
-        std::string CastBarCaption;
-
-        Name = info->name;
-        IconName = info->IconName;
-        CastBarCaption = info->castBarCaption;
-
-        int loc_idx = GetSessionDbLocaleIndex();
-        if (loc_idx >= 0)
+        response.hasData = true;
+        char const* name = info->name;
+        char const* castBarCaption = info->castBarCaption;
+        int const localeIndex = GetSessionDbLocaleIndex();
+        if (localeIndex >= 0)
         {
-            GameObjectLocale const* gl = sObjectMgr.GetGameObjectLocale(entryID);
+            GameObjectLocale const* gl = sObjectMgr.GetGameObjectLocale(request.entry);
             if (gl)
             {
-                if (gl->Name.size() > size_t(loc_idx) && !gl->Name[loc_idx].empty())
-                {
-                    Name = gl->Name[loc_idx];
-                }
-                if (gl->CastBarCaption.size() > size_t(loc_idx) && !gl->CastBarCaption[loc_idx].empty())
-                {
-                    CastBarCaption = gl->CastBarCaption[loc_idx];
-                }
+                if (gl->Name.size() > size_t(localeIndex) && !gl->Name[localeIndex].empty())
+                    name = gl->Name[localeIndex].c_str();
+                if (gl->CastBarCaption.size() > size_t(localeIndex) && !gl->CastBarCaption[localeIndex].empty())
+                    castBarCaption = gl->CastBarCaption[localeIndex].c_str();
             }
         }
-        DETAIL_LOG("WORLD: CMSG_GAMEOBJECT_QUERY '%s' - Entry: %u. ", info->name, entryID);
-        WorldPacket data(SMSG_GAMEOBJECT_QUERY_RESPONSE, 150);
-        data << uint32(entryID);
-        data << uint32(info->type);
-        data << uint32(info->displayId);
-        data << Name;
-        data << uint8(0) << uint8(0) << uint8(0);           // name2, name3, name4
-        data << IconName;                                   // 2.0.3, string. Icon name to use instead of default icon for go's (ex: "Attack" makes sword)
-        data << CastBarCaption;                             // 2.0.3, string. Text will appear in Cast Bar when using GO (ex: "Collecting")
-        data << info->unk1;                                 // 2.0.3, string
-        data.append(info->raw.data, 24);
-        data << float(info->size);                          // go size
-        for (uint32 i = 0; i < 6; ++i)
-        {
-            data << uint32(info->questItems[i]);            // itemId[6], quest drop
-        }
-        SendPacket(&data);
-        DEBUG_LOG("WORLD: Sent SMSG_GAMEOBJECT_QUERY_RESPONSE");
+
+        response.names[0] = name ? name : "";
+        response.iconName = info->IconName ? info->IconName : "";
+        response.castBarCaption = castBarCaption ? castBarCaption : "";
+        response.unknownString = info->unk1 ? info->unk1 : "";
+        response.type = info->type;
+        response.displayId = info->displayId;
+        for (size_t i = 0; i < response.data.size(); ++i)
+            response.data[i] = info->raw.data[i];
+        response.size = info->size;
+        for (uint32 questItem : info->questItems)
+            response.questItems.push_back(questItem);
+
+        DETAIL_LOG("WORLD: CMSG_GAMEOBJECT_QUERY '%s' - Entry: %u.",
+                   response.names[0].c_str(), request.entry);
     }
     else
     {
+        ObjectGuid const guid(request.guid);
         DEBUG_LOG("WORLD: CMSG_GAMEOBJECT_QUERY - Guid: %s Entry: %u Missing gameobject info!",
-                  guid.GetString().c_str(), entryID);
-        WorldPacket data(SMSG_GAMEOBJECT_QUERY_RESPONSE, 4);
-        data << uint32(entryID | 0x80000000);
-        SendPacket(&data);
-        DEBUG_LOG("WORLD: Sent SMSG_GAMEOBJECT_QUERY_RESPONSE");
+                  guid.GetString().c_str(), request.entry);
     }
+
+    WorldPacket data(SMSG_GAMEOBJECT_QUERY_RESPONSE, 200);
+    MopQueryPackets::BuildGameObjectQueryResponse(data, response);
+    SendPacket(&data);
+    DEBUG_LOG("WORLD: Sent SMSG_GAMEOBJECT_QUERY_RESPONSE");
 }
 
 /**
