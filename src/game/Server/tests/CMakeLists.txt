@@ -253,3 +253,26 @@ foreach(mutation IN ITEMS query_builder_call played_builder_call query_registrat
             -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_time_query_source_test.cmake)
     set_tests_properties(mop_time_query_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
+
+add_executable(mop_movement_packets_test
+    mop_movement_packets_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/movement/MovementInfo.cpp)
+target_include_directories(mop_movement_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_movement_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_movement_packets_test PRIVATE game)
+add_test(NAME mop_movement_packets COMMAND mop_movement_packets_test)
+
+add_test(NAME mop_movement_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_movement_source_test.cmake)
+
+foreach(mutation IN ITEMS inbound_sequence player_move_sequence allocation_bound
+        flags2_width inbound_registration output_metadata heartbeat_framing mover_guid_validation)
+    add_test(NAME mop_movement_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_movement_source_test.cmake)
+    set_tests_properties(mop_movement_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
