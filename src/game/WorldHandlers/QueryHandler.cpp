@@ -69,28 +69,25 @@ void WorldSession::SendNameQueryOpcode(Player* p)
         return;
     }
 
-    // guess size
-    WorldPacket data(SMSG_NAME_QUERY_RESPONSE, (8 + 1 + 1 + 1 + 1 + 1 + 10));
-    data << p->GetPackGUID();                               // player guid
-    data << uint8(0);                                       // added in 3.1; if > 1, then end of packet
-    data << p->GetName();                                   // played name
-    data << uint8(0);                                       // realm name for cross realm BG usage
-    data << uint8(p->getRace());
-    data << uint8(p->getGender());
-    data << uint8(p->getClass());
+    MopQueryPackets::NameQueryResponse response;
+    response.guid = p->GetObjectGuid().GetRawValue();
+    response.result = 0;
+    response.realmId = realmID;
+    response.accountId = 0;
+    response.level = 0;
+    response.classId = uint8(p->getClass());
+    response.race = uint8(p->getRace());
+    response.gender = uint8(p->getGender());
+    response.displayGuid = response.guid;
+    response.name = p->GetName();
     if (DeclinedName const* names = p->GetDeclinedNames())
     {
-        data << uint8(1);                                   // is declined
         for (int i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
-        {
-            data << names->name[i];
-        }
-    }
-    else
-    {
-        data << uint8(0);                                   // is not declined
+            response.declinedNames[i] = names->name[i];
     }
 
+    WorldPacket data(SMSG_NAME_QUERY_RESPONSE, 128);
+    MopQueryPackets::BuildNameQueryResponse(data, response);
     SendPacket(&data);
 }
 
@@ -101,7 +98,8 @@ void WorldSession::SendNameQueryOpcode(Player* p)
  */
 void WorldSession::SendNameQueryOpcodeFromDB(ObjectGuid guid)
 {
-    CharacterDatabase.AsyncPQuery(&WorldSession::SendNameQueryOpcodeFromDBCallBack, GetAccountId(),
+    CharacterDatabase.AsyncPQuery(&WorldSession::SendNameQueryOpcodeFromDBCallBack,
+                                  GetAccountId(), guid.GetRawValue(),
                                   !sWorld.getConfig(CONFIG_BOOL_DECLINED_NAMES_USED) ?
                                   //   ------- Query Without Declined Names --------
                                   //       0       1       2       3         4
@@ -122,14 +120,11 @@ void WorldSession::SendNameQueryOpcodeFromDB(ObjectGuid guid)
  *
  * @param result The database result.
  * @param accountId The requesting account id.
+ * @param requestedGuid The original queried GUID.
  */
-void WorldSession::SendNameQueryOpcodeFromDBCallBack(QueryResult* result, uint32 accountId)
+void WorldSession::SendNameQueryOpcodeFromDBCallBack(QueryResult* result,
+    uint32 accountId, uint64 requestedGuid)
 {
-    if (!result)
-    {
-        return;
-    }
-
     WorldSession* session = sWorld.FindSession(accountId);
     if (!session)
     {
@@ -137,45 +132,38 @@ void WorldSession::SendNameQueryOpcodeFromDBCallBack(QueryResult* result, uint32
         return;
     }
 
-    Field* fields = result->Fetch();
-    uint32 lowguid      = fields[0].GetUInt32();
-    std::string name = fields[1].GetCppString();
-    uint8 pRace = 0, pGender = 0, pClass = 0;
-    if (name.empty())
+    MopQueryPackets::NameQueryResponse response;
+    response.guid = requestedGuid;
+    if (result)
     {
-        name         = session->GetMangosString(LANG_NON_EXIST_CHARACTER);
-    }
-    else
-    {
-        pRace        = fields[2].GetUInt8();
-        pGender      = fields[3].GetUInt8();
-        pClass       = fields[4].GetUInt8();
-    }
-
-    // guess size
-    WorldPacket data(SMSG_NAME_QUERY_RESPONSE, (8 + 1 + 1 + 1 + 1 + 1 + 1 + 10));
-    data << ObjectGuid(HIGHGUID_PLAYER, lowguid).WriteAsPacked();
-    data << uint8(0);                                       // added in 3.1; if > 1, then end of packet
-    data << name;
-    data << uint8(0);                                       // realm name for cross realm BG usage
-    data << uint8(pRace);                                   // race
-    data << uint8(pGender);                                 // gender
-    data << uint8(pClass);                                  // class
-
-    // if the first declined name field (5) is empty, the rest must be too
-    if (sWorld.getConfig(CONFIG_BOOL_DECLINED_NAMES_USED) && !fields[5].GetCppString().empty())
-    {
-        data << uint8(1);                                   // is declined
-        for (int i = 5; i < MAX_DECLINED_NAME_CASES + 5; ++i)
+        Field* fields = result->Fetch();
+        response.result = 0;
+        response.realmId = realmID;
+        response.accountId = 0;
+        response.level = 0;
+        response.name = fields[1].GetCppString();
+        if (response.name.empty())
+            response.name = session->GetMangosString(LANG_NON_EXIST_CHARACTER);
+        else
         {
-            data << fields[i].GetCppString();
+            response.race = fields[2].GetUInt8();
+            response.gender = fields[3].GetUInt8();
+            response.classId = fields[4].GetUInt8();
+        }
+        response.displayGuid = requestedGuid;
+
+        if (sWorld.getConfig(CONFIG_BOOL_DECLINED_NAMES_USED) &&
+            !fields[5].GetCppString().empty())
+        {
+            for (int i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
+                response.declinedNames[i] = fields[i + 5].GetCppString();
         }
     }
     else
-    {
-        data << uint8(0);                                   // is not declined
-    }
+        response.result = 1;
 
+    WorldPacket data(SMSG_NAME_QUERY_RESPONSE, 128);
+    MopQueryPackets::BuildNameQueryResponse(data, response);
     session->SendPacket(&data);
     delete result;
 }
@@ -187,11 +175,9 @@ void WorldSession::SendNameQueryOpcodeFromDBCallBack(QueryResult* result, uint32
  */
 void WorldSession::HandleNameQueryOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid guid;
-
-    recv_data >> guid;
-
-    Player* pChar = sObjectMgr.GetPlayer(guid);
+    MopQueryPackets::NameQueryRequest const request =
+        MopQueryPackets::ReadNameQueryRequest(recv_data);
+    Player* pChar = sObjectMgr.GetPlayer(ObjectGuid(request.guid));
 
     if (pChar)
     {
@@ -199,7 +185,7 @@ void WorldSession::HandleNameQueryOpcode(WorldPacket& recv_data)
     }
     else
     {
-        SendNameQueryOpcodeFromDB(guid);
+        SendNameQueryOpcodeFromDB(ObjectGuid(request.guid));
     }
 }
 

@@ -446,7 +446,8 @@ class WorldSession
 
         void SendNameQueryOpcode(Player* p);
         void SendNameQueryOpcodeFromDB(ObjectGuid guid);
-        static void SendNameQueryOpcodeFromDBCallBack(QueryResult* result, uint32 accountId);
+        static void SendNameQueryOpcodeFromDBCallBack(QueryResult* result,
+            uint32 accountId, uint64 requestedGuid);
 
         void SendTrainerList(ObjectGuid guid);
         void SendTrainerList(ObjectGuid guid, const std::string& strTitle);

@@ -23,6 +23,36 @@ class WorldPacket;
 
 namespace MopQueryPackets
 {
+    struct NameQueryRequest
+    {
+        uint64 guid = 0;
+        bool hasRealmId2 = false;
+        uint32 realmId2 = 0;
+        bool hasRealmId1 = false;
+        uint32 realmId1 = 0;
+    };
+
+    struct NameQueryResponse
+    {
+        uint64 guid = 0;
+        uint8 result = 1;
+        uint32 realmId = 0;
+        uint32 accountId = 0;
+        uint8 classId = 0;
+        uint8 race = 0;
+        uint8 level = 0;
+        uint8 gender = 0;
+        uint64 auxiliaryGuid = 0;
+        uint64 displayGuid = 0;
+        bool isDeleted = false;
+        std::string name;
+        std::array<std::string, 5> declinedNames;
+    };
+
+    NameQueryRequest ReadNameQueryRequest(WorldPacket& in);
+    void BuildNameQueryResponse(WorldPacket& out,
+        NameQueryResponse const& record);
+
     void BuildQueryTimeResponse(WorldPacket& out, uint32 serverTime,
         uint32 secondsUntilReset);
     bool ReadPlayedTimeRequest(WorldPacket& in);
