@@ -258,8 +258,8 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_BINDPOINTUPDATE:
         case SMSG_SET_PROFICIENCY:
         case SMSG_WEATHER:
+        case SMSG_ALL_ACHIEVEMENT_DATA:  // Wave 5 Task 2 -- converted 6908c5f9e (MopAchievementPackets)
             return true;
-        // case SMSG_ALL_ACHIEVEMENT_DATA:  // Wave 5 Task 2 (two-pass GUID) -- NOT converted yet; keep suppressed
         default:
             break;
     }
