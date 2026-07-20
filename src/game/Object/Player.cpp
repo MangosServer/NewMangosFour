@@ -54,6 +54,7 @@
 #include "GuildMgr.h"
 #include "Pet.h"
 #include "Server/MopCharEnum.h"
+#include "Server/MopWorldEntryPackets.h"
 #include "Util.h"
 #include "Transports.h"
 #include "Weather.h"
@@ -1603,32 +1604,11 @@ void Player::SendTeleportPacket(float oldX, float oldY, float oldZ, float oldO)
     ObjectGuid guid = GetObjectGuid();
     ObjectGuid transportGuid = m_movementInfo.GetTransportGuid();
 
-    WorldPacket data(SMSG_MOVE_TELEPORT, 38);
-    data.WriteGuidMask<6, 0, 3, 2>(guid);
-    data.WriteBit(0);       // unknown
-    data.WriteBit(!transportGuid.IsEmpty());
-    data.WriteGuidMask<1>(guid);
-    if (transportGuid)
-    {
-        data.WriteGuidMask<1, 3, 2, 5, 0, 7, 6, 4>(transportGuid);
-    }
-
-    data.WriteGuidMask<4, 7, 5>(guid);
-
-    if (transportGuid)
-    {
-        data.WriteGuidBytes<5, 6, 1, 7, 0, 2, 4, 3>(transportGuid);
-    }
-
-    data << uint32(0);  // counter
-    data.WriteGuidBytes<1, 2, 3, 5>(guid);
-    data << float(GetPositionX());
-    data.WriteGuidBytes<4>(guid);
-    data << float(GetOrientation());
-    data.WriteGuidBytes<7>(guid);
-    data << float(GetPositionZ());
-    data.WriteGuidBytes<0, 6>(guid);
-    data << float(GetPositionY());
+    WorldPacket data
+    (SMSG_MOVE_TELEPORT, 39);
+    MopWorldEntryPackets::BuildMoveTeleport(data, guid.GetRawValue(),
+        transportGuid.GetRawValue(), 0, GetPositionX(), GetPositionY(),
+        GetPositionZ(), GetOrientation());
 
     Relocate(oldX, oldY, oldZ, oldO);
     SendDirectMessage(&data);
@@ -1909,30 +1889,13 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
             if (!GetSession()->PlayerLogout())
             {
                 // transfer finished, inform client to start load
-                WorldPacket data(SMSG_NEW_WORLD, 20);
-                if (m_transport)
-                {
-                    data << float(transportPosition->x);
-                    data << float(transportPosition->o);
-                    data << float(transportPosition->y);
-                }
-                else
-                {
-                    data << float(final_x);
-                    data << float(NormalizeOrientation(final_o));
-                    data << float(final_y);
-                }
-
-                data << uint32(mapid);
-
-                if (m_transport)
-                {
-                    data << float(transportPosition->z);
-                }
-                else
-                {
-                    data << float(final_z);
-                }
+                float const worldX = m_transport ? transportPosition->x : final_x;
+                float const worldY = m_transport ? transportPosition->y : final_y;
+                float const worldZ = m_transport ? transportPosition->z : final_z;
+                float const worldO = m_transport ? transportPosition->o : NormalizeOrientation(final_o);
+                WorldPacket data
+                (SMSG_NEW_WORLD, 20);
+                MopWorldEntryPackets::BuildNewWorld(data, mapid, worldX, worldY, worldZ, worldO);
 
                 GetSession()->SendPacket(&data);
                 SendSavedInstances();
@@ -4518,7 +4481,7 @@ void Player::SendInitialPacketsBeforeAddToMap()
 
     //m_achievementMgr.SendAllAchievementData();
 
-    //data.Initialize(SMSG_LOGIN_SETTIMESPEED, 4 + 4 + 4);
+    // Legacy login-time body was incompatible with the 5.4.8 reader.
     //data << uint32(secsToTimeBitFields(sWorld.GetGameTime()));
     //data << uint32(secsToTimeBitFields(sWorld.GetGameTime()));
     //data << (float)0.01666667f;                             // game speed
@@ -4597,13 +4560,10 @@ void Player::SendInitialPacketsBeforeAddToMap()
 
     m_achievementMgr.SendAllAchievementData();
 
-    data.Initialize(SMSG_LOGIN_SETTIMESPEED, 20);
-
-    data << uint32(1);
-    data << uint32(1);
-    data << float(0.01666667f);                             // game speed
-    data << uint32(secsToTimeBitFields(sWorld.GetGameTime()));
-    data << uint32(secsToTimeBitFields(sWorld.GetGameTime()));
+    data.Initialize(
+        SMSG_LOGIN_SETTIMESPEED, 20);
+    MopWorldEntryPackets::BuildLoginSetTimeSpeed(
+        data, secsToTimeBitFields(sWorld.GetGameTime()), 0.01666667f);
 
     GetSession()->SendPacket(&data);
 

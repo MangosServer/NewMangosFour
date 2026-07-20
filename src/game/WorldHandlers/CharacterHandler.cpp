@@ -59,6 +59,7 @@
 #include "SocialMgr.h"
 #include "Server/MopCharEnum.h"
 #include "Server/MopCreateGating.h"
+#include "Server/MopWorldEntryPackets.h"
 #include "Util.h"
 #include "Language.h"
 #include "SpellMgr.h"
@@ -814,12 +815,11 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     SetPlayer(pCurrChar);
     pCurrChar->SendDungeonDifficulty(false);
 
-    WorldPacket data(SMSG_LOGIN_VERIFY_WORLD, 20);
-    data << pCurrChar->GetMapId();
-    data << pCurrChar->GetPositionX();
-    data << pCurrChar->GetPositionY();
-    data << pCurrChar->GetPositionZ();
-    data << pCurrChar->GetOrientation();
+    WorldPacket data
+    (SMSG_LOGIN_VERIFY_WORLD, 20);
+    MopWorldEntryPackets::BuildLoginVerifyWorld(data, pCurrChar->GetMapId(),
+        pCurrChar->GetPositionX(), pCurrChar->GetPositionY(),
+        pCurrChar->GetPositionZ(), pCurrChar->GetOrientation());
     SendPacket(&data);
 
     // load player specific part before send times
