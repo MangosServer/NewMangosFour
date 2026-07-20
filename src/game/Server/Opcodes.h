@@ -84,7 +84,6 @@ enum OpcodesList
     CMSG_WORLD_TELEPORT                          = 0x24B2, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     CMSG_TELEPORT_TO_UNIT                        = 0x4206, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_ZONE_MAP                                = 0x100C,    // (legacy; no client leaf)
-    SMSG_MOVE_CHARACTER_CHEAT                    = 0x100F,    // 5.4.8 18414 (Wow.exe leaf; name legacy)
     SMSG_CHECK_FOR_BOTS                          = 0x1016,    // (legacy; no client leaf)
     SMSG_FORCEACTIONSHOW                         = 0x101C,    // (legacy; no client leaf)
     SMSG_PETGODMODE                              = 0x1940,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)

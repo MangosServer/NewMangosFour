@@ -55,6 +55,7 @@
 #include "Pet.h"
 #include "MapManager.h"
 #include "SQLStorages.h"
+#include "Server/MopQueryPackets.h"
 
 /**
  * @brief Sends an in-memory name query response for a player.
@@ -217,65 +218,46 @@ void WorldSession::HandleCreatureQueryOpcode(WorldPacket& recv_data)
 {
     uint32 entry;
     recv_data >> entry;
-    ObjectGuid guid;
-    recv_data >> guid;
 
-    CreatureInfo const* ci = ObjectMgr::GetCreatureTemplate(entry);
-    if (ci)
+    MopQueryPackets::CreatureQueryResponse response;
+    response.entry = entry;
+    if (CreatureInfo const* ci = ObjectMgr::GetCreatureTemplate(entry))
     {
-        int loc_idx = GetSessionDbLocaleIndex();
-
+        response.hasData = true;
         char const* name = ci->Name;
         char const* subName = ci->SubName;
-        sObjectMgr.GetCreatureLocaleStrings(entry, loc_idx, &name, &subName);
+        int const localeIndex = GetSessionDbLocaleIndex();
+        if (localeIndex >= 0)
+            sObjectMgr.GetCreatureLocaleStrings(entry, localeIndex, &name, &subName);
 
         DETAIL_LOG("WORLD: CMSG_CREATURE_QUERY '%s' - Entry: %u.", ci->Name, entry);
-        // guess size
-        WorldPacket data(SMSG_CREATURE_QUERY_RESPONSE, 100);
-        data << uint32(entry);                              // creature entry
-        data << name;
-
-        for (uint8 i = 0; i < 7; ++i)
-        {
-            data << uint8(0);            // name2, name3, name4, always empty
-        }
-
-        data << subName;
-        data << ci->IconName;                               // "Directions" for guard, string for Icons 2.3.0
-        data << uint32(ci->CreatureTypeFlags);                     // flags
-        data << uint32(0);                                  // unk
-        data << uint32(ci->CreatureType);                   // CreatureType.dbc
-        data << uint32(ci->Family);                         // CreatureFamily.dbc
-        data << uint32(ci->Rank);                           // Creature Rank (elite, boss, etc)
-        data << uint32(ci->KillCredit[0]);                  // new in 3.1, kill credit
-        data << uint32(ci->KillCredit[1]);                  // new in 3.1, kill credit
-
-        for (int i = 0; i < MAX_CREATURE_MODEL; ++i)
-        {
-            data << uint32(ci->ModelId[i]);
-        }
-
-        data << float(ci->HealthMultiplier);                  // health modifier
-        data << float(ci->PowerMultiplier);                   // power modifier
-        data << uint8(ci->RacialLeader);
-        for (uint32 i = 0; i < 6; ++i)
-        {
-            data << uint32(ci->QuestItems[i]);              // itemId[6], quest drop
-        }
-        data << uint32(ci->MovementTemplateId);                     // CreatureMovementInfo.dbc
-        data << uint32(0);                                  //unk
-        SendPacket(&data);
-        DEBUG_LOG("WORLD: Sent SMSG_CREATURE_QUERY_RESPONSE");
+        response.name = name ? name : "";
+        response.subName = subName ? subName : "";
+        response.iconName = ci->IconName ? ci->IconName : "";
+        response.creatureType = ci->CreatureType;
+        response.family = ci->Family;
+        response.rank = ci->Rank;
+        response.expansion = uint32(ci->Expansion);
+        response.movementTemplateId = ci->MovementTemplateId;
+        response.creatureTypeFlags = ci->CreatureTypeFlags;
+        response.creatureTypeFlags2 = 0;
+        response.modelIds = {{ ci->ModelId[0], ci->ModelId[1], ci->ModelId[2], ci->ModelId[3] }};
+        response.killCredits = {{ ci->KillCredit[0], ci->KillCredit[1] }};
+        response.healthMultiplier = ci->HealthMultiplier;
+        response.powerMultiplier = ci->PowerMultiplier;
+        response.racialLeader = ci->RacialLeader != 0;
+        for (size_t i = 0; i < response.questItems.size(); ++i)
+            response.questItems[i] = ci->QuestItems[i];
     }
     else
     {
-        DEBUG_LOG("WORLD: CMSG_CREATURE_QUERY - Guid: %s Entry: %u NO CREATURE INFO!",
-                  guid.GetString().c_str(), entry);
-        WorldPacket data(SMSG_CREATURE_QUERY_RESPONSE, 4);
-        data << uint32(entry | 0x80000000);
-        SendPacket(&data);
-        DEBUG_LOG("WORLD: Sent SMSG_CREATURE_QUERY_RESPONSE");
+        DEBUG_LOG("WORLD: CMSG_CREATURE_QUERY - Entry: %u NO CREATURE INFO!", entry);
     }
+
+    WorldPacket data(SMSG_CREATURE_QUERY_RESPONSE, 128);
+    MopQueryPackets::BuildCreatureQueryResponse(data, response);
+    SendPacket(&data);
+    DEBUG_LOG("WORLD: Sent SMSG_CREATURE_QUERY_RESPONSE");
 }
 
 /// Only _static_ data send in this packet !!!
@@ -652,7 +634,8 @@ void WorldSession::HandleQuestPOIQueryOpcode(WorldPacket& recv_data)
 void WorldSession::SendQueryTimeResponse()
 {
     WorldPacket data(SMSG_QUERY_TIME_RESPONSE, 4 + 4);
-    data << uint32(time(NULL));
-    data << uint32(sWorld.GetNextDailyQuestsResetTime() - time(NULL));
+    uint32 const serverTime = uint32(time(NULL));
+    uint32 const secondsUntilReset = uint32(sWorld.GetNextDailyQuestsResetTime() - time(NULL));
+    MopQueryPackets::BuildQueryTimeResponse(data, serverTime, secondsUntilReset);
     SendPacket(&data);
 }
