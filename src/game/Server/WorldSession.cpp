@@ -233,6 +233,36 @@ char const* WorldSession::GetPlayerName() const
 }
 
 /// Send a packet to the client
+// PHASE 6c enter-world envelope whitelist. m_suppressWorldSends drops the entire
+// SendInitialPacketsAfterAddToMap flow while its packets are still Cata-format. As each of those
+// send-functions is converted to a genuine 18414 wire body (remote Codex Wave 5+), add its opcode
+// here so the CONVERTED normal-flow send passes suppression -- letting us bring the in-world
+// UI/input envelope online one batch at a time and test incrementally.
+// HARD RULE: never whitelist an opcode until its send emits a real 18414 body; a stale Cata body
+// reaching the 18414 client can crash it. This whole gate (and m_suppressWorldSends) is removed
+// once the after-map flow is fully at parity.
+static bool IsEnterWorldConverted(uint16 /*opcode*/)
+{
+    // switch (opcode)
+    // {
+    //     // uncomment each case as Wave 5 converts that packet's send-function to 18414:
+    //     case SMSG_INITIAL_SPELLS:
+    //     case SMSG_SEND_UNLEARN_SPELLS:
+    //     case SMSG_ACTION_BUTTONS:
+    //     case SMSG_INITIALIZE_FACTIONS:
+    //     case SMSG_ACCOUNT_DATA_TIMES:
+    //     case SMSG_FEATURE_SYSTEM_STATUS:
+    //     case SMSG_TUTORIAL_FLAGS:
+    //     case SMSG_BINDPOINTUPDATE:
+    //     case SMSG_SET_PROFICIENCY:
+    //     case SMSG_WEATHER:
+    //     case SMSG_ALL_ACHIEVEMENT_DATA:
+    //         return true;
+    //     default: break;
+    // }
+    return false;
+}
+
 void WorldSession::SendPacket(WorldPacket const* packet, bool bypassSuppress)
 {
 #ifdef ENABLE_PLAYERBOTS
@@ -259,7 +289,7 @@ void WorldSession::SendPacket(WorldPacket const* packet, bool bypassSuppress)
     // Map::SendInitSelf, and the active-mover). This also drops the Cata self-VALUES updates
     // and nearby-object create-blocks that would otherwise corrupt the client. Cleared on
     // logout. Temporary port scaffold, lifted once the object-update/preamble paths convert.
-    if (m_suppressWorldSends && !bypassSuppress)
+    if (m_suppressWorldSends && !bypassSuppress && !IsEnterWorldConverted(uint16(packet->GetOpcode())))
     {
         return;
     }
