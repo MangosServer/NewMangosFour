@@ -27,6 +27,7 @@
 #include "Player.h"
 #include "WorldPacket.h"
 #include "ObjectMgr.h"
+#include "Server/MopInitialPackets.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /*ENABLE_ELUNA*/
@@ -240,36 +241,18 @@ void ReputationMgr::SendState(FactionState const* faction, bool anyRankIncreased
  */
 void ReputationMgr::SendInitialReputations()
 {
-    WorldPacket data(SMSG_INITIALIZE_FACTIONS, (4 + 128 * 5));
-    data << uint32 (0x00000100);
-
-    RepListID a = 0;
-
+    std::array<MopInitialPackets::Reputation, MopInitialPackets::REPUTATION_COUNT> reputations{};
     for (FactionStateList::iterator itr = m_factions.begin(); itr != m_factions.end(); ++itr)
     {
-        // fill in absent fields
-        for (; a != itr->first; ++a)
-        {
-            data << uint8(0x00);
-            data << uint32(0x00000000);
-        }
-
-        // fill in encountered data
-        data << uint8(itr->second.Flags);
-        data << uint32(itr->second.Standing);
-
+        MANGOS_ASSERT(itr->first < MopInitialPackets::REPUTATION_COUNT);
+        reputations[itr->first].flags = itr->second.Flags;
+        reputations[itr->first].standing = itr->second.Standing;
+        reputations[itr->first].bonus = false;
         itr->second.needSend = false;
-
-        ++a;
     }
 
-    // fill in absent fields
-    for (; a != 256; ++a)
-    {
-        data << uint8(0x00);
-        data << uint32(0x00000000);
-    }
-
+    WorldPacket data(SMSG_INITIALIZE_FACTIONS, 1312);
+    MopInitialPackets::BuildInitializeFactions(data, reputations);
     m_player->SendDirectMessage(&data);
 }
 

@@ -34,6 +34,7 @@
 #include "WorldPacket.h"
 #include "Log.h"
 #include "Util.h"
+#include "Server/MopInitialPackets.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /*ENABLE_ELUNA*/
@@ -230,8 +231,7 @@ void Weather::SendWeatherUpdateToPlayer(Player* player)
     NormalizeGrade();
 
     WorldPacket data(SMSG_WEATHER, (4 + 4 + 1));
-
-    data << uint32(GetWeatherState()) << (float)m_grade << uint8(0);
+    MopInitialPackets::BuildWeather(data, uint32(GetWeatherState()), m_grade, false);
     player->GetSession()->SendPacket(&data);
 }
 
@@ -244,7 +244,7 @@ bool Weather::SendWeatherForPlayersInZone(Map const* _map)
 
     // To be sent packet
     WorldPacket data(SMSG_WEATHER, (4 + 4 + 1));
-    data << uint32(state) << (float)m_grade << uint8(0);
+    MopInitialPackets::BuildWeather(data, uint32(state), m_grade, false);
 
     ///- Send the weather packet to all players in this zone
     if (!_map->SendToPlayersInZone(&data, m_zone))

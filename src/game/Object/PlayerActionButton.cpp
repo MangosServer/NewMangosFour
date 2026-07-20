@@ -27,6 +27,7 @@
 #include "Database/DatabaseEnv.h"
 #include "Log.h"
 #include "Opcodes.h"
+#include "Server/MopInitialPackets.h"
 #include "SpellMgr.h"
 #include "World.h"
 #include "WorldPacket.h"
@@ -89,9 +90,9 @@ void Player::SendInitialActionButtons() const
 {
     DETAIL_LOG("Initializing Action Buttons for '%u' spec '%u'", GetGUIDLow(), m_activeSpec);
 
-    WorldPacket data(SMSG_ACTION_BUTTONS, 1 + (MAX_ACTION_BUTTONS * 4));
+    std::array<MopInitialPackets::ActionButton, MopInitialPackets::ACTION_BUTTON_COUNT> buttons{};
     ActionButtonList const& currentActionButtonList = m_actionButtons[m_activeSpec];
-    for (uint8 button = 0; button < MAX_ACTION_BUTTONS; ++button)
+    for (uint8 button = 0; button < MopInitialPackets::ACTION_BUTTON_COUNT; ++button)
     {
         /* Try and get each action button the player could have */
         ActionButtonList::const_iterator itr = currentActionButtonList.find(button);
@@ -99,16 +100,13 @@ void Player::SendInitialActionButtons() const
         /* If the button is valid and not deleted */
         if (itr != currentActionButtonList.end() && itr->second.uState != ACTIONBUTTON_DELETED)
         {
-            /* Send the data */
-            data << uint32(itr->second.packedData);
-        }
-        else
-        {
-            /* Nothing to send, so just send 0 */
-            data << uint32(0);
+            buttons[button].action = itr->second.GetAction();
+            buttons[button].type = uint8(itr->second.GetType());
         }
     }
-    data << uint8(1);                                       // talent spec amount (in packet)
+
+    WorldPacket data(SMSG_ACTION_BUTTONS, 1 + 9 * MopInitialPackets::ACTION_BUTTON_COUNT);
+    MopInitialPackets::BuildActionButtons(data, buttons, 1);
     GetSession()->SendPacket(&data);
     DETAIL_LOG("Action Buttons for '%u' spec '%u' Initialized", GetGUIDLow(), m_activeSpec);
 }
@@ -116,10 +114,22 @@ void Player::SendInitialActionButtons() const
 void Player::SendLockActionButtons() const
 {
     DETAIL_LOG("Locking Action Buttons for '%u' spec '%u'", GetGUIDLow(), m_activeSpec);
-    WorldPacket data(SMSG_ACTION_BUTTONS, 1);
+    std::array<MopInitialPackets::ActionButton, MopInitialPackets::ACTION_BUTTON_COUNT> buttons{};
+    ActionButtonList const& currentActionButtonList = m_actionButtons[m_activeSpec];
+    for (uint8 button = 0; button < MopInitialPackets::ACTION_BUTTON_COUNT; ++button)
+    {
+        ActionButtonList::const_iterator itr = currentActionButtonList.find(button);
+        if (itr != currentActionButtonList.end() && itr->second.uState != ACTIONBUTTON_DELETED)
+        {
+            buttons[button].action = itr->second.GetAction();
+            buttons[button].type = uint8(itr->second.GetType());
+        }
+    }
+
+    WorldPacket data(SMSG_ACTION_BUTTONS, 1 + 9 * MopInitialPackets::ACTION_BUTTON_COUNT);
     // sending 2 locks actions bars, neither user can remove buttons, nor client removes buttons at spell unlearn
     // they remain locked until server sends new action buttons
-    data << uint8(2);
+    MopInitialPackets::BuildActionButtons(data, buttons, 2);
     GetSession()->SendPacket(&data);
 }
 

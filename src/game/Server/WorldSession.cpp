@@ -52,6 +52,7 @@
 #include "Opcodes.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
+#include "MopInitialPackets.h"
 #include "Player.h"
 #include "ObjectMgr.h"
 #include "Group.h"
@@ -1122,16 +1123,14 @@ void WorldSession::SetAccountData(AccountDataType type, time_t time_, const std:
 
 void WorldSession::SendAccountDataTimes(uint32 mask)
 {
-    WorldPacket data(SMSG_ACCOUNT_DATA_TIMES, 4 + 1 + 4 + NUM_ACCOUNT_DATA_TYPES * 4);
-
-    data.WriteBit(1);
-
+    static_assert(NUM_ACCOUNT_DATA_TYPES == MopInitialPackets::ACCOUNT_DATA_COUNT,
+        "account data wire count changed");
+    std::array<uint32, MopInitialPackets::ACCOUNT_DATA_COUNT> times{};
     for (uint32 i = 0; i < NUM_ACCOUNT_DATA_TYPES; ++i)
-    {
-        data << uint32(GetAccountData(AccountDataType(i))->Time);// also unix time
-    }
-    data << uint32(mask);                                   // type mask
-    data << uint32(time(NULL));                             // unix time of something
+        times[i] = uint32(GetAccountData(AccountDataType(i))->Time);
+
+    WorldPacket data(SMSG_ACCOUNT_DATA_TIMES, 41);
+    MopInitialPackets::BuildAccountDataTimes(data, times, mask, uint32(time(NULL)), true);
     SendPacket(&data);
 }
 
@@ -1174,11 +1173,12 @@ void WorldSession::LoadTutorialsData()
  */
 void WorldSession::SendTutorialsData()
 {
+    std::array<uint32, MopInitialPackets::TUTORIAL_WORD_COUNT> words{};
+    for (uint32 i = 0; i < MopInitialPackets::TUTORIAL_WORD_COUNT; ++i)
+        words[i] = m_Tutorials[i];
+
     WorldPacket data(SMSG_TUTORIAL_FLAGS, 4 * 8);
-    for (uint32 i = 0; i < 8; ++i)
-    {
-        data << m_Tutorials[i];
-    }
+    MopInitialPackets::BuildTutorialFlags(data, words);
     SendPacket(&data);
 }
 
