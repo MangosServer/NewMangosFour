@@ -147,7 +147,10 @@ static void test_opcode_is_framable()
     CHECK(uint32(SMSG_TRAINER_BUY_FAILED) == 0x042E);
 }
 
-int main()
+// Signature must take (argc, argv): linking 'game' pulls ACE, which macro-replaces
+// main with ace_main_i(int, char**). A bare main() links as ace_main_i(void) and
+// fails with LNK2019. Same convention as the sibling tests that link 'game'.
+int main(int /*argc*/, char** /*argv*/)
 {
     test_all_bytes_present();
     test_sparse_guid();
