@@ -11,6 +11,71 @@ file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/SpellEffectTail.cpp" spell_effe
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/opcode_register.inc" login_registry)
 
+if(MUTATION STREQUAL "pre_map_call")
+    string(REPLACE
+        "    m_achievementMgr.SendAllAchievementData();"
+        "    // m_achievementMgr.SendAllAchievementData();"
+        player "${player}")
+elseif(MUTATION STREQUAL "after_map_call")
+    string(REPLACE
+        "    pCurrChar->SendInitialPacketsAfterAddToMap();"
+        "    // pCurrChar->SendInitialPacketsAfterAddToMap();"
+        character_handler "${character_handler}")
+elseif(MUTATION STREQUAL "opcode_metadata")
+    string(REPLACE
+        "    DefS(SMSG_ALL_ACHIEVEMENT_DATA, \"SMSG_ALL_ACHIEVEMENT_DATA\");"
+        "    // DefS(SMSG_ALL_ACHIEVEMENT_DATA, \"SMSG_ALL_ACHIEVEMENT_DATA\");"
+        opcode_registry "${opcode_registry}")
+endif()
+
+function(strip_cpp_comments output source)
+    set(text "${source}")
+    while(TRUE)
+        string(FIND "${text}" "/*" comment_start)
+        if(comment_start EQUAL -1)
+            break()
+        endif()
+        math(EXPR tail_start "${comment_start} + 2")
+        string(SUBSTRING "${text}" ${tail_start} -1 tail)
+        string(FIND "${tail}" "*/" comment_end)
+        if(comment_end EQUAL -1)
+            message(FATAL_ERROR "Unterminated block comment while scanning source")
+        endif()
+        string(SUBSTRING "${text}" 0 ${comment_start} before)
+        math(EXPR after_start "${comment_end} + 2")
+        string(SUBSTRING "${tail}" ${after_start} -1 after)
+        set(text "${before}${after}")
+    endwhile()
+    string(REGEX REPLACE "//[^\r\n]*" "" text "${text}")
+    set(${output} "${text}" PARENT_SCOPE)
+endfunction()
+
+function(require_ordered source context)
+    set(remaining "${source}")
+    foreach(token IN LISTS ARGN)
+        string(FIND "${remaining}" "${token}" position)
+        if(position EQUAL -1)
+            message(FATAL_ERROR "${context}: missing active ordered token: ${token}")
+        endif()
+        string(LENGTH "${token}" token_length)
+        math(EXPR next_position "${position} + ${token_length}")
+        string(SUBSTRING "${remaining}" ${next_position} -1 remaining)
+    endforeach()
+endfunction()
+
+strip_cpp_comments(player "${player}")
+strip_cpp_comments(player_header "${player_header}")
+strip_cpp_comments(action_buttons "${action_buttons}")
+strip_cpp_comments(reputation "${reputation}")
+strip_cpp_comments(world_session "${world_session}")
+strip_cpp_comments(world_session_mgr "${world_session_mgr}")
+strip_cpp_comments(character_handler "${character_handler}")
+strip_cpp_comments(achievement "${achievement}")
+strip_cpp_comments(weather "${weather}")
+strip_cpp_comments(spell_effect "${spell_effect}")
+strip_cpp_comments(opcode_registry "${opcode_registry}")
+strip_cpp_comments(login_registry "${login_registry}")
+
 function(extract_body output source start_marker end_marker)
     string(FIND "${source}" "${start_marker}" start)
     string(FIND "${source}" "${end_marker}" end)
@@ -106,6 +171,51 @@ if(NOT all_achievements MATCHES "MopAchievementPackets::BuildAllAchievementData"
     message(FATAL_ERROR "BuildAllAchievementData is not used by its production sender")
 endif()
 
+require_ordered("${initial_spells}" "INITIAL_SPELLS writer"
+    "WorldPacket data(SMSG_INITIAL_SPELLS"
+    "MopInitialPackets::BuildInitialSpells(data"
+    "GetSession()->SendPacket(&data)")
+require_ordered("${initial_actions}" "initial ACTION_BUTTONS writer"
+    "WorldPacket data(SMSG_ACTION_BUTTONS"
+    "MopInitialPackets::BuildActionButtons(data"
+    "GetSession()->SendPacket(&data)")
+require_ordered("${lock_actions}" "lock ACTION_BUTTONS writer"
+    "WorldPacket data(SMSG_ACTION_BUTTONS"
+    "MopInitialPackets::BuildActionButtons(data"
+    "GetSession()->SendPacket(&data)")
+require_ordered("${account_times}" "ACCOUNT_DATA_TIMES writer"
+    "WorldPacket data(SMSG_ACCOUNT_DATA_TIMES"
+    "MopInitialPackets::BuildAccountDataTimes(data"
+    "SendPacket(&data)")
+require_ordered("${tutorials}" "TUTORIAL_FLAGS writer"
+    "WorldPacket data(SMSG_TUTORIAL_FLAGS"
+    "MopInitialPackets::BuildTutorialFlags(data"
+    "SendPacket(&data)")
+require_ordered("${initial_reputation}" "INITIALIZE_FACTIONS writer"
+    "WorldPacket data(SMSG_INITIALIZE_FACTIONS"
+    "MopInitialPackets::BuildInitializeFactions(data"
+    "m_player->SendDirectMessage(&data)")
+require_ordered("${proficiency}" "SET_PROFICIENCY writer"
+    "WorldPacket data(SMSG_SET_PROFICIENCY"
+    "MopInitialPackets::BuildSetProficiency(data"
+    "GetSession()->SendPacket(&data)")
+require_ordered("${single_weather}" "single-player WEATHER writer"
+    "WorldPacket data(SMSG_WEATHER"
+    "MopInitialPackets::BuildWeather(data"
+    "player->GetSession()->SendPacket(&data)")
+require_ordered("${zone_weather}" "zone WEATHER writer"
+    "WorldPacket data(SMSG_WEATHER"
+    "MopInitialPackets::BuildWeather(data"
+    "_map->SendToPlayersInZone(&data")
+require_ordered("${bind_spell}" "spell BINDPOINTUPDATE writer"
+    "WorldPacket data(SMSG_BINDPOINTUPDATE"
+    "MopInitialPackets::BuildBindPointUpdate(data"
+    "player->SendDirectMessage(&data)")
+require_ordered("${all_achievements}" "ALL_ACHIEVEMENT_DATA writer"
+    "WorldPacket data(SMSG_ALL_ACHIEVEMENT_DATA"
+    "MopAchievementPackets::BuildAllAchievementData(data"
+    "SendPacket(&data)")
+
 foreach(call IN ITEMS
         "SendInitialSpells()"
         "MopInitialPackets::BuildSendUnlearnSpells"
@@ -117,6 +227,17 @@ foreach(call IN ITEMS
         message(FATAL_ERROR "${call} left SendInitialPacketsBeforeAddToMap")
     endif()
 endforeach()
+require_ordered("${initial_before_map}" "pre-map UI envelope"
+    "WorldPacket data(SMSG_BINDPOINTUPDATE"
+    "MopInitialPackets::BuildBindPointUpdate(data"
+    "GetSession()->SendPacket(&data)"
+    "SendInitialSpells()"
+    "data.Initialize(SMSG_SEND_UNLEARN_SPELLS"
+    "MopInitialPackets::BuildSendUnlearnSpells(data"
+    "GetSession()->SendPacket(&data)"
+    "SendInitialActionButtons()"
+    "m_reputationMgr.SendInitialReputations()"
+    "m_achievementMgr.SendAllAchievementData()")
 foreach(call IN ITEMS
         "SendAccountDataTimes(PER_CHARACTER_CACHE_MASK)"
         "MopInitialPackets::BuildFeatureSystemStatus"
@@ -127,6 +248,15 @@ foreach(call IN ITEMS
         message(FATAL_ERROR "${call} left the character login envelope")
     endif()
 endforeach()
+require_ordered("${player_login}" "character login envelope"
+    "SendAccountDataTimes(PER_CHARACTER_CACHE_MASK)"
+    "data.Initialize(SMSG_FEATURE_SYSTEM_STATUS"
+    "MopInitialPackets::BuildFeatureSystemStatus(data"
+    "SendPacket(&data)"
+    "pCurrChar->SendInitialPacketsBeforeAddToMap()"
+    "pCurrChar->GetMap()->Add(pCurrChar)"
+    "sObjectAccessor.AddObject(pCurrChar)"
+    "pCurrChar->SendInitialPacketsAfterAddToMap()")
 if(NOT world_session_mgr MATCHES "s->SendTutorialsData\(\)" OR
    NOT world_session_mgr MATCHES "pop_sess->SendTutorialsData\(\)")
     message(FATAL_ERROR "tutorial flags left the authenticated session phase")
