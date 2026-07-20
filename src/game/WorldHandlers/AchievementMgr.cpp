@@ -26,6 +26,7 @@
 #include "AchievementMgr.h"
 #include "DBCStores.h"
 #include "Player.h"
+#include "MopAchievementPackets.h"
 #include "WorldPacket.h"
 #include "DBCEnums.h"
 #include "GameEventMgr.h"
@@ -2247,70 +2248,26 @@ void AchievementMgr::IncompletedAchievement(AchievementEntry const* achievement)
 
 void AchievementMgr::SendAllAchievementData()
 {
-    // since we don't know the exact size of the packed GUIDs this is just an approximation
-    WorldPacket data(SMSG_ALL_ACHIEVEMENT_DATA, 4 * 2 + m_completedAchievements.size() * 4 * 2 + m_completedAchievements.size() * 7 * 4);
-
-    ObjectGuid guid = m_player->GetObjectGuid();
-
-    data.WriteBits(m_criteriaProgress.size(), 21);
-
-    for (CriteriaProgressMap::const_iterator iter = m_criteriaProgress.begin(); iter!=m_criteriaProgress.end(); ++iter)
-    {
-        ObjectGuid counter = ObjectGuid(uint64(iter->second.counter));
-
-        data.WriteGuidMask<4>(guid);
-        data.WriteGuidMask<3>(counter);
-        data.WriteGuidMask<5>(guid);
-        data.WriteGuidMask<0, 6>(counter);
-        data.WriteGuidMask<3, 0>(guid);
-
-        data.WriteGuidMask<4>(counter);
-        data.WriteGuidMask<2>(guid);
-        data.WriteGuidMask<7>(counter);
-        data.WriteGuidMask<7>(guid);
-        uint8 flags = 0;                                        // Seems always 0
-        data.WriteBits(flags, 2);
-        data.WriteGuidMask<6>(guid);
-
-        data.WriteGuidMask<2, 1, 5>(counter);
-        data.WriteGuidMask<1>(guid);
-    }
-
-    data.WriteBits(m_completedAchievements.size(), 23);
-
-    time_t now = time(NULL);
+    uint64 const playerGuid = m_player->GetObjectGuid().GetRawValue();
+    std::vector<MopAchievementPackets::CriteriaProgress> progress;
+    progress.reserve(m_criteriaProgress.size());
     for (CriteriaProgressMap::const_iterator iter = m_criteriaProgress.begin(); iter != m_criteriaProgress.end(); ++iter)
     {
-        ObjectGuid counter = ObjectGuid(uint64(iter->second.counter));
-
-        data.WriteGuidBytes<3>(guid);
-        data.WriteGuidBytes<5, 6>(counter);
-        data.WriteGuidBytes<4, 6>(guid);
-        data.WriteGuidBytes<2>(counter);
-
-        data << uint32(now - iter->second.date);               // Timer 2
-
-        data.WriteGuidBytes<2>(guid);
-
-        data << uint32(iter->first);
-
-        data.WriteGuidBytes<5>(guid);
-        data.WriteGuidBytes<0, 3, 1, 4>(counter);
-        data.WriteGuidBytes<0, 7>(guid);
-        data.WriteGuidBytes<7>(counter);
-
-        data << uint32(now - iter->second.date);               // Timer 1
-        data << uint32(secsToTimeBitFields(now));
-
-        data.WriteGuidBytes<1>(guid);
+        progress.push_back({ iter->first, uint64(iter->second.counter), playerGuid,
+            uint32(secsToTimeBitFields(iter->second.date)), 0, 0 });
     }
 
+    std::vector<MopAchievementPackets::CompletedAchievement> completed;
+    completed.reserve(m_completedAchievements.size());
     for (CompletedAchievementMap::const_iterator iter = m_completedAchievements.begin(); iter != m_completedAchievements.end(); ++iter)
     {
-        data << uint32(iter->first);
-        data << uint32(secsToTimeBitFields(iter->second.date));
+        completed.push_back({ iter->first, playerGuid,
+            uint32(secsToTimeBitFields(iter->second.date)), 0, 0 });
     }
 
+    WorldPacket data(SMSG_ALL_ACHIEVEMENT_DATA,
+        5 + completed.size() * 25 + progress.size() * 35);
+    MopAchievementPackets::BuildAllAchievementData(data, completed, progress);
     GetPlayer()->GetSession()->SendPacket(&data);
 }
 
