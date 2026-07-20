@@ -936,10 +936,6 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
         }
     }
 
-    data.Initialize(SMSG_LEARNED_DANCE_MOVES, 4 + 4);
-    data << uint64(0);
-    SendPacket(&data);
-
     pCurrChar->SendInitialPacketsBeforeAddToMap();
 
     // Show cinematic at the first time that player login (TODO: activate world grids first, then cinematic)
@@ -1306,4 +1302,3 @@ void WorldSession::HandleShowingCloakOpcode(WorldPacket & /*recv_data*/)
     DEBUG_LOG("CMSG_SHOWING_CLOAK for %s", _player->GetName());
     _player->ToggleFlag(PLAYER_FLAGS, PLAYER_FLAGS_HIDE_CLOAK);
 }
-

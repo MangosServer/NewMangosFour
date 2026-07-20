@@ -76,3 +76,16 @@ set_target_properties(mop_creategating_test PROPERTIES CXX_STANDARD 17 CXX_STAND
 # Same rationale as mop_auth_test: Common.h/SharedDefines.h pull the game header surface; link 'game'.
 target_link_libraries(mop_creategating_test PRIVATE game)
 add_test(NAME mop_creategating COMMAND mop_creategating_test)
+
+add_executable(mop_opcode_foundation_test mop_opcode_foundation_test.cpp)
+target_include_directories(mop_opcode_foundation_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_opcode_foundation_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_opcode_foundation_test PRIVATE game)
+add_test(NAME mop_opcode_foundation COMMAND mop_opcode_foundation_test)
+
+add_test(NAME mop_opcode_foundation_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_opcode_foundation_source_test.cmake)

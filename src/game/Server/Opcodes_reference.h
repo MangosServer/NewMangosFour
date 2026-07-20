@@ -597,7 +597,7 @@ typedef uint16_t uint16;
  *   SMSG_UNKNOWN_0x02BA                            0x02BA  DOC      [low-conf]
  *
  *  -- LootFrame.cpp (11) --
- *   SMSG_LEARNED_DANCE_MOVES                       0x041F  DORMANT  [low-conf]
+ *   SMSG_INSPECT_RATED_BG_STATS                    0x041F  DORMANT  [low-conf]
  *   SMSG_AE_LOOT_TARGETS                           0x0C32  DOC     
  *   SMSG_LOOT_REMOVED                              0x0C3E  DORMANT  [medium-conf]
  *   SMSG_PET_UPDATE_COMBO_POINTS                   0x1206  DORMANT  [low-conf]
@@ -691,7 +691,7 @@ typedef uint16_t uint16;
  *   SMSG_RAID_MARKERS_CHANGED                      0x008A  DOC      [medium-conf]
  *   SMSG_VOID_STORAGE_CONTENTS                     0x008B  DOC      [low-conf]
  *   SMSG_INSTANCE_LOCK_WARNING_QUERY               0x00A7  DOC      [medium-conf]
- *   SMSG_SPELL_EXECUTE_LOG                         0x00D8  DOC      [medium-conf]
+ *   SMSG_SPELL_EXECUTE_LOG                         0x00D8  DORMANT  [medium-conf]
  *   SMSG_UNKNOWN_0x0170                            0x0170  DOC     
  *   SMSG_CATEGORY_COOLDOWN                         0x01DB  DOC      [medium-conf]
  *   SMSG_FISH_ESCAPED                              0x0227  DORMANT 
@@ -784,7 +784,7 @@ typedef uint16_t uint16;
  *   SMSG_QUESTGIVER_QUEST_FAILED                   0x12DE  DORMANT 
  *   SMSG_QUESTGIVER_QUEST_DETAILS                  0x134C  DORMANT 
  *   SMSG_QUEST_CONFIRM_ACCEPT                      0x13C7  DORMANT 
- *   SMSG_RANDOM_ROLL                               0x141A  DOC     
+ *   SMSG_RANDOM_ROLL                               0x141A  DORMANT
  *   SMSG_UNKNOWN_0x1441                            0x1441  DOC     
  *   SMSG_SPELLNONMELEEDAMAGELOG                    0x1450  DORMANT  [medium-conf]
  *   SMSG_VOID_STORAGE_TRANSFER_CHANGES             0x14BA  DOC      [medium-conf]
@@ -955,7 +955,7 @@ typedef uint16_t uint16;
  *   SMSG_ATTACKERSTATEUPDATE                       0x06AA  DORMANT 
  *   SMSG_UNKNOWN_0x0C9E                            0x0C9E  DOC     
  *   SMSG_ENVIRONMENTALDAMAGELOG                    0x0DF1  DORMANT 
- *   SMSG_UNKNOWN_0x11E1                            0x11E1  DOC     
+ *   SMSG_ATTACKSWING_ERROR                         0x11E1  DORMANT  [low-conf]
  *   SMSG_ATTACKSTOP                                0x12AF  DORMANT 
  *   SMSG_COMBAT_EVENT_FAILED                       0x18C3  DORMANT 
  *   SMSG_ATTACKSTART                               0x1A9E  DORMANT 
@@ -2154,6 +2154,7 @@ enum class OpcodesReferenceDoc : uint16
     SMSG_BATTLE_PET_PET_UPDATES                      = 0x041A,
     SMSG_UNKNOWN_0x041B                              = 0x041B,
     SMSG_UNKNOWN_0x041E                              = 0x041E,
+    SMSG_INSPECT_RATED_BG_STATS                      = 0x041F,
     SMSG_REQUEST_CEMETERY_LIST_RESPONSE              = 0x042A,
     SMSG_UNKNOWN_0x042F                              = 0x042F,
     SMSG_UNKNOWN_0x043A                              = 0x043A,
@@ -2348,7 +2349,7 @@ enum class OpcodesReferenceDoc : uint16
     SMSG_UNKNOWN_0x1162                              = 0x1162,
     SMSG_UNKNOWN_0x117A                              = 0x117A,
     SMSG_UNKNOWN_0x11C2                              = 0x11C2,
-    SMSG_UNKNOWN_0x11E1                              = 0x11E1,
+    SMSG_ATTACKSWING_ERROR                           = 0x11E1,
     SMSG_PLAY_SPELL_VISUAL_KIT                       = 0x11E3,
     SMSG_PET_BATTLE_QUEUE_PROPOSE_MATCH              = 0x1202,
     SMSG_MISSILE_CANCEL                              = 0x1203,
