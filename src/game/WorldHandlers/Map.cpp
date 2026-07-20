@@ -1872,9 +1872,21 @@ void Map::SendInitSelf(Player* player)
     // MoP 5.4.8.18414: send the self-player create-block via the dedicated MoP
     // serializer. The inherited BuildCreateUpdateBlockForPlayer path is Cata 4.3.4
     // (15595) format and is not read by an 18414 client. Essential-field bootstrap
-    // (the minimal field set to stand and function); the full field set is a
-    // follow-up. TODO: a self player attached to a transport (and its passengers)
-    // is not yet handled in the MoP path; rare at login.
+    // (the minimal field set to stand and function); the full field set is a follow-up.
+    //
+    // Transport guard: the MoP self create-block does not yet carry transport parenting
+    // (movement-block ON_TRANSPORT + transport GUID/offset). A player attached to a transport
+    // here (must have logged out on a moving transport; impossible on the bring-up start maps)
+    // is emitted at absolute position without parenting -- the client would stand correctly but
+    // not ride the transport until a later update. Flag it so the case is diagnosable rather
+    // than a silent desync; full transport support is a follow-up.
+    if (player->GetTransport())
+    {
+        sLog.outError("Map::SendInitSelf: player %s is on a transport; MoP self create-block omits "
+                      "transport parenting (position sent absolute). Transport support is TODO.",
+                      player->GetGuidStr().c_str());
+    }
+
     MopUpdateObject::SelfPlayer sp;
     sp.guid = player->GetObjectGuid().GetRawValue();
     sp.mapId = uint16(player->GetMapId());

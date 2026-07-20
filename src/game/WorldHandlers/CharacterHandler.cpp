@@ -833,15 +833,16 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     // -------------------------------------------------------------- PHASE 6c (A)
     // Real world-add. Start the client's world clock + time-sync here, then fall through to
     // the normal login flow: it adds the player to the map (which sends the MoP self
-    // create-block via the modernised Map::SendInitSelf) and KEEPS the player. The active-mover
-    // (control grant) is deliberately sent AFTER the map-add (see below the Map::Add call), not
-    // here -- the client's mover handler resolves the guid to a live object and clears control
-    // if it is missing, so it must follow the create-block. m_suppressWorldSends silences the
-    // remaining Cata-format login/after-add sends (only the create-block + active-mover +
-    // world-states reach the client). Movement/time-sync opcodes are left unregistered
-    // (movement is client-authoritative -- the client walks locally, the server drops them).
-    // Validated on the empty start map (Pandaren, Wandering Isle); nearby-object create-blocks
-    // on populated maps still use the Cata path (Option B).
+    // create-block via the modernised Map::SendInitSelf) and KEEPS the player. Control (mover +
+    // camera) is granted implicitly by that create-block: its SELF flag marks the object as the
+    // local player, and the 18414 client's self-path binds the active mover/camera on create --
+    // no separate active-mover packet is sent (verified by IDA RE of the client self-path).
+    // m_suppressWorldSends then silences the remaining Cata-format login/after-add sends; only
+    // the create-block, the converted 18414 UI-init envelope, world-states, and the
+    // logout/teleport control packets reach the client. Movement/time-sync opcodes are left
+    // unregistered (movement is client-authoritative -- the client walks locally, the server
+    // drops them). Validated on the empty start map (Pandaren, Wandering Isle); nearby-object
+    // create-blocks on populated maps still use the Cata path (Option B).
     {
         // SMSG_LOGIN_SETTIMESPEED: start the client's world clock. Without it the client
         // renders but stays inert (dead UI, no local movement) -- the #1 activation gate

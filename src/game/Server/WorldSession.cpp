@@ -260,6 +260,21 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_WEATHER:
         case SMSG_ALL_ACHIEVEMENT_DATA:  // Wave 5 Task 2 -- converted 6908c5f9e (MopAchievementPackets)
             return true;
+
+        // Control/transition packets that must ALWAYS reach the client while suppression is active:
+        // world-leave (logout) and in-world teleport. These are tiny, header-stable control bodies
+        // (verified against the 18414 client, e.g. SMSG_LOGOUT_RESPONSE now writes the instant flag
+        // as a bit) -- not the stale bulk-object envelope suppression exists to drop. Without these
+        // the player can neither log out nor teleport once in-world.
+        case SMSG_LOGOUT_RESPONSE:       // 0x008F -- ack the logout request (bit-packed body, 18414-correct)
+        case SMSG_LOGOUT_CANCEL_ACK:     // 0x0AAF -- ack a cancelled logout (empty body)
+        case SMSG_LOGOUT_COMPLETE:       // 0x142F -- final world-leave (empty body)
+        case SMSG_MOVE_TELEPORT:         // 0x0B39 -- same-map teleport (MopWorldEntryPackets::BuildMoveTeleport, converted)
+        case SMSG_NEW_WORLD:             // 0x1C3B -- cross-map teleport target (MopWorldEntryPackets::BuildNewWorld, converted)
+        case SMSG_TRANSFER_PENDING:      // 0x061B -- cross-map load-screen preamble (inline bit-packed body; non-transport
+                                         //           path byte-identical to the 18414 reference; transport-case field
+                                         //           order unverified -- follow-up when far-teleport-with-transport lands)
+            return true;
         default:
             break;
     }
@@ -287,10 +302,11 @@ void WorldSession::SendPacket(WorldPacket const* packet, bool bypassSuppress)
     }
 
     // PHASE 6c (MoP enter-world bring-up): once a player has entered the world, drop the
-    // remaining Cata-format sends. Only the packets explicitly built for the 18414 client
-    // pass, via bypassSuppress=true at their call sites (the self create-block in
-    // Map::SendInitSelf, and the active-mover). This also drops the Cata self-VALUES updates
-    // and nearby-object create-blocks that would otherwise corrupt the client. Cleared on
+    // remaining Cata-format sends. Two escape hatches pass a packet: bypassSuppress=true at
+    // the call site (the self create-block in Map::SendInitSelf), and IsEnterWorldConverted()
+    // for opcodes whose senders now emit a real 18414 body (the UI-init envelope plus the
+    // logout/teleport control packets). Everything else -- Cata self-VALUES updates and
+    // nearby-object create-blocks that would corrupt the client -- is dropped. Cleared on
     // logout. Temporary port scaffold, lifted once the object-update/preamble paths convert.
     if (m_suppressWorldSends && !bypassSuppress && !IsEnterWorldConverted(uint16(packet->GetOpcode())))
     {

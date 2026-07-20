@@ -399,7 +399,8 @@ void WorldSession::HandleLogoutRequestOpcode(WorldPacket & /*recv_data*/)
 
     WorldPacket data(SMSG_LOGOUT_RESPONSE, 1 + 4);
     data << uint32(reason);
-    data << uint8(instantLogout);
+    data.WriteBit(instantLogout != 0);                      // 5.4.8.18414: instant flag is a bit, not a uint8 (SkyFire-verified)
+    data.FlushBits();
     SendPacket(&data);
 
     if (reason)
