@@ -23,6 +23,27 @@ namespace
     }
 }
 
+void MopQueryPackets::BuildQueryTimeResponse(WorldPacket& out, uint32 serverTime,
+    uint32 secondsUntilReset)
+{
+    out << serverTime;
+    out << secondsUntilReset;
+}
+
+bool MopQueryPackets::ReadPlayedTimeRequest(WorldPacket& in)
+{
+    return in.ReadBit();
+}
+
+void MopQueryPackets::BuildPlayedTimeResponse(WorldPacket& out, uint32 totalPlayed,
+    uint32 levelPlayed, bool displayEvent)
+{
+    out << totalPlayed;
+    out << levelPlayed;
+    out.WriteBit(displayEvent);
+    out.FlushBits();
+}
+
 void MopQueryPackets::BuildCreatureQueryResponse(WorldPacket& out,
     CreatureQueryResponse const& record)
 {

@@ -73,6 +73,7 @@
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "Guild.h"
 #include "Pet.h"
+#include "Server/MopQueryPackets.h"
 #include "SocialMgr.h"
 #include "DBCEnums.h"
 #ifdef ENABLE_ELUNA
@@ -1266,13 +1267,12 @@ void WorldSession::HandleSetActionBarTogglesOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandlePlayedTime(WorldPacket& recv_data)
 {
-    uint8 unk1;
-    recv_data >> unk1;                                      // 0 or 1 expected
+    bool const displayEvent = MopQueryPackets::ReadPlayedTimeRequest(recv_data);
 
     WorldPacket data(SMSG_PLAYED_TIME, 4 + 4 + 1);
-    data << uint32(_player->GetTotalPlayedTime());
-    data << uint32(_player->GetLevelPlayedTime());
-    data << uint8(unk1);                                    // 0 - will not show in chat frame
+    MopQueryPackets::BuildPlayedTimeResponse(data,
+        uint32(_player->GetTotalPlayedTime()),
+        uint32(_player->GetLevelPlayedTime()), displayEvent);
     SendPacket(&data);
 }
 
@@ -1829,4 +1829,3 @@ void WorldSession::HandleObjectUpdateFailedOpcode(WorldPacket& recvPacket)
         sLog.outError("WorldSession::HandleObjectUpdateFailedOpcode: received from player not in map");
     }
 }
-

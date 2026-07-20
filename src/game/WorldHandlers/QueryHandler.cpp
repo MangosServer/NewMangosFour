@@ -634,7 +634,8 @@ void WorldSession::HandleQuestPOIQueryOpcode(WorldPacket& recv_data)
 void WorldSession::SendQueryTimeResponse()
 {
     WorldPacket data(SMSG_QUERY_TIME_RESPONSE, 4 + 4);
-    data << uint32(time(NULL));
-    data << uint32(sWorld.GetNextDailyQuestsResetTime() - time(NULL));
+    uint32 const serverTime = uint32(time(NULL));
+    uint32 const secondsUntilReset = uint32(sWorld.GetNextDailyQuestsResetTime() - time(NULL));
+    MopQueryPackets::BuildQueryTimeResponse(data, serverTime, secondsUntilReset);
     SendPacket(&data);
 }

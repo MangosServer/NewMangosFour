@@ -22,6 +22,12 @@ class WorldPacket;
 
 namespace MopQueryPackets
 {
+    void BuildQueryTimeResponse(WorldPacket& out, uint32 serverTime,
+        uint32 secondsUntilReset);
+    bool ReadPlayedTimeRequest(WorldPacket& in);
+    void BuildPlayedTimeResponse(WorldPacket& out, uint32 totalPlayed,
+        uint32 levelPlayed, bool displayEvent);
+
     struct CreatureQueryResponse
     {
         uint32 entry = 0;
