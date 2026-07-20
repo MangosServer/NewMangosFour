@@ -185,4 +185,11 @@ void InitializeOpcodes()
     // no-op (Handle_NULL) instead of letting it dispatch as an UNKNOWN "not handled" opcode. The
     // client tolerates no reply; this only clarifies the log.
     DefC(0x18B2, "CMSG_BATTLE_PAY_GET_PURCHASE_LIST", STATUS_AUTHED, PROCESS_INPLACE, &WorldSession::Handle_NULL);
+
+    // Wave 2 server messages whose 5.4.8 bodies are encoded by MopCompactPackets.
+    DefS(SMSG_ATTACKSWING_ERROR, "SMSG_ATTACKSWING_ERROR");
+    DefS(SMSG_MOVE_SET_SWIM_SPEED, "SMSG_MOVE_SET_SWIM_SPEED");
+    DefS(SMSG_RANDOM_ROLL, "SMSG_RANDOM_ROLL");
+    DefS(SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT, "SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT");
+    DefS(SMSG_SET_RAID_DIFFICULTY, "SMSG_SET_RAID_DIFFICULTY");
 }

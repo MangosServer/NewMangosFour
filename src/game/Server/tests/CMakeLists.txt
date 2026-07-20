@@ -89,3 +89,16 @@ add_test(NAME mop_opcode_foundation_source
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_opcode_foundation_source_test.cmake)
+
+add_executable(mop_compact_packets_test mop_compact_packets_test.cpp)
+target_include_directories(mop_compact_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_compact_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_compact_packets_test PRIVATE game)
+add_test(NAME mop_compact_packets COMMAND mop_compact_packets_test)
+
+add_test(NAME mop_compact_packets_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_compact_packets_source_test.cmake)
