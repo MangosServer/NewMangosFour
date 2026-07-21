@@ -759,3 +759,8 @@ uint32 LFGMgr::GetDungeonEntry(uint32 ID)
     }
 }
 
+uint8 LFGMgr::GetDungeonCategory(uint32 ID)
+{
+    LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(ID);
+    return dungeon ? uint8(dungeon->Subtype) : 0;
+}

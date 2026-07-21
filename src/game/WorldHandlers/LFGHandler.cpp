@@ -294,111 +294,62 @@ void WorldSession::SendLfgJoinResult(LfgJoinResult result, LFGState state, party
     SendPacket(&data);
 }
 
-/*
- * new version hass been added below for dev21
- * delete this once the new one proves to work (chucky)
-void WorldSession::SendLfgUpdate(bool isGroup, LfgUpdateType updateType, uint32 id)
-{
-    WorldPacket data(isGroup ? SMSG_LFG_UPDATE_PARTY : SMSG_LFG_UPDATE_PLAYER, 0);
-    data << uint8(updateType);
-
-    uint8 extra = updateType == LFG_UPDATE_JOIN ? 1 : 0;
-    data << uint8(extra);
-
-    if (extra)
-    {
-        data << uint8(0);
-        data << uint8(0);
-        data << uint8(0);
-
-        if (isGroup)
-        {
-            data << uint8(0);
-            for (uint32 i = 0; i < 3; ++i)
-            {
-                data << uint8(0);
-            }
-        }
-
-        uint8 count = 1;
-        data << uint8(count);
-        for (uint32 i = 0; i < count; ++i)
-        {
-            data << uint32(id);
-        }
-        data << "";
-    }
-    SendPacket(&data);
-}
-*/
-
-
-/*
- * The following functions were added for dev21, teken from Two
- * If tey prove to work, then delete/alter this comment (chucky)
- */
-
 void WorldSession::SendLfgUpdate(bool isGroup, LFGPlayerStatus status)
 {
-    uint8 dungeonSize = uint8(status.dungeonList.size());
-
-    bool isQueued = false, joinLFG = false;
+    bool joined = false;
+    bool isQueued = false;
 
     switch (status.updateType)
     {
     case LFG_UPDATE_JOIN:
     case LFG_UPDATE_ADDED_TO_QUEUE:
+        joined = true;
         isQueued = true;
+        break;
     case LFG_UPDATE_PROPOSAL_BEGIN:
-        if (isGroup)
-        {
-            joinLFG = true;
-        }
+        joined = true;
         break;
     case LFG_UPDATE_STATUS:
         isQueued = (status.state == LFG_STATE_QUEUED);
-
-        if (isGroup)
-        {
-            joinLFG = (status.state != LFG_STATE_ROLECHECK) && (status.state != LFG_STATE_NONE);
-        }
+        joined = status.state != LFG_STATE_NONE;
         break;
     default:
         break;
     }
 
-    WorldPacket data(isGroup ? SMSG_LFG_UPDATE_PARTY : SMSG_LFG_UPDATE_PLAYER);
-    data << uint8(status.updateType);
+    ObjectGuid const playerGuid = GetPlayer()->GetObjectGuid();
+    ObjectGuid queueGuid = playerGuid;
+    if (isGroup && GetPlayer()->GetGroup())
+        queueGuid = GetPlayer()->GetGroup()->GetObjectGuid();
 
-    data << uint8(dungeonSize > 0);
+    LFGStatusPacketData queueData;
+    sLFGMgr.GetStatusPacketData(queueGuid, playerGuid, queueData);
 
-    if (dungeonSize)
-    {
-        if (isGroup)
-        {
-            data << uint8(joinLFG);
-        }
-        data << uint8(isQueued);
-        data << uint8(0);
-        data << uint8(0);
+    MopLfgPackets::StatusUpdate update;
+    update.requesterGuid = queueGuid.GetRawValue();
+    update.comment = status.comment;
+    update.needs = {{ queueData.neededTanks, queueData.neededHealers, queueData.neededDps }};
+    update.isParty = isGroup;
+    update.joined = joined;
+    update.lfgJoined = status.updateType != LFG_UPDATE_LEAVE;
+    update.queued = isQueued;
+    update.requestedRoles = queueData.roles;
+    update.updateReason = uint8(status.updateType);
+    // This legacy single-queue manager does not track the client queue ID.
+    update.ticketId = 0;
+    update.ticketTime = queueData.joinedTime;
 
-        if (isGroup)
-        {
-            for (uint32 i = 0; i < 3; ++i)
-            {
-                data << uint8(0);
-            }
-        }
+    if (!status.dungeonList.empty())
+        update.dungeonCategory = sLFGMgr.GetDungeonCategory(*status.dungeonList.begin());
 
-        data << uint8(dungeonSize);
-        for (std::set<uint32>::iterator it = status.dungeonList.begin(); it != status.dungeonList.end(); ++it)
-        {
-            data << uint32(*it);
-        }
+    for (std::set<uint32>::const_iterator it = status.dungeonList.begin(); it != status.dungeonList.end(); ++it)
+        update.dungeonEntries.push_back(sLFGMgr.GetDungeonEntry(*it));
 
-        data << status.comment;
-    }
-    SendPacket(&data);
+    WorldPacket data(SMSG_LFG_UPDATE_STATUS, 40 + status.comment.size() + update.dungeonEntries.size() * sizeof(uint32));
+    if (MopLfgPackets::BuildUpdateStatus(data, update))
+        SendPacket(&data);
+    else
+        sLog.outError("WORLD: LFG status fields exceed SMSG_LFG_UPDATE_STATUS wire limits");
 }
 
 void WorldSession::SendLfgQueueStatus(LFGQueueStatus const& status)
@@ -609,5 +560,3 @@ void WorldSession::SendLfgBootUpdate(LFGBoot const& boot)
     else
         sLog.outError("WORLD: LFG boot reason is too long for SMSG_LFG_BOOT_PLAYER");
 }
-
-

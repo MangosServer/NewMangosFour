@@ -7,7 +7,9 @@
 
 #include "Common.h"
 
+#include <array>
 #include <string>
+#include <vector>
 
 class WorldPacket;
 
@@ -27,7 +29,28 @@ namespace MopLfgPackets
         uint32 voteCount = 0;
     };
 
+    struct StatusUpdate
+    {
+        uint64 requesterGuid = 0;
+        std::vector<uint64> suspendedPlayerGuids;
+        std::vector<uint32> dungeonEntries;
+        std::string comment;
+        std::array<uint8, 3> needs{};
+        bool isParty = false;
+        bool joined = false;
+        bool notifyUi = true;
+        bool lfgJoined = false;
+        bool queued = false;
+        uint8 updateReason = 0;
+        uint32 requestedRoles = 0;
+        uint32 ticketId = 0;
+        uint32 ticketTime = 0;
+        uint8 dungeonCategory = 0;
+        uint32 ticketType = 3;
+    };
+
     bool BuildBootPlayer(WorldPacket& out, BootUpdate const& update);
+    bool BuildUpdateStatus(WorldPacket& out, StatusUpdate const& update);
 }
 
 #endif

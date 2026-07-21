@@ -2,6 +2,7 @@ file(READ "${SOURCE_ROOT}/src/game/Server/MopLfgPackets.cpp" packet_builder)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/LFGHandler.cpp" lfg_sender)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.h" opcode_header)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/LFGMgr.h" lfg_manager_header)
 
 if(MUTATION STREQUAL "builder_call")
     string(REPLACE
@@ -23,6 +24,31 @@ elseif(MUTATION STREQUAL "countdown")
         "expires > now ? uint32(expires - now) : 0"
         "uint32((expires - now) / 1000)"
         lfg_sender "${lfg_sender}")
+elseif(MUTATION STREQUAL "status_builder_call")
+    string(REPLACE
+        "MopLfgPackets::BuildUpdateStatus(data, update)"
+        "false /* removed LFG status builder */"
+        lfg_sender "${lfg_sender}")
+elseif(MUTATION STREQUAL "status_registration")
+    string(REPLACE
+        "DefS(SMSG_LFG_UPDATE_STATUS, \"SMSG_LFG_UPDATE_STATUS\");"
+        "/* removed LFG status registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "status_opcode")
+    string(REPLACE
+        "SMSG_LFG_UPDATE_STATUS                       = 0x0C2E,"
+        "SMSG_LFG_UPDATE_STATUS                       = 0x1368,"
+        opcode_header "${opcode_header}")
+elseif(MUTATION STREQUAL "status_field_mapping")
+    string(REPLACE
+        "update.updateReason = uint8(status.updateType);"
+        "update.dungeonCategory = uint8(status.updateType);"
+        lfg_sender "${lfg_sender}")
+elseif(MUTATION STREQUAL "status_reason_value")
+    string(REPLACE
+        "LFG_UPDATE_JOIN                 = 6,"
+        "LFG_UPDATE_JOIN                 = 5,"
+        lfg_manager_header "${lfg_manager_header}")
 endif()
 
 function(require_once source token context)
@@ -55,6 +81,15 @@ require_once("${opcode_header}"
 require_once("${lfg_sender}"
     "expires > now ? uint32(expires - now) : 0"
     "seconds-based LFG boot countdown")
+require_once("${lfg_sender}"
+    "MopLfgPackets::BuildUpdateStatus(data, update)"
+    "LFG status builder call")
+require_once("${opcode_registry}"
+    "DefS(SMSG_LFG_UPDATE_STATUS, \"SMSG_LFG_UPDATE_STATUS\");"
+    "LFG status registration")
+require_once("${opcode_header}"
+    "SMSG_LFG_UPDATE_STATUS                       = 0x0C2E,"
+    "LFG status opcode value")
 
 foreach(token IN ITEMS
         "out.WriteBit(update.reason.empty())"
@@ -71,9 +106,67 @@ foreach(token IN ITEMS
     endif()
 endforeach()
 
+foreach(token IN ITEMS
+        "out.WriteBits(update.comment.size(), 8)"
+        "out.WriteBits(update.dungeonEntries.size(), 22)"
+        "out.WriteBits(update.suspendedPlayerGuids.size(), 24)"
+        "WriteGuidMask(out, update.requesterGuid, { 2, 3, 1 })"
+        "WriteGuidMask(out, guid, { 7, 0, 4, 2, 5, 3, 1, 6 })"
+        "WriteGuidBytes(out, guid, { 7, 0, 1, 6, 4, 5, 2, 3 })"
+        "out << update.requestedRoles"
+        "out << update.ticketId"
+        "out << update.ticketTime"
+        "out << update.updateReason"
+        "out << update.dungeonCategory"
+        "out << update.ticketType")
+    string(FIND "${packet_builder}" "${token}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "LFG status builder missing: ${token}")
+    endif()
+endforeach()
+
+require_once("${lfg_sender}"
+    "update.updateReason = uint8(status.updateType);"
+    "binary-proven LFG update reason mapping")
+require_once("${lfg_sender}"
+    "update.dungeonCategory = sLFGMgr.GetDungeonCategory(*status.dungeonList.begin());"
+    "reference-supported LFG dungeon category mapping")
+
+foreach(token IN ITEMS
+        "LFG_UPDATE_JOIN                 = 6,"
+        "LFG_UPDATE_ROLECHECK_FAILED     = 7,"
+        "LFG_UPDATE_LEAVE                = 8,"
+        "LFG_UPDATE_PROPOSAL_FAILED      = 9,"
+        "LFG_UPDATE_PROPOSAL_DECLINED    = 10,"
+        "LFG_UPDATE_GROUP_FOUND          = 11,"
+        "LFG_UPDATE_ADDED_TO_QUEUE       = 13,"
+        "LFG_UPDATE_PROPOSAL_BEGIN       = 14,"
+        "LFG_UPDATE_STATUS               = 15,"
+        "LFG_UPDATE_GROUP_MEMBER_OFFLINE = 16,"
+        "LFG_UPDATE_GROUP_DISBAND        = 17,")
+    string(FIND "${lfg_manager_header}" "${token}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "5.4.8 LFG update reason missing: ${token}")
+    endif()
+endforeach()
+
 string(FIND "${opcode_header}" "SMSG_LFG_BOOT_PROPOSAL_UPDATE" obsolete_alias)
 if(NOT obsolete_alias EQUAL -1)
     message(FATAL_ERROR "obsolete event-derived LFG boot alias remains in production opcode header")
+endif()
+
+foreach(obsolete IN ITEMS SMSG_LFG_UPDATE_PLAYER SMSG_LFG_UPDATE_PARTY)
+    string(FIND "${opcode_header}" "${obsolete}" obsolete_opcode)
+    if(NOT obsolete_opcode EQUAL -1)
+        message(FATAL_ERROR "obsolete split LFG status opcode remains: ${obsolete}")
+    endif()
+endforeach()
+
+string(FIND "${lfg_sender}"
+    "SMSG_LFG_UPDATE_PARTY : SMSG_LFG_UPDATE_PLAYER"
+    obsolete_sender)
+if(NOT obsolete_sender EQUAL -1)
+    message(FATAL_ERROR "legacy split LFG status sender remains")
 endif()
 
 string(FIND "${lfg_sender}" "(expires - now) / 1000" stale_countdown)

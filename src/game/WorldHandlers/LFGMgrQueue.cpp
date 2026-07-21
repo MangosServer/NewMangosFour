@@ -473,6 +473,24 @@ LFGPlayerStatus LFGMgr::GetPlayerStatus(ObjectGuid guid)
     return status;
 }
 
+bool LFGMgr::GetStatusPacketData(ObjectGuid queueGuid, ObjectGuid playerGuid, LFGStatusPacketData& data) const
+{
+    playerData::const_iterator queue = m_playerData.find(queueGuid);
+    if (queue == m_playerData.end())
+        return false;
+
+    LFGPlayers const& information = queue->second;
+    roleMap::const_iterator role = information.currentRoles.find(playerGuid);
+    if (role != information.currentRoles.end())
+        data.roles = role->second;
+
+    data.joinedTime = uint32(information.joinedTime);
+    data.neededTanks = information.neededTanks;
+    data.neededHealers = information.neededHealers;
+    data.neededDps = information.neededDps;
+    return true;
+}
+
 void LFGMgr::SetPlayerComment(ObjectGuid guid, std::string comment)
 {
     LFGPlayerStatus status = GetPlayerStatus(guid);

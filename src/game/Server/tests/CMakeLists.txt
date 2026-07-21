@@ -454,7 +454,8 @@ add_test(NAME mop_lfg_packets_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_lfg_packets_source_test.cmake)
 
-foreach(mutation IN ITEMS builder_call outbound_registration opcode_value countdown)
+foreach(mutation IN ITEMS builder_call outbound_registration opcode_value countdown
+        status_builder_call status_registration status_opcode status_field_mapping status_reason_value)
     add_test(NAME mop_lfg_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

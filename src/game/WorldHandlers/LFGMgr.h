@@ -82,17 +82,17 @@ enum LfgUpdateType
     LFG_UPDATE_DEFAULT              = 0,
     LFG_UPDATE_LEADER_LEAVE         = 1,
     LFG_UPDATE_ROLECHECK_ABORTED    = 4,
-    LFG_UPDATE_JOIN                 = 5,
-    LFG_UPDATE_ROLECHECK_FAILED     = 6,
-    LFG_UPDATE_LEAVE                = 7,
-    LFG_UPDATE_PROPOSAL_FAILED      = 8,
-    LFG_UPDATE_PROPOSAL_DECLINED    = 9,
-    LFG_UPDATE_GROUP_FOUND          = 10,
-    LFG_UPDATE_ADDED_TO_QUEUE       = 12,
-    LFG_UPDATE_PROPOSAL_BEGIN       = 13,
-    LFG_UPDATE_STATUS               = 14,
-    LFG_UPDATE_GROUP_MEMBER_OFFLINE = 15,
-    LFG_UPDATE_GROUP_DISBAND        = 16,
+    LFG_UPDATE_JOIN                 = 6,
+    LFG_UPDATE_ROLECHECK_FAILED     = 7,
+    LFG_UPDATE_LEAVE                = 8,
+    LFG_UPDATE_PROPOSAL_FAILED      = 9,
+    LFG_UPDATE_PROPOSAL_DECLINED    = 10,
+    LFG_UPDATE_GROUP_FOUND          = 11,
+    LFG_UPDATE_ADDED_TO_QUEUE       = 13,
+    LFG_UPDATE_PROPOSAL_BEGIN       = 14,
+    LFG_UPDATE_STATUS               = 15,
+    LFG_UPDATE_GROUP_MEMBER_OFFLINE = 16,
+    LFG_UPDATE_GROUP_DISBAND        = 17,
 };
 
 enum LfgType
@@ -336,6 +336,16 @@ struct LFGPlayerStatus
         : state(State), updateType(UpdateType), dungeonList(DungeonList), comment(Comment) { }
 };
 
+/// Queue metadata required by the 5.4.8 SMSG_LFG_UPDATE_STATUS packet.
+struct LFGStatusPacketData
+{
+    uint32 roles = 0;
+    uint32 joinedTime = 0;
+    uint8 neededTanks = 0;
+    uint8 neededHealers = 0;
+    uint8 neededDps = 0;
+};
+
 /// Information on a group currently in a dungeon
 struct LFGGroupStatus //todo: check for this in joinlfg function, not lfgplayers struct
 {
@@ -443,6 +453,9 @@ public:
      */
     LFGPlayerStatus GetPlayerStatus(ObjectGuid guid);
 
+    /// Fetch the subset of queue metadata exposed by SMSG_LFG_UPDATE_STATUS.
+    bool GetStatusPacketData(ObjectGuid queueGuid, ObjectGuid playerGuid, LFGStatusPacketData& data) const;
+
     /**
      * @brief Set the player's comment string
      *
@@ -525,6 +538,9 @@ public:
 
     /// Given the ID of a dungeon, spit out its entry
     uint32 GetDungeonEntry(uint32 ID);
+
+    /// Return the 5.4.8 LFG status category byte for a dungeon.
+    uint8 GetDungeonCategory(uint32 ID);
 
     /// Teleports a player out of a dungeon (called by CMSG_LFG_TELEPORT)
     void TeleportPlayer(Player* pPlayer, bool out);
