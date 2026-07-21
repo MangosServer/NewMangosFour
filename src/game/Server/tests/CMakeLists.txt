@@ -114,6 +114,81 @@ add_test(NAME mop_compact_packets_source
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_compact_packets_source_test.cmake)
 
+add_executable(mop_combat_log_packets_test
+    mop_combat_log_packets_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopCombatLogPackets.cpp)
+target_include_directories(mop_combat_log_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_combat_log_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_combat_log_packets_test PRIVATE game)
+add_test(NAME mop_combat_log_packets COMMAND mop_combat_log_packets_test)
+
+add_test(NAME mop_combat_log_packets_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_combat_log_packets_source_test.cmake)
+
+add_executable(mop_respec_packets_test
+    mop_respec_packets_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopRespecPackets.cpp)
+target_include_directories(mop_respec_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_respec_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_respec_packets_test PRIVATE game)
+add_test(NAME mop_respec_packets COMMAND mop_respec_packets_test)
+
+add_test(NAME mop_respec_packets_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_respec_packets_source_test.cmake)
+
+add_executable(mop_party_stats_packets_test
+    mop_party_stats_packets_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopPartyStatsPackets.cpp)
+target_include_directories(mop_party_stats_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_party_stats_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_party_stats_packets_test PRIVATE game)
+add_test(NAME mop_party_stats_packets COMMAND mop_party_stats_packets_test)
+
+add_test(NAME mop_party_stats_packets_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_party_stats_packets_source_test.cmake)
+
+add_executable(mop_stable_packets_test
+    mop_stable_packets_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopStablePackets.cpp)
+target_include_directories(mop_stable_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_stable_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_stable_packets_test PRIVATE game)
+add_test(NAME mop_stable_packets COMMAND mop_stable_packets_test)
+
+add_test(NAME mop_stable_packets_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_stable_packets_source_test.cmake)
+
+add_executable(mop_ready_check_packets_test
+    mop_ready_check_packets_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopReadyCheckPackets.cpp)
+target_include_directories(mop_ready_check_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_ready_check_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_ready_check_packets_test PRIVATE game)
+add_test(NAME mop_ready_check_packets COMMAND mop_ready_check_packets_test)
+
+add_test(NAME mop_ready_check_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_ready_check_source_test.cmake)
+
 add_executable(mop_world_entry_packets_test mop_world_entry_packets_test.cpp)
 target_include_directories(mop_world_entry_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
@@ -134,6 +209,18 @@ target_include_directories(mop_control_packets_test PRIVATE
 set_target_properties(mop_control_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 target_link_libraries(mop_control_packets_test PRIVATE game)
 add_test(NAME mop_control_packets COMMAND mop_control_packets_test)
+
+add_executable(mop_currency_packets_test mop_currency_packets_test.cpp)
+target_include_directories(mop_currency_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_currency_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_currency_packets_test PRIVATE game)
+add_test(NAME mop_currency_packets COMMAND mop_currency_packets_test)
+
+add_test(NAME mop_currency_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_currency_packets_source_test.cmake)
 
 add_test(NAME mop_initial_mover_source
     COMMAND ${CMAKE_COMMAND}
@@ -263,6 +350,132 @@ foreach(mutation IN ITEMS query_builder_call played_builder_call query_registrat
             -DMUTATION=${mutation}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_time_query_source_test.cmake)
     set_tests_properties(mop_time_query_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
+add_executable(mop_mail_query_test mop_mail_query_test.cpp)
+target_include_directories(mop_mail_query_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_mail_query_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_mail_query_test PRIVATE game)
+add_test(NAME mop_mail_query COMMAND mop_mail_query_test)
+
+add_test(NAME mop_mail_query_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_mail_query_source_test.cmake)
+
+foreach(mutation IN ITEMS builder_call inbound_registration outbound_registration)
+    add_test(NAME mop_mail_query_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_mail_query_source_test.cmake)
+    set_tests_properties(mop_mail_query_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
+add_executable(mop_rated_bg_packets_test mop_rated_bg_packets_test.cpp)
+target_include_directories(mop_rated_bg_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_rated_bg_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_rated_bg_packets_test PRIVATE game)
+add_test(NAME mop_rated_bg_packets COMMAND mop_rated_bg_packets_test)
+
+add_test(NAME mop_rated_bg_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_rated_bg_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS builder_call inbound_registration outbound_registration)
+    add_test(NAME mop_rated_bg_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_rated_bg_packets_source_test.cmake)
+    set_tests_properties(mop_rated_bg_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
+add_executable(mop_calendar_packets_test mop_calendar_packets_test.cpp)
+target_include_directories(mop_calendar_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_calendar_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_calendar_packets_test PRIVATE game)
+add_test(NAME mop_calendar_packets COMMAND mop_calendar_packets_test)
+
+add_test(NAME mop_calendar_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_calendar_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS initial_builder status_builder moderator_builder initial_registration status_registration moderator_registration)
+    add_test(NAME mop_calendar_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_calendar_packets_source_test.cmake)
+    set_tests_properties(mop_calendar_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
+add_executable(mop_party_update_packets_test
+    mop_party_update_packets_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopPartyUpdatePackets.cpp)
+target_include_directories(mop_party_update_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_party_update_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_party_update_packets_test PRIVATE game)
+add_test(NAME mop_party_update_packets COMMAND mop_party_update_packets_test)
+
+add_executable(mop_guild_packets_test
+    mop_guild_packets_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopGuildPackets.cpp)
+target_include_directories(mop_guild_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_guild_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_guild_packets_test PRIVATE game)
+add_test(NAME mop_guild_packets COMMAND mop_guild_packets_test)
+
+add_executable(mop_lfg_packets_test
+    mop_lfg_packets_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopLfgPackets.cpp)
+target_include_directories(mop_lfg_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_lfg_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_lfg_packets_test PRIVATE game)
+add_test(NAME mop_lfg_packets COMMAND mop_lfg_packets_test)
+
+add_test(NAME mop_lfg_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_lfg_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS builder_call outbound_registration opcode_value countdown)
+    add_test(NAME mop_lfg_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_lfg_packets_source_test.cmake)
+    set_tests_properties(mop_lfg_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
+add_test(NAME mop_guild_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_guild_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS login_builder broadcast_builder outbound_registration opcode_value)
+    add_test(NAME mop_guild_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_guild_packets_source_test.cmake)
+    set_tests_properties(mop_guild_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
+add_test(NAME mop_party_update_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_party_update_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS normal_builder removal_builder targeted_request inbound_registration outbound_registration)
+    add_test(NAME mop_party_update_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_party_update_packets_source_test.cmake)
+    set_tests_properties(mop_party_update_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
 add_executable(mop_movement_packets_test

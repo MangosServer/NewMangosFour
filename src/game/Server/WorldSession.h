@@ -725,6 +725,7 @@ class WorldSession
         void HandleRequestPartyMemberStatsOpcode(WorldPacket& recv_data);
         void HandleRaidTargetUpdateOpcode(WorldPacket& recv_data);
         void HandleRaidReadyCheckOpcode(WorldPacket& recv_data);
+        void HandleRaidReadyCheckConfirmOpcode(WorldPacket& recv_data);
         void HandleRaidReadyCheckFinishedOpcode(WorldPacket& recv_data);
         void HandleGroupRaidConvertOpcode(WorldPacket& recv_data);
         void HandleGroupRequestJoinUpdates(WorldPacket& recv_data);
@@ -968,7 +969,6 @@ class WorldSession
         void HandleRequestPvPOptionsEnabledOpcode(WorldPacket& recv_data);
         void HandleRequestPvPRewardsOpcode(WorldPacket& recv_data);
         void HandleRequestRatedBGStatsOpcode(WorldPacket& recv_data);
-        void HandleRequestRatedBgInfo(WorldPacket & recvData);
 
         void HandleWardenDataOpcode(WorldPacket& recv_data);
         void HandleWorldTeleportOpcode(WorldPacket& recv_data);

@@ -198,6 +198,10 @@ void InitializeOpcodes()
     DefS(SMSG_MOVE_TELEPORT, "SMSG_MOVE_TELEPORT");
     DefS(SMSG_CLIENT_CONTROL_UPDATE, "SMSG_CLIENT_CONTROL_UPDATE");
     DefS(SMSG_MOVE_SET_ACTIVE_MOVER, "SMSG_MOVE_SET_ACTIVE_MOVER");
+    DefS(SMSG_UPDATE_CURRENCY, "SMSG_UPDATE_CURRENCY");
+    DefS(SMSG_SETUP_CURRENCY, "SMSG_SETUP_CURRENCY");
+    DefS(SMSG_SPELL_EXECUTE_LOG, "SMSG_SPELL_EXECUTE_LOG");
+    DefS(SMSG_SPELL_PERIODIC_AURA_LOG, "SMSG_SPELL_PERIODIC_AURA_LOG");
 
     // Wave 5 regular initial UI/input envelope messages.
     DefS(SMSG_INITIAL_SPELLS, "SMSG_INITIAL_SPELLS");
@@ -249,4 +253,51 @@ void InitializeOpcodes()
     DefC(CMSG_MOVE_SET_FACING, "CMSG_MOVE_SET_FACING", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleMovementOpcodes);
     DefC(CMSG_MOVE_FALL_LAND, "CMSG_MOVE_FALL_LAND", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleMovementOpcodes);
     DefS(SMSG_PLAYER_MOVE, "SMSG_PLAYER_MOVE");
+
+    // Wave 21 guild MOTD, split from the pre-MoP generic guild-event packet.
+    DefS(SMSG_GUILD_EVENT_MOTD, "SMSG_GUILD_EVENT_MOTD");
+
+    // Wave 22 LFG boot-vote update, binary-named LFG_BOOT_PLAYER.
+    DefS(SMSG_LFG_BOOT_PLAYER, "SMSG_LFG_BOOT_PLAYER");
+
+    // Wave 13 talent-respec confirmation request and prompt.
+    DefC(CMSG_CONFIRM_RESPEC_WIPE, "CMSG_CONFIRM_RESPEC_WIPE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTalentWipeConfirmOpcode);
+    DefS(SMSG_RESPEC_WIPE_CONFIRM, "SMSG_RESPEC_WIPE_CONFIRM");
+
+    // Wave 14 party-member statistics request and shared delta/full response.
+    DefC(CMSG_REQUEST_PARTY_MEMBER_STATS, "CMSG_REQUEST_PARTY_MEMBER_STATS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRequestPartyMemberStatsOpcode);
+    DefS(SMSG_PARTY_MEMBER_STATS, "SMSG_PARTY_MEMBER_STATS");
+
+    // Wave 20 full party roster/update request and response.
+    DefC(CMSG_GROUP_REQUEST_JOIN_UPDATES, "CMSG_GROUP_REQUEST_JOIN_UPDATES", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGroupRequestJoinUpdates);
+    DefS(SMSG_GROUP_LIST, "SMSG_GROUP_LIST");
+
+    // Wave 15 stable-pet list request, list response, and operation result.
+    DefC(CMSG_REQUEST_STABLED_PETS, "CMSG_REQUEST_STABLED_PETS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleListStabledPetsOpcode);
+    DefS(SMSG_PET_STABLE_LIST, "SMSG_PET_STABLE_LIST");
+    DefS(SMSG_STABLE_RESULT, "SMSG_STABLE_RESULT");
+
+    // Wave 16 ready-check exchange. All five values and bodies are recovered
+    // directly from the 18414 client; server-side state/recipient policy is
+    // deliberately kept in Group and GroupHandler.
+    DefC(CMSG_DO_READY_CHECK, "CMSG_DO_READY_CHECK", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRaidReadyCheckOpcode);
+    DefC(CMSG_RAID_READY_CHECK_CONFIRM, "CMSG_RAID_READY_CHECK_CONFIRM", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRaidReadyCheckConfirmOpcode);
+    DefS(SMSG_RAID_READY_CHECK, "SMSG_RAID_READY_CHECK");
+    DefS(SMSG_RAID_READY_CHECK_CONFIRM, "SMSG_RAID_READY_CHECK_CONFIRM");
+    DefS(SMSG_RAID_READY_CHECK_COMPLETED, "SMSG_RAID_READY_CHECK_COMPLETED");
+
+    // Wave 17 next-mail-time query and result.
+    DefC(CMSG_MAIL_QUERY_NEXT_TIME, "CMSG_MAIL_QUERY_NEXT_TIME", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQueryNextMailTime);
+    DefS(SMSG_MAIL_QUERY_NEXT_TIME_RESULT, "SMSG_MAIL_QUERY_NEXT_TIME_RESULT");
+
+    // Wave 18 rated-battleground self statistics. The inspect exchange is a
+    // separate protocol and is deliberately not registered here.
+    DefC(CMSG_REQUEST_RATED_BG_STATS, "CMSG_REQUEST_RATED_BG_STATS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRequestRatedBGStatsOpcode);
+    DefS(SMSG_BATTLEFIELD_RATED_INFO, "SMSG_BATTLEFIELD_RATED_INFO");
+
+    // Wave 19 calendar update bodies. Names come through the 5.4.7 bridge;
+    // values and layouts are proved by the 18414 receive routes.
+    DefS(SMSG_CALENDAR_EVENT_INITIAL_INVITE, "SMSG_CALENDAR_EVENT_INITIAL_INVITE");
+    DefS(SMSG_CALENDAR_EVENT_INVITE_STATUS, "SMSG_CALENDAR_EVENT_INVITE_STATUS");
+    DefS(SMSG_CALENDAR_EVENT_MODERATOR_STATUS, "SMSG_CALENDAR_EVENT_MODERATOR_STATUS");
 }

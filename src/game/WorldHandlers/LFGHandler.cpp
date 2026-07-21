@@ -46,6 +46,7 @@
 #include "WorldPacket.h"
 #include "ObjectMgr.h"
 #include "World.h"
+#include "Server/MopLfgPackets.h"
 
 void WorldSession::HandleLfgJoinOpcode(WorldPacket& recv_data)
 {
@@ -569,7 +570,7 @@ void WorldSession::SendLfgRewards(LFGRewards const& rewards)
 
 void WorldSession::SendLfgBootUpdate(LFGBoot const& boot)
 {
-    DEBUG_LOG("SMSG_LFG_BOOT_PLAYER");
+    DEBUG_LOG("SMSG_LFG_BOOT_PLAYER (5.4.8)");
 
     ObjectGuid plrGuid = GetPlayer()->GetObjectGuid();
     LFGProposalAnswer plrAnswer = boot.answers.find(plrGuid)->second;
@@ -587,22 +588,26 @@ void WorldSession::SendLfgBootUpdate(LFGBoot const& boot)
         }
     }
 
-    uint32 timeLeft = uint8(((boot.startTime + LFG_TIME_BOOT) - time(NULL)) / 1000);
+    time_t const expires = boot.startTime + LFG_TIME_BOOT;
+    time_t const now = time(NULL);
 
-    WorldPacket data(SMSG_LFG_BOOT_PLAYER, 27 + boot.reason.length());
+    MopLfgPackets::BootUpdate update;
+    update.victimGuid = boot.playerVotedOn.GetRawValue();
+    update.reason = boot.reason;
+    update.inProgress = boot.inProgress;
+    update.didVote = plrAnswer != LFG_ANSWER_PENDING;
+    update.votePassed = yayCount >= REQUIRED_VOTES_FOR_BOOT;
+    update.agree = plrAnswer == LFG_ANSWER_AGREE;
+    update.votesNeeded = REQUIRED_VOTES_FOR_BOOT;
+    update.timeLeft = expires > now ? uint32(expires - now) : 0;
+    update.agreeCount = yayCount;
+    update.voteCount = voteCount;
 
-    data << uint8(boot.inProgress);                   // Is boot still ongoing?
-    data << uint8(plrAnswer != LFG_ANSWER_PENDING);   // Did this player vote yet?
-    data << uint8(plrAnswer == LFG_ANSWER_AGREE);     // Did this player agree to boot them?
-    data << uint64(boot.playerVotedOn.GetRawValue()); // Potentially booted player's objectguid value
-    data << uint32(voteCount);                        // Number of players who've voted so far
-    data << uint32(yayCount);                         // Number of players who've voted against the plr so far
-    data << uint32(timeLeft);                         // Time left in seconds
-    data << uint32(REQUIRED_VOTES_FOR_BOOT);          // Number of votes needed to win
-    data << boot.reason.c_str();                      // Reason given for booting
-
-    SendPacket(&data);
+    WorldPacket data(SMSG_LFG_BOOT_PLAYER, 30 + boot.reason.length());
+    if (MopLfgPackets::BuildBootPlayer(data, update))
+        SendPacket(&data);
+    else
+        sLog.outError("WORLD: LFG boot reason is too long for SMSG_LFG_BOOT_PLAYER");
 }
-
 
 

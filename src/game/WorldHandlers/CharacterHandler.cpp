@@ -62,6 +62,7 @@
 #include "Server/MopCharEnum.h"
 #include "Server/MopCreateGating.h"
 #include "Server/MopInitialPackets.h"
+#include "Server/MopGuildPackets.h"
 #include "Server/MopWorldEntryPackets.h"
 #include "Util.h"
 #include "Language.h"
@@ -954,12 +955,14 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
         {
             pCurrChar->SetGuildLevel(guild->GetLevel());
             /* Build MOTD packet and send it to the player */
-            data.Initialize(SMSG_GUILD_EVENT, (1 + 1 + guild->GetMOTD().size() + 1));
-            data << uint8(GE_MOTD);
-            data << uint8(1);
-            data << guild->GetMOTD();
-            SendPacket(&data);
-            DEBUG_LOG("WORLD: Sent guild-motd (SMSG_GUILD_EVENT)");
+            data.Initialize(SMSG_GUILD_EVENT_MOTD, guild->GetMOTD().size() + 2);
+            if (MopGuildPackets::BuildGuildMotd(data, guild->GetMOTD()))
+            {
+                SendPacket(&data);
+                DEBUG_LOG("WORLD: Sent guild-motd (SMSG_GUILD_EVENT_MOTD)");
+            }
+            else
+                sLog.outError("WORLD: Guild %u MOTD is too long for SMSG_GUILD_EVENT_MOTD", guild->GetId());
 
             guild->DisplayGuildBankTabsInfo(this);
             /* Let everyone in the guild know you've just signed in */

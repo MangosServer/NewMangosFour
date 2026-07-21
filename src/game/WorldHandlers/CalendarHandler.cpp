@@ -36,6 +36,7 @@
 #include "Guild.h"
 #include "GuildMgr.h"
 #include "ArenaTeam.h"
+#include "Server/MopCalendarPackets.h"
 
 void WorldSession::HandleCalendarGetCalendar(WorldPacket& /*recv_data*/)
 {
@@ -1028,18 +1029,20 @@ void CalendarMgr::SendCalendarEventInviteRemoveAlert(Player* player, CalendarEve
 
 void CalendarMgr::SendCalendarEventStatus(CalendarInvite const* invite)
 {
-    DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "SMSG_CALENDAR_EVENT_STATUS");
-    WorldPacket data(SMSG_CALENDAR_EVENT_STATUS, 8 + 8 + 4 + 4 + 1 + 1 + 4);
+    DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "SMSG_CALENDAR_EVENT_INVITE_STATUS");
     CalendarEvent const* event = invite->GetCalendarEvent();
 
-    data << invite->InviteeGuid.WriteAsPacked();
-    data << uint64(event->EventId);
-    data << secsToTimeBitFields(event->EventTime);
-    data << uint32(event->Flags);
-    data << uint8(invite->Status);
-    data << uint8(invite->Rank);
-    data << secsToTimeBitFields(invite->LastUpdateTime);
-    //data.hexlike();
+    MopCalendarPackets::InviteStatus record;
+    record.inviteeGuid = invite->InviteeGuid.GetRawValue();
+    record.eventId = event->EventId;
+    record.eventFlags = event->Flags;
+    record.lastUpdateTime = secsToTimeBitFields(invite->LastUpdateTime);
+    record.eventTime = secsToTimeBitFields(event->EventTime);
+    record.status = invite->Status;
+    record.displayPendingAction = true;
+
+    WorldPacket data(SMSG_CALENDAR_EVENT_INVITE_STATUS, 31);
+    MopCalendarPackets::BuildCalendarInviteStatus(data, record);
     SendPacketToAllEventRelatives(data, event);
 }
 
@@ -1055,14 +1058,17 @@ void CalendarMgr::SendCalendarClearPendingAction(Player* player)
 
 void CalendarMgr::SendCalendarEventModeratorStatusAlert(CalendarInvite const* invite)
 {
-    DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "SMSG_CALENDAR_EVENT_MODERATOR_STATUS_ALERT");
+    DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "SMSG_CALENDAR_EVENT_MODERATOR_STATUS");
     CalendarEvent const* event = invite->GetCalendarEvent();
-    WorldPacket data(SMSG_CALENDAR_EVENT_MODERATOR_STATUS_ALERT, 8 + 8 + 1 + 1);
-    data << invite->InviteeGuid.WriteAsPacked();
-    data << uint64(event->EventId);
-    data << uint8(invite->Rank);
-    data << uint8(1); // Display pending action to client?
-    //data.hexlike();
+
+    MopCalendarPackets::ModeratorStatus record;
+    record.inviteeGuid = invite->InviteeGuid.GetRawValue();
+    record.eventId = event->EventId;
+    record.rank = invite->Rank;
+    record.displayPendingAction = true;
+
+    WorldPacket data(SMSG_CALENDAR_EVENT_MODERATOR_STATUS, 19);
+    MopCalendarPackets::BuildCalendarModeratorStatus(data, record);
     SendPacketToAllEventRelatives(data, event);
 }
 

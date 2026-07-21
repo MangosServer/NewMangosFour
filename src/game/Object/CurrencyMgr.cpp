@@ -28,6 +28,7 @@
 #include "World.h"
 #include "WorldPacket.h"
 #include "Opcodes.h"
+#include "Server/MopCurrencyPackets.h"
 #include "DBCStores.h"
 #include "DBCStructure.h"
 #include "Database/DatabaseEnv.h"
@@ -166,24 +167,22 @@ void CurrencyMgr::ModifyCount(uint32 id, int32 count, bool modifyWeek, bool modi
                 m_owner->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_CURRENCY_EARNED, id, newTotalCount);
             }
 
-            WorldPacket packet(SMSG_SET_CURRENCY, 13);
-            bool bit0 = modifyWeek && weekCap && diff > 0;
-            bool bit1 = currency->HasSeasonCount();
-            bool bit2 = currency->CategoryID == CURRENCY_CATEGORY_META;   // hides message in client when set
-            packet.WriteBit(bit0);
-            packet.WriteBit(bit1);
-            packet.WriteBit(bit2);
-
-            if (bit1)
-            {
-                packet << uint32(floor(itr->second.seasonCount / currency->GetPrecision()));
-            }
-            packet << uint32(floor(newTotalCount / currency->GetPrecision()));
-            packet << uint32(id);
-            if (bit0)
-            {
-                packet << uint32(floor(newWeekCount / currency->GetPrecision()));
-            }
+            uint32 const precision = uint32(currency->GetPrecision());
+            bool const hasWeeklyQuantity = modifyWeek && weekCap && diff > 0;
+            bool const hasTrackedQuantity = currency->HasSeasonCount();
+            bool const suppressGainMessage = currency->CategoryID == CURRENCY_CATEGORY_META;
+            MopCurrencyPackets::CurrencyUpdate const update = {
+                id,
+                0,
+                newTotalCount / precision,
+                hasWeeklyQuantity,
+                suppressGainMessage,
+                hasTrackedQuantity,
+                newWeekCount / precision,
+                itr->second.seasonCount / precision
+            };
+            WorldPacket packet(SMSG_UPDATE_CURRENCY, 21);
+            MopCurrencyPackets::BuildUpdateCurrency(packet, update);
             m_owner->GetSession()->SendPacket(&packet);
 
             // init currency week limit for new currencies
@@ -240,38 +239,28 @@ void CurrencyMgr::ResetWeekCounts()
 
 void CurrencyMgr::SendAll() const
 {
-    WorldPacket data(SMSG_SEND_CURRENCIES, m_currencies.size() * 4);
-    data.WriteBits(m_currencies.size(), 23);
-
+    std::vector<MopCurrencyPackets::CurrencySetupEntry> entries;
+    entries.reserve(m_currencies.size());
     for (PlayerCurrenciesMap::const_iterator itr = m_currencies.begin(); itr != m_currencies.end(); ++itr)
     {
+        uint32 const precision = uint32(itr->second.currencyEntry->GetPrecision());
         uint32 weekCap = GetWeekCap(itr->second.currencyEntry);
-        data.WriteBit(weekCap && itr->second.weekCount);
-        data.WriteBits(itr->second.flags, 4);
-        data.WriteBit(weekCap);
-        data.WriteBit(itr->second.currencyEntry->HasSeasonCount());
+        entries.push_back({
+            itr->first,
+            itr->second.totalCount / precision,
+            itr->second.weekCount / precision,
+            itr->second.seasonCount / precision,
+            weekCap / precision,
+            uint8(itr->second.flags & 0x7),
+            weekCap && itr->second.weekCount,
+            itr->second.currencyEntry->HasSeasonCount(),
+            weekCap != 0
+        });
     }
 
-    for (PlayerCurrenciesMap::const_iterator itr = m_currencies.begin(); itr != m_currencies.end(); ++itr)
-    {
-        data << uint32(floor(itr->second.totalCount / itr->second.currencyEntry->GetPrecision()));
-
-        uint32 weekCap = GetWeekCap(itr->second.currencyEntry);
-        if (weekCap)
-        {
-            data << uint32(floor(weekCap / itr->second.currencyEntry->GetPrecision()));
-        }
-        if (itr->second.currencyEntry->HasSeasonCount())
-        {
-            data << uint32(floor(itr->second.seasonCount / itr->second.currencyEntry->GetPrecision()));
-        }
-        data << uint32(itr->first);
-        if (weekCap && itr->second.weekCount)
-        {
-            data << uint32(floor(itr->second.weekCount / itr->second.currencyEntry->GetPrecision()));
-        }
-    }
-
+    WorldPacket data(SMSG_SETUP_CURRENCY, 3 + entries.size() * 24);
+    if (!MopCurrencyPackets::BuildSetupCurrency(data, entries))
+        return;
     m_owner->GetSession()->SendPacket(&data);
 }
 

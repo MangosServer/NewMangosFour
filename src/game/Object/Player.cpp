@@ -56,6 +56,7 @@
 #include "Server/MopCharEnum.h"
 #include "Server/MopControlPackets.h"
 #include "Server/MopInitialPackets.h"
+#include "Server/MopRespecPackets.h"
 #include "Server/MopWorldEntryPackets.h"
 #include "Util.h"
 #include "Transports.h"
@@ -379,6 +380,7 @@ Player::Player(WorldSession* session): Unit(), m_mover(this), m_camera(this), m_
     SetGroupInvite(NULL);
     m_groupUpdateMask = 0;
     m_auraUpdateMask = 0;
+    m_readyCheckTimer = 0;
 
     duel = NULL;
 
@@ -1321,6 +1323,14 @@ void Player::Update(uint32 update_diff, uint32 p_time)
     // Group update
     SendUpdateToOutOfRangeGroupMembers();
 
+    if (m_readyCheckTimer > 0)
+    {
+        if (update_diff >= m_readyCheckTimer)
+            ReadyCheckComplete();
+        else
+            m_readyCheckTimer -= update_diff;
+    }
+
     // Handle pet unsummoning if out of range
     Pet* pet = GetPet();
     if (pet && !pet->IsWithinDistInMap(this, GetMap()->GetVisibilityDistance()) && (GetCharmGuid() && (pet->GetObjectGuid() != GetCharmGuid())))
@@ -1333,6 +1343,22 @@ void Player::Update(uint32 update_diff, uint32 p_time)
     {
         TeleportTo(m_teleport_dest, m_teleport_options);
     }
+}
+
+void Player::ReadyCheckComplete()
+{
+    m_readyCheckTimer = 0;
+
+    Group* originalGroup = GetOriginalGroup();
+    if (originalGroup && originalGroup->IsReadyCheckInitiator(GetObjectGuid()))
+    {
+        originalGroup->CompleteReadyCheck();
+        return;
+    }
+
+    Group* group = GetGroup();
+    if (group && group->IsReadyCheckInitiator(GetObjectGuid()))
+        group->CompleteReadyCheck();
 }
 
 /**
@@ -3892,9 +3918,8 @@ void Player::SetBindPoint(ObjectGuid guid)
  */
 void Player::SendTalentWipeConfirm(ObjectGuid guid)
 {
-    WorldPacket data(MSG_TALENT_WIPE_CONFIRM, (8 + 4));
-    data << ObjectGuid(guid);
-    data << uint32(resetTalentsCost());
+    WorldPacket data(SMSG_RESPEC_WIPE_CONFIRM, 14);
+    MopRespecPackets::BuildRespecWipeConfirm(data, guid.GetRawValue(), 0, resetTalentsCost());
     GetSession()->SendPacket(&data);
 }
 

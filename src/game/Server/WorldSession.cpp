@@ -807,6 +807,9 @@ void WorldSession::LogoutPlayer(bool Save)
 
         ///- Leave all channels before player delete...
         _player->CleanupChannels();
+
+        // An initiator that logs out cannot keep the group in an active check.
+        _player->ReadyCheckComplete();
 #ifndef ENABLE_PLAYERBOTS
         ///- If the player is in a group (or invited), remove him. If the group if then only 1 person, disband the group.
         _player->UninviteFromGroup();

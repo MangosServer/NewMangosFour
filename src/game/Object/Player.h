@@ -3718,6 +3718,10 @@ class Player : public Unit
         // Set the original group
         void SetOriginalGroup(Group* group, int8 subgroup = -1);
 
+        void SetReadyCheckTimer(uint32 duration) { m_readyCheckTimer = duration; }
+        bool HasReadyCheckTimer() const { return m_readyCheckTimer != 0; }
+        void ReadyCheckComplete();
+
         // Get the grid reference
         GridReference<Player>& GetGridRef() { return m_gridRef; }
 
@@ -4059,6 +4063,7 @@ class Player : public Unit
         Group* m_groupInvite; // Group invite
         uint32 m_groupUpdateMask; // Group update mask
         uint64 m_auraUpdateMask; // Aura update mask
+        uint32 m_readyCheckTimer; // Initiator-owned ready-check timeout
 
         // Player summoning
         time_t m_summon_expire; // Summon expire time
