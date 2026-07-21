@@ -421,6 +421,28 @@ set_target_properties(mop_guild_packets_test PROPERTIES CXX_STANDARD 17 CXX_STAN
 target_link_libraries(mop_guild_packets_test PRIVATE game)
 add_test(NAME mop_guild_packets COMMAND mop_guild_packets_test)
 
+add_executable(mop_lfg_packets_test
+    mop_lfg_packets_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopLfgPackets.cpp)
+target_include_directories(mop_lfg_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_lfg_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_lfg_packets_test PRIVATE game)
+add_test(NAME mop_lfg_packets COMMAND mop_lfg_packets_test)
+
+add_test(NAME mop_lfg_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_lfg_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS builder_call outbound_registration opcode_value countdown)
+    add_test(NAME mop_lfg_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_lfg_packets_source_test.cmake)
+    set_tests_properties(mop_lfg_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_test(NAME mop_guild_packets_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_guild_packets_source_test.cmake)

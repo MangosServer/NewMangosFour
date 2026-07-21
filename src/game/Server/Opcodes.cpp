@@ -243,6 +243,9 @@ void InitializeOpcodes()
     // Wave 21 guild MOTD, split from the pre-MoP generic guild-event packet.
     DefS(SMSG_GUILD_EVENT_MOTD, "SMSG_GUILD_EVENT_MOTD");
 
+    // Wave 22 LFG boot-vote update, binary-named LFG_BOOT_PLAYER.
+    DefS(SMSG_LFG_BOOT_PLAYER, "SMSG_LFG_BOOT_PLAYER");
+
     // Wave 13 talent-respec confirmation request and prompt.
     DefC(CMSG_CONFIRM_RESPEC_WIPE, "CMSG_CONFIRM_RESPEC_WIPE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTalentWipeConfirmOpcode);
     DefS(SMSG_RESPEC_WIPE_CONFIRM, "SMSG_RESPEC_WIPE_CONFIRM");
