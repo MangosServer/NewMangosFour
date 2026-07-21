@@ -247,4 +247,9 @@ void InitializeOpcodes()
     // Wave 14 party-member statistics request and shared delta/full response.
     DefC(CMSG_REQUEST_PARTY_MEMBER_STATS, "CMSG_REQUEST_PARTY_MEMBER_STATS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRequestPartyMemberStatsOpcode);
     DefS(SMSG_PARTY_MEMBER_STATS, "SMSG_PARTY_MEMBER_STATS");
+
+    // Wave 15 stable-pet list request, list response, and operation result.
+    DefC(CMSG_REQUEST_STABLED_PETS, "CMSG_REQUEST_STABLED_PETS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleListStabledPetsOpcode);
+    DefS(SMSG_PET_STABLE_LIST, "SMSG_PET_STABLE_LIST");
+    DefS(SMSG_STABLE_RESULT, "SMSG_STABLE_RESULT");
 }

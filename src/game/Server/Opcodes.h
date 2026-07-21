@@ -625,6 +625,7 @@ enum OpcodesList
     CMSG_CANCEL_AUTO_REPEAT_SPELL                = 0x1272, // 5.4.8 18414 (Wow.exe binary)
     MSG_GM_ACCOUNT_ONLINE                        = 0x0889,    // 5.3.0 17128 (no client leaf)
     MSG_LIST_STABLED_PETS                        = 0x0834,    // 4.3.4 15595 (no client leaf)
+    CMSG_REQUEST_STABLED_PETS                    = 0x02CA, // 5.4.8 18414 (Wow.exe binary)
     CMSG_STABLE_PET                              = 0x1271, // not in 5.4.8 (legacy; handler retained)
     CMSG_UNSTABLE_PET                            = 0x1272, // not in 5.4.8 (legacy; handler retained)
     CMSG_BUY_STABLE_SLOT                         = 0x1273, // not in 5.4.8 (legacy; handler retained)

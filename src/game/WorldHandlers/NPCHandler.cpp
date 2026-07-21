@@ -66,6 +66,7 @@
 #include "Guild.h"
 #include "GuildMgr.h"
 #include "Chat.h"
+#include "Server/MopStablePackets.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
@@ -710,10 +711,8 @@ void WorldSession::SendBindPoint(Creature* npc)
  */
 void WorldSession::HandleListStabledPetsOpcode(WorldPacket& recv_data)
 {
-    DEBUG_LOG("WORLD: Recv MSG_LIST_STABLED_PETS");
-    ObjectGuid npcGUID;
-
-    recv_data >> npcGUID;
+    DEBUG_LOG("WORLD: Recv CMSG_REQUEST_STABLED_PETS");
+    ObjectGuid npcGUID(MopStablePackets::ReadStableListRequest(recv_data));
 
     if (!CheckStableMaster(npcGUID))
     {
@@ -737,37 +736,11 @@ void WorldSession::HandleListStabledPetsOpcode(WorldPacket& recv_data)
  */
 void WorldSession::SendStablePet(ObjectGuid guid)
 {
-    DEBUG_LOG("WORLD: Recv MSG_LIST_STABLED_PETS Send.");
+    DEBUG_LOG("WORLD: Send SMSG_PET_STABLE_LIST.");
 
-    // Cata 4.3.4 MSG_LIST_STABLED_PETS payload layout (mirrors TC):
-    //   uint64  stablemaster guid
-    //   uint8   pet count (N)
-    //   uint8   slot count exposed to client (PET_SLOT_LAST_ACTIVE_SLOT + 1)
-    //   N times:
-    //     int32  petSlot              -- Call Pet 1..5 == slots 0..4
-    //     uint32 petNumber            -- character_pet.id
-    //     uint32 creatureEntry        -- character_pet.entry
-    //     uint32 petLevel             -- character_pet.level
-    //     string name                 -- character_pet.name
-    //     uint8  flags                -- PET_STABLE_ACTIVE [| PET_STABLE_INACTIVE]
-    //
-    // The pre-Cata layout (no slot field, magic status byte 1/2/3) is
-    // what the WotLK client expects; the Cata client misreads it field-
-    // for-field and renders the wrong pet name/level/entry in each pane.
-    WorldPacket data(MSG_LIST_STABLED_PETS, 200);           // guess size
-    data << guid;
+    std::vector<MopStablePackets::StablePetRecord> records;
 
     Pet* pet = _player->GetPet();
-
-    size_t wpos = data.wpos();
-    data << uint8(0);                                       // place holder for pet count
-    // Tell the client how many stable-slot panes to draw. TC sends
-    // PET_SLOT_LAST_STABLE_SLOT (=20) literally; mirror that so the
-    // 4.3.4 client renders the full stable grid and the drag-and-drop
-    // targets in slots 5..20 are valid drop zones.
-    data << uint8(PET_SLOT_LAST_STABLE_SLOT);
-
-    uint8 num = 0;                                          // counter for place holder
 
     // not let move dead pet in slot
     if (pet && pet->IsAlive() && pet->getPetType() == HUNTER_PET)
@@ -785,13 +758,16 @@ void WorldSession::SendStablePet(ObjectGuid guid)
         {
             activeSlot = int32(PET_SLOT_FIRST);
         }
-        data << int32(activeSlot);
-        data << uint32(pet->GetCharmInfo()->GetPetNumber());
-        data << uint32(pet->GetEntry());
-        data << uint32(pet->getLevel());
-        data << pet->GetName();
-        data << uint8(PET_STABLE_ACTIVE);
-        ++num;
+
+        MopStablePackets::StablePetRecord record;
+        record.entry = pet->GetEntry();
+        record.level = pet->getLevel();
+        record.state = 1;                                  // reference-qualified active-roster state
+        record.modelId = pet->GetDisplayId();
+        record.name = pet->GetName();
+        record.petNumber = pet->GetCharmInfo()->GetPetNumber();
+        record.slot = uint32(activeSlot);
+        records.push_back(record);
     }
 
     // Query covers the entire active-roster range (slot 0..MAX) instead
@@ -811,11 +787,11 @@ void WorldSession::SendStablePet(ObjectGuid guid)
     // (=20), not just the legacy PET_SAVE_LAST_STABLE_SLOT
     // (=MAX_PET_STABLES). Slots 5..20 are stable-only positions the
     // Cata stable UI displays and the player drags pets into via
-    // CMSG_SET_PET_SLOT. Restricting the query to 0..4 like the
+    // the stable UI. Restricting the query to 0..4 like the
     // pre-Cata code would make any stable-only pet vanish from the
     // panel the moment the player dragged it past slot 4.
-    //                                                      0        1     2        3        4       5
-    QueryResult* result = CharacterDatabase.PQuery("SELECT `owner`, `id`, `entry`, `level`, `name`, `slot` FROM `character_pet` WHERE `owner` = '%u' AND `slot` >= '%u' AND `slot` <= '%u' AND `id` <> '%u' ORDER BY `slot`",
+    //                                                      0        1     2        3        4          5       6
+    QueryResult* result = CharacterDatabase.PQuery("SELECT `owner`, `id`, `entry`, `level`, `name`, `modelid`, `slot` FROM `character_pet` WHERE `owner` = '%u' AND `slot` >= '%u' AND `slot` <= '%u' AND `id` <> '%u' ORDER BY `slot`",
                           _player->GetGUIDLow(), uint32(PET_SLOT_FIRST), uint32(PET_SLOT_LAST_STABLE_SLOT), activePetId);
 
     if (result)
@@ -824,32 +800,29 @@ void WorldSession::SendStablePet(ObjectGuid guid)
         {
             Field* fields = result->Fetch();
 
-            // character_pet.slot 1..MAX_PET_STABLES maps directly onto
-            // Call Pet 2..N+1 in the Cata client. Pets stored beyond the
-            // Call Pet range get PET_STABLE_INACTIVE for forward parity,
-            // even though 4.3.4 has no such slots today.
-            uint32 petSlot = fields[5].GetUInt32();
-            uint8 flags = PET_STABLE_ACTIVE;
-            if (petSlot > uint32(PET_SLOT_LAST_ACTIVE_SLOT))
-            {
-                flags |= PET_STABLE_INACTIVE;
-            }
-
-            data << int32(petSlot);
-            data << uint32(fields[1].GetUInt32());          // petnumber
-            data << uint32(fields[2].GetUInt32());          // creature entry
-            data << uint32(fields[3].GetUInt32());          // level
-            data << fields[4].GetString();                  // name
-            data << uint8(flags);
-
-            ++num;
+            uint32 petSlot = fields[6].GetUInt32();
+            MopStablePackets::StablePetRecord record;
+            record.entry = fields[2].GetUInt32();
+            record.level = fields[3].GetUInt32();
+            record.state = uint8(petSlot <= uint32(PET_SLOT_LAST_ACTIVE_SLOT) ? 1 : 2);
+            record.modelId = fields[5].GetUInt32();
+            record.name = fields[4].GetString();
+            record.petNumber = fields[1].GetUInt32();
+            record.slot = petSlot;
+            records.push_back(record);
         }
         while (result->NextRow());
 
         delete result;
     }
 
-    data.put<uint8>(wpos, num);                             // set real data to placeholder
+    WorldPacket data;
+    if (!MopStablePackets::BuildPetStableList(data, guid, records))
+    {
+        sLog.outError("WORLD: Refusing invalid SMSG_PET_STABLE_LIST payload for player %s.", _player->GetGuidStr().c_str());
+        SendStableResult(STABLE_ERR_INTERNAL);
+        return;
+    }
     SendPacket(&data);
 }
 
@@ -860,8 +833,8 @@ void WorldSession::SendStablePet(ObjectGuid guid)
  */
 void WorldSession::SendStableResult(uint8 res)
 {
-    WorldPacket data(SMSG_STABLE_RESULT, 1);
-    data << uint8(res);
+    WorldPacket data;
+    MopStablePackets::BuildStableResult(data, res);
     SendPacket(&data);
 }
 

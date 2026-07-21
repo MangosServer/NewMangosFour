@@ -148,6 +148,21 @@ add_test(NAME mop_party_stats_packets_source
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_party_stats_packets_source_test.cmake)
 
+add_executable(mop_stable_packets_test
+    mop_stable_packets_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopStablePackets.cpp)
+target_include_directories(mop_stable_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_stable_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_stable_packets_test PRIVATE game)
+add_test(NAME mop_stable_packets COMMAND mop_stable_packets_test)
+
+add_test(NAME mop_stable_packets_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_stable_packets_source_test.cmake)
+
 add_executable(mop_world_entry_packets_test mop_world_entry_packets_test.cpp)
 target_include_directories(mop_world_entry_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
