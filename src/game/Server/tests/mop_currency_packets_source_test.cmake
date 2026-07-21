@@ -1,0 +1,20 @@
+file(READ "${SOURCE_ROOT}/src/game/Object/CurrencyMgr.cpp" currency_mgr)
+file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
+
+foreach(legacy_symbol IN ITEMS SMSG_SET_CURRENCY SMSG_SEND_CURRENCIES)
+    if(currency_mgr MATCHES "${legacy_symbol}([^A-Za-z0-9_]|$)")
+        message(FATAL_ERROR "legacy ${legacy_symbol} remains in CurrencyMgr.cpp")
+    endif()
+endforeach()
+
+foreach(builder_name IN ITEMS BuildUpdateCurrency BuildSetupCurrency)
+    if(NOT currency_mgr MATCHES "MopCurrencyPackets::${builder_name}")
+        message(FATAL_ERROR "CurrencyMgr.cpp does not use ${builder_name}")
+    endif()
+endforeach()
+
+foreach(server_name IN ITEMS SMSG_UPDATE_CURRENCY SMSG_SETUP_CURRENCY)
+    if(NOT opcode_registry MATCHES "DefS\\(${server_name},[ \\t]*\\\"${server_name}\\\"\\)")
+        message(FATAL_ERROR "${server_name} is missing outbound opcode metadata")
+    endif()
+endforeach()
