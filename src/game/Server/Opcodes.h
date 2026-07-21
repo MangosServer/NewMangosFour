@@ -595,6 +595,7 @@ enum OpcodesList
     SMSG_SPELLDAMAGESHIELD                       = 0x05F3,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     SMSG_SPELLNONMELEEDAMAGELOG                  = 0x1450,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     CMSG_LEARN_TALENT                            = 0x02A7, // 5.4.8 18414 (Wow.exe binary)
+    CMSG_CONFIRM_RESPEC_WIPE                     = 0x0275, // 5.4.8 18414 (Wow.exe serializer; name reference-consensus)
     SMSG_RESURRECT_FAILED                        = 0x1253,    // (legacy; no client leaf)
     CMSG_TOGGLE_PVP                              = 0x0644, // 5.4.8 18414 (Wow.exe binary)
     SMSG_ZONE_UNDER_ATTACK                       = 0x10C2,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)

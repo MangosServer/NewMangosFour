@@ -43,6 +43,7 @@
 #include "Opcodes.h"
 #include "Log.h"
 #include "Player.h"
+#include "Server/MopRespecPackets.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "UpdateMask.h"
@@ -128,8 +129,8 @@ void WorldSession::HandleLearnPreviewTalents(WorldPacket& recvPacket)
 }
 
 /**
- * @brief Handle talent wipe confirmation (MSG_TALENT_WIPE_CONFIRM)
- * @param recv_data World packet containing trainer GUID
+ * @brief Handle talent wipe confirmation (CMSG_CONFIRM_RESPEC_WIPE)
+ * @param recv_data World packet containing respec type and trainer GUID
  *
  * Player confirms talent reset at a class trainer. Requirements:
  * - Target must be a trainer NPC
@@ -143,9 +144,13 @@ void WorldSession::HandleLearnPreviewTalents(WorldPacket& recvPacket)
  */
 void WorldSession::HandleTalentWipeConfirmOpcode(WorldPacket& recv_data)
 {
-    DETAIL_LOG("MSG_TALENT_WIPE_CONFIRM");
-    ObjectGuid guid;
-    recv_data >> guid;
+    DETAIL_LOG("CMSG_CONFIRM_RESPEC_WIPE");
+    MopRespecPackets::ConfirmRespecWipe const confirm = MopRespecPackets::ReadConfirmRespecWipe(recv_data);
+    if (confirm.discriminator != 0)
+    {
+        return;
+    }
+    ObjectGuid guid(confirm.trainerGuid);
 
     Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(guid, UNIT_NPC_FLAG_TRAINER);
     if (!unit)
@@ -161,9 +166,8 @@ void WorldSession::HandleTalentWipeConfirmOpcode(WorldPacket& recv_data)
 
     if (!(_player->resetTalents()))
     {
-        WorldPacket data(MSG_TALENT_WIPE_CONFIRM, 8 + 4);   // No talents to reset
-        data << uint64(0);
-        data << uint32(0);
+        WorldPacket data(SMSG_RESPEC_WIPE_CONFIRM, 6);      // No talents to reset
+        MopRespecPackets::BuildRespecWipeConfirm(data, 0, 0, 0);
         SendPacket(&data);
         return;
     }

@@ -56,6 +56,7 @@
 #include "Server/MopCharEnum.h"
 #include "Server/MopControlPackets.h"
 #include "Server/MopInitialPackets.h"
+#include "Server/MopRespecPackets.h"
 #include "Server/MopWorldEntryPackets.h"
 #include "Util.h"
 #include "Transports.h"
@@ -3892,9 +3893,8 @@ void Player::SetBindPoint(ObjectGuid guid)
  */
 void Player::SendTalentWipeConfirm(ObjectGuid guid)
 {
-    WorldPacket data(MSG_TALENT_WIPE_CONFIRM, (8 + 4));
-    data << ObjectGuid(guid);
-    data << uint32(resetTalentsCost());
+    WorldPacket data(SMSG_RESPEC_WIPE_CONFIRM, 14);
+    MopRespecPackets::BuildRespecWipeConfirm(data, guid.GetRawValue(), 0, resetTalentsCost());
     GetSession()->SendPacket(&data);
 }
 
