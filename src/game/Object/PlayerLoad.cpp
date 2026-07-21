@@ -449,6 +449,10 @@ void Player::_LoadAuras(QueryResult* result, uint32 timediff)
         delete result;
     }
 
+    // Warriors enter the world in Battle Stance. The stale-Cata SMSG_SPELL_GO/SMSG_AURA_UPDATE this
+    // cast would emit to the 18414 client are dropped during the enter-world window in
+    // WorldSession::SendPacket (see the login-cast crash fix there), so the stance is kept
+    // server-side (rage/abilities) without crashing the client.
     if (getClass() == CLASS_WARRIOR && !HasAuraType(SPELL_AURA_MOD_SHAPESHIFT))
     {
         CastSpell(this, SPELL_ID_PASSIVE_BATTLE_STANCE, true);
@@ -573,7 +577,8 @@ void Player::_LoadInventory(QueryResult* result, uint32 timediff)
                 else if (IsEquipmentPos(INVENTORY_SLOT_BAG_0, slot))
                 {
                     uint16 dest;
-                    if (CanEquipItem(slot, dest, item, false, false) == EQUIP_ERR_OK)
+                    InventoryResult eqRes = CanEquipItem(slot, dest, item, false, false);
+                    if (eqRes == EQUIP_ERR_OK)
                     {
                         QuickEquipItem(dest, item);
                     }

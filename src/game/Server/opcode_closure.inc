@@ -15,7 +15,7 @@ static const struct { const char* name; unsigned value; bool client; bool out_of
     { "SMSG_CHAR_CREATE", 0x1CAA, false, false, nullptr },
     { "SMSG_CHAR_ENUM", 0x11C3, false, false, nullptr },
     { "SMSG_CLIENTCACHE_VERSION", 0x002A, false, false, nullptr },
-    { "SMSG_FEATURE_SYSTEM_STATUS", 0x121E, false, false, nullptr },
+    { "SMSG_FEATURE_SYSTEM_STATUS", 0x16BB, false, false, nullptr },
     { "SMSG_LOGIN_SETTIMESPEED", 0x082B, false, false, nullptr },
     { "SMSG_PONG", 0x1969, false, false, nullptr },
     { "SMSG_REALM_SPLIT", 0x1A2E, false, false, nullptr },

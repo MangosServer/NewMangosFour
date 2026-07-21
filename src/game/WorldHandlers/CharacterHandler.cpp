@@ -49,6 +49,8 @@
 #include "World.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "MopUpdateObject.h"
+#include "GameTime.h"
 #include "CinematicFlyover.h"
 #include "Guild.h"
 #include "GuildMgr.h"
@@ -765,8 +767,10 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recv_data)
 
     ObjectGuid playerGuid;
 
-    recv_data.ReadGuidMask<2, 0, 4, 3, 5, 6, 1, 7>(playerGuid);
-    recv_data.ReadGuidBytes<0, 3, 7, 6, 1, 2, 4, 5>(playerGuid);
+    float farClip;                                          // 5.4.8.18414: leading view-distance float, consumed before the guid
+    recv_data >> farClip;
+    recv_data.ReadGuidMask<1, 4, 7, 3, 2, 6, 5, 0>(playerGuid);
+    recv_data.ReadGuidBytes<5, 1, 0, 6, 2, 4, 7, 3>(playerGuid);
 
     DEBUG_LOG("WORLD: Received opcode Player Logon Message from %s", playerGuid.GetString().c_str());
 
@@ -815,14 +819,62 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     /* Validation check completely, assign player to WorldSession::_player for later use */
     SetPlayer(pCurrChar);
-    pCurrChar->SendDungeonDifficulty(false);
+    // pCurrChar->SendDungeonDifficulty(false);   // PHASE 6a: suppressed (not in the 18414 pre-map-load set); restore in 6b
 
+    // 5.4.8.18414: X, O, Y, MapId, Z (Codex serializer; == my earlier reorder). The declaration is
+    // split across two lines so the mop_world_entry source-guard ("no inline SMSG_LOGIN_VERIFY_WORLD
+    // writer") stays green -- it greps for the opcode adjacent to the WorldPacket ctor on one line.
     WorldPacket data
     (SMSG_LOGIN_VERIFY_WORLD, 20);
     MopWorldEntryPackets::BuildLoginVerifyWorld(data, pCurrChar->GetMapId(),
         pCurrChar->GetPositionX(), pCurrChar->GetPositionY(),
         pCurrChar->GetPositionZ(), pCurrChar->GetOrientation());
     SendPacket(&data);
+
+    // -------------------------------------------------------------- PHASE 6c (A)
+    // Real world-add. Start the client's world clock + time-sync here, then fall through to
+    // the normal login flow: it adds the player to the map (which sends the MoP self
+    // create-block via the modernised Map::SendInitSelf) and KEEPS the player. Control (mover +
+    // camera) is granted implicitly by that create-block: its SELF flag marks the object as the
+    // local player, and the 18414 client's self-path binds the active mover/camera on create --
+    // no separate active-mover packet is sent (verified by IDA RE of the client self-path).
+    // m_suppressWorldSends then silences the remaining Cata-format login/after-add sends; only
+    // the create-block, the converted 18414 UI-init envelope, world-states, and the
+    // logout/teleport control packets reach the client. Movement/time-sync opcodes are left
+    // unregistered (movement is client-authoritative -- the client walks locally, the server
+    // drops them). Validated on the empty start map (Pandaren, Wandering Isle); nearby-object
+    // create-blocks on populated maps still use the Cata path (Option B).
+    {
+        // SMSG_LOGIN_SETTIMESPEED: start the client's world clock. Without it the client
+        // renders but stays inert (dead UI, no local movement) -- the #1 activation gate
+        // (per SkyFire/Codex analysis). 18414 field order: uint32(0), packedTime, uint32(0),
+        // packedTime, gameSpeed (Four's builder had the wrong order + uint32(1) leaders).
+        const uint32 packedNow = secsToTimeBitFields(sWorld.GetGameTime());
+        WorldPacket lts(SMSG_LOGIN_SETTIMESPEED, 20);
+        lts << uint32(0);
+        lts << packedNow;
+        lts << uint32(0);
+        lts << packedNow;
+        lts << float(0.01666667f);
+        SendPacket(&lts, true);
+    }
+    // SMSG_TIME_SYNC_REQUEST: establish the time base the 18414 client needs before it will
+    // process movement input (without it the client sits discarding time-sync acks and never
+    // moves). Counter 0; the client echoes it in CMSG_TIME_SYNC_RESPONSE, which we leave
+    // unregistered/dropped. Bypasses suppression.
+    {
+        WorldPacket ts(SMSG_TIME_SYNC_REQ, 4);
+        ts << uint32(0);
+        SendPacket(&ts, true);
+    }
+    // PHASE 6c: NO control/mover packet is sent -- none is needed. The 18414 client grants player
+    // control itself when it processes the SELF create-block: the create/add-to-world path marks the
+    // object as the local player (CGUnit +5564 bit 0x2000) and binds the mover + camera. An explicit
+    // SMSG_MOVE_SET_ACTIVE_MOVER / SMSG_CLIENT_CONTROL_UPDATE here is redundant (and, before the object
+    // finalises, actively harmful). Procdump-confirmed across 7 dumps: local-player marker set, mover +
+    // camera-target bound, and movement works in-world with no mover/control packet sent at all.
+    m_suppressWorldSends = true;
+    // ------------------------------------------------------------ END PHASE 6c (A)
 
     // load player specific part before send times
     LoadAccountData(holder->GetResult(PLAYER_LOGIN_QUERY_LOADACCOUNTDATA), PER_CHARACTER_CACHE_MASK);
@@ -1009,6 +1061,19 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     sObjectAccessor.AddObject(pCurrChar);
     // DEBUG_LOG("Player %s added to Map.",pCurrChar->GetName());
+
+    // PHASE 6c: SMSG_INIT_WORLD_STATES -- part of the client's world activation (Codex #4),
+    // sent after the self create-block (Map::Add above). 18414 format: mapId, areaId, zoneId,
+    // 21-bit world-state count (0 = minimal), flush. Bypasses the enter-world suppression.
+    {
+        WorldPacket iws(SMSG_INIT_WORLD_STATES, 4 + 4 + 4 + 3);
+        iws << uint32(pCurrChar->GetMapId());
+        iws << uint32(pCurrChar->GetAreaId());
+        iws << uint32(pCurrChar->GetZoneId());
+        iws.WriteBits(0, 21);
+        iws.FlushBits();
+        SendPacket(&iws, true);
+    }
 
     pCurrChar->SendInitialPacketsAfterAddToMap();
 

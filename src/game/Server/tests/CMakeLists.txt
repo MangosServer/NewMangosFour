@@ -77,6 +77,17 @@ set_target_properties(mop_creategating_test PROPERTIES CXX_STANDARD 17 CXX_STAND
 target_link_libraries(mop_creategating_test PRIVATE game)
 add_test(NAME mop_creategating COMMAND mop_creategating_test)
 
+add_executable(mop_updateobject_test
+    mop_updateobject_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopUpdateObject.cpp)
+target_include_directories(mop_updateobject_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_updateobject_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+# Same rationale as mop_auth_test: WorldPacket/Opcodes pull the game header surface; link 'game'.
+target_link_libraries(mop_updateobject_test PRIVATE game)
+add_test(NAME mop_updateobject COMMAND mop_updateobject_test)
+
 add_executable(mop_opcode_foundation_test mop_opcode_foundation_test.cpp)
 target_include_directories(mop_opcode_foundation_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
@@ -311,6 +322,14 @@ add_test(NAME mop_name_query COMMAND mop_name_query_test)
 add_test(NAME mop_name_query_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_name_query_source_test.cmake)
+
+add_executable(mop_realmquery_test mop_realmquery_test.cpp)
+target_include_directories(mop_realmquery_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_realmquery_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_realmquery_test PRIVATE game)
+add_test(NAME mop_realmquery COMMAND mop_realmquery_test)
 
 foreach(mutation IN ITEMS request_parser_call response_builder_call inbound_registration
         early_result_delete tail_result_delete)

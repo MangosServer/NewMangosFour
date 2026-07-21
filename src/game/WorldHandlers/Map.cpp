@@ -44,6 +44,8 @@
 #include "Map.h"
 #include "MapManager.h"
 #include "Player.h"
+#include "MopUpdateObject.h"
+#include "GameTime.h"
 #include "GridNotifiers.h"
 #include "Log.h"
 #include "GridStates.h"
@@ -1867,32 +1869,74 @@ void Map::SendInitSelf(Player* player)
 {
     DETAIL_LOG("Creating player data for himself %u", player->GetGUIDLow());
 
-    UpdateData data(player->GetMapId());
-
-    // attach to player data current transport data
-    if (Transport* transport = player->GetTransport())
+    // MoP 5.4.8.18414: send the self-player create-block via the dedicated MoP
+    // serializer. The inherited BuildCreateUpdateBlockForPlayer path is Cata 4.3.4
+    // (15595) format and is not read by an 18414 client. Essential-field bootstrap
+    // (the minimal field set to stand and function); the full field set is a follow-up.
+    //
+    // Transport guard: the MoP self create-block does not yet carry transport parenting
+    // (movement-block ON_TRANSPORT + transport GUID/offset). A player attached to a transport
+    // here (must have logged out on a moving transport; impossible on the bring-up start maps)
+    // is emitted at absolute position without parenting -- the client would stand correctly but
+    // not ride the transport until a later update. Flag it so the case is diagnosable rather
+    // than a silent desync; full transport support is a follow-up.
+    if (player->GetTransport())
     {
-        transport->BuildCreateUpdateBlockForPlayer(&data, player);
+        sLog.outError("Map::SendInitSelf: player %s is on a transport; MoP self create-block omits "
+                      "transport parenting (position sent absolute). Transport support is TODO.",
+                      player->GetGuidStr().c_str());
     }
 
-    // build data for self presence in world at own client (one time for map)
-    player->BuildCreateUpdateBlockForPlayer(&data, player);
-
-    // build other passengers at transport also (they always visible and marked as visible and will not send at visibility update at add to map
-    if (Transport* transport = player->GetTransport())
+    MopUpdateObject::SelfPlayer sp;
+    sp.guid = player->GetObjectGuid().GetRawValue();
+    sp.mapId = uint16(player->GetMapId());
+    sp.x = player->GetPositionX();
+    sp.y = player->GetPositionY();
+    sp.z = player->GetPositionZ();
+    sp.o = player->GetOrientation();
+    sp.moveTime = GameTime::GetGameTimeMS();
+    sp.speedWalk = player->GetSpeed(MOVE_WALK);
+    sp.speedRun = player->GetSpeed(MOVE_RUN);
+    sp.speedRunBack = player->GetSpeed(MOVE_RUN_BACK);
+    sp.speedSwim = player->GetSpeed(MOVE_SWIM);
+    sp.speedSwimBack = player->GetSpeed(MOVE_SWIM_BACK);
+    sp.speedFlight = player->GetSpeed(MOVE_FLIGHT);
+    sp.speedFlightBack = player->GetSpeed(MOVE_FLIGHT_BACK);
+    sp.speedTurn = player->GetSpeed(MOVE_TURN_RATE);
+    sp.speedPitch = player->GetSpeed(MOVE_PITCH_RATE);
+    Powers pw = player->GetPowerType();
+    sp.race = player->getRace();
+    sp.class_ = player->getClass();
+    sp.gender = player->getGender();
+    sp.powerType = uint8(pw);
+    sp.health = player->GetHealth();
+    sp.maxHealth = player->GetMaxHealth();
+    // Copy every stored power slot verbatim (dense-indexed, matching the server's
+    // UNIT_FIELD_POWER1..5 array). The client reads the displayed bar from the slot
+    // its ChrClassXPowerTypes maps the display power to, so writing only slot 0 would
+    // leave any class whose display power is not stored at index 0 -- and every
+    // secondary resource -- reading zero.
+    for (uint32 i = 0; i < MAX_STORED_POWERS; ++i)
     {
-        for (Transport::PlayerSet::const_iterator itr = transport->GetPassengers().begin(); itr != transport->GetPassengers().end(); ++itr)
-        {
-            if (player != (*itr) && player->HaveAtClient(*itr))
-            {
-                (*itr)->BuildCreateUpdateBlockForPlayer(&data, player);
-            }
-        }
+        sp.power[i] = player->GetPowerByIndex(i);
+        sp.maxPower[i] = player->GetMaxPowerByIndex(i);
     }
+    sp.level = uint8(player->getLevel());
+    sp.faction = player->getFaction();
+    // Real unit flags: this MoP create-block is the only VALUES packet that bypasses
+    // enter-world suppression, so state already set by LoadFromDB/aura load (PVP-attackable,
+    // mount/stun/taxi, etc.) is lost if forced to zero -- the later Cata value-updates that
+    // would carry it are suppressed and never reach the client.
+    sp.unitFlags = player->GetUInt32Value(UNIT_FIELD_FLAGS);
+    sp.scale = player->GetObjectScale();
+    sp.boundingRadius = player->GetObjectBoundingRadius();
+    sp.combatReach = 1.5f;               // default; exact reach not needed to stand
+    sp.displayId = player->GetDisplayId();
+    sp.nativeDisplayId = player->GetNativeDisplayId();
 
     WorldPacket packet;
-    data.BuildPacket(&packet);
-    player->GetSession()->SendPacket(&packet);
+    MopUpdateObject::BuildSelfCreate(packet, sp);
+    player->GetSession()->SendPacket(&packet, true);   // bypass enter-world suppression: this is the MoP create-block
 }
 
 /**

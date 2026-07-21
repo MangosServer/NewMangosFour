@@ -155,7 +155,7 @@ bool WorldSessionFilter::Process(WorldPacket* packet)
 /// WorldSession constructor
 WorldSession::WorldSession(uint32 id, WorldSocket* sock, AccountTypes sec, uint8 expansion, time_t mute_time, LocaleConstant locale) :
     m_muteTime(mute_time), _player(NULL), m_Socket(sock), _security(sec), _accountId(id), m_expansion(expansion), _logoutTime(0),
-    m_inQueue(false), m_playerLoading(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false),
+    m_inQueue(false), m_playerLoading(false), m_suppressWorldSends(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false),
     m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)), m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)),
     m_latency(0), m_clientTimeDelay(0), m_tutorialState(TUTORIALDATA_UNCHANGED)
 {
@@ -233,7 +233,67 @@ char const* WorldSession::GetPlayerName() const
 }
 
 /// Send a packet to the client
-void WorldSession::SendPacket(WorldPacket const* packet)
+// PHASE 6c enter-world envelope whitelist. m_suppressWorldSends drops the entire
+// SendInitialPacketsAfterAddToMap flow while its packets are still Cata-format. As each of those
+// send-functions is converted to a genuine 18414 wire body (remote Codex Wave 5+), add its opcode
+// here so the CONVERTED normal-flow send passes suppression -- letting us bring the in-world
+// UI/input envelope online one batch at a time and test incrementally.
+// HARD RULE: never whitelist an opcode until its send emits a real 18414 body; a stale Cata body
+// reaching the 18414 client can crash it. This whole gate (and m_suppressWorldSends) is removed
+// once the after-map flow is fully at parity.
+static bool IsEnterWorldConverted(uint16 opcode)
+{
+    switch (opcode)
+    {
+        // Wave 5 (9ba498698): these after-map send-functions now emit genuine 18414 bodies
+        // (MopInitialPackets), so they pass suppression and populate the client's in-world
+        // UI/input state (spells, action bar, factions, account data, tutorials, weather, etc.).
+        case SMSG_INITIAL_SPELLS:
+        case SMSG_SEND_UNLEARN_SPELLS:
+        case SMSG_ACTION_BUTTONS:
+        case SMSG_INITIALIZE_FACTIONS:
+        case SMSG_ACCOUNT_DATA_TIMES:
+        case SMSG_FEATURE_SYSTEM_STATUS:
+        case SMSG_TUTORIAL_FLAGS:
+        case SMSG_BINDPOINTUPDATE:
+        case SMSG_SET_PROFICIENCY:
+        case SMSG_WEATHER:
+        case SMSG_ALL_ACHIEVEMENT_DATA:  // Wave 5 Task 2 -- converted 6908c5f9e (MopAchievementPackets)
+            return true;
+
+        // Control/transition packets that must ALWAYS reach the client while suppression is active:
+        // world-leave (logout) and in-world teleport. These are tiny, header-stable control bodies
+        // (verified against the 18414 client, e.g. SMSG_LOGOUT_RESPONSE now writes the instant flag
+        // as a bit) -- not the stale bulk-object envelope suppression exists to drop. Without these
+        // the player can neither log out nor teleport once in-world.
+        case SMSG_LOGOUT_RESPONSE:       // 0x008F -- ack the logout request (bit-packed body, 18414-correct)
+        case SMSG_LOGOUT_CANCEL_ACK:     // 0x0AAF -- ack a cancelled logout (empty body)
+        case SMSG_LOGOUT_COMPLETE:       // 0x142F -- final world-leave (empty body)
+        case SMSG_MOVE_TELEPORT:         // 0x0B39 -- same-map teleport (MopWorldEntryPackets::BuildMoveTeleport, converted)
+        case SMSG_NEW_WORLD:             // 0x1C3B -- cross-map teleport target (MopWorldEntryPackets::BuildNewWorld, converted)
+        case SMSG_TRANSFER_PENDING:      // 0x061B -- cross-map load-screen preamble (inline bit-packed body; non-transport
+                                         //           path byte-identical to the 18414 reference; transport-case field
+                                         //           order unverified -- follow-up when far-teleport-with-transport lands)
+            return true;
+
+        // In-world query replies. The core already emits genuine 18414 bodies for these
+        // (MopQueryPackets::Build*QueryResponse in QueryHandler.cpp), so they satisfy the
+        // HARD RULE and must pass suppression -- otherwise the client's post-login name /
+        // creature / gameobject / time queries are answered server-side and then silently
+        // dropped here, leaving names and tooltips blank.
+        case SMSG_NAME_QUERY_RESPONSE:       // MopQueryPackets::BuildNameQueryResponse
+        case SMSG_CREATURE_QUERY_RESPONSE:   // MopQueryPackets::BuildCreatureQueryResponse
+        case SMSG_GAMEOBJECT_QUERY_RESPONSE: // MopQueryPackets::BuildGameObjectQueryResponse
+        case SMSG_QUERY_TIME_RESPONSE:       // MopQueryPackets::BuildQueryTimeResponse
+        case SMSG_REALM_NAME_QUERY_RESPONSE: // MopQueryPackets::BuildRealmNameQueryResponse (client fires the realm query from the name-cache path during login)
+            return true;
+        default:
+            break;
+    }
+    return false;
+}
+
+void WorldSession::SendPacket(WorldPacket const* packet, bool bypassSuppress)
 {
 #ifdef ENABLE_PLAYERBOTS
     //if (GetPlayer()) {
@@ -249,6 +309,44 @@ void WorldSession::SendPacket(WorldPacket const* packet)
 #endif
 
     if (!m_Socket)
+    {
+        return;
+    }
+
+    // Login-cast crash fix: SMSG_SPELL_GO / SMSG_AURA_UPDATE still emit stale pre-18414 (Cata)
+    // bodies. Any spell cast during login in _LoadSpells (the warrior/monk Battle/stance shapeshift,
+    // Pandaren racials, etc.) fires these BEFORE m_suppressWorldSends is set, so they would reach the
+    // unmodified 18414 client -- whose spell parser reads the Cata target-count field as a huge value
+    // and stack-overflows (unbounded alloca(48*count) in Spell_C; ERROR#132 STACK_OVERFLOW ~6s after
+    // enter-world). Drop these two across the whole enter-world window (player-load AND in-world
+    // suppression) until a genuine 18414 serializer exists, per the HARD RULE below. Live-verified
+    // across Warrior + Pandaren Monk/Mage/Shaman (all fire SMSG_SPELL_GO at login; all now clean).
+    {
+        const uint16 opc = uint16(packet->GetOpcode());
+        if ((m_playerLoading || m_suppressWorldSends) && !bypassSuppress &&
+            (opc == SMSG_SPELL_GO || opc == SMSG_AURA_UPDATE))
+        {
+            return;
+        }
+    }
+
+    // PHASE 6c (MoP enter-world bring-up): once a player has entered the world, drop the
+    // remaining Cata-format sends. Two escape hatches pass a packet: bypassSuppress=true at
+    // the call site (the self create-block in Map::SendInitSelf), and IsEnterWorldConverted()
+    // for opcodes whose senders now emit a real 18414 body (the UI-init envelope, the in-world
+    // query replies, plus the logout/teleport control packets). Everything else -- Cata
+    // self-VALUES updates and nearby-object create-blocks that would corrupt the client -- is
+    // dropped. Stays active for the whole in-world session, including logout cleanup, and dies
+    // with the session; temporary port scaffold, lifted once the object-update/preamble paths
+    // convert.
+    //
+    // KNOWN LIMITATION (follow-up, tied to converting the object-update path): while suppression
+    // is active, nearby-object SMSG_UPDATE_OBJECT creates are dropped AFTER the visibility pass
+    // has already recorded those GUIDs in m_clientGUIDs, so HaveAtClient() reports them present.
+    // Objects in the starting cells therefore stay invisible until they leave and re-enter range.
+    // Harmless today (there is no converted create to send anyway); when the multi-object update
+    // path converts, either whitelist it here or skip the visibility-cache insert while suppressed.
+    if (m_suppressWorldSends && !bypassSuppress && !IsEnterWorldConverted(uint16(packet->GetOpcode())))
     {
         return;
     }
@@ -518,6 +616,14 @@ void WorldSession::HandleBotPackets()
 /// %Log the player out
 void WorldSession::LogoutPlayer(bool Save)
 {
+    // PHASE 6c: keep enter-world suppression active THROUGH logout cleanup, then lift it at the
+    // END of this function (see below). Suppressing cleanup drops the stale Cata-format teardown
+    // sends (loot release, group/social updates, Map::Remove visibility, transport removal); the
+    // world-leave control packets (SMSG_LOGOUT_RESPONSE/CANCEL_ACK/COMPLETE) are whitelisted in
+    // IsEnterWorldConverted(), so logout still completes. It MUST be cleared before returning:
+    // logout keeps the same session alive at character-select, whose SMSG_CHAR_ENUM is not
+    // whitelisted, so leaving suppression on hangs the client at "retrieving character list".
+
     // finish pending transfers before starting the logout
     while (_player && _player->IsBeingTeleportedFar())
     {
@@ -777,6 +883,14 @@ void WorldSession::LogoutPlayer(bool Save)
     m_playerSave = false;
     m_playerRecentlyLogout = true;
     LogoutRequest(0);
+
+    // PHASE 6c: the player has now left the world (SMSG_LOGOUT_COMPLETE sent above), so lift
+    // enter-world suppression. Logout keeps the SAME session alive at character-select, where the
+    // client immediately requests its character list (COP_GET_CHARACTERS -> CMSG_CHAR_ENUM).
+    // SMSG_CHAR_ENUM is not in the enter-world whitelist, so leaving suppression on drops it and
+    // hangs the client at "retrieving character list". Re-armed on the next enter-world
+    // (CharacterHandler). Cleanup above stayed suppressed; only the post-world state is freed here.
+    m_suppressWorldSends = false;
 }
 
 /// Kick a player out of the World

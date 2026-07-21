@@ -112,7 +112,7 @@ namespace
             rdGuid(cm, cg, 5);                        // op18
             p >> u;                                   // op19 +120
             rdGuid(gm, gg, 4);                        // op20
-            p >> e.zone;                              // op21
+            p >> e.map;                               // op21 -> glue+60 = MAP (client's char-select preview reads mapId here; see MopCharEnum.cpp)
             p >> e.race;                              // op22 +58
             p >> e.skin;                              // op23 +61
             rdGuid(gm, gg, 1);                        // op24
@@ -130,7 +130,7 @@ namespace
             p >> u;                                   // op36 +128
             rdGuid(cm, cg, 6);                        // op37
             p >> e.charFlags;                         // op38 +96 -> charFlags (client reads ghost/charFlags here)
-            p >> e.map;                               // op39
+            p >> e.zone;                              // op39 -> glue+68 = zone
             rdGuid(gm, gg, 7);                        // op40
             p >> e.posZ;                              // op41
 

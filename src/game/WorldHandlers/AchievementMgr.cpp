@@ -369,6 +369,15 @@ void AchievementMgr::SendAchievementEarned(AchievementEntry const* achievement)
 
 void AchievementMgr::SendCriteriaUpdate(uint32 id, CriteriaProgress const* progress)
 {
+    // MoP 5.4.8.18414 bring-up: the body below is the Wrath/Cata SMSG_CRITERIA_UPDATE wire
+    // format (appendPackGUID counter + packed player GUID + plain uint32 timers). The 18414
+    // client expects a different bit-packed layout, and mis-parsing it corrupts its criteria
+    // structure -> the client recurses in its criteria/string walk and dies with a
+    // STACK_OVERFLOW (0xC00000FD) a few seconds after entering the world. On login
+    // CheckAllAchievementCriteria() fires 100+ of these (one per auto-progressed criterion),
+    // guaranteeing the crash. Server-side criteria progress is still tracked
+    // (UpdateAchievementCriteria continues); only the stale client notification is dropped
+    // until an 18414 serializer (MopAchievementPackets) is added -- restore the send then.
     WorldPacket data(SMSG_CRITERIA_UPDATE, 8 + 4 + 8);
     data << uint32(id);
 
@@ -381,7 +390,8 @@ void AchievementMgr::SendCriteriaUpdate(uint32 id, CriteriaProgress const* progr
     data << uint32(secsToTimeBitFields(now));
     data << uint32(now - progress->date);                   // timer 1
     data << uint32(now - progress->date);                   // timer 2
-    GetPlayer()->SendDirectMessage(&data);
+    // GetPlayer()->SendDirectMessage(&data);   // 18414 bring-up: send suppressed (see note above)
+    (void)data;                                             // built-but-not-sent until 18414 format lands
 }
 
 /*

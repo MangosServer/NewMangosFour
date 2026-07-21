@@ -53,6 +53,20 @@ namespace MopQueryPackets
     void BuildNameQueryResponse(WorldPacket& out,
         NameQueryResponse const& record);
 
+    struct RealmNameQueryResponse
+    {
+        uint32 realmId = 0;
+        uint8  status = 0;            // 0 = found/resolved (commits the parked name); nonzero ends after the scalars
+        bool   isHomeRealm = false;   // true => client treats it as the home realm and shows no "-Realm" suffix
+        std::string name;
+        std::string normalizedName;
+    };
+
+    // Request body is a single uint32 realm id (little-endian).
+    uint32 ReadRealmNameQueryRequest(WorldPacket& in);
+    void BuildRealmNameQueryResponse(WorldPacket& out,
+        RealmNameQueryResponse const& record);
+
     void BuildQueryTimeResponse(WorldPacket& out, uint32 serverTime,
         uint32 secondsUntilReset);
     bool ReadPlayedTimeRequest(WorldPacket& in);

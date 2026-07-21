@@ -114,7 +114,7 @@ void MopCharEnum::Build(WorldPacket& out, const std::vector<Entry>& chars)
         WriteGuidByteXor(out, c.charGuid, 5);             // op18 charGUID[5]
         out << uint32(0);                                 // op19 +120 flags cluster [capture-confirm]
         WriteGuidByteXor(out, c.guildGuid, 4);            // op20 guildGUID[4]
-        out << uint32(c.zone);                            // op21 +72 zone -> glue+60
+        out << uint32(c.map);                             // op21 -> glue+60 = MAP id (RE-CONFIRMED via IDA: char-select sub_1403A6750 reads v1=*(charStruct+60) and feeds it to the Map.dbc lookup sub_1407DB4F0/sub_1409D2160; this slot was wrongly c.zone, so re-login's preview looked up the zone as a map -> out-of-range -> NULL -> *(0+4) fault ERROR#132)
         out << uint8(c.race);                             // op22 +58  -> glue+400 race (was class)
         out << uint8(c.skin);                             // op23 +61  -> glue+403 skin
         WriteGuidByteXor(out, c.guildGuid, 1);            // op24 guildGUID[1]
@@ -132,7 +132,7 @@ void MopCharEnum::Build(WorldPacket& out, const std::vector<Entry>& chars)
         out << uint32(0);                                 // op36 +128 MoP-extra [capture-confirm]
         WriteGuidByteXor(out, c.charGuid, 6);             // op37 charGUID[6]
         out << uint32(c.charFlags);                       // op38 +96 -> charFlags (LIVE-CONFIRMED: client reads ghost/charFlags here; petDisplayId here ghosted any pet whose displayId had bit 0x2000, e.g. Draenei moth 29056 / Pandaren turtle 42656)
-        out << uint32(c.map);                             // op39 +68 map [capture-confirm]
+        out << uint32(c.zone);                            // op39 -> glue+68 = zone (was c.map; map moved to op21/glue+60 where the client's char-select preview actually reads it)
         WriteGuidByteXor(out, c.guildGuid, 7);            // op40 guildGUID[7]
         out << float(c.posZ);                             // op41 +84 posZ
     }
