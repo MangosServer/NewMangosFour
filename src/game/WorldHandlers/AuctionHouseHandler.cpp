@@ -64,8 +64,7 @@
 // void called when player click on auctioneer npc
 void WorldSession::HandleAuctionHelloOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid auctioneerGuid;                              // NPC guid
-    recv_data >> auctioneerGuid;
+    ObjectGuid auctioneerGuid(MopAuctionPackets::ReadHelloRequest(recv_data));
 
     Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(auctioneerGuid, UNIT_NPC_FLAG_AUCTIONEER);
     if (!unit)
@@ -88,11 +87,12 @@ void WorldSession::SendAuctionHello(Unit* unit)
 {
     // always return pointer
     AuctionHouseEntry const* ahEntry = AuctionHouseMgr::GetAuctionHouseEntry(unit);
+    if (!ahEntry)
+        return;
 
-    WorldPacket data(MSG_AUCTION_HELLO, 12);
-    data << unit->GetObjectGuid();
-    data << uint32(ahEntry->ID);
-    data << uint8(1);                                       // 3.3.3: 1 - AH enabled, 0 - AH disabled
+    WorldPacket data;
+    MopAuctionPackets::BuildHello(data, unit->GetObjectGuid().GetRawValue(),
+        ahEntry->ID, true);
     SendPacket(&data);
 }
 
@@ -144,40 +144,30 @@ void WorldSession::SendAuctionBidderNotification(AuctionEntry* auction)
     SendPacket(&data);
 }
 
-// this void causes on client to display: "Your auction sold"
-void WorldSession::SendAuctionOwnerNotification(AuctionEntry* auction)
+// Notify an owner that the auction expired and its item was returned.
+void WorldSession::SendAuctionExpiredNotification(AuctionEntry* auction)
 {
-    WorldPacket data(SMSG_AUCTION_OWNER_NOTIFICATION, (7 * 4));
-    data << uint32(auction->Id);
-    data << uint64(auction->bid);                           // if 0, client shows ERR_AUCTION_EXPIRED_S, else ERR_AUCTION_SOLD_S (works only when guid==0)
-    data << uint64(auction->GetAuctionOutBid());            // AuctionOutBid?
+    MopAuctionPackets::ExpiredOrRemoved notification = {};
+    notification.randomPropertyId = auction->itemRandomPropertyId;
+    notification.auctionId = auction->Id;
+    notification.itemEntry = auction->itemTemplate;
+    notification.expired = true;
 
-    ObjectGuid bidder_guid = ObjectGuid();
-    if (!auction->moneyDeliveryTime)                        // not sold yet
-    {
-        bidder_guid = ObjectGuid(HIGHGUID_PLAYER, auction->bidder);
-    }
-
-    // bidder==0 and moneyDeliveryTime==0 for expired auctions, and client shows error messages as described above
-    // if bidder!=0 client updates auctions with new bid, outbid and bidderGuid
-    data << bidder_guid;                                    // bidder guid
-    data << uint32(auction->itemTemplate);                  // item entry
-    data << uint32(auction->itemRandomPropertyId);
-
-    float timeLeft = float(auction->moneyDeliveryTime - time(NULL)) / float(DAY);
-
-    data << float(timeLeft);                                // time till money arrive? only used if bid != 0
-
+    WorldPacket data;
+    MopAuctionPackets::BuildExpiredOrRemovedNotification(data, notification);
     SendPacket(&data);
 }
 
 // shows ERR_AUCTION_REMOVED_S
 void WorldSession::SendAuctionRemovedNotification(AuctionEntry* auction)
 {
-    WorldPacket data(SMSG_AUCTION_REMOVED_NOTIFICATION, (3 * 4));
-    data << uint32(auction->Id);
-    data << uint32(auction->itemTemplate);
-    data << uint32(auction->itemRandomPropertyId);
+    MopAuctionPackets::ExpiredOrRemoved notification = {};
+    notification.randomPropertyId = auction->itemRandomPropertyId;
+    notification.auctionId = auction->Id;
+    notification.itemEntry = auction->itemTemplate;
+
+    WorldPacket data;
+    MopAuctionPackets::BuildExpiredOrRemovedNotification(data, notification);
 
     SendPacket(&data);
 }

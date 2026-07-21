@@ -289,6 +289,8 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_MINIMAP_PING:               // MopGroupMarkerPackets::BuildMinimapPing
         case SMSG_RAID_TARGET_UPDATE_ALL:     // MopGroupMarkerPackets::BuildRaidTargetAll
         case SMSG_RAID_TARGET_UPDATE_SINGLE:  // MopGroupMarkerPackets::BuildRaidTargetSingle
+        case SMSG_AUCTION_HELLO:              // MopAuctionPackets::BuildHello
+        case SMSG_AUCTION_OWNER_NOTIFICATION: // MopAuctionPackets::BuildExpiredOrRemovedNotification
             return true;
         default:
             break;

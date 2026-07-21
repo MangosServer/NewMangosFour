@@ -311,6 +311,13 @@ void InitializeOpcodes()
     DefS(SMSG_RAID_TARGET_UPDATE_ALL, "SMSG_RAID_TARGET_UPDATE_ALL");
     DefS(SMSG_RAID_TARGET_UPDATE_SINGLE, "SMSG_RAID_TARGET_UPDATE_SINGLE");
 
+    // Wave 28 auction hello plus the merged expired/removed notification.
+    // All three bodies and both client receive routes are recovered directly
+    // from Wow.exe; 0x1A8E selects expired (1) versus removed (0).
+    DefC(CMSG_AUCTION_HELLO, "CMSG_AUCTION_HELLO", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleAuctionHelloOpcode);
+    DefS(SMSG_AUCTION_HELLO, "SMSG_AUCTION_HELLO");
+    DefS(SMSG_AUCTION_OWNER_NOTIFICATION, "SMSG_AUCTION_OWNER_NOTIFICATION");
+
     // Wave 17 next-mail-time query and result.
     DefC(CMSG_MAIL_QUERY_NEXT_TIME, "CMSG_MAIL_QUERY_NEXT_TIME", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQueryNextMailTime);
     DefS(SMSG_MAIL_QUERY_NEXT_TIME_RESULT, "SMSG_MAIL_QUERY_NEXT_TIME_RESULT");

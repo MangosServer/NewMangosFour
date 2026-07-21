@@ -40,7 +40,9 @@
 
 #include "Common.h"
 #include "DBCStructure.h"
+#include "Opcodes.h"
 #include "World.h"
+#include "WorldPacket.h"
 
 /** \addtogroup auctionhouse
  * @{
@@ -50,7 +52,74 @@
 class Item;
 class Player;
 class Unit;
-class WorldPacket;
+
+namespace MopAuctionPackets
+{
+    struct ExpiredOrRemoved
+    {
+        int32 randomPropertyId = 0;
+        uint32 auctionId = 0;
+        uint32 itemEntry = 0;
+        uint32 itemNameOverrideId = 0;
+        float delay = 0.0f;
+        uint64 amount = 0;
+        bool expired = false;
+    };
+
+    inline uint8 GuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+
+    inline uint64 ReadHelloRequest(WorldPacket& in)
+    {
+        uint8 const maskOrder[] = { 1, 5, 2, 0, 3, 6, 4, 7 };
+        uint8 const byteOrder[] = { 2, 7, 1, 3, 5, 0, 4, 6 };
+        uint8 guidBytes[8] = {};
+
+        for (uint8 index : maskOrder)
+            guidBytes[index] = in.ReadBit();
+        for (uint8 index : byteOrder)
+            in.ReadByteSeq(guidBytes[index]);
+
+        uint64 guid = 0;
+        for (uint8 index = 0; index < 8; ++index)
+            guid |= uint64(guidBytes[index]) << (index * 8);
+        return guid;
+    }
+
+    inline void BuildHello(WorldPacket& out, uint64 auctioneerGuid,
+        uint32 auctionHouseId, bool enabled)
+    {
+        out.Initialize(SMSG_AUCTION_HELLO, 15);
+        for (uint8 index : { uint8(6), uint8(7), uint8(3) })
+            out.WriteBit(GuidByte(auctioneerGuid, index) != 0);
+        out.WriteBit(enabled);
+        for (uint8 index : { uint8(4), uint8(2), uint8(5), uint8(0), uint8(1) })
+            out.WriteBit(GuidByte(auctioneerGuid, index) != 0);
+        out.FlushBits();
+
+        out.WriteByteSeq(GuidByte(auctioneerGuid, 3));
+        out << auctionHouseId;
+        for (uint8 index : { uint8(4), uint8(2), uint8(7), uint8(1),
+                uint8(0), uint8(6), uint8(5) })
+            out.WriteByteSeq(GuidByte(auctioneerGuid, index));
+    }
+
+    inline void BuildExpiredOrRemovedNotification(WorldPacket& out,
+        ExpiredOrRemoved const& notification)
+    {
+        out.Initialize(SMSG_AUCTION_OWNER_NOTIFICATION, 29);
+        out << notification.randomPropertyId;
+        out << notification.auctionId;
+        out << notification.itemEntry;
+        out << notification.itemNameOverrideId;
+        out << notification.delay;
+        out << notification.amount;
+        out.WriteBit(notification.expired);
+        out.FlushBits();
+    }
+}
 
 #define MIN_AUCTION_TIME (12*HOUR)
 #define MAX_AUCTION_SORT 12

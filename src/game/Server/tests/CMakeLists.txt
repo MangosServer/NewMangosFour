@@ -207,6 +207,19 @@ add_test(NAME mop_group_marker_source
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_group_marker_source_test.cmake)
 
+add_executable(mop_auction_packets_test mop_auction_packets_test.cpp)
+target_include_directories(mop_auction_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_auction_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_auction_packets_test PRIVATE game)
+add_test(NAME mop_auction_packets COMMAND mop_auction_packets_test)
+
+add_test(NAME mop_auction_packets_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_auction_packets_source_test.cmake)
+
 add_executable(mop_world_entry_packets_test mop_world_entry_packets_test.cpp)
 target_include_directories(mop_world_entry_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..

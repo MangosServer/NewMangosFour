@@ -185,10 +185,8 @@ void AuctionHouseMgr::SendAuctionWonMail(AuctionEntry* auction)
         bidder_accId = sObjectMgr.GetPlayerAccountIdByGUID(bidder_guid);
     }
 
-    if (auction_owner)
-    {
-        auction_owner->GetSession()->SendAuctionOwnerNotification(auction);
-    }
+    // The 18414 owner-sold notification is distinct from the expired/removed
+    // packet and is restored with the remaining auction notification cluster.
 
     // receiver exist
     if (bidder || bidder_accId)
@@ -312,7 +310,7 @@ void AuctionHouseMgr::SendAuctionExpiredMail(AuctionEntry* auction)
 
         if (owner)
         {
-            owner->GetSession()->SendAuctionOwnerNotification(auction);
+            owner->GetSession()->SendAuctionExpiredNotification(auction);
         }
 
         RemoveAItem(auction->itemGuidLow);                  // we have to remove the item, before we delete it !!
@@ -1311,8 +1309,6 @@ void AuctionEntry::AuctionBidWinning(Player* newbidder)
  */
 bool AuctionEntry::UpdateBid(uint64 newbid, Player* newbidder /*=NULL*/)
 {
-    Player* auction_owner = owner ? sObjectMgr.GetPlayer(ObjectGuid(HIGHGUID_PLAYER, owner)) : NULL;
-
     // bid can't be greater buyout
     if (buyout && newbid > buyout)
     {
@@ -1341,10 +1337,8 @@ bool AuctionEntry::UpdateBid(uint64 newbid, Player* newbidder /*=NULL*/)
 
     if ((newbid < buyout) || (buyout == 0))                 // bid
     {
-        if (auction_owner)
-        {
-            auction_owner->GetSession()->SendAuctionOwnerNotification(this);
-        }
+        // The 18414 bid-update notification is distinct from the
+        // expired/removed packet and is restored separately.
 
         // after this update we should save player's money ...
         CharacterDatabase.BeginTransaction();
