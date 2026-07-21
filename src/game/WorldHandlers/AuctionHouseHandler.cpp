@@ -99,31 +99,32 @@ void WorldSession::SendAuctionHello(Unit* unit)
 // call this method when player bids, creates, or deletes auction
 void WorldSession::SendAuctionCommandResult(AuctionEntry* auc, AuctionAction Action, AuctionError ErrorCode, InventoryResult invError)
 {
-    WorldPacket data(SMSG_AUCTION_COMMAND_RESULT, 16);
-    data << uint32(auc ? auc->Id : 0);
-    data << uint32(Action);
-    data << uint32(ErrorCode);
+    MopAuctionPackets::CommandResult result = {};
+    result.errorCode = uint32(ErrorCode);
+    result.action = uint32(Action);
+    result.inventoryError = uint32(invError);
 
-    switch (ErrorCode)
+    if (auc)
     {
-        case AUCTION_OK:
-            if (Action == AUCTION_BID_PLACED)
-            {
-                data << uint64(auc->GetAuctionOutBid());        // new AuctionOutBid?
-            }
-            break;
-        case AUCTION_ERR_INVENTORY:
-            data << uint32(invError);
-            break;
-        case AUCTION_ERR_HIGHER_BID:
-            data << ObjectGuid(HIGHGUID_PLAYER, auc->bidder); // new bidder guid
-            data << uint64(auc->bid);                           // new bid
-            data << uint64(auc->GetAuctionOutBid());            // new AuctionOutBid?
-            break;
-        default:
-            break;
+        result.auctionId = auc->Id;
+        result.bidderGuid = ObjectGuid(HIGHGUID_PLAYER, auc->bidder).GetRawValue();
+
+        if ((ErrorCode == AUCTION_OK && Action == AUCTION_BID_PLACED) ||
+            ErrorCode == AUCTION_ERR_HIGHER_BID)
+        {
+            result.minimumIncrement = auc->GetAuctionOutBid();
+            result.hasMinimumIncrement = true;
+        }
+
+        if (ErrorCode == AUCTION_ERR_HIGHER_BID)
+        {
+            result.bid = auc->bid;
+            result.hasBid = true;
+        }
     }
 
+    WorldPacket data;
+    MopAuctionPackets::BuildCommandResult(data, result);
     SendPacket(&data);
 }
 

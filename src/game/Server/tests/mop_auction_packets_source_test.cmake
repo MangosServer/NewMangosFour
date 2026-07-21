@@ -49,8 +49,21 @@ foreach(required IN ITEMS
 endforeach()
 
 foreach(required IN ITEMS
+        "bool reserved = true;"
+        "result.inventoryError = uint32(invError);"
+        "result.bidderGuid = ObjectGuid(HIGHGUID_PLAYER, auc->bidder).GetRawValue();"
+        "result.minimumIncrement = auc->GetAuctionOutBid(); result.hasMinimumIncrement = true;"
+        "result.bid = auc->bid; result.hasBid = true;")
+    string(FIND "${auction_h} ${handler}" "${required}" found)
+    if(found EQUAL -1)
+        message(FATAL_ERROR "auction command-result policy is missing ${required}")
+    endif()
+endforeach()
+
+foreach(required IN ITEMS
         "DefC(CMSG_AUCTION_HELLO, \"CMSG_AUCTION_HELLO\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleAuctionHelloOpcode);"
         "DefS(SMSG_AUCTION_HELLO, \"SMSG_AUCTION_HELLO\");"
+        "DefS(SMSG_AUCTION_COMMAND_RESULT, \"SMSG_AUCTION_COMMAND_RESULT\");"
         "DefS(SMSG_AUCTION_OWNER_NOTIFICATION, \"SMSG_AUCTION_OWNER_NOTIFICATION\");"
         "DefS(SMSG_AUCTION_WON_NOTIFICATION, \"SMSG_AUCTION_WON_NOTIFICATION\");"
         "DefS(SMSG_AUCTION_OUTBID_NOTIFICATION, \"SMSG_AUCTION_OUTBID_NOTIFICATION\");"
@@ -65,11 +78,13 @@ foreach(required IN ITEMS
         "namespace MopAuctionPackets"
         "ReadHelloRequest"
         "BuildHello"
+        "BuildCommandResult"
         "BuildSoldOrExpiredNotification"
         "BuildWonNotification"
         "BuildOutbidNotification"
         "BuildBidUpdateNotification"
         "out.Initialize(SMSG_AUCTION_OWNER_NOTIFICATION, 29)"
+        "out.Initialize(SMSG_AUCTION_COMMAND_RESULT, 42)"
         "out.Initialize(SMSG_AUCTION_WON_NOTIFICATION, 29)"
         "out.Initialize(SMSG_AUCTION_OUTBID_NOTIFICATION, 45)"
         "out.Initialize(SMSG_AUCTION_BID_UPDATE_NOTIFICATION, 41)")
@@ -82,6 +97,7 @@ endforeach()
 foreach(required IN ITEMS
         "MopAuctionPackets::ReadHelloRequest(recv_data)"
         "MopAuctionPackets::BuildHello(data"
+        "MopAuctionPackets::BuildCommandResult(data, result)"
         "MopAuctionPackets::BuildSoldOrExpiredNotification(data, notification)"
         "MopAuctionPackets::BuildWonNotification(data, notification)"
         "MopAuctionPackets::BuildOutbidNotification(data, notification)"
@@ -140,6 +156,7 @@ endforeach()
 
 foreach(required IN ITEMS
         "case SMSG_AUCTION_HELLO:"
+        "case SMSG_AUCTION_COMMAND_RESULT:"
         "case SMSG_AUCTION_OWNER_NOTIFICATION:"
         "case SMSG_AUCTION_WON_NOTIFICATION:"
         "case SMSG_AUCTION_OUTBID_NOTIFICATION:"
@@ -169,6 +186,7 @@ endforeach()
 set(live_sources "${handler} ${auction_cpp} ${session_h}")
 foreach(forbidden IN ITEMS
         "WorldPacket data(MSG_AUCTION_HELLO"
+        "WorldPacket data(SMSG_AUCTION_COMMAND_RESULT"
         "WorldPacket data(SMSG_AUCTION_REMOVED_NOTIFICATION"
         "WorldPacket data(SMSG_AUCTION_OWNER_NOTIFICATION"
         "SendAuctionOwnerNotification"

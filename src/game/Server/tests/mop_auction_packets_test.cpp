@@ -70,6 +70,45 @@ static void test_hello_response()
     }));
 }
 
+static void test_command_result()
+{
+    MopAuctionPackets::CommandResult minimal = {};
+    WorldPacket minimalPacket;
+    MopAuctionPackets::BuildCommandResult(minimalPacket, minimal);
+    CHECK(minimalPacket.GetOpcode() == SMSG_AUCTION_COMMAND_RESULT);
+    CHECK(Equal(minimalPacket, {
+        0xE0, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00
+    }));
+
+    MopAuctionPackets::CommandResult full = {};
+    full.bidderGuid = 0x0123456789ABCDEFull;
+    full.minimumIncrement = 0x1112131415161718ull;
+    full.errorCode = 0x11223344;
+    full.action = 0x55667788;
+    full.auctionId = 0x10203040;
+    full.bid = 0x0102030405060708ull;
+    full.inventoryError = 0xAABBCCDD;
+    full.hasMinimumIncrement = true;
+    full.hasBid = true;
+
+    WorldPacket fullPacket;
+    MopAuctionPackets::BuildCommandResult(fullPacket, full);
+    CHECK(Equal(fullPacket, {
+        0x3F, 0xE0,
+        0x88, 0xEE, 0x00, 0xCC, 0x66, 0x22, 0x44, 0xAA,
+        0x18, 0x17, 0x16, 0x15, 0x14, 0x13, 0x12, 0x11,
+        0x44, 0x33, 0x22, 0x11,
+        0x88, 0x77, 0x66, 0x55,
+        0x40, 0x30, 0x20, 0x10,
+        0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01,
+        0xDD, 0xCC, 0xBB, 0xAA
+    }));
+}
+
 static void test_sold_or_expired_owner_notification()
 {
     MopAuctionPackets::SoldOrExpired notification = {};
@@ -239,6 +278,7 @@ int main(int /*argc*/, char** /*argv*/)
 {
     test_hello_request();
     test_hello_response();
+    test_command_result();
     test_sold_or_expired_owner_notification();
     test_won_notification();
     test_outbid_notification();

@@ -55,6 +55,20 @@ class Unit;
 
 namespace MopAuctionPackets
 {
+    struct CommandResult
+    {
+        uint64 bidderGuid = 0;
+        uint64 minimumIncrement = 0;
+        uint32 errorCode = 0;
+        uint32 action = 0;
+        uint32 auctionId = 0;
+        uint64 bid = 0;
+        uint32 inventoryError = 0;
+        bool hasMinimumIncrement = false;
+        bool hasBid = false;
+        bool reserved = true;
+    };
+
     struct SoldOrExpired
     {
         int32 randomPropertyId = 0;
@@ -137,6 +151,30 @@ namespace MopAuctionPackets
         for (uint8 index : { uint8(4), uint8(2), uint8(7), uint8(1),
                 uint8(0), uint8(6), uint8(5) })
             out.WriteByteSeq(GuidByte(auctioneerGuid, index));
+    }
+
+    inline void BuildCommandResult(WorldPacket& out,
+        CommandResult const& result)
+    {
+        uint8 const maskOrder[] = { 1, 4, 0, 6, 3, 5, 2, 7 };
+        uint8 const byteOrder[] = { 3, 0, 7, 1, 4, 6, 5, 2 };
+        out.Initialize(SMSG_AUCTION_COMMAND_RESULT, 42);
+        out.WriteBit(!result.hasBid);
+        out.WriteBit(!result.hasMinimumIncrement);
+        out.WriteBit(result.reserved);
+        for (uint8 index : maskOrder)
+            out.WriteBit(GuidByte(result.bidderGuid, index) != 0);
+        out.FlushBits();
+        for (uint8 index : byteOrder)
+            out.WriteByteSeq(GuidByte(result.bidderGuid, index));
+        if (result.hasMinimumIncrement)
+            out << result.minimumIncrement;
+        out << result.errorCode;
+        out << result.action;
+        out << result.auctionId;
+        if (result.hasBid)
+            out << result.bid;
+        out << result.inventoryError;
     }
 
     inline void BuildSoldOrExpiredNotification(WorldPacket& out,
