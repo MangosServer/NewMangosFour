@@ -283,17 +283,11 @@ void Creature::SetFeatherFall(bool enable)
 
     if (IsInWorld())
     {
-        WorldPacket data(enable ? SMSG_SPLINE_MOVE_FEATHER_FALL : SMSG_SPLINE_MOVE_NORMAL_FALL, 9);
+        WorldPacket data(enable ? SMSG_SPLINE_MOVE_SET_FEATHER_FALL : SMSG_SPLINE_MOVE_SET_NORMAL_FALL, 9);
         if (enable)
-        {
-            data.WriteGuidMask<3, 2, 7, 5, 4, 6, 1, 0>(GetObjectGuid());
-            data.WriteGuidBytes<1, 4, 7, 6, 2, 0, 5, 3>(GetObjectGuid());
-        }
+            MopCompactPackets::BuildSplineMoveSetFeatherFall(data, GetObjectGuid());
         else
-        {
-            data.WriteGuidMask<3, 5, 1, 0, 7, 6, 2, 4>(GetObjectGuid());
-            data.WriteGuidBytes<7, 6, 2, 0, 5, 4, 3, 1>(GetObjectGuid());
-        }
+            MopCompactPackets::BuildSplineMoveSetNormalFall(data, GetObjectGuid());
 
         SendMessageToSet(&data, true);
     }
@@ -385,17 +379,11 @@ void Creature::SetWaterWalk(bool enable)
 
     if (IsInWorld())
     {
-        WorldPacket data(enable ? SMSG_SPLINE_MOVE_WATER_WALK : SMSG_SPLINE_MOVE_LAND_WALK, 9);
+        WorldPacket data(enable ? SMSG_SPLINE_MOVE_SET_WATER_WALK : SMSG_SPLINE_MOVE_SET_LAND_WALK, 9);
         if (enable)
-        {
-            data.WriteGuidMask<6, 1, 4, 2, 3, 7, 5, 0>(GetObjectGuid());
-            data.WriteGuidBytes<0, 6, 3, 7, 4, 2, 5, 1>(GetObjectGuid());
-        }
+            MopCompactPackets::BuildSplineMoveSetWaterWalk(data, GetObjectGuid());
         else
-        {
-            data.WriteGuidMask<5, 0, 4, 6, 7, 2, 3, 1>(GetObjectGuid());
-            data.WriteGuidBytes<5, 7, 3, 4, 1, 2, 0, 6>(GetObjectGuid());
-        }
+            MopCompactPackets::BuildSplineMoveSetLandWalk(data, GetObjectGuid());
 
         SendMessageToSet(&data, true);
     }

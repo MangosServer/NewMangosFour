@@ -1,8 +1,10 @@
 file(READ "${SOURCE_ROOT}/src/game/movement/MovementStructures.h" movement_structures)
 file(READ "${SOURCE_ROOT}/src/game/Object/Unit.h" unit_header)
 file(READ "${SOURCE_ROOT}/src/game/Object/Unit.cpp" unit_source)
+file(READ "${SOURCE_ROOT}/src/game/Object/CreatureMovement.cpp" creature_movement_source)
 file(READ "${SOURCE_ROOT}/src/game/movement/MovementInfo.cpp" movement_codec)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
+file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.h" opcode_header)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/MovementHandler.cpp" movement_handler)
 
 if(MUTATION STREQUAL "inbound_sequence")
@@ -31,6 +33,13 @@ elseif(MUTATION STREQUAL "heartbeat_framing")
 elseif(MUTATION STREQUAL "mover_guid_validation")
     string(REPLACE "VerifyMovementInfo(movementInfo, movementInfo.GetGuid())"
         "VerifyMovementInfo(movementInfo)" movement_handler "${movement_handler}")
+elseif(MUTATION STREQUAL "spline_state_builder")
+    string(REPLACE "MopCompactPackets::BuildSplineMoveSetFeatherFall(data, GetObjectGuid());"
+        "data << GetObjectGuid();" creature_movement_source "${creature_movement_source}")
+elseif(MUTATION STREQUAL "spline_state_registration")
+    string(REPLACE "DefS(SMSG_SPLINE_MOVE_SET_NORMAL_FALL, \"SMSG_SPLINE_MOVE_SET_NORMAL_FALL\");"
+        "DefS_disabled(SMSG_SPLINE_MOVE_SET_NORMAL_FALL, \"SMSG_SPLINE_MOVE_SET_NORMAL_FALL\");"
+        opcode_registry "${opcode_registry}")
 endif()
 
 function(strip_cpp_comments output source)
@@ -89,8 +98,10 @@ endfunction()
 strip_cpp_comments(movement_structures "${movement_structures}")
 strip_cpp_comments(unit_header "${unit_header}")
 strip_cpp_comments(unit_source "${unit_source}")
+strip_cpp_comments(creature_movement_source "${creature_movement_source}")
 strip_cpp_comments(movement_codec "${movement_codec}")
 strip_cpp_comments(opcode_registry "${opcode_registry}")
+strip_cpp_comments(opcode_header "${opcode_header}")
 strip_cpp_comments(movement_handler "${movement_handler}")
 
 set(start_forward "MSEPositionZ,MSEPositionX,MSEPositionY,MSEHasMovementFlags2,MSEUnknownBit149,MSEHasUnknownUInt32,MSEUnknownBit148,MSEGuidBit0,MSEHasOrientation,MSEHasFallData,MSEMovementForceCount,MSEGuidBit4,MSEGuidBit1,MSEHasTimestamp,MSEGuidBit7,MSEHasPitch,MSEHasTransportData,MSEGuidBit5,MSEHasMovementFlags,MSEGuidBit3,MSEHasSplineElevation,MSEGuidBit2,MSEGuidBit6,MSEUnknownBit172,MSETransportGuidBit1,MSEHasTransportTime3,MSETransportGuidBit3,MSETransportGuidBit4,MSETransportGuidBit2,MSETransportGuidBit5,MSETransportGuidBit0,MSETransportGuidBit7,MSETransportGuidBit6,MSEHasTransportTime2,MSEHasFallDirection,MSEFlags2_13,MSEFlags,MSEGuidByte1,MSEGuidByte6,MSEGuidByte7,MSEMovementForceIds,MSEGuidByte5,MSEGuidByte0,MSEGuidByte3,MSEGuidByte2,MSEGuidByte4,MSETransportGuidByte3,MSETransportGuidByte1,MSETransportGuidByte6,MSETransportPositionZ,MSETransportGuidByte4,MSETransportTime3,MSETransportSeat,MSETransportGuidByte7,MSETransportPositionO,MSETransportTime2,MSETransportGuidByte5,MSETransportGuidByte2,MSETransportPositionX,MSETransportGuidByte0,MSETransportPositionY,MSETransportTime,MSEFallCosAngle,MSEFallSinAngle,MSEFallHorizontalSpeed,MSEFallTime,MSEFallVerticalSpeed,MSETimestamp,MSEPitch,MSESplineElevation,MSEPositionO,MSEUnknownUInt32,MSEEnd")
@@ -137,6 +148,45 @@ foreach(name IN ITEMS MSG_MOVE_HEARTBEAT CMSG_MOVE_START_FORWARD CMSG_MOVE_START
         "${name} registration")
 endforeach()
 require_once("${opcode_registry}" "DefS(SMSG_PLAYER_MOVE, \"SMSG_PLAYER_MOVE\");" "SMSG_PLAYER_MOVE metadata")
+
+foreach(name IN ITEMS NORMAL_FALL WATER_WALK FEATHER_FALL LAND_WALK)
+    require_once("${opcode_registry}"
+        "DefS(SMSG_SPLINE_MOVE_SET_${name}, \"SMSG_SPLINE_MOVE_SET_${name}\");"
+        "SMSG_SPLINE_MOVE_SET_${name} metadata")
+endforeach()
+
+foreach(required IN ITEMS
+        "WorldPacket data(enable ? SMSG_SPLINE_MOVE_SET_FEATHER_FALL : SMSG_SPLINE_MOVE_SET_NORMAL_FALL, 9)"
+        "MopCompactPackets::BuildSplineMoveSetFeatherFall(data, GetObjectGuid())"
+        "MopCompactPackets::BuildSplineMoveSetNormalFall(data, GetObjectGuid())"
+        "WorldPacket data(enable ? SMSG_SPLINE_MOVE_SET_WATER_WALK : SMSG_SPLINE_MOVE_SET_LAND_WALK, 9)"
+        "MopCompactPackets::BuildSplineMoveSetWaterWalk(data, GetObjectGuid())"
+        "MopCompactPackets::BuildSplineMoveSetLandWalk(data, GetObjectGuid())")
+    string(FIND "${creature_movement_source}" "${required}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "creature spline-state integration missing: ${required}")
+    endif()
+endforeach()
+
+foreach(forbidden IN ITEMS
+        "SMSG_SPLINE_MOVE_FEATHER_FALL" "SMSG_SPLINE_MOVE_NORMAL_FALL"
+        "SMSG_SPLINE_MOVE_WATER_WALK" "SMSG_SPLINE_MOVE_LAND_WALK")
+    string(FIND "${creature_movement_source}" "${forbidden}" position)
+    if(NOT position EQUAL -1)
+        message(FATAL_ERROR "legacy creature spline-state opcode remains live: ${forbidden}")
+    endif()
+endforeach()
+
+foreach(required IN ITEMS
+        "SMSG_SPLINE_MOVE_SET_NORMAL_FALL             = 0x0B08"
+        "SMSG_SPLINE_MOVE_SET_WATER_WALK              = 0x1823"
+        "SMSG_SPLINE_MOVE_SET_FEATHER_FALL            = 0x1893"
+        "SMSG_SPLINE_MOVE_SET_LAND_WALK               = 0x18B6")
+    string(FIND "${opcode_header}" "${required}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "5.4.8 spline-state opcode value missing: ${required}")
+    endif()
+endforeach()
 
 string(REGEX MATCH "void Unit::SendHeartBeat\\(\\)([^}]*)\\}" heartbeat_body "${unit_source}")
 foreach(required IN ITEMS "WorldPacket data(SMSG_PLAYER_MOVE, 64)" "m_movementInfo.SetMoverGuid(GetObjectGuid())" "data << m_movementInfo")

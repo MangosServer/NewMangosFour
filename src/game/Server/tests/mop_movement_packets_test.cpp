@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 #include <limits>
 #include <vector>
 
@@ -317,6 +318,47 @@ static bool Equal(WorldPacket const& packet, std::vector<uint8> const& expected)
         std::memcmp(packet.contents(), expected.data(), expected.size()) == 0;
 }
 
+static std::vector<uint8> EncodePackedGuid(uint64 guid,
+    std::initializer_list<uint8> maskOrder, std::initializer_list<uint8> byteOrder)
+{
+    RefWriter writer;
+    for (uint8 index : maskOrder)
+        writer.Bit(uint8(guid >> (8 * index)) != 0);
+    writer.Align();
+    for (uint8 index : byteOrder)
+        writer.GuidByte(guid, index);
+    return writer.Bytes();
+}
+
+typedef void (*SplineStateBuilder)(WorldPacket&, ObjectGuid);
+
+static void CheckSplineStatePacket(OpcodesList opcode, SplineStateBuilder builder,
+    std::initializer_list<uint8> maskOrder, std::initializer_list<uint8> byteOrder)
+{
+    for (uint64 guid : { 0x8070605040302010ull, 0x0000005000002000ull })
+    {
+        WorldPacket packet(opcode, 9);
+        builder(packet, ObjectGuid(guid));
+        CHECK(Equal(packet, EncodePackedGuid(guid, maskOrder, byteOrder)));
+    }
+}
+
+static void test_spline_state_packets()
+{
+    CheckSplineStatePacket(SMSG_SPLINE_MOVE_SET_NORMAL_FALL,
+        &MopCompactPackets::BuildSplineMoveSetNormalFall,
+        { 6, 1, 4, 5, 2, 7, 0, 3 }, { 7, 5, 1, 0, 6, 4, 2, 3 });
+    CheckSplineStatePacket(SMSG_SPLINE_MOVE_SET_WATER_WALK,
+        &MopCompactPackets::BuildSplineMoveSetWaterWalk,
+        { 3, 1, 5, 6, 4, 0, 7, 2 }, { 4, 3, 6, 2, 1, 5, 7, 0 });
+    CheckSplineStatePacket(SMSG_SPLINE_MOVE_SET_FEATHER_FALL,
+        &MopCompactPackets::BuildSplineMoveSetFeatherFall,
+        { 1, 5, 6, 3, 7, 2, 4, 0 }, { 7, 1, 6, 4, 5, 3, 2, 0 });
+    CheckSplineStatePacket(SMSG_SPLINE_MOVE_SET_LAND_WALK,
+        &MopCompactPackets::BuildSplineMoveSetLandWalk,
+        { 1, 5, 6, 0, 7, 2, 3, 4 }, { 1, 6, 4, 3, 7, 0, 2, 5 });
+}
+
 static void CheckDecoded(MovementInfo const& info, RefState const& s, OpcodesList opcode)
 {
     (void)opcode;
@@ -460,7 +502,12 @@ static void test_opcode_values_are_framable()
     CHECK(uint32(CMSG_MOVE_SET_FACING) == 0x1050u);
     CHECK(uint32(CMSG_MOVE_FALL_LAND) == 0x08FAu);
     CHECK(uint32(SMSG_PLAYER_MOVE) == 0x1A32u);
+    CHECK(uint32(SMSG_SPLINE_MOVE_SET_NORMAL_FALL) == 0x0B08u);
+    CHECK(uint32(SMSG_SPLINE_MOVE_SET_WATER_WALK) == 0x1823u);
+    CHECK(uint32(SMSG_SPLINE_MOVE_SET_FEATHER_FALL) == 0x1893u);
+    CHECK(uint32(SMSG_SPLINE_MOVE_SET_LAND_WALK) == 0x18B6u);
     CHECK(uint32(SMSG_PLAYER_MOVE) < uint32(OPCODE_TABLE_SIZE));
+    CHECK(uint32(SMSG_SPLINE_MOVE_SET_LAND_WALK) < uint32(OPCODE_TABLE_SIZE));
 }
 
 int main(int, char**)
@@ -468,6 +515,7 @@ int main(int, char**)
     test_six_inbound_fixtures_and_exact_relay();
     test_complementary_and_empty_state();
     test_server_built_embedded_guid();
+    test_spline_state_packets();
     test_hostile_counts_rejected();
     test_opcode_values_are_framable();
     if (g_fail) return 1;

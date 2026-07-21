@@ -98,6 +98,30 @@ namespace MopCompactPackets
         for (uint8 index : bytesAfterSpeed)
             out.WriteByteSeq(SwimSpeedGuidByte(moverGuid, index));
     }
+
+    inline void BuildSplineMoveSetNormalFall(WorldPacket& out, ObjectGuid guid)
+    {
+        out.WriteGuidMask<6, 1, 4, 5, 2, 7, 0, 3>(guid);
+        out.WriteGuidBytes<7, 5, 1, 0, 6, 4, 2, 3>(guid);
+    }
+
+    inline void BuildSplineMoveSetWaterWalk(WorldPacket& out, ObjectGuid guid)
+    {
+        out.WriteGuidMask<3, 1, 5, 6, 4, 0, 7, 2>(guid);
+        out.WriteGuidBytes<4, 3, 6, 2, 1, 5, 7, 0>(guid);
+    }
+
+    inline void BuildSplineMoveSetFeatherFall(WorldPacket& out, ObjectGuid guid)
+    {
+        out.WriteGuidMask<1, 5, 6, 3, 7, 2, 4, 0>(guid);
+        out.WriteGuidBytes<7, 1, 6, 4, 5, 3, 2, 0>(guid);
+    }
+
+    inline void BuildSplineMoveSetLandWalk(WorldPacket& out, ObjectGuid guid)
+    {
+        out.WriteGuidMask<1, 5, 6, 0, 7, 2, 3, 4>(guid);
+        out.WriteGuidBytes<1, 6, 4, 3, 7, 0, 2, 5>(guid);
+    }
 }
 
 #include <list>
