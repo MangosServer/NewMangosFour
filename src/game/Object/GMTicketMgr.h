@@ -43,6 +43,15 @@ enum GMTicketResponse
     GMTICKET_RESPONSE_TICKET_DELETED    = 9
 };
 
+namespace MopGMTicketPackets
+{
+    inline void BuildUpdate(WorldPacket& out, GMTicketResponse response)
+    {
+        out.Initialize(SMSG_GM_TICKET_UPDATE, 1);
+        out << uint8(response);
+    }
+}
+
 /**
  * \addtogroup game
  * @{

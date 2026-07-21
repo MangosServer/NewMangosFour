@@ -138,8 +138,8 @@ void WorldSession::HandleGMTicketUpdateTextOpcode(WorldPacket& recv_data)
         responce = GMTICKET_RESPONSE_UPDATE_ERROR;
     }
 
-    WorldPacket data(SMSG_GMTICKET_UPDATETEXT, 4);
-    data << uint32(responce);
+    WorldPacket data;
+    MopGMTicketPackets::BuildUpdate(data, responce);
     SendPacket(&data);
 
     GMTicket * ticket = sTicketMgr.GetGMTicket(GetPlayer()->GetObjectGuid());
@@ -194,8 +194,8 @@ void WorldSession::HandleGMTicketDeleteTicketOpcode(WorldPacket& /*recv_data*/)
     }
     sTicketMgr.Delete(GetPlayer()->GetObjectGuid());
 
-    WorldPacket data(SMSG_GMTICKET_DELETETICKET, 4);
-    data << uint32(GMTICKET_RESPONSE_TICKET_DELETED);
+    WorldPacket data;
+    MopGMTicketPackets::BuildUpdate(data, GMTICKET_RESPONSE_TICKET_DELETED);
     SendPacket(&data);
 
     SendGMTicketGetTicket(0x0A);
@@ -232,8 +232,8 @@ void WorldSession::HandleGMTicketCreateOpcode(WorldPacket& recv_data)
 
     if (sTicketMgr.GetGMTicket(GetPlayer()->GetObjectGuid()) && !isFollowup)
     {
-        WorldPacket data(SMSG_GMTICKET_CREATE, 4);
-        data << uint32(GMTICKET_RESPONSE_ALREADY_EXIST);    // 1 - You already have GM ticket
+        WorldPacket data;
+        MopGMTicketPackets::BuildUpdate(data, GMTICKET_RESPONSE_ALREADY_EXIST);
         SendPacket(&data);
         return;
     }
@@ -242,8 +242,8 @@ void WorldSession::HandleGMTicketCreateOpcode(WorldPacket& recv_data)
 
     SendQueryTimeResponse();
 
-    WorldPacket data(SMSG_GMTICKET_CREATE, 4);
-    data << uint32(GMTICKET_RESPONSE_CREATE_SUCCESS);       // 2 - nothing appears (3-error creating, 5-error updating)
+    WorldPacket data;
+    MopGMTicketPackets::BuildUpdate(data, GMTICKET_RESPONSE_CREATE_SUCCESS);
     SendPacket(&data);
 
     GMTicket * ticket = sTicketMgr.GetGMTicket(_player->GetObjectGuid());

@@ -293,6 +293,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_SET_RAID_DIFFICULTY:             // MopCompactPackets::BuildSetRaidDifficulty
         case SMSG_SET_DUNGEON_DIFFICULTY:          // MopCompactPackets::BuildSetDungeonDifficulty
         case SMSG_TRAINER_BUY_FAILED:               // MopTrainerBuyFailed::Build
+        case SMSG_GM_TICKET_UPDATE:                 // MopGMTicketPackets::BuildUpdate
         case SMSG_UPDATE_CURRENCY:                 // MopCurrencyPackets::BuildUpdateCurrency
         case SMSG_SETUP_CURRENCY:                  // MopCurrencyPackets::BuildSetupCurrency
         case SMSG_SPELL_EXECUTE_LOG:               // MopCombatLogPackets::BuildSpellExecuteLog

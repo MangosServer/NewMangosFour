@@ -524,6 +524,26 @@ foreach(mutation IN ITEMS converted_packet transfer_registration)
     set_tests_properties(mop_enter_world_gate_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_executable(mop_gm_ticket_packets_test mop_gm_ticket_packets_test.cpp)
+target_include_directories(mop_gm_ticket_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_gm_ticket_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_gm_ticket_packets_test PRIVATE game)
+add_test(NAME mop_gm_ticket_packets COMMAND mop_gm_ticket_packets_test)
+
+add_test(NAME mop_gm_ticket_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_gm_ticket_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS response_width callsite registration whitelist opcode_value)
+    add_test(NAME mop_gm_ticket_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_gm_ticket_packets_source_test.cmake)
+    set_tests_properties(mop_gm_ticket_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_movement_packets_test
     mop_movement_packets_test.cpp
     ${CMAKE_SOURCE_DIR}/src/game/movement/MovementInfo.cpp)
