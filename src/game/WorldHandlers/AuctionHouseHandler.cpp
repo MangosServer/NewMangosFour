@@ -127,20 +127,46 @@ void WorldSession::SendAuctionCommandResult(AuctionEntry* auc, AuctionAction Act
     SendPacket(&data);
 }
 
-// this function sends notification, if bidder is online
-void WorldSession::SendAuctionBidderNotification(AuctionEntry* auction)
+void WorldSession::SendAuctionSoldNotification(AuctionEntry* auction)
 {
-    WorldPacket data(SMSG_AUCTION_BIDDER_NOTIFICATION, (8 * 4));
-    data << uint32(auction->GetHouseId());
-    data << uint32(auction->Id);
-    data << ObjectGuid(HIGHGUID_PLAYER, auction->bidder);
+    MopAuctionPackets::Sold notification = {};
+    notification.contextGuid = ObjectGuid(HIGHGUID_PLAYER, auction->bidder).GetRawValue();
+    notification.itemEntry = auction->itemTemplate;
+    notification.context = auction->GetHouseId();
+    notification.randomPropertyId = auction->itemRandomPropertyId;
+    notification.auctionId = auction->Id;
 
-    // if 0, client shows ERR_AUCTION_WON_S, else ERR_AUCTION_OUTBID_S
-    data << uint64(auction->moneyDeliveryTime ? 0 : auction->bid);
-    data << uint64(auction->GetAuctionOutBid());            // AuctionOutBid?
-    data << uint32(auction->itemTemplate);
-    data << int32(auction->itemRandomPropertyId);
+    WorldPacket data;
+    MopAuctionPackets::BuildSoldNotification(data, notification);
+    SendPacket(&data);
+}
 
+void WorldSession::SendAuctionWonNotification(AuctionEntry* auction)
+{
+    MopAuctionPackets::Won notification = {};
+    notification.auctionId = auction->Id;
+    notification.auctionHouseId = auction->GetHouseId();
+    notification.bid = auction->bid;
+    notification.itemEntry = auction->itemTemplate;
+    notification.randomPropertyId = auction->itemRandomPropertyId;
+    notification.minimumIncrement = auction->GetAuctionOutBid();
+    notification.bidderGuid = ObjectGuid(HIGHGUID_PLAYER, auction->bidder).GetRawValue();
+
+    WorldPacket data;
+    MopAuctionPackets::BuildWonNotification(data, notification);
+    SendPacket(&data);
+}
+
+void WorldSession::SendAuctionBidUpdateNotification(AuctionEntry* auction)
+{
+    MopAuctionPackets::BidUpdate notification = {};
+    notification.bid = auction->bid;
+    notification.auctionId = auction->Id;
+    notification.minimumIncrement = auction->GetAuctionOutBid();
+    notification.bidderGuid = ObjectGuid(HIGHGUID_PLAYER, auction->bidder).GetRawValue();
+
+    WorldPacket data;
+    MopAuctionPackets::BuildBidUpdateNotification(data, notification);
     SendPacket(&data);
 }
 
@@ -189,11 +215,6 @@ void WorldSession::SendAuctionOutbiddedMail(AuctionEntry* auction)
     {
         std::ostringstream msgAuctionOutbiddedSubject;
         msgAuctionOutbiddedSubject << auction->itemTemplate << ":" << auction->itemRandomPropertyId << ":" << AUCTION_OUTBIDDED << ":" << auction->Id << ":" << auction->itemCount;
-
-        if (oldBidder)
-        {
-            oldBidder->GetSession()->SendAuctionBidderNotification(auction);
-        }
 
         MailDraft(msgAuctionOutbiddedSubject.str(), "")     // TODO: fix body
         .SetMoney(auction->bid)

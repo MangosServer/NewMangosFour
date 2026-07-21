@@ -291,6 +291,9 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_RAID_TARGET_UPDATE_SINGLE:  // MopGroupMarkerPackets::BuildRaidTargetSingle
         case SMSG_AUCTION_HELLO:              // MopAuctionPackets::BuildHello
         case SMSG_AUCTION_OWNER_NOTIFICATION: // MopAuctionPackets::BuildExpiredOrRemovedNotification
+        case SMSG_AUCTION_SOLD_NOTIFICATION:  // MopAuctionPackets::BuildSoldNotification
+        case SMSG_AUCTION_WON_NOTIFICATION:   // MopAuctionPackets::BuildWonNotification
+        case SMSG_AUCTION_BID_UPDATE_NOTIFICATION: // MopAuctionPackets::BuildBidUpdateNotification
             return true;
         default:
             break;

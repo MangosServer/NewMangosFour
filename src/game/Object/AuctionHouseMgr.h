@@ -66,6 +66,39 @@ namespace MopAuctionPackets
         bool expired = false;
     };
 
+    struct Sold
+    {
+        uint64 contextGuid = 0;
+        uint32 itemEntry = 0;
+        uint32 context = 0;
+        int32 randomPropertyId = 0;
+        uint32 itemNameOverrideId = 0;
+        uint32 auctionId = 0;
+    };
+
+    struct Won
+    {
+        uint32 auctionId = 0;
+        uint32 auctionHouseId = 0;
+        uint32 itemNameOverrideId = 0;
+        uint64 bid = 0;
+        uint32 itemEntry = 0;
+        int32 randomPropertyId = 0;
+        uint64 minimumIncrement = 0;
+        uint64 bidderGuid = 0;
+    };
+
+    struct BidUpdate
+    {
+        uint64 bid = 0;
+        uint32 context52 = 0;
+        uint32 context48 = 0;
+        uint32 context44 = 0;
+        uint32 auctionId = 0;
+        uint64 minimumIncrement = 0;
+        uint64 bidderGuid = 0;
+    };
+
     inline uint8 GuidByte(uint64 guid, uint8 index)
     {
         return uint8(guid >> (index * 8));
@@ -118,6 +151,67 @@ namespace MopAuctionPackets
         out << notification.amount;
         out.WriteBit(notification.expired);
         out.FlushBits();
+    }
+
+    inline void BuildSoldNotification(WorldPacket& out, Sold const& notification)
+    {
+        uint8 const maskOrder[] = { 5, 4, 7, 6, 0, 1, 2, 3 };
+        out.Initialize(SMSG_AUCTION_SOLD_NOTIFICATION, 29);
+        for (uint8 index : maskOrder)
+            out.WriteBit(GuidByte(notification.contextGuid, index) != 0);
+        out.FlushBits();
+
+        out.WriteByteSeq(GuidByte(notification.contextGuid, 7));
+        out.WriteByteSeq(GuidByte(notification.contextGuid, 3));
+        out << notification.itemEntry;
+        out.WriteByteSeq(GuidByte(notification.contextGuid, 1));
+        out.WriteByteSeq(GuidByte(notification.contextGuid, 2));
+        out << notification.context;
+        out.WriteByteSeq(GuidByte(notification.contextGuid, 0));
+        out << notification.randomPropertyId;
+        out.WriteByteSeq(GuidByte(notification.contextGuid, 5));
+        out.WriteByteSeq(GuidByte(notification.contextGuid, 4));
+        out.WriteByteSeq(GuidByte(notification.contextGuid, 6));
+        out << notification.itemNameOverrideId;
+        out << notification.auctionId;
+    }
+
+    inline void BuildWonNotification(WorldPacket& out, Won const& notification)
+    {
+        uint8 const maskOrder[] = { 2, 5, 0, 1, 4, 6, 3, 7 };
+        uint8 const byteOrder[] = { 4, 7, 3, 0, 1, 6, 2, 5 };
+        out.Initialize(SMSG_AUCTION_WON_NOTIFICATION, 45);
+        out << notification.auctionId;
+        out << notification.auctionHouseId;
+        out << notification.itemNameOverrideId;
+        out << notification.bid;
+        out << notification.itemEntry;
+        out << notification.randomPropertyId;
+        out << notification.minimumIncrement;
+        for (uint8 index : maskOrder)
+            out.WriteBit(GuidByte(notification.bidderGuid, index) != 0);
+        out.FlushBits();
+        for (uint8 index : byteOrder)
+            out.WriteByteSeq(GuidByte(notification.bidderGuid, index));
+    }
+
+    inline void BuildBidUpdateNotification(WorldPacket& out,
+        BidUpdate const& notification)
+    {
+        uint8 const maskOrder[] = { 3, 1, 5, 0, 7, 4, 2, 6 };
+        uint8 const byteOrder[] = { 5, 1, 0, 7, 2, 6, 3, 4 };
+        out.Initialize(SMSG_AUCTION_BID_UPDATE_NOTIFICATION, 41);
+        out << notification.bid;
+        out << notification.context52;
+        out << notification.context48;
+        out << notification.context44;
+        out << notification.auctionId;
+        out << notification.minimumIncrement;
+        for (uint8 index : maskOrder)
+            out.WriteBit(GuidByte(notification.bidderGuid, index) != 0);
+        out.FlushBits();
+        for (uint8 index : byteOrder)
+            out.WriteByteSeq(GuidByte(notification.bidderGuid, index));
     }
 }
 

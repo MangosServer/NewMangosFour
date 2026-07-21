@@ -1167,7 +1167,9 @@ class WorldSession
         // auction
         void SendAuctionHello(Unit* unit);
         void SendAuctionCommandResult(AuctionEntry* auc, AuctionAction Action, AuctionError ErrorCode, InventoryResult invError = EQUIP_ERR_OK);
-        void SendAuctionBidderNotification(AuctionEntry* auction);
+        void SendAuctionSoldNotification(AuctionEntry* auction);
+        void SendAuctionWonNotification(AuctionEntry* auction);
+        void SendAuctionBidUpdateNotification(AuctionEntry* auction);
         void SendAuctionExpiredNotification(AuctionEntry* auction);
         void SendAuctionRemovedNotification(AuctionEntry* auction);
         static void SendAuctionOutbiddedMail(AuctionEntry* auction);
