@@ -285,6 +285,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_CREATURE_QUERY_RESPONSE:   // MopQueryPackets::BuildCreatureQueryResponse
         case SMSG_GAMEOBJECT_QUERY_RESPONSE: // MopQueryPackets::BuildGameObjectQueryResponse
         case SMSG_QUERY_TIME_RESPONSE:       // MopQueryPackets::BuildQueryTimeResponse
+        case SMSG_REALM_NAME_QUERY_RESPONSE: // MopQueryPackets::BuildRealmNameQueryResponse (client fires the realm query from the name-cache path during login)
             return true;
         default:
             break;
@@ -615,13 +616,13 @@ void WorldSession::HandleBotPackets()
 /// %Log the player out
 void WorldSession::LogoutPlayer(bool Save)
 {
-    // PHASE 6c: keep enter-world suppression active THROUGH logout cleanup. Clearing it here
-    // re-enabled every stale Cata-format send emitted during teardown (loot release, group/
-    // social updates, Map::Remove visibility, transport removal) -- exactly the bodies this
-    // guard exists to drop. The world-leave control packets (SMSG_LOGOUT_RESPONSE/CANCEL_ACK/
-    // COMPLETE) are already whitelisted in IsEnterWorldConverted(), so logout still completes.
-    // The flag is a per-session member; the session is destroyed on disconnect, so it needs no
-    // explicit reset once in-world.
+    // PHASE 6c: keep enter-world suppression active THROUGH logout cleanup, then lift it at the
+    // END of this function (see below). Suppressing cleanup drops the stale Cata-format teardown
+    // sends (loot release, group/social updates, Map::Remove visibility, transport removal); the
+    // world-leave control packets (SMSG_LOGOUT_RESPONSE/CANCEL_ACK/COMPLETE) are whitelisted in
+    // IsEnterWorldConverted(), so logout still completes. It MUST be cleared before returning:
+    // logout keeps the same session alive at character-select, whose SMSG_CHAR_ENUM is not
+    // whitelisted, so leaving suppression on hangs the client at "retrieving character list".
 
     // finish pending transfers before starting the logout
     while (_player && _player->IsBeingTeleportedFar())
@@ -882,6 +883,14 @@ void WorldSession::LogoutPlayer(bool Save)
     m_playerSave = false;
     m_playerRecentlyLogout = true;
     LogoutRequest(0);
+
+    // PHASE 6c: the player has now left the world (SMSG_LOGOUT_COMPLETE sent above), so lift
+    // enter-world suppression. Logout keeps the SAME session alive at character-select, where the
+    // client immediately requests its character list (COP_GET_CHARACTERS -> CMSG_CHAR_ENUM).
+    // SMSG_CHAR_ENUM is not in the enter-world whitelist, so leaving suppression on drops it and
+    // hangs the client at "retrieving character list". Re-armed on the next enter-world
+    // (CharacterHandler). Cleanup above stayed suppressed; only the post-world state is freed here.
+    m_suppressWorldSends = false;
 }
 
 /// Kick a player out of the World

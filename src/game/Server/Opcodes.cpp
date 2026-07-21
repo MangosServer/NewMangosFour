@@ -239,6 +239,14 @@ void InitializeOpcodes()
     DefC(CMSG_NAME_QUERY, "CMSG_NAME_QUERY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleNameQueryOpcode);
     DefS(SMSG_NAME_QUERY_RESPONSE, "SMSG_NAME_QUERY_RESPONSE");
 
+    // Realm-name query. The 18414 client fires this from its name-cache path when a
+    // queried character's realm is not yet in its RealmCache; until it is answered the
+    // client parks the queried name and never commits it (the name shows "Unknown").
+    // CMSG value client-confirmed live (0x1A16, body = uint32 realmId); response
+    // contract RE-verified against the client handler sub_1403073A0.
+    DefC(CMSG_REALM_NAME_QUERY, "CMSG_REALM_NAME_QUERY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRealmNameQueryOpcode);
+    DefS(SMSG_REALM_NAME_QUERY_RESPONSE, "SMSG_REALM_NAME_QUERY_RESPONSE");
+
     // Wave 7 compact time query requests and responses.
     DefC(CMSG_QUERY_TIME, "CMSG_QUERY_TIME", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQueryTimeOpcode);
     DefS(SMSG_QUERY_TIME_RESPONSE, "SMSG_QUERY_TIME_RESPONSE");

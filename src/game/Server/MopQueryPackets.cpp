@@ -139,6 +139,36 @@ void MopQueryPackets::BuildNameQueryResponse(WorldPacket& out,
     out.WriteByteSeq(GuidByte(record.auxiliaryGuid, 0));
 }
 
+uint32 MopQueryPackets::ReadRealmNameQueryRequest(WorldPacket& in)
+{
+    uint32 realmId = 0;
+    in >> realmId;
+    return realmId;
+}
+
+void MopQueryPackets::BuildRealmNameQueryResponse(WorldPacket& out,
+    RealmNameQueryResponse const& record)
+{
+    // 18414 wire layout for the client handler sub_1403073A0 (fills the RealmCache
+    // keyed by realmId and, on status==0, sets the ready-flag that un-gates the parked
+    // name-query result). The status byte leads, then realmId; the name/normalizedName
+    // tail follows only when the realm is reported found. (Live-confirmed: with realmId
+    // leading, the client read realmId's low byte as the status and skipped the store.)
+    out << uint8(record.status);                          // 0 = found -> commits the parked player name
+    out << uint32(record.realmId);
+    if (record.status == 0)
+    {
+        out.WriteBits(uint32(record.name.size()), 8);
+        out.WriteBit(record.isHomeRealm);                 // 1 = home realm -> no cross-realm suffix
+        out.WriteBits(uint32(record.normalizedName.size()), 8);
+        out.FlushBits();
+        if (!record.name.empty())
+            out.append(record.name.c_str(), record.name.size());       // no trailing NUL
+        if (!record.normalizedName.empty())
+            out.append(record.normalizedName.c_str(), record.normalizedName.size());
+    }
+}
+
 void MopQueryPackets::BuildQueryTimeResponse(WorldPacket& out, uint32 serverTime,
     uint32 secondsUntilReset)
 {

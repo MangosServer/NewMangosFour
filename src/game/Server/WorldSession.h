@@ -686,6 +686,8 @@ class WorldSession
 
         void HandleNameQueryOpcode(WorldPacket& recvPacket);
 
+        void HandleRealmNameQueryOpcode(WorldPacket& recvPacket);
+
         void HandleQueryTimeOpcode(WorldPacket& recvPacket);
 
         void HandleCreatureQueryOpcode(WorldPacket& recvPacket);

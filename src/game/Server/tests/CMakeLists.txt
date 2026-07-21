@@ -323,6 +323,14 @@ add_test(NAME mop_name_query_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_name_query_source_test.cmake)
 
+add_executable(mop_realmquery_test mop_realmquery_test.cpp)
+target_include_directories(mop_realmquery_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_realmquery_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_realmquery_test PRIVATE game)
+add_test(NAME mop_realmquery COMMAND mop_realmquery_test)
+
 foreach(mutation IN ITEMS request_parser_call response_builder_call inbound_registration
         early_result_delete tail_result_delete)
     add_test(NAME mop_name_query_source_mutation_${mutation}
