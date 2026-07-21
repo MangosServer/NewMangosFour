@@ -68,6 +68,7 @@
 #include "SocialMgr.h"
 #include "AchievementMgr.h"
 #include "Mail.h"
+#include "Server/MopRatedBattlegroundPackets.h"
 #include "SpellAuras.h"
 #include "DBCStores.h"
 #include "DB2Stores.h"
@@ -400,11 +401,9 @@ void Player::SendRatedBGStats()
 {
     // Placeholder
 
-    WorldPacket data(SMSG_RATED_BG_STATS, 18 * 4);
-    for (int i = 0; i < 18; ++i)
-    {
-        data << uint32(0);
-    }
+    MopRatedBattlegroundPackets::RatedStats records{};
+    WorldPacket data(SMSG_BATTLEFIELD_RATED_INFO, 128);
+    MopRatedBattlegroundPackets::BuildBattlefieldRatedInfo(data, records);
 
     SendDirectMessage(&data);
 }
