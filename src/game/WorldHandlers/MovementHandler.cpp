@@ -407,7 +407,7 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
     recv_data >> movementInfo;
     /*----------------*/
 
-    if (!VerifyMovementInfo(movementInfo))
+    if (!VerifyMovementInfo(movementInfo, movementInfo.GetGuid()))
     {
         return;
     }

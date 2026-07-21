@@ -15,12 +15,128 @@
 
 namespace
 {
+    uint8 GuidByte(uint64 guid, size_t index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+
     size_t OptionalCStringLength(std::string const& text, size_t bitCount)
     {
         size_t const encoded = text.empty() ? 0 : text.size() + 1;
         MANGOS_ASSERT(encoded < (size_t(1) << bitCount));
         return encoded;
     }
+}
+
+MopQueryPackets::NameQueryRequest MopQueryPackets::ReadNameQueryRequest(
+    WorldPacket& in)
+{
+    NameQueryRequest request;
+    std::array<uint8, 8> guidBytes{};
+
+    guidBytes[4] = in.ReadBit();
+    request.hasRealmId2 = in.ReadBit();
+    guidBytes[6] = in.ReadBit();
+    guidBytes[0] = in.ReadBit();
+    guidBytes[7] = in.ReadBit();
+    guidBytes[1] = in.ReadBit();
+    request.hasRealmId1 = in.ReadBit();
+    guidBytes[5] = in.ReadBit();
+    guidBytes[2] = in.ReadBit();
+    guidBytes[3] = in.ReadBit();
+
+    in.ReadByteSeq(guidBytes[7]);
+    in.ReadByteSeq(guidBytes[5]);
+    in.ReadByteSeq(guidBytes[1]);
+    in.ReadByteSeq(guidBytes[2]);
+    in.ReadByteSeq(guidBytes[6]);
+    in.ReadByteSeq(guidBytes[3]);
+    in.ReadByteSeq(guidBytes[0]);
+    in.ReadByteSeq(guidBytes[4]);
+
+    if (request.hasRealmId2)
+        in >> request.realmId2;
+    if (request.hasRealmId1)
+        in >> request.realmId1;
+
+    for (size_t i = 0; i < guidBytes.size(); ++i)
+        request.guid |= uint64(guidBytes[i]) << (i * 8);
+    return request;
+}
+
+void MopQueryPackets::BuildNameQueryResponse(WorldPacket& out,
+    NameQueryResponse const& record)
+{
+    for (size_t index : { 3u, 6u, 7u, 2u, 5u, 4u, 0u, 1u })
+        out.WriteBit(GuidByte(record.guid, index) != 0);
+    out.FlushBits();
+
+    for (size_t index : { 5u, 4u, 7u, 6u, 1u, 2u })
+        out.WriteByteSeq(GuidByte(record.guid, index));
+    out << record.result;
+
+    if (record.result == 0)
+    {
+        out << record.realmId;
+        out << record.accountId;
+        out << record.classId;
+        out << record.race;
+        out << record.level;
+        out << record.gender;
+    }
+
+    out.WriteByteSeq(GuidByte(record.guid, 0));
+    out.WriteByteSeq(GuidByte(record.guid, 3));
+    if (record.result != 0)
+        return;
+
+    MANGOS_ASSERT(record.name.size() <= 48);
+    for (std::string const& name : record.declinedNames)
+        MANGOS_ASSERT(name.size() <= 64);
+
+    out.WriteBit(GuidByte(record.auxiliaryGuid, 2) != 0);
+    out.WriteBit(GuidByte(record.auxiliaryGuid, 7) != 0);
+    out.WriteBit(GuidByte(record.displayGuid, 7) != 0);
+    out.WriteBit(GuidByte(record.displayGuid, 2) != 0);
+    out.WriteBit(GuidByte(record.displayGuid, 0) != 0);
+    out.WriteBit(record.isDeleted);
+    out.WriteBit(GuidByte(record.auxiliaryGuid, 4) != 0);
+    out.WriteBit(GuidByte(record.displayGuid, 5) != 0);
+    out.WriteBit(GuidByte(record.auxiliaryGuid, 1) != 0);
+    out.WriteBit(GuidByte(record.auxiliaryGuid, 3) != 0);
+    out.WriteBit(GuidByte(record.auxiliaryGuid, 0) != 0);
+    for (std::string const& name : record.declinedNames)
+        out.WriteBits(uint32(name.size()), 7);
+    out.WriteBit(GuidByte(record.displayGuid, 6) != 0);
+    out.WriteBit(GuidByte(record.displayGuid, 3) != 0);
+    out.WriteBit(GuidByte(record.auxiliaryGuid, 5) != 0);
+    out.WriteBit(GuidByte(record.displayGuid, 1) != 0);
+    out.WriteBit(GuidByte(record.displayGuid, 4) != 0);
+    out.WriteBits(uint32(record.name.size()), 6);
+    out.WriteBit(GuidByte(record.auxiliaryGuid, 6) != 0);
+    out.FlushBits();
+
+    out.WriteByteSeq(GuidByte(record.displayGuid, 6));
+    out.WriteByteSeq(GuidByte(record.displayGuid, 0));
+    if (!record.name.empty())
+        out.append(record.name.c_str(), record.name.size());
+    out.WriteByteSeq(GuidByte(record.auxiliaryGuid, 5));
+    out.WriteByteSeq(GuidByte(record.auxiliaryGuid, 2));
+    out.WriteByteSeq(GuidByte(record.displayGuid, 3));
+    out.WriteByteSeq(GuidByte(record.auxiliaryGuid, 4));
+    out.WriteByteSeq(GuidByte(record.auxiliaryGuid, 3));
+    out.WriteByteSeq(GuidByte(record.displayGuid, 4));
+    out.WriteByteSeq(GuidByte(record.displayGuid, 2));
+    out.WriteByteSeq(GuidByte(record.auxiliaryGuid, 7));
+    for (std::string const& name : record.declinedNames)
+        if (!name.empty())
+            out.append(name.c_str(), name.size());
+    out.WriteByteSeq(GuidByte(record.auxiliaryGuid, 6));
+    out.WriteByteSeq(GuidByte(record.displayGuid, 7));
+    out.WriteByteSeq(GuidByte(record.displayGuid, 1));
+    out.WriteByteSeq(GuidByte(record.auxiliaryGuid, 1));
+    out.WriteByteSeq(GuidByte(record.displayGuid, 5));
+    out.WriteByteSeq(GuidByte(record.auxiliaryGuid, 0));
 }
 
 void MopQueryPackets::BuildQueryTimeResponse(WorldPacket& out, uint32 serverTime,
@@ -93,4 +209,70 @@ void MopQueryPackets::BuildCreatureQueryResponse(WorldPacket& out,
     out << record.killCredits[1];
     out << record.powerMultiplier;
     out << record.family;
+}
+
+MopQueryPackets::GameObjectQueryRequest MopQueryPackets::ReadGameObjectQueryRequest(
+    WorldPacket& in)
+{
+    GameObjectQueryRequest request;
+    in >> request.entry;
+
+    std::array<uint8, 8> guidBytes{};
+    guidBytes[5] = in.ReadBit();
+    guidBytes[3] = in.ReadBit();
+    guidBytes[6] = in.ReadBit();
+    guidBytes[2] = in.ReadBit();
+    guidBytes[7] = in.ReadBit();
+    guidBytes[1] = in.ReadBit();
+    guidBytes[0] = in.ReadBit();
+    guidBytes[4] = in.ReadBit();
+
+    in.ReadByteSeq(guidBytes[1]);
+    in.ReadByteSeq(guidBytes[5]);
+    in.ReadByteSeq(guidBytes[3]);
+    in.ReadByteSeq(guidBytes[4]);
+    in.ReadByteSeq(guidBytes[6]);
+    in.ReadByteSeq(guidBytes[2]);
+    in.ReadByteSeq(guidBytes[7]);
+    in.ReadByteSeq(guidBytes[0]);
+
+    for (size_t i = 0; i < guidBytes.size(); ++i)
+        request.guid |= uint64(guidBytes[i]) << (i * 8);
+    return request;
+}
+
+void MopQueryPackets::BuildGameObjectQueryResponse(WorldPacket& out,
+    GameObjectQueryResponse const& record)
+{
+    ByteBuffer blob(160);
+    if (record.hasData)
+    {
+        for (std::string const& name : record.names)
+            MANGOS_ASSERT(name.size() < 0x400);
+        MANGOS_ASSERT(record.iconName.size() < 0x400);
+        MANGOS_ASSERT(record.castBarCaption.size() < 0x400);
+        MANGOS_ASSERT(record.unknownString.size() < 0x400);
+        MANGOS_ASSERT(record.questItems.size() <= 0xFF);
+
+        blob << record.type;
+        blob << record.displayId;
+        for (std::string const& name : record.names)
+            blob << name;
+        blob << record.iconName;
+        blob << record.castBarCaption;
+        blob << record.unknownString;
+        for (uint32 value : record.data)
+            blob << value;
+        blob << record.size;
+        blob << uint8(record.questItems.size());
+        for (uint32 questItem : record.questItems)
+            blob << questItem;
+        blob << record.trailingUnknown;
+    }
+
+    out.WriteBit(record.hasData);
+    out.FlushBits();
+    out << record.entry;
+    out << uint32(blob.size());
+    out.append(blob);
 }

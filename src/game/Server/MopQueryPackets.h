@@ -17,11 +17,42 @@
 
 #include <array>
 #include <string>
+#include <vector>
 
 class WorldPacket;
 
 namespace MopQueryPackets
 {
+    struct NameQueryRequest
+    {
+        uint64 guid = 0;
+        bool hasRealmId2 = false;
+        uint32 realmId2 = 0;
+        bool hasRealmId1 = false;
+        uint32 realmId1 = 0;
+    };
+
+    struct NameQueryResponse
+    {
+        uint64 guid = 0;
+        uint8 result = 1;
+        uint32 realmId = 0;
+        uint32 accountId = 0;
+        uint8 classId = 0;
+        uint8 race = 0;
+        uint8 level = 0;
+        uint8 gender = 0;
+        uint64 auxiliaryGuid = 0;
+        uint64 displayGuid = 0;
+        bool isDeleted = false;
+        std::string name;
+        std::array<std::string, 5> declinedNames;
+    };
+
+    NameQueryRequest ReadNameQueryRequest(WorldPacket& in);
+    void BuildNameQueryResponse(WorldPacket& out,
+        NameQueryResponse const& record);
+
     void BuildQueryTimeResponse(WorldPacket& out, uint32 serverTime,
         uint32 secondsUntilReset);
     bool ReadPlayedTimeRequest(WorldPacket& in);
@@ -52,6 +83,32 @@ namespace MopQueryPackets
 
     void BuildCreatureQueryResponse(WorldPacket& out,
         CreatureQueryResponse const& record);
+
+    struct GameObjectQueryRequest
+    {
+        uint32 entry = 0;
+        uint64 guid = 0;
+    };
+
+    struct GameObjectQueryResponse
+    {
+        uint32 entry = 0;
+        bool hasData = false;
+        uint32 type = 0;
+        uint32 displayId = 0;
+        std::array<std::string, 4> names;
+        std::string iconName;
+        std::string castBarCaption;
+        std::string unknownString;
+        std::array<uint32, 32> data{};
+        float size = 0.0f;
+        std::vector<uint32> questItems;
+        uint32 trailingUnknown = 0;
+    };
+
+    GameObjectQueryRequest ReadGameObjectQueryRequest(WorldPacket& in);
+    void BuildGameObjectQueryResponse(WorldPacket& out,
+        GameObjectQueryResponse const& record);
 }
 
 #endif

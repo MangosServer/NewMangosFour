@@ -798,7 +798,9 @@ class MovementInfo
 {
     public:
         MovementInfo() : moveFlags(MOVEFLAG_NONE), moveFlags2(MOVEFLAG2_NONE), time(0),
-            t_time(0), t_seat(-1), t_time2(0), s_pitch(0.0f), fallTime(0), splineElevation(0.0f), byteParam(0) {}
+            t_time(0), t_seat(-1), t_time2(0), t_time3(0), s_pitch(0.0f), fallTime(0), splineElevation(0.0f),
+            unknownBit148(false), unknownBit149(false), unknownBit172(false), movementForceCount(0),
+            hasUnknownUInt32(false), unknownUInt32(0), byteParam(0) {}
 
         // Read/Write methods
         void Read(ByteBuffer& data, uint16 opcode);
@@ -845,6 +847,7 @@ class MovementInfo
             si.hasFallDirection = false;
         }
         ObjectGuid const& GetGuid() const { return guid; }
+        void SetMoverGuid(ObjectGuid guid) { this->guid = guid; }
         ObjectGuid const& GetGuid2() const { return guid2; }
         ObjectGuid const& GetTransportGuid() const { return t_guid; }
         Position const* GetTransportPos() const { return &t_pos; }
@@ -885,6 +888,12 @@ class MovementInfo
         StatusInfo const& GetStatusInfo() const { return si; }
         float GetSplineElevation() const { return splineElevation; }
         float GetPitch() const { return s_pitch; }
+        bool GetUnknownBit148() const { return unknownBit148; }
+        bool GetUnknownBit149() const { return unknownBit149; }
+        bool GetUnknownBit172() const { return unknownBit172; }
+        std::vector<uint32> const& GetMovementForceIds() const { return movementForceIds; }
+        bool HasUnknownUInt32() const { return hasUnknownUInt32; }
+        uint32 GetUnknownUInt32() const { return unknownUInt32; }
 
     private:
         // common
@@ -900,6 +909,7 @@ class MovementInfo
         uint32   t_time;
         int8     t_seat;
         uint32   t_time2;
+        uint32   t_time3;
         // swimming and flying
         float    s_pitch;
         // last fall time
@@ -908,6 +918,13 @@ class MovementInfo
         JumpInfo jump;
         // spline
         float    splineElevation;
+        bool unknownBit148;
+        bool unknownBit149;
+        bool unknownBit172;
+        uint32 movementForceCount;
+        std::vector<uint32> movementForceIds;
+        bool hasUnknownUInt32;
+        uint32 unknownUInt32;
         // status info
         StatusInfo si;
         int8 byteParam;
@@ -3113,7 +3130,7 @@ class Unit : public WorldObject
         // if used additional args in ... part then floats must explicitly casted to double
         /**
          * Tells nearby \ref Unit s and such that this \ref Unit has moved to a new position using
-         * \ref OpcodesList::MSG_MOVE_HEARTBEAT which will send the new position to all clients etc
+         * \ref OpcodesList::SMSG_PLAYER_MOVE which will send the new position to all clients etc
          * in the same \ref Cell
          */
         void SendHeartBeat();
