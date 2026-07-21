@@ -281,6 +281,7 @@ class Group
             /* Indicates whether the player is assistant. */
             bool        assistant;
             uint32      lastMap;
+            bool        readyCheckHasResponded;
         };
         typedef std::list<MemberSlot> MemberSlotList;
         typedef MemberSlotList::const_iterator member_citerator;
@@ -497,6 +498,16 @@ class Group
         void BroadcastPacket(WorldPacket* packet, bool ignorePlayersInBGRaid, int group = -1, ObjectGuid ignore = ObjectGuid());
         void BroadcastReadyCheck(WorldPacket* packet);
         void OfflineReadyCheck();
+        bool StartReadyCheck(uint8 partyIndex, ObjectGuid initiator);
+        bool ReadyCheckMemberHasResponded(ObjectGuid guid);
+        bool ReadyCheckAllResponded() const;
+        bool ReadyCheckInProgress() const { return m_readyCheckActive; }
+        bool IsReadyCheckInitiator(ObjectGuid guid) const
+        {
+            return m_readyCheckActive && m_readyCheckInitiator == guid;
+        }
+        uint8 GetReadyCheckPartyIndex() const { return m_readyCheckPartyIndex; }
+        void CompleteReadyCheck();
 
         void RewardGroupAtKill(Unit* pVictim, Player* player_tap);
 
@@ -644,5 +655,8 @@ class Group
         Rolls               RollId;
         BoundInstancesMap   m_boundInstances[MAX_DIFFICULTY];
         uint8*              m_subGroupsCounts;
+        bool                m_readyCheckActive;
+        uint8               m_readyCheckPartyIndex;
+        ObjectGuid          m_readyCheckInitiator;
 };
 #endif

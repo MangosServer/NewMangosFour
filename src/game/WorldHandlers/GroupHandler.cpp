@@ -48,6 +48,7 @@
 #include "WorldPacket.h"
 #include "MopCompactPackets.h"
 #include "MopPartyStatsPackets.h"
+#include "MopReadyCheckPackets.h"
 #include "WorldSession.h"
 #include "World.h"
 #include "ObjectMgr.h"
@@ -840,51 +841,86 @@ void WorldSession::HandlePartyAssignmentOpcode(WorldPacket& recv_data)
     }
 }
 
+namespace
+{
+    Group* GetReadyCheckGroup(Player* player, uint8 partyIndex)
+    {
+        if (partyIndex == 0)
+            return player->GetOriginalGroup() ? player->GetOriginalGroup() : player->GetGroup();
+        if (partyIndex == 1)
+            return player->GetGroup();
+        return NULL;
+    }
+}
+
 /**
- * @brief Starts or answers a raid ready check.
+ * @brief Starts a raid ready check.
  *
  * @param recv_data The received opcode packet.
  */
 void WorldSession::HandleRaidReadyCheckOpcode(WorldPacket& recv_data)
 {
-    if (recv_data.empty())                                  // request
-    {
-        Group* group = GetPlayer()->GetGroup();
-        if (!group)
-        {
-            return;
-        }
+    uint8 const partyIndex = MopReadyCheckPackets::ReadStartRequest(recv_data);
+    Player* player = GetPlayer();
+    Group* group = GetReadyCheckGroup(player, partyIndex);
+    if (!group)
+        return;
 
-        /** error handling **/
-        if (!group->IsLeader(GetPlayer()->GetObjectGuid()) &&
-                !group->IsAssistant(GetPlayer()->GetObjectGuid()))
-            return;
-        /********************/
+    ObjectGuid const playerGuid = player->GetObjectGuid();
+    if (!group->IsLeader(playerGuid) && !group->IsAssistant(playerGuid))
+        return;
+    // One Player timer owns one active check. This also prevents a player with
+    // original/current groups from stranding one check by starting both.
+    if (player->HasReadyCheckTimer())
+        return;
+    if (!group->StartReadyCheck(partyIndex, playerGuid))
+        return;
 
-        // everything is fine, do it
-        WorldPacket data(MSG_RAID_READY_CHECK, 8);
-        data << ObjectGuid(GetPlayer()->GetObjectGuid());
-        group->BroadcastPacket(&data, false, -1);
+    // The 35-second policy matches the 5.4.8 server reference lineage; the
+    // packet field itself and its width are direct 18414 client evidence.
+    uint32 const readyCheckDuration = 35000;
+    group->ReadyCheckMemberHasResponded(playerGuid);
+    player->SetReadyCheckTimer(readyCheckDuration);
 
-        group->OfflineReadyCheck();
-    }
-    else                                                    // answer
-    {
-        uint8 state;
-        recv_data >> state;
+    WorldPacket data;
+    MopReadyCheckPackets::BuildStarted(data,
+        group->GetObjectGuid().GetRawValue(), playerGuid.GetRawValue(),
+        readyCheckDuration, partyIndex);
+    group->BroadcastPacket(&data, false);
 
-        Group* group = GetPlayer()->GetGroup();
-        if (!group)
-        {
-            return;
-        }
+    group->OfflineReadyCheck();
+    if (group->ReadyCheckAllResponded())
+        group->CompleteReadyCheck();
+}
 
-        // everything is fine, do it
-        WorldPacket data(MSG_RAID_READY_CHECK_CONFIRM, 9);
-        data << GetPlayer()->GetObjectGuid();
-        data << uint8(state);
-        group->BroadcastReadyCheck(&data);
-    }
+/**
+ * @brief Records a member response to an active raid ready check.
+ */
+void WorldSession::HandleRaidReadyCheckConfirmOpcode(WorldPacket& recv_data)
+{
+    MopReadyCheckPackets::ResponseRequest const response =
+        MopReadyCheckPackets::ReadResponseRequest(recv_data);
+
+    Player* player = GetPlayer();
+    Group* group = GetReadyCheckGroup(player, response.partyIndex);
+    if (!group || !group->ReadyCheckInProgress() ||
+        group->GetReadyCheckPartyIndex() != response.partyIndex)
+        return;
+
+    // The packed GUID is present on the wire, but the client construction
+    // paths do not populate it. Identity is therefore bound to the session.
+    ObjectGuid const playerGuid = player->GetObjectGuid();
+    if (!group->ReadyCheckMemberHasResponded(playerGuid))
+        return;
+
+    WorldPacket data;
+    MopReadyCheckPackets::BuildResponse(data,
+        group->GetObjectGuid().GetRawValue(), playerGuid.GetRawValue(),
+        response.ready);
+    group->BroadcastPacket(&data, false);
+
+    if (group->ReadyCheckAllResponded())
+        group->CompleteReadyCheck();
 }
 
 /**

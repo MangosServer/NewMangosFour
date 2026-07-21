@@ -252,4 +252,13 @@ void InitializeOpcodes()
     DefC(CMSG_REQUEST_STABLED_PETS, "CMSG_REQUEST_STABLED_PETS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleListStabledPetsOpcode);
     DefS(SMSG_PET_STABLE_LIST, "SMSG_PET_STABLE_LIST");
     DefS(SMSG_STABLE_RESULT, "SMSG_STABLE_RESULT");
+
+    // Wave 16 ready-check exchange. All five values and bodies are recovered
+    // directly from the 18414 client; server-side state/recipient policy is
+    // deliberately kept in Group and GroupHandler.
+    DefC(CMSG_DO_READY_CHECK, "CMSG_DO_READY_CHECK", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRaidReadyCheckOpcode);
+    DefC(CMSG_RAID_READY_CHECK_CONFIRM, "CMSG_RAID_READY_CHECK_CONFIRM", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRaidReadyCheckConfirmOpcode);
+    DefS(SMSG_RAID_READY_CHECK, "SMSG_RAID_READY_CHECK");
+    DefS(SMSG_RAID_READY_CHECK_CONFIRM, "SMSG_RAID_READY_CHECK_CONFIRM");
+    DefS(SMSG_RAID_READY_CHECK_COMPLETED, "SMSG_RAID_READY_CHECK_COMPLETED");
 }

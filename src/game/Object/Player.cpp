@@ -380,6 +380,7 @@ Player::Player(WorldSession* session): Unit(), m_mover(this), m_camera(this), m_
     SetGroupInvite(NULL);
     m_groupUpdateMask = 0;
     m_auraUpdateMask = 0;
+    m_readyCheckTimer = 0;
 
     duel = NULL;
 
@@ -1322,6 +1323,14 @@ void Player::Update(uint32 update_diff, uint32 p_time)
     // Group update
     SendUpdateToOutOfRangeGroupMembers();
 
+    if (m_readyCheckTimer > 0)
+    {
+        if (update_diff >= m_readyCheckTimer)
+            ReadyCheckComplete();
+        else
+            m_readyCheckTimer -= update_diff;
+    }
+
     // Handle pet unsummoning if out of range
     Pet* pet = GetPet();
     if (pet && !pet->IsWithinDistInMap(this, GetMap()->GetVisibilityDistance()) && (GetCharmGuid() && (pet->GetObjectGuid() != GetCharmGuid())))
@@ -1334,6 +1343,22 @@ void Player::Update(uint32 update_diff, uint32 p_time)
     {
         TeleportTo(m_teleport_dest, m_teleport_options);
     }
+}
+
+void Player::ReadyCheckComplete()
+{
+    m_readyCheckTimer = 0;
+
+    Group* originalGroup = GetOriginalGroup();
+    if (originalGroup && originalGroup->IsReadyCheckInitiator(GetObjectGuid()))
+    {
+        originalGroup->CompleteReadyCheck();
+        return;
+    }
+
+    Group* group = GetGroup();
+    if (group && group->IsReadyCheckInitiator(GetObjectGuid()))
+        group->CompleteReadyCheck();
 }
 
 /**

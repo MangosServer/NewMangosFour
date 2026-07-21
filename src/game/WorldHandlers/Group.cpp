@@ -57,6 +57,7 @@
 #include "BattleGround/BattleGround.h"
 #include "MapManager.h"
 #include "MapPersistentStateMgr.h"
+#include "MopReadyCheckPackets.h"
 #include "Util.h"
 #include "LootMgr.h"
 
@@ -115,7 +116,7 @@ RollVoteMask Roll::GetVoteMaskFor(Player* player) const
 Group::Group() : m_Id(0), m_groupType(GROUPTYPE_NORMAL),
     m_dungeonDifficulty(REGULAR_DIFFICULTY), m_raidDifficulty(REGULAR_DIFFICULTY),
     m_bgGroup(NULL), m_lootMethod(FREE_FOR_ALL), m_lootThreshold(ITEM_QUALITY_UNCOMMON),
-    m_subGroupsCounts(NULL)
+    m_subGroupsCounts(NULL), m_readyCheckActive(false), m_readyCheckPartyIndex(0)
 {
 }
 
@@ -315,6 +316,7 @@ bool Group::LoadMemberFromDB(uint32 guidLow, uint8 subgroup, bool assistant)
 
     member.group     = subgroup;
     member.assistant = assistant;
+    member.readyCheckHasResponded = false;
     m_memberSlots.push_back(member);
 
     SubGroupCounterIncrease(subgroup);
@@ -535,10 +537,16 @@ bool Group::AddMember(ObjectGuid guid, const char* name)
  */
 uint32 Group::RemoveMember(ObjectGuid guid, uint8 removeMethod)
 {
+    if (IsReadyCheckInitiator(guid))
+        CompleteReadyCheck();
+
     // remove member and change leader (if need) only if strong more 2 members _before_ member remove
     if (GetMembersCount() > uint32(isBGGroup() ? 1 : 2))    // in BG group case allow 1 members group
     {
         bool leaderChanged = _removeMember(guid);
+
+        if (ReadyCheckAllResponded())
+            CompleteReadyCheck();
 
         if (Player* player = sObjectMgr.GetPlayer(guid))
         {
@@ -634,6 +642,8 @@ void Group::ChangeLeader(ObjectGuid guid)
  */
 void Group::Disband(bool hideDestroy)
 {
+    CompleteReadyCheck();
+
     Player* player;
 
     for (member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
@@ -1601,17 +1611,76 @@ void Group::BroadcastReadyCheck(WorldPacket* packet)
  */
 void Group::OfflineReadyCheck()
 {
-    for (member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
+    if (!m_readyCheckActive)
+        return;
+
+    for (member_witerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
     {
         Player* pl = sObjectMgr.GetPlayer(citr->guid);
-        if (!pl || !pl->GetSession())
+        if ((!pl || !pl->GetSession()) && !citr->readyCheckHasResponded)
         {
-            WorldPacket data(MSG_RAID_READY_CHECK_CONFIRM, 9);
-            data << citr->guid;
-            data << uint8(0);
+            WorldPacket data;
+            MopReadyCheckPackets::BuildResponse(data,
+                GetObjectGuid().GetRawValue(), citr->guid.GetRawValue(), false);
             BroadcastReadyCheck(&data);
+            citr->readyCheckHasResponded = true;
         }
     }
 }
 
+bool Group::StartReadyCheck(uint8 partyIndex, ObjectGuid initiator)
+{
+    if (m_readyCheckActive || _getMemberCSlot(initiator) == m_memberSlots.end())
+        return false;
 
+    m_readyCheckActive = true;
+    m_readyCheckPartyIndex = partyIndex;
+    m_readyCheckInitiator = initiator;
+    for (member_witerator itr = m_memberSlots.begin(); itr != m_memberSlots.end(); ++itr)
+        itr->readyCheckHasResponded = false;
+    return true;
+}
+
+bool Group::ReadyCheckMemberHasResponded(ObjectGuid guid)
+{
+    if (!m_readyCheckActive)
+        return false;
+
+    member_witerator itr = _getMemberWSlot(guid);
+    if (itr == m_memberSlots.end() || itr->readyCheckHasResponded)
+        return false;
+
+    itr->readyCheckHasResponded = true;
+    return true;
+}
+
+bool Group::ReadyCheckAllResponded() const
+{
+    if (!m_readyCheckActive)
+        return false;
+
+    for (member_citerator itr = m_memberSlots.begin(); itr != m_memberSlots.end(); ++itr)
+        if (!itr->readyCheckHasResponded)
+            return false;
+    return true;
+}
+
+void Group::CompleteReadyCheck()
+{
+    if (!m_readyCheckActive)
+        return;
+
+    WorldPacket data;
+    MopReadyCheckPackets::BuildCompleted(data,
+        GetObjectGuid().GetRawValue(), m_readyCheckPartyIndex);
+    BroadcastPacket(&data, false);
+
+    if (Player* initiator = sObjectMgr.GetPlayer(m_readyCheckInitiator))
+        initiator->SetReadyCheckTimer(0);
+
+    m_readyCheckActive = false;
+    m_readyCheckPartyIndex = 0;
+    m_readyCheckInitiator.Clear();
+    for (member_witerator itr = m_memberSlots.begin(); itr != m_memberSlots.end(); ++itr)
+        itr->readyCheckHasResponded = false;
+}
