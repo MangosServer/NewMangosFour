@@ -36,6 +36,7 @@
 #include "Language.h"
 #include "World.h"
 #include "Calendar.h"
+#include "Server/MopCalendarPackets.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
@@ -918,9 +919,7 @@ void Guild::BroadcastPacketToRank(WorldPacket* packet, uint32 rankId)
 void Guild::MassInviteToEvent(WorldSession* session, uint32 minLevel, uint32 maxLevel, uint32 minRank)
 {
     uint32 count = 0;
-
-    WorldPacket data(SMSG_CALENDAR_FILTER_GUILD);
-    data << uint32(count); // count placeholder
+    std::vector<MopCalendarPackets::InitialInvite> records;
 
     for (MemberList::const_iterator itr = members.begin(); itr != members.end(); ++itr)
     {
@@ -936,13 +935,17 @@ void Guild::MassInviteToEvent(WorldSession* session, uint32 minLevel, uint32 max
 
         if (member.guid != session->GetPlayer()->GetObjectGuid() && level >= minLevel && level <= maxLevel && member.RankId <= minRank)
         {
-            data << member.guid.WriteAsPacked();
-            data << uint8(level);
+            MopCalendarPackets::InitialInvite record;
+            record.guid = member.guid.GetRawValue();
+            record.level = uint8(level);
+            records.push_back(record);
             ++count;
         }
     }
 
-    data.put<uint32>(0, count);
+    WorldPacket data(SMSG_CALENDAR_EVENT_INITIAL_INVITE, 3 + records.size() * 10);
+    if (!MopCalendarPackets::BuildCalendarInitialInvite(data, records))
+        return;
 
     session->SendPacket(&data);
 }

@@ -1048,7 +1048,6 @@ enum OpcodesList
     CMSG_CALENDAR_EVENT_MODERATOR_STATUS         = 0x0708, // 5.4.8 18414 (Wow.exe binary)
     SMSG_CALENDAR_SEND_CALENDAR                  = 0x1A0A,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_CALENDAR_SEND_EVENT                     = 0x12AE,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
-    SMSG_CALENDAR_FILTER_GUILD                   = 0x1439,    // (legacy; no client leaf)
     SMSG_CALENDAR_ARENA_TEAM                     = 0x143A, // WRONG: 0x143A is SMSG_CAST_FAILED in 5.4.8.
                                                            // Client handler is Spell_C.cpp and references
                                                            // SPELL_FAILED_UNKNOWN / SI3::PlaySpellFizzleSound.
@@ -1056,7 +1055,6 @@ enum OpcodesList
                                                            // Sender: ArenaTeam.cpp:890. Correct value unknown.
     SMSG_CALENDAR_EVENT_INVITE                   = 0x15C3,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_CALENDAR_EVENT_INVITE_REMOVED           = 0x00A2,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
-    SMSG_CALENDAR_EVENT_STATUS                   = 0x143D,    // (no client leaf)
     SMSG_CALENDAR_COMMAND_RESULT                 = 0x142A,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_CALENDAR_RAID_LOCKOUT_ADDED             = 0x0CAB,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_CALENDAR_RAID_LOCKOUT_REMOVED           = 0x11E0,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
@@ -1065,7 +1063,6 @@ enum OpcodesList
     SMSG_CALENDAR_EVENT_INVITE_STATUS_ALERT      = 0x0412,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_CALENDAR_EVENT_REMOVED_ALERT            = 0x049B,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_CALENDAR_EVENT_UPDATED_ALERT            = 0x0A0E,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
-    SMSG_CALENDAR_EVENT_MODERATOR_STATUS_ALERT   = 0x1446,    // (no client leaf)
     CMSG_CALENDAR_COMPLAIN                       = 0x1F8F, // 5.4.8 18414 (Wow.exe binary)
     CMSG_CALENDAR_GET_NUM_PENDING                = 0x0813, // 5.4.8 18414 (Wow.exe binary)
     SMSG_CALENDAR_SEND_NUM_PENDING               = 0x0A3F,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
@@ -1319,7 +1316,7 @@ enum OpcodesList
     SMSG_QUEST_NPC_QUERY_RESPONSE                = 0x036D,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_BATTLE_PET_PET_UPDATES                  = 0x041A,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_BATTLE_PAY_GET_DISTRIBUTION_LIST_RESPONSE = 0x043F,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
-    SMSG_CALENDAR_EVENT_MODERATOR_STATUS         = 0x048F,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)
+    SMSG_CALENDAR_EVENT_MODERATOR_STATUS         = 0x048F,    // 5.4.8 18414 (Wow.exe reader; name via 5.4.7 bridge)
     SMSG_PET_BATTLE_FINISHED                     = 0x04BB,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_MIRROR_IMAGE_CREATURE_DATA              = 0x04D0,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_MIRROR_IMAGE_COMPONENTED_DATA           = 0x04D9,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
@@ -1418,7 +1415,7 @@ enum OpcodesList
     SMSG_PET_STABLE_LIST                         = 0x1613,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)
     SMSG_MINIMAP_PING                            = 0x168F,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_RANDOMIZE_CHAR_NAME                     = 0x169F,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
-    SMSG_CALENDAR_EVENT_INITIAL_INVITE           = 0x16AE,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
+    SMSG_CALENDAR_EVENT_INITIAL_INVITE           = 0x16AE,    // 5.4.8 18414 (Wow.exe reader; name via 5.4.7 bridge)
     SMSG_BATTLE_PET_SLOT_UPDATE                  = 0x16AF,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_MOVE_UPDATE_COLLISION_HEIGHT            = 0x1812,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_DISPLAY_GAME_ERROR                      = 0x181F,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
@@ -1453,7 +1450,7 @@ enum OpcodesList
     SMSG_PET_BATTLE_FINAL_ROUND                  = 0x1C2F,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_PLAY_SCENE                              = 0x1C3A,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)
     SMSG_RAID_READY_CHECK                        = 0x1C8E,    // 5.4.8 18414 (Wow-64.exe binary receive leaf)
-    SMSG_CALENDAR_EVENT_INVITE_STATUS            = 0x1C9B,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)
+    SMSG_CALENDAR_EVENT_INVITE_STATUS            = 0x1C9B,    // 5.4.8 18414 (Wow.exe reader; name via 5.4.7 bridge)
     SMSG_VOID_TRANSFER_RESULT                    = 0x1C9E,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_CUSTOM_LOAD_SCREEN                      = 0x1CAF,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)
     SMSG_MOVE_APPLY_MOVEMENT_FORCE               = 0x1DBE,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
