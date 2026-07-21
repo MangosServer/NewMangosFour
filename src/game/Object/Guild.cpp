@@ -37,6 +37,7 @@
 #include "World.h"
 #include "Calendar.h"
 #include "Server/MopCalendarPackets.h"
+#include "Server/MopGuildPackets.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
@@ -1339,6 +1340,20 @@ void Guild::LogGuildEvent(uint8 EventType, ObjectGuid playerGuid1, ObjectGuid pl
  */
 void Guild::BroadcastEvent(GuildEvents event, ObjectGuid guid, char const* str1 /*=NULL*/, char const* str2 /*=NULL*/, char const* str3 /*=NULL*/)
 {
+    if (event == GE_MOTD)
+    {
+        std::string const motd = str1 ? str1 : "";
+        WorldPacket data(SMSG_GUILD_EVENT_MOTD, motd.size() + 2);
+        if (MopGuildPackets::BuildGuildMotd(data, motd))
+        {
+            BroadcastPacket(&data);
+            DEBUG_LOG("WORLD: Sent SMSG_GUILD_EVENT_MOTD");
+        }
+        else
+            sLog.outError("WORLD: Guild %u MOTD is too long for SMSG_GUILD_EVENT_MOTD", GetId());
+        return;
+    }
+
     uint8 strCount = !str1 ? 0 : (!str2 ? 1 : (!str3 ? 2 : 3));
 
     WorldPacket data(SMSG_GUILD_EVENT, 1 + 1 + 1 * strCount + (!guid ? 0 : 8));

@@ -411,6 +411,28 @@ set_target_properties(mop_party_update_packets_test PROPERTIES CXX_STANDARD 17 C
 target_link_libraries(mop_party_update_packets_test PRIVATE game)
 add_test(NAME mop_party_update_packets COMMAND mop_party_update_packets_test)
 
+add_executable(mop_guild_packets_test
+    mop_guild_packets_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../MopGuildPackets.cpp)
+target_include_directories(mop_guild_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_guild_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_guild_packets_test PRIVATE game)
+add_test(NAME mop_guild_packets COMMAND mop_guild_packets_test)
+
+add_test(NAME mop_guild_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_guild_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS login_builder broadcast_builder outbound_registration opcode_value)
+    add_test(NAME mop_guild_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_guild_packets_source_test.cmake)
+    set_tests_properties(mop_guild_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_test(NAME mop_party_update_packets_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_party_update_packets_source_test.cmake)

@@ -1350,6 +1350,7 @@ enum OpcodesList
     SMSG_GUILD_CHALLENGE_UPDATED                 = 0x0AE9,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)
     SMSG_GUILD_XP                                = 0x0AF0,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_SPLINE_MOVE_SET_NORMAL_FALL             = 0x0B08,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
+    SMSG_GUILD_EVENT_MOTD                        = 0x0B68,    // 5.4.8 18414 (Wow.exe handler fires GUILD_MOTD and GUILD_ROSTER_UPDATE)
     SMSG_LF_GUILD_APPLICANT_LIST_UPDATED         = 0x0B71,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)
     SMSG_GUILD_MOVE_COMPLETE                     = 0x0BE8,    // 5.4.8 18414 (Wow.exe binary)
     SMSG_GUILD_MEMBERS_FOR_RECIPE                = 0x0BF0,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)
