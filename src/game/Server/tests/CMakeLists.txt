@@ -512,6 +512,18 @@ foreach(mutation IN ITEMS normal_builder removal_builder targeted_request inboun
     set_tests_properties(mop_party_update_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_test(NAME mop_enter_world_gate_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_enter_world_gate_source_test.cmake)
+
+foreach(mutation IN ITEMS converted_packet transfer_registration)
+    add_test(NAME mop_enter_world_gate_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_enter_world_gate_source_test.cmake)
+    set_tests_properties(mop_enter_world_gate_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_movement_packets_test
     mop_movement_packets_test.cpp
     ${CMAKE_SOURCE_DIR}/src/game/movement/MovementInfo.cpp)

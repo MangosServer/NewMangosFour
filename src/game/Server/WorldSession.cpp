@@ -275,6 +275,30 @@ static bool IsEnterWorldConverted(uint16 opcode)
                                          //           order unverified -- follow-up when far-teleport-with-transport lands)
             return true;
 
+        // Converted in-world control, movement, compact UI, and combat-log bodies. Each
+        // row is backed by its owning 18414 serializer and focused byte fixtures. Keeping
+        // these outside the gate silently discarded otherwise-valid gameplay traffic.
+        case SMSG_LOGIN_SETTIMESPEED:              // MopWorldEntryPackets::BuildLoginSetTimeSpeed
+        case SMSG_CLIENT_CONTROL_UPDATE:           // MopControlPackets::BuildClientControlUpdate
+        case SMSG_MOVE_SET_ACTIVE_MOVER:           // MopControlPackets::BuildSetActiveMover
+        case SMSG_PLAYER_MOVE:                     // MovementInfo relay serializer
+        case SMSG_MOVE_SET_SWIM_SPEED:             // MopCompactPackets::BuildMoveSetSwimSpeed
+        case SMSG_SPLINE_MOVE_SET_NORMAL_FALL:     // MopMovementPackets::BuildSplineState
+        case SMSG_SPLINE_MOVE_SET_WATER_WALK:      // MopMovementPackets::BuildSplineState
+        case SMSG_SPLINE_MOVE_SET_FEATHER_FALL:    // MopMovementPackets::BuildSplineState
+        case SMSG_SPLINE_MOVE_SET_LAND_WALK:       // MopMovementPackets::BuildSplineState
+        case SMSG_ATTACKSWING_ERROR:               // MopCompactPackets::BuildAttackSwingError
+        case SMSG_RANDOM_ROLL:                     // MopCompactPackets::BuildRandomRoll
+        case SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT:  // MopCompactPackets::BuildInstanceEncounter
+        case SMSG_SET_RAID_DIFFICULTY:             // MopCompactPackets::BuildSetRaidDifficulty
+        case SMSG_SET_DUNGEON_DIFFICULTY:          // MopCompactPackets::BuildSetDungeonDifficulty
+        case SMSG_TRAINER_BUY_FAILED:               // MopTrainerBuyFailed::Build
+        case SMSG_UPDATE_CURRENCY:                 // MopCurrencyPackets::BuildUpdateCurrency
+        case SMSG_SETUP_CURRENCY:                  // MopCurrencyPackets::BuildSetupCurrency
+        case SMSG_SPELL_EXECUTE_LOG:               // MopCombatLogPackets::BuildSpellExecuteLog
+        case SMSG_SPELL_PERIODIC_AURA_LOG:         // MopCombatLogPackets::BuildPeriodicAuraLog
+            return true;
+
         // In-world query replies. The core already emits genuine 18414 bodies for these
         // (MopQueryPackets::Build*QueryResponse in QueryHandler.cpp), so they satisfy the
         // HARD RULE and must pass suppression -- otherwise the client's post-login name /
@@ -284,8 +308,25 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_CREATURE_QUERY_RESPONSE:   // MopQueryPackets::BuildCreatureQueryResponse
         case SMSG_GAMEOBJECT_QUERY_RESPONSE: // MopQueryPackets::BuildGameObjectQueryResponse
         case SMSG_QUERY_TIME_RESPONSE:       // MopQueryPackets::BuildQueryTimeResponse
+        case SMSG_PLAYED_TIME:               // MopQueryPackets::BuildPlayedTimeResponse
         case SMSG_REALM_NAME_QUERY_RESPONSE: // MopQueryPackets::BuildRealmNameQueryResponse (client fires the realm query from the name-cache path during login)
         case SMSG_AURA_UPDATE:                // MopAuraPackets::BuildAuraUpdate (full snapshots and incremental updates)
+        case SMSG_GUILD_EVENT_MOTD:           // MopGuildPackets::BuildGuildMotd
+        case SMSG_LFG_BOOT_PLAYER:            // MopLfgPackets::BuildBootPlayer
+        case SMSG_LFG_UPDATE_STATUS:          // MopLfgPackets::BuildUpdateStatus
+        case SMSG_RESPEC_WIPE_CONFIRM:        // MopRespecPackets::BuildRespecWipeConfirm
+        case SMSG_PARTY_MEMBER_STATS:         // MopPartyStatsPackets::BuildResponse
+        case SMSG_GROUP_LIST:                 // MopPartyUpdatePackets::BuildPartyUpdate
+        case SMSG_PET_STABLE_LIST:            // MopStablePackets::BuildStableList
+        case SMSG_STABLE_RESULT:              // MopStablePackets::BuildStableResult
+        case SMSG_RAID_READY_CHECK:           // MopReadyCheckPackets::BuildStarted
+        case SMSG_RAID_READY_CHECK_CONFIRM:   // MopReadyCheckPackets::BuildResponse
+        case SMSG_RAID_READY_CHECK_COMPLETED: // MopReadyCheckPackets::BuildCompleted
+        case SMSG_MAIL_QUERY_NEXT_TIME_RESULT: // MopMailPackets::BuildNextMailTimeResult
+        case SMSG_BATTLEFIELD_RATED_INFO:      // MopRatedBattlegroundPackets::BuildBattlefieldRatedInfo
+        case SMSG_CALENDAR_EVENT_INITIAL_INVITE: // MopCalendarPackets::BuildCalendarInitialInvite
+        case SMSG_CALENDAR_EVENT_INVITE_STATUS:  // MopCalendarPackets::BuildCalendarInviteStatus
+        case SMSG_CALENDAR_EVENT_MODERATOR_STATUS: // MopCalendarPackets::BuildCalendarModeratorStatus
         case SMSG_MINIMAP_PING:               // MopGroupMarkerPackets::BuildMinimapPing
         case SMSG_RAID_TARGET_UPDATE_ALL:     // MopGroupMarkerPackets::BuildRaidTargetAll
         case SMSG_RAID_TARGET_UPDATE_SINGLE:  // MopGroupMarkerPackets::BuildRaidTargetSingle
