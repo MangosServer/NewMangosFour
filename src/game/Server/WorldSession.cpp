@@ -285,6 +285,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_GAMEOBJECT_QUERY_RESPONSE: // MopQueryPackets::BuildGameObjectQueryResponse
         case SMSG_QUERY_TIME_RESPONSE:       // MopQueryPackets::BuildQueryTimeResponse
         case SMSG_REALM_NAME_QUERY_RESPONSE: // MopQueryPackets::BuildRealmNameQueryResponse (client fires the realm query from the name-cache path during login)
+        case SMSG_AURA_UPDATE:                // MopAuraPackets::BuildAuraUpdate (full snapshots and incremental updates)
             return true;
         default:
             break;
@@ -312,18 +313,15 @@ void WorldSession::SendPacket(WorldPacket const* packet, bool bypassSuppress)
         return;
     }
 
-    // Login-cast crash fix: SMSG_SPELL_GO / SMSG_AURA_UPDATE still emit stale pre-18414 (Cata)
-    // bodies. Any spell cast during login in _LoadSpells (the warrior/monk Battle/stance shapeshift,
-    // Pandaren racials, etc.) fires these BEFORE m_suppressWorldSends is set, so they would reach the
-    // unmodified 18414 client -- whose spell parser reads the Cata target-count field as a huge value
-    // and stack-overflows (unbounded alloca(48*count) in Spell_C; ERROR#132 STACK_OVERFLOW ~6s after
-    // enter-world). Drop these two across the whole enter-world window (player-load AND in-world
-    // suppression) until a genuine 18414 serializer exists, per the HARD RULE below. Live-verified
-    // across Warrior + Pandaren Monk/Mage/Shaman (all fire SMSG_SPELL_GO at login; all now clean).
+    // SMSG_SPELL_GO still has a stale pre-18414 body and can stack-overflow the 18414 parser when a
+    // login-time stance/racial cast emits it. Aura updates now have a genuine 18414 serializer, but
+    // incremental updates produced while the Player object is still loading remain redundant: the
+    // full post-add snapshot replaces them once the target exists client-side.
     {
         const uint16 opc = uint16(packet->GetOpcode());
-        if ((m_playerLoading || m_suppressWorldSends) && !bypassSuppress &&
-            (opc == SMSG_SPELL_GO || opc == SMSG_AURA_UPDATE))
+        if (!bypassSuppress &&
+            (((m_playerLoading || m_suppressWorldSends) && opc == SMSG_SPELL_GO) ||
+             (m_playerLoading && opc == SMSG_AURA_UPDATE)))
         {
             return;
         }

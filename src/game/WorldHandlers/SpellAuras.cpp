@@ -4816,62 +4816,59 @@ bool SpellAuraHolder::IsNeedVisibleSlot(Unit const* caster) const
     return !m_isPassive || totemAura || HasAreaAuraEffect(m_spellProto);
 }
 
-void SpellAuraHolder::BuildUpdatePacket(WorldPacket& data) const
+MopAuraPackets::AuraUpdate SpellAuraHolder::BuildMopAuraUpdate(bool remove) const
 {
-    data << uint8(GetAuraSlot());
-    data << uint32(GetId());
+    MopAuraPackets::AuraUpdate update;
+    update.hasPayload = !remove;
+    update.slot = GetAuraSlot();
+    if (remove)
+        return update;
 
-    uint8 auraFlags = GetAuraFlags();
-    data << uint16(auraFlags);
-    data << uint8(GetAuraLevel());
+    uint8 const legacyFlags = GetAuraFlags();
+    if (legacyFlags & AFLAG_NOT_CASTER)
+        update.flags |= MopAuraPackets::AURA_WIRE_CASTER;
+    if (legacyFlags & AFLAG_POSITIVE)
+        update.flags |= MopAuraPackets::AURA_WIRE_POSITIVE;
+    if (legacyFlags & AFLAG_DURATION)
+        update.flags |= MopAuraPackets::AURA_WIRE_DURATION;
+    if (legacyFlags & AFLAG_EFFECT_AMOUNT_SEND)
+        update.flags |= MopAuraPackets::AURA_WIRE_EFFECT_AMOUNT;
+    if (legacyFlags & AFLAG_NEGATIVE)
+        update.flags |= MopAuraPackets::AURA_WIRE_NEGATIVE;
 
-    uint32 stackCount = m_procCharges ? m_procCharges * m_stackAmount : m_stackAmount;
-    data << uint8(stackCount <= 255 ? stackCount : 255);
+    update.casterLevel = GetAuraLevel();
+    update.spellId = GetId();
+    update.hasMaxDuration = (legacyFlags & AFLAG_DURATION) != 0;
+    update.maxDuration = GetAuraMaxDuration();
+    update.hasDuration = update.hasMaxDuration;
+    update.duration = GetAuraDuration();
+    update.hasCasterGuid = (update.flags & MopAuraPackets::AURA_WIRE_CASTER) == 0;
+    update.casterGuid = GetCasterGuid().GetRawValue();
 
-    if (!(auraFlags & AFLAG_NOT_CASTER))
+    uint32 const stackOrCharges = GetSpellProto()->GetStackAmount() ? GetStackAmount() : GetAuraCharges();
+    update.stacksOrCharges = uint8(stackOrCharges <= 255 ? stackOrCharges : 255);
+
+    for (uint32 i = 0; i < MAX_EFFECT_INDEX; ++i)
     {
-        data << GetCasterGuid().WriteAsPacked();
-    }
+        if (!m_auras[i])
+            continue;
 
-    if (auraFlags & AFLAG_DURATION)
-    {
-        data << uint32(GetAuraMaxDuration());
-        data << uint32(GetAuraDuration());
-    }
-
-    if (auraFlags & AFLAG_EFFECT_AMOUNT_SEND)
-    {
-        for (uint8 i = 0; i < MAX_EFFECT_INDEX; ++i)
+        update.effectMask |= (uint32(1) << i);
+        if (legacyFlags & AFLAG_EFFECT_AMOUNT_SEND)
         {
-            if (auraFlags & (1 << i))
-            {
-                if (Aura const* aura = m_auras[i])
-                {
-                    data << int32(aura->GetModifier()->m_amount);
-                }
-                else
-                {
-                    data << int32(0);
-                }
-            }
+            update.effectAmounts.push_back(float(m_auras[i]->GetModifier()->m_amount));
         }
     }
+
+    return update;
 }
 
 void SpellAuraHolder::SendAuraUpdate(bool remove) const
 {
-    WorldPacket data(SMSG_AURA_UPDATE);
-    data << m_target->GetPackGUID();
-
-    if (remove)
-    {
-        data << uint8(GetAuraSlot());
-        data << uint32(0);
-    }
-    else
-    {
-        BuildUpdatePacket(data);
-    }
+    std::vector<MopAuraPackets::AuraUpdate> updates(1, BuildMopAuraUpdate(remove));
+    WorldPacket data(SMSG_AURA_UPDATE, 64);
+    if (!MopAuraPackets::BuildAuraUpdate(data, m_target->GetObjectGuid().GetRawValue(), false, updates))
+        return;
 
     m_target->SendMessageToSet(&data, true);
 }

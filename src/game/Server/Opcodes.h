@@ -1115,7 +1115,6 @@ enum OpcodesList
     SMSG_PET_UPDATE_COMBO_POINTS                 = 0x1206,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_ENABLETAXI                              = 0x0741, // 5.4.8 18414 (Wow.exe binary, via CMSG_ENABLE_TAXI)
     SMSG_PRE_RESURRECT                           = 0x19C0,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
-    SMSG_AURA_UPDATE_ALL                         = 0x6916,    // 5.3.0 17128 (no client leaf; unframable >0x1FFF)
     SMSG_AURA_UPDATE                             = 0x0072,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_SERVER_FIRST_ACHIEVEMENT                = 0x028B,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_PET_LEARNED_SPELL                       = 0x0282,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)

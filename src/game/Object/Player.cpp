@@ -4646,13 +4646,14 @@ void Player::SendAurasForTarget(Unit* target)
         return;
     }
 
-    WorldPacket data(SMSG_AURA_UPDATE_ALL);
-    data << target->GetPackGUID();
-
+    std::vector<MopAuraPackets::AuraUpdate> updates;
+    updates.reserve(visibleAuras.size());
     for (Unit::VisibleAuraMap::const_iterator itr = visibleAuras.begin(); itr != visibleAuras.end(); ++itr)
-    {
-        itr->second->BuildUpdatePacket(data);
-    }
+        updates.push_back(itr->second->BuildMopAuraUpdate(false));
+
+    WorldPacket data(SMSG_AURA_UPDATE, 64 + updates.size() * 32);
+    if (!MopAuraPackets::BuildAuraUpdate(data, target->GetObjectGuid().GetRawValue(), true, updates))
+        return;
 
     GetSession()->SendPacket(&data);
 }

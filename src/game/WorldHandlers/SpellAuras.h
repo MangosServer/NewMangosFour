@@ -33,6 +33,9 @@
 #include "Item.h"
 #include "DBCStores.h"
 #include "Unit.h"
+#include "WorldPacket.h"
+
+#include <vector>
 
 /**
  * Used to modify what an Aura does to a player/npc.
@@ -82,6 +85,133 @@ struct ProcTriggerSpell;
 // forward decl
 class Aura;
 
+namespace MopAuraPackets
+{
+    enum AuraWireFlags
+    {
+        AURA_WIRE_CASTER        = 0x01,
+        AURA_WIRE_POSITIVE      = 0x02,
+        AURA_WIRE_DURATION      = 0x04,
+        AURA_WIRE_EFFECT_AMOUNT = 0x08,
+        AURA_WIRE_NEGATIVE      = 0x10
+    };
+
+    struct AuraUpdate
+    {
+        bool hasPayload = true;
+        uint8 slot = 0;
+        uint8 flags = 0;
+        uint16 casterLevel = 0;
+        uint32 spellId = 0;
+        bool hasMaxDuration = false;
+        uint32 maxDuration = 0;
+        bool hasDuration = false;
+        uint32 duration = 0;
+        bool hasCasterGuid = false;
+        uint64 casterGuid = 0;
+        uint8 stacksOrCharges = 0;
+        uint32 effectMask = 0;
+        std::vector<float> effectAmounts;
+    };
+
+    inline uint8 GuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+
+    inline bool BuildAuraUpdate(WorldPacket& out, uint64 targetGuid, bool fullUpdate,
+        std::vector<AuraUpdate> const& updates)
+    {
+        if (updates.size() > 0xFFFFFF)
+            return false;
+
+        for (std::vector<AuraUpdate>::const_iterator itr = updates.begin(); itr != updates.end(); ++itr)
+            if (itr->effectAmounts.size() > 0x3FFFFF)
+                return false;
+
+        out.WriteBit(GuidByte(targetGuid, 7));
+        out.WriteBit(fullUpdate);
+        out.WriteBits(uint32(updates.size()), 24);
+        out.WriteBit(GuidByte(targetGuid, 6));
+        out.WriteBit(GuidByte(targetGuid, 1));
+        out.WriteBit(GuidByte(targetGuid, 3));
+        out.WriteBit(GuidByte(targetGuid, 0));
+        out.WriteBit(GuidByte(targetGuid, 4));
+        out.WriteBit(GuidByte(targetGuid, 2));
+        out.WriteBit(GuidByte(targetGuid, 5));
+
+        for (std::vector<AuraUpdate>::const_iterator itr = updates.begin(); itr != updates.end(); ++itr)
+        {
+            out.WriteBit(itr->hasPayload);
+            if (!itr->hasPayload)
+                continue;
+
+            out.WriteBits(uint32(itr->effectAmounts.size()), 22);
+            out.WriteBit(itr->hasCasterGuid);
+            if (itr->hasCasterGuid)
+            {
+                out.WriteBit(GuidByte(itr->casterGuid, 3));
+                out.WriteBit(GuidByte(itr->casterGuid, 4));
+                out.WriteBit(GuidByte(itr->casterGuid, 6));
+                out.WriteBit(GuidByte(itr->casterGuid, 1));
+                out.WriteBit(GuidByte(itr->casterGuid, 5));
+                out.WriteBit(GuidByte(itr->casterGuid, 2));
+                out.WriteBit(GuidByte(itr->casterGuid, 0));
+                out.WriteBit(GuidByte(itr->casterGuid, 7));
+            }
+
+            out.WriteBits(uint32(0), 22); // secondary float list; no known server producer
+            out.WriteBit(itr->hasDuration);
+            out.WriteBit(itr->hasMaxDuration);
+        }
+
+        out.FlushBits();
+
+        for (std::vector<AuraUpdate>::const_iterator itr = updates.begin(); itr != updates.end(); ++itr)
+        {
+            if (itr->hasPayload)
+            {
+                if (itr->hasCasterGuid)
+                {
+                    out.WriteByteSeq(GuidByte(itr->casterGuid, 3));
+                    out.WriteByteSeq(GuidByte(itr->casterGuid, 2));
+                    out.WriteByteSeq(GuidByte(itr->casterGuid, 1));
+                    out.WriteByteSeq(GuidByte(itr->casterGuid, 6));
+                    out.WriteByteSeq(GuidByte(itr->casterGuid, 4));
+                    out.WriteByteSeq(GuidByte(itr->casterGuid, 0));
+                    out.WriteByteSeq(GuidByte(itr->casterGuid, 5));
+                    out.WriteByteSeq(GuidByte(itr->casterGuid, 7));
+                }
+
+                out << uint8(itr->flags);
+                out << uint16(itr->casterLevel);
+                out << uint32(itr->spellId);
+                if (itr->hasMaxDuration)
+                    out << uint32(itr->maxDuration);
+                if (itr->hasDuration)
+                    out << uint32(itr->duration);
+                out << uint8(itr->stacksOrCharges);
+                out << uint32(itr->effectMask);
+                for (std::vector<float>::const_iterator amount = itr->effectAmounts.begin();
+                    amount != itr->effectAmounts.end(); ++amount)
+                    out << float(*amount);
+            }
+
+            out << uint8(itr->slot);
+        }
+
+        out.WriteByteSeq(GuidByte(targetGuid, 2));
+        out.WriteByteSeq(GuidByte(targetGuid, 6));
+        out.WriteByteSeq(GuidByte(targetGuid, 7));
+        out.WriteByteSeq(GuidByte(targetGuid, 1));
+        out.WriteByteSeq(GuidByte(targetGuid, 3));
+        out.WriteByteSeq(GuidByte(targetGuid, 4));
+        out.WriteByteSeq(GuidByte(targetGuid, 0));
+        out.WriteByteSeq(GuidByte(targetGuid, 5));
+        return true;
+    }
+}
+
 // internal helper
 struct ReapplyAffectedPassiveAurasHelper;
 
@@ -103,7 +233,7 @@ class  SpellAuraHolder
         void ApplyAuraModifiers(bool apply, bool real = false);
         void _AddSpellAuraHolder();
         void _RemoveSpellAuraHolder();
-        void BuildUpdatePacket(WorldPacket& data) const;
+        MopAuraPackets::AuraUpdate BuildMopAuraUpdate(bool remove) const;
         void SendAuraUpdate(bool remove) const;
         void HandleSpellSpecificBoosts(bool apply);
         void CleanupTriggeredSpells();

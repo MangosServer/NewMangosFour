@@ -119,6 +119,24 @@ set_target_properties(mop_combat_log_packets_test PROPERTIES CXX_STANDARD 17 CXX
 target_link_libraries(mop_combat_log_packets_test PRIVATE game)
 add_test(NAME mop_combat_log_packets COMMAND mop_combat_log_packets_test)
 
+add_executable(mop_aura_packets_test mop_aura_packets_test.cpp)
+target_include_directories(mop_aura_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_aura_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_aura_packets_test PRIVATE game)
+add_test(NAME mop_aura_packets COMMAND mop_aura_packets_test)
+
+add_test(NAME mop_aura_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_aura_packets_source_test.cmake)
+foreach(mutation IN ITEMS full_update_mode flag_translation registration whitelist)
+    add_test(NAME mop_aura_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR} -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_aura_packets_source_test.cmake)
+    set_tests_properties(mop_aura_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_test(NAME mop_combat_log_packets_source
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
