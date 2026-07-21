@@ -59,6 +59,22 @@ namespace MopQueryPackets
     void BuildPlayedTimeResponse(WorldPacket& out, uint32 totalPlayed,
         uint32 levelPlayed, bool displayEvent);
 
+    struct MailNextTimeEntry
+    {
+        uint64 senderGuid = 0;
+        uint32 nonPlayerSender = 0;
+        uint8 messageType = 0;
+        float deliveryTime = 0.0f;
+        bool hasNativeRealmAddress = false;
+        uint32 nativeRealmAddress = 0;
+        uint32 stationery = 0;
+        bool hasVirtualRealmAddress = false;
+        uint32 virtualRealmAddress = 0;
+    };
+
+    bool BuildMailQueryNextTimeResult(WorldPacket& out,
+        std::vector<MailNextTimeEntry> const& records, float nextMailTime);
+
     struct CreatureQueryResponse
     {
         uint32 entry = 0;

@@ -160,6 +160,54 @@ void MopQueryPackets::BuildPlayedTimeResponse(WorldPacket& out, uint32 totalPlay
     out.FlushBits();
 }
 
+bool MopQueryPackets::BuildMailQueryNextTimeResult(WorldPacket& out,
+    std::vector<MailNextTimeEntry> const& records, float nextMailTime)
+{
+    // The 18414 client retains only three records, and the reference server
+    // stops producing records at that same bound.
+    if (records.size() > 3)
+        return false;
+
+    out.WriteBits(records.size(), 20);
+    for (MailNextTimeEntry const& record : records)
+    {
+        out.WriteBit(GuidByte(record.senderGuid, 3) != 0);
+        out.WriteBit(record.hasVirtualRealmAddress);
+        out.WriteBit(GuidByte(record.senderGuid, 2) != 0);
+        out.WriteBit(record.hasNativeRealmAddress);
+        out.WriteBit(GuidByte(record.senderGuid, 6) != 0);
+        out.WriteBit(GuidByte(record.senderGuid, 1) != 0);
+        out.WriteBit(GuidByte(record.senderGuid, 4) != 0);
+        out.WriteBit(GuidByte(record.senderGuid, 0) != 0);
+        out.WriteBit(GuidByte(record.senderGuid, 5) != 0);
+        out.WriteBit(GuidByte(record.senderGuid, 7) != 0);
+    }
+    out.FlushBits();
+
+    for (MailNextTimeEntry const& record : records)
+    {
+        out << record.nonPlayerSender;
+        out.WriteByteSeq(GuidByte(record.senderGuid, 5));
+        out.WriteByteSeq(GuidByte(record.senderGuid, 4));
+        out.WriteByteSeq(GuidByte(record.senderGuid, 6));
+        out.WriteByteSeq(GuidByte(record.senderGuid, 1));
+        out << record.messageType;
+        out.WriteByteSeq(GuidByte(record.senderGuid, 0));
+        out << record.deliveryTime;
+        if (record.hasNativeRealmAddress)
+            out << record.nativeRealmAddress;
+        out << record.stationery;
+        out.WriteByteSeq(GuidByte(record.senderGuid, 3));
+        out.WriteByteSeq(GuidByte(record.senderGuid, 2));
+        if (record.hasVirtualRealmAddress)
+            out << record.virtualRealmAddress;
+        out.WriteByteSeq(GuidByte(record.senderGuid, 7));
+    }
+
+    out << nextMailTime;
+    return true;
+}
+
 void MopQueryPackets::BuildCreatureQueryResponse(WorldPacket& out,
     CreatureQueryResponse const& record)
 {

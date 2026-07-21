@@ -647,6 +647,7 @@ enum OpcodesList
     CMSG_AUTOSTORE_BANK_ITEM                     = 0x02CF, // 5.4.8 18414 (Wow.exe binary)
     CMSG_AUTOBANK_ITEM                           = 0x066D, // 5.4.8 18414 (Wow.exe binary)
     MSG_QUERY_NEXT_MAIL_TIME                     = 0x0F04,    // 4.3.4 15595 (no client leaf)
+    CMSG_MAIL_QUERY_NEXT_TIME                    = 0x077B, // 5.4.8 18414 (Wow.exe binary)
     SMSG_RECEIVED_MAIL                           = 0x182B,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_RAID_GROUP_ONLY                         = 0x0D82,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     CMSG_SET_PVP_RANK_CHEAT                      = 0x1289, // not in 5.4.8 (legacy)

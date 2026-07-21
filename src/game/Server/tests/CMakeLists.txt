@@ -341,6 +341,26 @@ foreach(mutation IN ITEMS query_builder_call played_builder_call query_registrat
     set_tests_properties(mop_time_query_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_executable(mop_mail_query_test mop_mail_query_test.cpp)
+target_include_directories(mop_mail_query_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_mail_query_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_mail_query_test PRIVATE game)
+add_test(NAME mop_mail_query COMMAND mop_mail_query_test)
+
+add_test(NAME mop_mail_query_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_mail_query_source_test.cmake)
+
+foreach(mutation IN ITEMS builder_call inbound_registration outbound_registration)
+    add_test(NAME mop_mail_query_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_mail_query_source_test.cmake)
+    set_tests_properties(mop_mail_query_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_movement_packets_test
     mop_movement_packets_test.cpp
     ${CMAKE_SOURCE_DIR}/src/game/movement/MovementInfo.cpp)

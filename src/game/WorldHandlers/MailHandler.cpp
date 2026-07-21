@@ -51,6 +51,7 @@
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "Opcodes.h"
+#include "Server/MopQueryPackets.h"
 #include "Chat.h"
 
 /**
@@ -885,65 +886,31 @@ void WorldSession::HandleMailCreateTextItem(WorldPacket& recv_data)
     }
 }
 
-/**
- * No idea when this is called.
- */
 void WorldSession::HandleQueryNextMailTime(WorldPacket & /**recv_data*/)
 {
-    WorldPacket data(MSG_QUERY_NEXT_MAIL_TIME, 8);
-
-    if (_player->unReadMails > 0)
+    std::vector<MopQueryPackets::MailNextTimeEntry> records;
+    time_t const now = time(NULL);
+    for (PlayerMails::iterator itr = _player->GetMailBegin();
+         itr != _player->GetMailEnd() && records.size() < 3; ++itr)
     {
-        data << uint32(0);                                  // float
-        data << uint32(0);                                  // count
+        Mail const* mail = *itr;
+        if ((mail->checked & MAIL_CHECK_MASK_READ) || now < mail->deliver_time)
+            continue;
 
-        uint32 count = 0;
-        time_t now = time(NULL);
-        for (PlayerMails::iterator itr = _player->GetMailBegin(); itr != _player->GetMailEnd(); ++itr)
-        {
-            Mail* m = (*itr);
-            // must be not checked yet
-            if (m->checked & MAIL_CHECK_MASK_READ)
-            {
-                continue;
-            }
-
-            // and already delivered
-            if (now < m->deliver_time)
-            {
-                continue;
-            }
-
-            data << ObjectGuid(HIGHGUID_PLAYER, m->sender); // sender guid
-
-            switch (m->messageType)
-            {
-                case MAIL_AUCTION:
-                    data << uint32(m->sender);              // auction house id
-                    data << uint32(MAIL_AUCTION);           // message type
-                    break;
-                default:
-                    data << uint32(0);
-                    data << uint32(0);
-                    break;
-            }
-
-            data << uint32(m->stationery);
-            data << uint32(0xC6000000);                     // float unk, time or something
-
-            ++count;
-            if (count == 2)                                 // do not display more than 2 mails
-            {
-                break;
-            }
-        }
-        data.put<uint32>(4, count);
+        MopQueryPackets::MailNextTimeEntry record;
+        if (mail->messageType == MAIL_NORMAL)
+            record.senderGuid = ObjectGuid(HIGHGUID_PLAYER, mail->sender).GetRawValue();
+        else
+            record.nonPlayerSender = mail->sender;
+        record.messageType = uint8(mail->messageType);
+        record.deliveryTime = float(mail->deliver_time - now);
+        record.stationery = uint32(mail->stationery);
+        records.push_back(record);
     }
-    else
-    {
-        data << uint32(0xC7A8C000);
-        data << uint32(0x00000000);
-    }
+
+    float const nextMailTime = records.empty() ? -1.0f : 0.0f;
+    WorldPacket data(SMSG_MAIL_QUERY_NEXT_TIME_RESULT, 64);
+    MopQueryPackets::BuildMailQueryNextTimeResult(data, records, nextMailTime);
     SendPacket(&data);
 }
 
