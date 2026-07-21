@@ -22,7 +22,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-#include "MopCharEnum.h"
+#include "Player.h"
 #include "WorldPacket.h"
 #include "Opcodes.h"
 #include <cstdio>
@@ -112,7 +112,7 @@ namespace
             rdGuid(cm, cg, 5);                        // op18
             p >> u;                                   // op19 +120
             rdGuid(gm, gg, 4);                        // op20
-            p >> e.map;                               // op21 -> glue+60 = MAP (client's char-select preview reads mapId here; see MopCharEnum.cpp)
+            p >> e.map;                               // op21 -> glue+60 = MAP (client's char-select preview reads mapId here)
             p >> e.race;                              // op22 +58
             p >> e.skin;                              // op23 +61
             rdGuid(gm, gg, 1);                        // op24

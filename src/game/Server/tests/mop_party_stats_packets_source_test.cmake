@@ -1,5 +1,5 @@
-set(packet_cpp_path "${SOURCE_ROOT}/src/game/Server/MopPartyStatsPackets.cpp")
-set(packet_h_path "${SOURCE_ROOT}/src/game/Server/MopPartyStatsPackets.h")
+set(packet_cpp_path "${SOURCE_ROOT}/src/game/WorldHandlers/Group.h")
+set(packet_h_path "${SOURCE_ROOT}/src/game/WorldHandlers/Group.h")
 if(NOT EXISTS "${packet_cpp_path}" OR NOT EXISTS "${packet_h_path}")
     message(FATAL_ERROR "MopPartyStatsPackets packet module is missing")
 endif()

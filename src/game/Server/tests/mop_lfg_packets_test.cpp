@@ -2,7 +2,7 @@
  * Independent byte fixtures for the 5.4.8.18414 LFG boot-vote packet.
  */
 
-#include "MopLfgPackets.h"
+#include "LFGMgr.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 

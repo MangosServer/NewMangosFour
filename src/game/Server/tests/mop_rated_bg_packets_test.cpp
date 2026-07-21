@@ -2,7 +2,7 @@
  * Independent byte fixture for the 5.4.8.18414 rated-BG self-stat result.
  */
 
-#include "MopRatedBattlegroundPackets.h"
+#include "Player.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 

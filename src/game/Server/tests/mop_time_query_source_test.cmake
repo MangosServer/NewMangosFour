@@ -1,4 +1,4 @@
-file(READ "${SOURCE_ROOT}/src/game/Server/MopQueryPackets.cpp" packet_builder)
+file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.h" packet_builder)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/QueryHandler.cpp" query_handler)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/MiscHandler.cpp" misc_handler)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/GMTicketHandler.cpp" gm_ticket_handler)

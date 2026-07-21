@@ -26,7 +26,6 @@
 #include "Log.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
-#include "MopCompactPackets.h"
 #include "WorldSession.h"
 #include "World.h"
 #include "ObjectMgr.h"
@@ -38,6 +37,7 @@
 #include "Spell.h"
 #include "Group.h"
 #include "SpellAuras.h"
+
 #include "MapManager.h"
 #include "ObjectAccessor.h"
 #include "CreatureAI.h"

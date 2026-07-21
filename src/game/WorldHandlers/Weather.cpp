@@ -34,7 +34,6 @@
 #include "WorldPacket.h"
 #include "Log.h"
 #include "Util.h"
-#include "Server/MopInitialPackets.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /*ENABLE_ELUNA*/

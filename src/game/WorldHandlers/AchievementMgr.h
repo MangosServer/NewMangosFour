@@ -30,9 +30,120 @@
 #include "DBCEnums.h"
 #include "SharedDefines.h"
 #include "ObjectGuid.h"
+#include "Opcodes.h"
+#include "WorldPacket.h"
 
 #include <map>
 #include <string>
+#include <vector>
+
+class WorldPacket;
+
+namespace MopAchievementPackets
+{
+    struct CompletedAchievement
+    {
+        uint32 id = 0;
+        uint64 playerGuid = 0;
+        uint32 packedDate = 0;
+        uint32 realmFirst = 0;
+        uint32 realm = 0;
+    };
+
+    struct CriteriaProgress
+    {
+        uint32 id = 0;
+        uint64 counterGuid = 0;
+        uint64 playerGuid = 0;
+        uint32 packedDate = 0;
+        uint32 timer1 = 0;
+        uint32 timer2 = 0;
+    };
+
+    inline void BuildAllAchievementData(WorldPacket& out,
+        std::vector<CompletedAchievement> const& completed,
+        std::vector<CriteriaProgress> const& progress)
+    {
+        auto guidByte = [](uint64 guid, uint8 index) { return uint8(guid >> (8 * index)); };
+
+        MANGOS_ASSERT(progress.size() < (size_t(1) << 19));
+        MANGOS_ASSERT(completed.size() < (size_t(1) << 20));
+
+        out.WriteBits(uint32(progress.size()), 19);
+        for (CriteriaProgress const& record : progress)
+        {
+            out.WriteBit(guidByte(record.counterGuid, 3) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 3) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 6) != 0);
+            out.WriteBit(guidByte(record.counterGuid, 0) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 7) != 0);
+            out.WriteBit(guidByte(record.counterGuid, 1) != 0);
+            out.WriteBit(guidByte(record.counterGuid, 5) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 2) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 1) != 0);
+            out.WriteBit(guidByte(record.counterGuid, 7) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 4) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 0) != 0);
+            out.WriteBit(guidByte(record.counterGuid, 2) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 5) != 0);
+            out.WriteBit(guidByte(record.counterGuid, 4) != 0);
+            out.WriteBits(0, 4);
+            out.WriteBit(guidByte(record.counterGuid, 6) != 0);
+        }
+
+        out.WriteBits(uint32(completed.size()), 20);
+        for (CompletedAchievement const& record : completed)
+        {
+            out.WriteBit(guidByte(record.playerGuid, 0) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 7) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 1) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 5) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 2) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 4) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 6) != 0);
+            out.WriteBit(guidByte(record.playerGuid, 3) != 0);
+        }
+        out.FlushBits();
+
+        for (CompletedAchievement const& record : completed)
+        {
+            out << record.id << record.realmFirst;
+            out.WriteByteSeq(guidByte(record.playerGuid, 5));
+            out.WriteByteSeq(guidByte(record.playerGuid, 7));
+            out << record.realm << record.packedDate;
+            out.WriteByteSeq(guidByte(record.playerGuid, 0));
+            out.WriteByteSeq(guidByte(record.playerGuid, 4));
+            out.WriteByteSeq(guidByte(record.playerGuid, 1));
+            out.WriteByteSeq(guidByte(record.playerGuid, 6));
+            out.WriteByteSeq(guidByte(record.playerGuid, 2));
+            out.WriteByteSeq(guidByte(record.playerGuid, 3));
+        }
+
+        for (CriteriaProgress const& record : progress)
+        {
+            out.WriteByteSeq(guidByte(record.counterGuid, 7));
+            out << record.timer1;
+            out.WriteByteSeq(guidByte(record.counterGuid, 6));
+            out.WriteByteSeq(guidByte(record.playerGuid, 1));
+            out << record.id;
+            out.WriteByteSeq(guidByte(record.counterGuid, 4));
+            out.WriteByteSeq(guidByte(record.playerGuid, 0));
+            out.WriteByteSeq(guidByte(record.playerGuid, 4));
+            out.WriteByteSeq(guidByte(record.playerGuid, 6));
+            out.WriteByteSeq(guidByte(record.counterGuid, 1));
+            out.WriteByteSeq(guidByte(record.counterGuid, 5));
+            out.WriteByteSeq(guidByte(record.playerGuid, 7));
+            out.WriteByteSeq(guidByte(record.playerGuid, 2));
+            out.WriteByteSeq(guidByte(record.counterGuid, 2));
+            out.WriteByteSeq(guidByte(record.counterGuid, 0));
+            out.WriteByteSeq(guidByte(record.playerGuid, 3));
+            out.WriteByteSeq(guidByte(record.counterGuid, 3));
+            out << record.timer2;
+            out.WriteByteSeq(guidByte(record.playerGuid, 5));
+            out << record.packedDate;
+        }
+    }
+}
 
 struct AchievementEntry;
 struct AchievementCriteriaEntry;

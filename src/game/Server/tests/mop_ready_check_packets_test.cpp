@@ -2,7 +2,7 @@
  * Independent byte fixtures for the 5.4.8.18414 ready-check exchange.
  */
 
-#include "MopReadyCheckPackets.h"
+#include "Group.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 

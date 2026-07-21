@@ -2,7 +2,7 @@
  * Byte-exact tests for the 5.4.8 name-query request/response path.
  */
 
-#include "MopQueryPackets.h"
+#include "WorldSession.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 

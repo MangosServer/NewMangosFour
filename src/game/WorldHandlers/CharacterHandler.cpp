@@ -59,11 +59,6 @@
 #include "Database/DatabaseImpl.h"
 #include "PlayerDump.h"
 #include "SocialMgr.h"
-#include "Server/MopCharEnum.h"
-#include "Server/MopCreateGating.h"
-#include "Server/MopInitialPackets.h"
-#include "Server/MopGuildPackets.h"
-#include "Server/MopWorldEntryPackets.h"
 #include "Util.h"
 #include "Language.h"
 #include "SpellMgr.h"
@@ -335,7 +330,7 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
     // race (Pandaren included) is creatable regardless of account expansion; only certain classes are,
     // and expansion-specific content (levels 86-90 / Pandaria) is enforced later at enter-world, not
     // here. The requirement is sourced from MopCreateGating -- the client DBCs carry no usable
-    // expansion column (see MopCreateGating.h).
+    // expansion column.
     if (MopCreateGating::ClassRequiredExpansion(class_) > Expansion())
     {
         data << (uint8)CHAR_CREATE_EXPANSION_CLASS;
@@ -819,7 +814,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     /* Validation check completely, assign player to WorldSession::_player for later use */
     SetPlayer(pCurrChar);
-    // pCurrChar->SendDungeonDifficulty(false);   // PHASE 6a: suppressed (not in the 18414 pre-map-load set); restore in 6b
+    pCurrChar->SendDungeonDifficulty(false);
 
     // 5.4.8.18414: X, O, Y, MapId, Z (Codex serializer; == my earlier reorder). The declaration is
     // split across two lines so the mop_world_entry source-guard ("no inline SMSG_LOGIN_VERIFY_WORLD

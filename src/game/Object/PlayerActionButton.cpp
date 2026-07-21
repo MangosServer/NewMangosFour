@@ -27,7 +27,6 @@
 #include "Database/DatabaseEnv.h"
 #include "Log.h"
 #include "Opcodes.h"
-#include "Server/MopInitialPackets.h"
 #include "SpellMgr.h"
 #include "World.h"
 #include "WorldPacket.h"

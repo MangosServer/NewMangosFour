@@ -29,6 +29,111 @@
 #include "Common.h"
 #include "ObjectGuid.h"
 #include "SharedDefines.h"
+#include "Opcodes.h"
+#include "WorldPacket.h"
+
+#include <initializer_list>
+#include <vector>
+
+class WorldPacket;
+
+namespace MopCalendarPackets
+{
+    inline uint8 GuidByte(uint64 guid, size_t index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+
+    inline void WriteGuidMask(WorldPacket& out, uint64 guid,
+        std::initializer_list<size_t> order)
+    {
+        for (size_t index : order)
+            out.WriteBit(GuidByte(guid, index) != 0);
+    }
+
+    inline void WriteGuidBytes(WorldPacket& out, uint64 guid,
+        std::initializer_list<size_t> order)
+    {
+        for (size_t index : order)
+            out.WriteByteSeq(GuidByte(guid, index));
+    }
+
+    struct InitialInvite
+    {
+        uint64 guid = 0;
+        uint8 level = 0;
+    };
+
+    struct InviteStatus
+    {
+        uint64 inviteeGuid = 0;
+        uint64 eventId = 0;
+        uint32 eventFlags = 0;
+        uint32 lastUpdateTime = 0;
+        uint32 eventTime = 0;
+        uint8 status = 0;
+        bool displayPendingAction = false;
+    };
+
+    struct ModeratorStatus
+    {
+        uint64 inviteeGuid = 0;
+        uint64 eventId = 0;
+        uint8 rank = 0;
+        bool displayPendingAction = false;
+    };
+
+    inline bool BuildCalendarInitialInvite(WorldPacket& out,
+        std::vector<InitialInvite> const& entries)
+    {
+        if (entries.size() >= (size_t(1) << 23))
+            return false;
+
+        out.WriteBits(entries.size(), 23);
+        for (InitialInvite const& entry : entries)
+            WriteGuidMask(out, entry.guid, { 1, 7, 5, 0, 4, 3, 6, 2 });
+        out.FlushBits();
+
+        for (InitialInvite const& entry : entries)
+        {
+            out << entry.level;
+            WriteGuidBytes(out, entry.guid, { 3, 5, 4, 6, 7, 0, 2, 1 });
+        }
+        return true;
+    }
+
+    inline void BuildCalendarInviteStatus(WorldPacket& out,
+        InviteStatus const& record)
+    {
+        WriteGuidMask(out, record.inviteeGuid, { 5, 0 });
+        out.WriteBit(record.displayPendingAction);
+        WriteGuidMask(out, record.inviteeGuid, { 2, 1, 4, 6, 7, 3 });
+        out.FlushBits();
+
+        WriteGuidBytes(out, record.inviteeGuid, { 1, 6, 7 });
+        out << record.lastUpdateTime;
+        WriteGuidBytes(out, record.inviteeGuid, { 2, 4 });
+        out << record.eventId;
+        WriteGuidBytes(out, record.inviteeGuid, { 0, 3, 5 });
+        out << record.status;
+        out << record.eventFlags;
+        out << record.eventTime;
+    }
+
+    inline void BuildCalendarModeratorStatus(WorldPacket& out,
+        ModeratorStatus const& record)
+    {
+        WriteGuidMask(out, record.inviteeGuid, { 3, 7, 2, 4, 1, 6, 5 });
+        out.WriteBit(record.displayPendingAction);
+        WriteGuidMask(out, record.inviteeGuid, { 0 });
+        out.FlushBits();
+
+        WriteGuidBytes(out, record.inviteeGuid, { 5, 4, 6, 1, 7, 2, 3 });
+        out << record.rank;
+        out << record.eventId;
+        WriteGuidBytes(out, record.inviteeGuid, { 0 });
+    }
+}
 
 enum CalendarEventType
 {

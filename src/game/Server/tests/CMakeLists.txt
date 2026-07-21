@@ -44,9 +44,7 @@ set_target_properties(mop_auth_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQU
 target_link_libraries(mop_auth_test PRIVATE game)
 add_test(NAME mop_auth COMMAND mop_auth_test)
 
-add_executable(mop_charenum_test
-    mop_charenum_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../MopCharEnum.cpp)
+add_executable(mop_charenum_test mop_charenum_test.cpp)
 target_include_directories(mop_charenum_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/shared)
@@ -55,9 +53,7 @@ set_target_properties(mop_charenum_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_
 target_link_libraries(mop_charenum_test PRIVATE game)
 add_test(NAME mop_charenum COMMAND mop_charenum_test)
 
-add_executable(mop_trainerbuyfailed_test
-    mop_trainerbuyfailed_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../MopTrainerBuyFailed.cpp)
+add_executable(mop_trainerbuyfailed_test mop_trainerbuyfailed_test.cpp)
 target_include_directories(mop_trainerbuyfailed_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/shared)
@@ -66,9 +62,7 @@ set_target_properties(mop_trainerbuyfailed_test PROPERTIES CXX_STANDARD 17 CXX_S
 target_link_libraries(mop_trainerbuyfailed_test PRIVATE game)
 add_test(NAME mop_trainerbuyfailed COMMAND mop_trainerbuyfailed_test)
 
-add_executable(mop_creategating_test
-    mop_creategating_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../MopCreateGating.cpp)
+add_executable(mop_creategating_test mop_creategating_test.cpp)
 target_include_directories(mop_creategating_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/shared)
@@ -104,9 +98,12 @@ add_test(NAME mop_opcode_foundation_source
 add_executable(mop_compact_packets_test mop_compact_packets_test.cpp)
 target_include_directories(mop_compact_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${CMAKE_SOURCE_DIR}/src/shared)
+    ${CMAKE_SOURCE_DIR}/src/shared
+    $<TARGET_PROPERTY:game,INTERFACE_INCLUDE_DIRECTORIES>)
 set_target_properties(mop_compact_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
-target_link_libraries(mop_compact_packets_test PRIVATE game)
+target_compile_definitions(mop_compact_packets_test PRIVATE
+    $<TARGET_PROPERTY:game,INTERFACE_COMPILE_DEFINITIONS>)
+target_link_libraries(mop_compact_packets_test PRIVATE shared)
 add_test(NAME mop_compact_packets COMMAND mop_compact_packets_test)
 
 add_test(NAME mop_compact_packets_source
@@ -114,9 +111,7 @@ add_test(NAME mop_compact_packets_source
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_compact_packets_source_test.cmake)
 
-add_executable(mop_combat_log_packets_test
-    mop_combat_log_packets_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../MopCombatLogPackets.cpp)
+add_executable(mop_combat_log_packets_test mop_combat_log_packets_test.cpp)
 target_include_directories(mop_combat_log_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/shared)
@@ -129,9 +124,7 @@ add_test(NAME mop_combat_log_packets_source
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_combat_log_packets_source_test.cmake)
 
-add_executable(mop_respec_packets_test
-    mop_respec_packets_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../MopRespecPackets.cpp)
+add_executable(mop_respec_packets_test mop_respec_packets_test.cpp)
 target_include_directories(mop_respec_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/shared)
@@ -144,9 +137,7 @@ add_test(NAME mop_respec_packets_source
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_respec_packets_source_test.cmake)
 
-add_executable(mop_party_stats_packets_test
-    mop_party_stats_packets_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../MopPartyStatsPackets.cpp)
+add_executable(mop_party_stats_packets_test mop_party_stats_packets_test.cpp)
 target_include_directories(mop_party_stats_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/shared)
@@ -159,9 +150,7 @@ add_test(NAME mop_party_stats_packets_source
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_party_stats_packets_source_test.cmake)
 
-add_executable(mop_stable_packets_test
-    mop_stable_packets_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../MopStablePackets.cpp)
+add_executable(mop_stable_packets_test mop_stable_packets_test.cpp)
 target_include_directories(mop_stable_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/shared)
@@ -174,9 +163,7 @@ add_test(NAME mop_stable_packets_source
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_stable_packets_source_test.cmake)
 
-add_executable(mop_ready_check_packets_test
-    mop_ready_check_packets_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../MopReadyCheckPackets.cpp)
+add_executable(mop_ready_check_packets_test mop_ready_check_packets_test.cpp)
 target_include_directories(mop_ready_check_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/shared)
@@ -420,9 +407,7 @@ foreach(mutation IN ITEMS initial_builder status_builder moderator_builder initi
     set_tests_properties(mop_calendar_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
-add_executable(mop_party_update_packets_test
-    mop_party_update_packets_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../MopPartyUpdatePackets.cpp)
+add_executable(mop_party_update_packets_test mop_party_update_packets_test.cpp)
 target_include_directories(mop_party_update_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/shared)
@@ -430,9 +415,7 @@ set_target_properties(mop_party_update_packets_test PROPERTIES CXX_STANDARD 17 C
 target_link_libraries(mop_party_update_packets_test PRIVATE game)
 add_test(NAME mop_party_update_packets COMMAND mop_party_update_packets_test)
 
-add_executable(mop_guild_packets_test
-    mop_guild_packets_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../MopGuildPackets.cpp)
+add_executable(mop_guild_packets_test mop_guild_packets_test.cpp)
 target_include_directories(mop_guild_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/shared)
@@ -440,9 +423,7 @@ set_target_properties(mop_guild_packets_test PROPERTIES CXX_STANDARD 17 CXX_STAN
 target_link_libraries(mop_guild_packets_test PRIVATE game)
 add_test(NAME mop_guild_packets COMMAND mop_guild_packets_test)
 
-add_executable(mop_lfg_packets_test
-    mop_lfg_packets_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../MopLfgPackets.cpp)
+add_executable(mop_lfg_packets_test mop_lfg_packets_test.cpp)
 target_include_directories(mop_lfg_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/src/shared)

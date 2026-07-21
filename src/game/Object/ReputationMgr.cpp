@@ -27,7 +27,6 @@
 #include "Player.h"
 #include "WorldPacket.h"
 #include "ObjectMgr.h"
-#include "Server/MopInitialPackets.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /*ENABLE_ELUNA*/

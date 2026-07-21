@@ -2,7 +2,7 @@
  * Byte-exact tests for the 5.4.8 currency readers at 0x6F396E and 0x741F90.
  */
 
-#include "MopCurrencyPackets.h"
+#include "CurrencyMgr.h"
 #include "MopWireCodec.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"

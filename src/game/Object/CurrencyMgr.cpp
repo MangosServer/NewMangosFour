@@ -28,7 +28,6 @@
 #include "World.h"
 #include "WorldPacket.h"
 #include "Opcodes.h"
-#include "Server/MopCurrencyPackets.h"
 #include "DBCStores.h"
 #include "DBCStructure.h"
 #include "Database/DatabaseEnv.h"

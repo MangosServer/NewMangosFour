@@ -1,4 +1,4 @@
-file(READ "${SOURCE_ROOT}/src/game/Server/MopPartyUpdatePackets.cpp" packet_builder)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/Group.h" packet_builder)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/Group.cpp" group_source)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/GroupHandler.cpp" handler_source)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)

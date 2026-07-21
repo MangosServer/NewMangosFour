@@ -46,10 +46,6 @@
 #include "Opcodes.h"
 #include "Log.h"
 #include "WorldPacket.h"
-#include "MopCompactPackets.h"
-#include "MopPartyStatsPackets.h"
-#include "MopPartyUpdatePackets.h"
-#include "MopReadyCheckPackets.h"
 #include "WorldSession.h"
 #include "World.h"
 #include "ObjectMgr.h"
@@ -61,6 +57,7 @@
 #include "DB2Structure.h"
 #include "DB2Stores.h"
 #include "Vehicle.h"
+
 #include "TransportSystem.h"
 
 /* differeces from off:

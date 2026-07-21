@@ -58,7 +58,6 @@
 #include "SpellMgr.h"
 #include "Player.h"
 #include "GossipDef.h"
-#include "Server/MopTrainerBuyFailed.h"
 #include "UpdateMask.h"
 #include "ScriptMgr.h"
 #include "Creature.h"
@@ -66,7 +65,6 @@
 #include "Guild.h"
 #include "GuildMgr.h"
 #include "Chat.h"
-#include "Server/MopStablePackets.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
@@ -417,7 +415,7 @@ void WorldSession::HandleTrainerBuySpellOpcode(WorldPacket& recv_data)
     {
         // trainState is the server's historical encoding (0 = not enough money,
         // 1 = unavailable). The 5.4.8 client uses the OPPOSITE convention, so
-        // translate rather than pass it through. See MopTrainerBuyFailed.h.
+        // translate rather than pass it through. See MopTrainerBuyFailed::Reason.
         uint32 failReason = (trainState == 0)
                             ? uint32(MopTrainerBuyFailed::REASON_NOT_ENOUGH_MONEY)
                             : uint32(MopTrainerBuyFailed::REASON_UNAVAILABLE);

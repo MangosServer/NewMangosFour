@@ -36,7 +36,6 @@
 #include "Guild.h"
 #include "GuildMgr.h"
 #include "ArenaTeam.h"
-#include "Server/MopCalendarPackets.h"
 
 void WorldSession::HandleCalendarGetCalendar(WorldPacket& /*recv_data*/)
 {

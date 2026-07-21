@@ -2,7 +2,7 @@
  * Independent byte fixtures for the 5.4.8.18414 party-update exchange.
  */
 
-#include "MopPartyUpdatePackets.h"
+#include "Group.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 

@@ -26,7 +26,6 @@
 #include "AchievementMgr.h"
 #include "DBCStores.h"
 #include "Player.h"
-#include "MopAchievementPackets.h"
 #include "WorldPacket.h"
 #include "DBCEnums.h"
 #include "GameEventMgr.h"

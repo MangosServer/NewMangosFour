@@ -3,7 +3,7 @@
  * 0xC8EB90.
  */
 
-#include "MopControlPackets.h"
+#include "Player.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 

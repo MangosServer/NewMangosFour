@@ -40,13 +40,14 @@
  */
 
 #include "WorldSession.h"
+#include "Group.h"
 #include "LFGMgr.h"
 #include "Log.h"
 #include "Player.h"
 #include "WorldPacket.h"
 #include "ObjectMgr.h"
 #include "World.h"
-#include "Server/MopLfgPackets.h"
+
 
 void WorldSession::HandleLfgJoinOpcode(WorldPacket& recv_data)
 {

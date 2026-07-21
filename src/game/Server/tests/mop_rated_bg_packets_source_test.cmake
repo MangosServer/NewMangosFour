@@ -1,4 +1,4 @@
-file(READ "${SOURCE_ROOT}/src/game/Server/MopRatedBattlegroundPackets.cpp" packet_builder)
+file(READ "${SOURCE_ROOT}/src/game/Object/Player.h" packet_builder)
 file(READ "${SOURCE_ROOT}/src/game/Object/PlayerBattleGround.cpp" player_sender)
 file(READ "${SOURCE_ROOT}/src/game/BattleGround/BattleGroundHandler.cpp" bg_handler)
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.h" session_header)

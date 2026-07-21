@@ -1,4 +1,4 @@
-file(READ "${SOURCE_ROOT}/src/game/Server/MopQueryPackets.cpp" packet_helpers)
+file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.h" packet_helpers)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/QueryHandler.cpp" query_handler)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 

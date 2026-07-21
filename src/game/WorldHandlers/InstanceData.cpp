@@ -44,7 +44,6 @@
 #include "Map.h"
 #include "Log.h"
 #include "WorldPacket.h"
-#include "MopCompactPackets.h"
 
 /**
  * @brief Save instance state to database

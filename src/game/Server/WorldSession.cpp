@@ -52,7 +52,6 @@
 #include "Opcodes.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
-#include "MopInitialPackets.h"
 #include "Player.h"
 #include "ObjectMgr.h"
 #include "Group.h"

@@ -2,7 +2,7 @@
  * Independent byte fixtures for the 5.4.8.18414 next-mail-time result.
  */
 
-#include "MopQueryPackets.h"
+#include "WorldSession.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 

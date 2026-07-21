@@ -2,7 +2,7 @@
  * Byte-exact tests for the ten regular 5.4.8 initial UI packet bodies.
  */
 
-#include "MopInitialPackets.h"
+#include "Player.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 

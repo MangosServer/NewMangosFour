@@ -30,7 +30,6 @@
 #include "SpellMgr.h"
 #include "World.h"
 #include "WorldPacket.h"
-#include "MopCompactPackets.h"
 #include "WorldSession.h"
 #include "UpdateMask.h"
 #include "SkillDiscovery.h"

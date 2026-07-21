@@ -35,7 +35,7 @@
  * preserved alongside it.
  */
 
-#include "MopTrainerBuyFailed.h"
+#include "WorldSession.h"
 #include "WorldPacket.h"
 #include "Opcodes.h"
 #include <cstdio>

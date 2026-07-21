@@ -57,8 +57,6 @@
 #include "BattleGround/BattleGround.h"
 #include "MapManager.h"
 #include "MapPersistentStateMgr.h"
-#include "MopPartyUpdatePackets.h"
-#include "MopReadyCheckPackets.h"
 #include "Util.h"
 #include "LootMgr.h"
 

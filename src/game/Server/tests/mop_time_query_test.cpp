@@ -2,7 +2,7 @@
  * Byte-exact tests for the 5.4.8 query-time and played-time packet bodies.
  */
 
-#include "MopQueryPackets.h"
+#include "WorldSession.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 

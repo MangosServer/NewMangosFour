@@ -23,7 +23,7 @@
  */
 
 #include "Unit.h"
-#include "MopCombatLogPackets.h"
+#include "Spell.h"
 #include "Log.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"

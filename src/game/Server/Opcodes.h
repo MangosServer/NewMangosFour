@@ -32,12 +32,6 @@
 #include "Common.h"
 #include "Policies/Singleton.h"
 
-// Note: this include need for be sure have full definition of class WorldSession
-//       if this class definition not complite then VS for x64 release use different size for
-//       struct OpcodeHandler in this header and Opcode.cpp and get totally wrong data from
-//       table opcodeTable in source when Opcode.h included but WorldSession.h not included
-#include "WorldSession.h"
-
 /**
  * This is a list of Opcodes that are known for the client/server communication, it is used
  * to tell the server to do something or the client to do something. Every opcode is handled
@@ -802,7 +796,6 @@ enum OpcodesList
     SMSG_GHOSTEE_GONE                            = 0x1327,    // (legacy; no client leaf)
     CMSG_GM_UPDATE_TICKET_STATUS                 = 0x15A8, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_TICKET_CASE_STATUS)
     SMSG_GM_TICKET_STATUS_UPDATE                 = 0x000B,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
-    MSG_SET_DUNGEON_DIFFICULTY                   = 0x4925,    // 4.3.4 15595 (no client leaf; unframable >0x1FFF)
     CMSG_GMSURVEY_SUBMIT                         = 0x073C, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_SURVEY_SUBMIT)
     SMSG_UPDATE_INSTANCE_OWNERSHIP               = 0x10E0,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_CHAT_PLAYER_AMBIGUOUS                   = 0x061A,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
@@ -1318,6 +1311,7 @@ enum OpcodesList
     SMSG_MIRROR_IMAGE_CREATURE_DATA              = 0x04D0,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_MIRROR_IMAGE_COMPONENTED_DATA           = 0x04D9,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_SET_RAID_DIFFICULTY                     = 0x0591,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
+    SMSG_SET_DUNGEON_DIFFICULTY                  = 0x1283,    // 5.4.8 18414 (Wow.exe direct reader/handler; one uint32 difficulty)
     SMSG_WAIT_QUEUE_FINISH                       = 0x060E,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_BATTLE_PAY_START_PURCHASE_RESPONSE      = 0x0612,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)
     SMSG_PET_BATTLE_FIRST_ROUND                  = 0x0613,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)
@@ -1499,6 +1493,13 @@ enum PacketProcessing
 };
 
 class WorldPacket;
+#if COMPILER == COMPILER_MICROSOFT
+// WorldSession has no base classes. State the member-pointer model explicitly so
+// MSVC does not choose a different representation while the class is incomplete.
+class __single_inheritance WorldSession;
+#else
+class WorldSession;
+#endif
 
 /**
  * A structure containing some of the necessary info to handle a \ref WorldPacket when it comes in.

@@ -22,7 +22,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-#include "MopCreateGating.h"
+#include "WorldSession.h"
 #include "SharedDefines.h"
 #include <cstdio>
 #include <vector>

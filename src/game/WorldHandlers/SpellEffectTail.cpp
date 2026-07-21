@@ -56,7 +56,6 @@
 #include "SocialMgr.h"
 #include "VMapFactory.h"
 #include "Util.h"
-#include "Server/MopInitialPackets.h"
 #include "TemporarySummon.h"
 #include "ScriptMgr.h"
 #include "SkillDiscovery.h"

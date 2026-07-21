@@ -1,5 +1,5 @@
-set(packet_cpp_path "${SOURCE_ROOT}/src/game/Server/MopStablePackets.cpp")
-set(packet_h_path "${SOURCE_ROOT}/src/game/Server/MopStablePackets.h")
+set(packet_cpp_path "${SOURCE_ROOT}/src/game/Server/WorldSession.h")
+set(packet_h_path "${SOURCE_ROOT}/src/game/Server/WorldSession.h")
 if(NOT EXISTS "${packet_cpp_path}" OR NOT EXISTS "${packet_h_path}")
     message(FATAL_ERROR "MopStablePackets packet module is missing")
 endif()

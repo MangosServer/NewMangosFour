@@ -1,15 +1,31 @@
 /**
  * Byte-exact tests for compact 5.4.8 server packet bodies recovered from the
- * client readers at 0x6F568B, 0xC8CBBE, 0x6D18F6, 0x94E111, and 0xCCDD26.
+ * client readers at 0x6F568B, 0xC8CBBE, 0x6D18F6, 0x94E111, 0xCCDD26,
+ * and 0x6D9F28.
  */
 
-#include "MopCompactPackets.h"
+#include "Player.h"
+#include "InstanceData.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 
 #include <cstdint>
 #include <cstdio>
 #include <vector>
+
+// InstanceData is exported on Windows, so merely including its owning header emits
+// its vtable in this standalone fixture. These two policy hooks are unrelated to the
+// inline packet builder under test; provide inert fixture definitions instead of
+// linking the complete game library (and its database process globals).
+bool InstanceData::CheckAchievementCriteriaMeet(uint32, Player const*, Unit const*, uint32) const
+{
+    return false;
+}
+
+bool InstanceData::CheckConditionCriteriaMeet(Player const*, uint32, WorldObject const*, uint32) const
+{
+    return false;
+}
 
 static int g_fail = 0;
 #define CHECK(c) do { if (!(c)) { std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); ++g_fail; } } while (0)
@@ -175,6 +191,13 @@ static void test_raid_difficulty()
     CHECK(BytesEqual(packet, { 0x03, 0x00, 0x00, 0x00 }));
 }
 
+static void test_dungeon_difficulty()
+{
+    WorldPacket packet(SMSG_SET_DUNGEON_DIFFICULTY, 4);
+    MopCompactPackets::BuildSetDungeonDifficulty(packet, 2);
+    CHECK(BytesEqual(packet, { 0x02, 0x00, 0x00, 0x00 }));
+}
+
 static void test_opcode_values_are_framable()
 {
     CHECK(uint32_t(SMSG_ATTACKSWING_ERROR) == 0x11E1u);
@@ -182,12 +205,14 @@ static void test_opcode_values_are_framable()
     CHECK(uint32_t(SMSG_RANDOM_ROLL) == 0x141Au);
     CHECK(uint32_t(SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT) == 0x0332u);
     CHECK(uint32_t(SMSG_SET_RAID_DIFFICULTY) == 0x0591u);
+    CHECK(uint32_t(SMSG_SET_DUNGEON_DIFFICULTY) == 0x1283u);
 
     CHECK(uint32_t(SMSG_ATTACKSWING_ERROR) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_MOVE_SET_SWIM_SPEED) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_RANDOM_ROLL) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_SET_RAID_DIFFICULTY) <= 0x1FFFu);
+    CHECK(uint32_t(SMSG_SET_DUNGEON_DIFFICULTY) <= 0x1FFFu);
 }
 
 int main(int /*argc*/, char** /*argv*/)
@@ -197,6 +222,7 @@ int main(int /*argc*/, char** /*argv*/)
     test_random_roll_guid_layouts();
     test_instance_encounter_variants();
     test_raid_difficulty();
+    test_dungeon_difficulty();
     test_opcode_values_are_framable();
 
     if (g_fail)

@@ -68,7 +68,6 @@
 #include "SocialMgr.h"
 #include "AchievementMgr.h"
 #include "Mail.h"
-#include "Server/MopRatedBattlegroundPackets.h"
 #include "SpellAuras.h"
 #include "DBCStores.h"
 #include "DB2Stores.h"
@@ -81,6 +80,7 @@
 #endif /* ENABLE_ELUNA */
 
 #include <cmath>
+
 /**
  * @brief Teleports the player back to the saved battleground entry point.
  *

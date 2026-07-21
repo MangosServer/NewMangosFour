@@ -53,6 +53,8 @@
 #define MANGOSSERVER_GROUP_H
 
 #include "Common.h"
+#include "Opcodes.h"
+#include "WorldPacket.h"
 #include "ObjectGuid.h"
 #include "GroupReference.h"
 #include "GroupRefManager.h"
@@ -62,6 +64,7 @@
 #include "SharedDefines.h"
 
 #include <map>
+#include <string>
 #include <vector>
 
 struct ItemPrototype;
@@ -72,6 +75,442 @@ class BattleGround;
 class DungeonPersistentState;
 class Field;
 class Unit;
+class ByteBuffer;
+class WorldPacket;
+
+namespace MopPartyStatsPackets
+{
+    struct Request
+    {
+        uint8 mode = 0;
+        uint64 memberGuid = 0;
+    };
+
+    Request ReadRequest(WorldPacket& in);
+    void BuildResponse(WorldPacket& out, uint64 memberGuid, uint32 updateMask,
+        bool resetState, bool associateGuid, ByteBuffer const& payload);
+}
+
+namespace MopPartyUpdatePackets
+{
+    struct Member
+    {
+        uint64 guid = 0;
+        std::string name;
+        uint8 roles = 0;
+        uint8 status = 0;
+        uint8 subgroup = 0;
+        uint8 flags = 0;
+    };
+
+    struct PartyUpdate
+    {
+        uint64 groupGuid = 0;
+        uint64 leaderGuid = 0;
+        uint64 looterGuid = 0;
+        std::vector<Member> members;
+
+        bool hasInstanceDifficulty = false;
+        uint32 raidDifficulty = 0;
+        uint32 dungeonDifficulty = 0;
+
+        bool hasLootMode = false;
+        uint8 lootMethod = 0;
+        uint8 lootThreshold = 0;
+
+        bool isLfg = false;
+        bool lfgUnknownBit0 = false;
+        bool lfgUnknownBit1 = false;
+        float lfgFloat = 1.0f;
+        uint8 lfgUnknownByte0 = 0;
+        uint8 lfgUnknownByte1 = 0;
+        uint32 lfgDungeonEntry = 0;
+        uint8 lfgUnknownByte2 = 0;
+        uint8 lfgUnknownByte3 = 0;
+        uint8 lfgUnknownByte4 = 0;
+        uint32 lfgTail = 0;
+
+        uint8 groupType = 0;
+        uint8 partyIndex = 0;
+        int32 groupPosition = 0;
+        uint32 sequence = 0;
+        uint8 groupRole = 0;
+    };
+
+    uint8 ReadRequest(WorldPacket& in);
+    bool BuildPartyUpdate(WorldPacket& out, PartyUpdate const& update);
+    bool BuildRemovedPartyUpdate(WorldPacket& out, PartyUpdate const& update);
+}
+
+namespace MopReadyCheckPackets
+{
+    struct ResponseRequest
+    {
+        uint8 partyIndex = 0;
+        uint64 reservedGuid = 0;
+        bool ready = false;
+    };
+
+    uint8 ReadStartRequest(WorldPacket& in);
+    ResponseRequest ReadResponseRequest(WorldPacket& in);
+
+    void BuildStarted(WorldPacket& out, uint64 groupGuid, uint64 initiatorGuid,
+        uint32 duration, uint8 partyIndex);
+    void BuildResponse(WorldPacket& out, uint64 groupGuid, uint64 playerGuid,
+        bool ready);
+    void BuildCompleted(WorldPacket& out, uint64 groupGuid, uint8 partyIndex);
+}
+
+namespace MopGroupPacketDetail
+{
+    inline uint8 GuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+
+    inline uint64 AssembleGuid(uint8 const bytes[8])
+    {
+        uint64 guid = 0;
+        for (uint8 index = 0; index < 8; ++index)
+            guid |= uint64(bytes[index]) << (index * 8);
+        return guid;
+    }
+
+    inline bool Validate(MopPartyUpdatePackets::PartyUpdate const& update)
+    {
+        if (update.members.size() >= (size_t(1) << 21))
+            return false;
+
+        for (MopPartyUpdatePackets::Member const& member : update.members)
+            if (member.name.size() >= (size_t(1) << 6))
+                return false;
+
+        return true;
+    }
+}
+
+inline MopPartyStatsPackets::Request MopPartyStatsPackets::ReadRequest(WorldPacket& in)
+{
+    uint8 const maskOrder[] = { 7, 4, 0, 1, 3, 6, 2, 5 };
+    uint8 const byteOrder[] = { 3, 6, 5, 2, 1, 4, 0, 7 };
+    uint8 guidBytes[8] = {};
+    Request request;
+
+    in >> request.mode;
+    for (uint8 index : maskOrder)
+        guidBytes[index] = in.ReadBit();
+    for (uint8 index : byteOrder)
+        in.ReadByteSeq(guidBytes[index]);
+
+    for (uint8 index = 0; index < 8; ++index)
+        request.memberGuid |= uint64(guidBytes[index]) << (index * 8);
+    return request;
+}
+
+inline void MopPartyStatsPackets::BuildResponse(WorldPacket& out, uint64 memberGuid,
+    uint32 updateMask, bool resetState, bool associateGuid,
+    ByteBuffer const& payload)
+{
+    uint8 const firstBytes[] = { 3, 2, 6, 7, 5 };
+    uint8 const trailingBytes[] = { 1, 4, 0 };
+
+    out.Initialize(SMSG_PARTY_MEMBER_STATS,
+        2 + 8 + sizeof(updateMask) + sizeof(uint32) + payload.size());
+    out.WriteBit(MopGroupPacketDetail::GuidByte(memberGuid, 0) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(memberGuid, 5) != 0);
+    out.WriteBit(resetState);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(memberGuid, 1) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(memberGuid, 4) != 0);
+    out.WriteBit(associateGuid);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(memberGuid, 6) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(memberGuid, 2) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(memberGuid, 7) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(memberGuid, 3) != 0);
+    out.FlushBits();
+
+    for (uint8 index : firstBytes)
+        out.WriteByteSeq(MopGroupPacketDetail::GuidByte(memberGuid, index));
+    out << updateMask;
+    for (uint8 index : trailingBytes)
+        out.WriteByteSeq(MopGroupPacketDetail::GuidByte(memberGuid, index));
+    out << uint32(payload.size());
+    if (!payload.empty())
+        out.append(payload.contents(), payload.size());
+}
+
+inline uint8 MopPartyUpdatePackets::ReadRequest(WorldPacket& in)
+{
+    uint8 partyIndex = 0;
+    in >> partyIndex;
+    return partyIndex;
+}
+
+inline bool MopPartyUpdatePackets::BuildPartyUpdate(WorldPacket& out,
+    PartyUpdate const& update)
+{
+    if (!MopGroupPacketDetail::Validate(update))
+        return false;
+
+    uint64 const groupGuid = update.groupGuid;
+    uint64 const leaderGuid = update.leaderGuid;
+    uint64 const looterGuid = update.looterGuid;
+    ByteBuffer memberData;
+
+    out.Initialize(SMSG_GROUP_LIST, 64 + update.members.size() * 24);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, 0) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(leaderGuid, 7) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(leaderGuid, 1) != 0);
+    out.WriteBit(update.hasInstanceDifficulty);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, 7) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(leaderGuid, 6) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(leaderGuid, 5) != 0);
+    out.WriteBits(uint32(update.members.size()), 21);
+
+    for (Member const& member : update.members)
+    {
+        uint64 const memberGuid = member.guid;
+        uint8 const maskOrder[] = { 1, 2, 5, 6 };
+        for (uint8 index : maskOrder)
+            out.WriteBit(MopGroupPacketDetail::GuidByte(memberGuid, index) != 0);
+        out.WriteBits(uint32(member.name.size()), 6);
+        uint8 const finalMaskOrder[] = { 7, 3, 0, 4 };
+        for (uint8 index : finalMaskOrder)
+            out.WriteBit(MopGroupPacketDetail::GuidByte(memberGuid, index) != 0);
+
+        memberData.WriteByteSeq(MopGroupPacketDetail::GuidByte(memberGuid, 6));
+        memberData.WriteByteSeq(MopGroupPacketDetail::GuidByte(memberGuid, 3));
+        memberData << member.roles << member.status;
+        memberData.WriteByteSeq(MopGroupPacketDetail::GuidByte(memberGuid, 7));
+        memberData.WriteByteSeq(MopGroupPacketDetail::GuidByte(memberGuid, 4));
+        memberData.WriteByteSeq(MopGroupPacketDetail::GuidByte(memberGuid, 1));
+        memberData.append(member.name.data(), member.name.size());
+        memberData.WriteByteSeq(MopGroupPacketDetail::GuidByte(memberGuid, 5));
+        memberData.WriteByteSeq(MopGroupPacketDetail::GuidByte(memberGuid, 2));
+        memberData << member.subgroup;
+        memberData.WriteByteSeq(MopGroupPacketDetail::GuidByte(memberGuid, 0));
+        memberData << member.flags;
+    }
+
+    out.WriteBit(MopGroupPacketDetail::GuidByte(leaderGuid, 3) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(leaderGuid, 0) != 0);
+    out.WriteBit(update.hasLootMode);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, 5) != 0);
+    if (update.hasLootMode)
+    {
+        uint8 const looterMaskOrder[] = { 6, 4, 5, 2, 1, 0, 7, 3 };
+        for (uint8 index : looterMaskOrder)
+            out.WriteBit(MopGroupPacketDetail::GuidByte(looterGuid, index) != 0);
+    }
+    uint8 const groupMaskOrder[] = { 2, 4, 1 };
+    for (uint8 index : groupMaskOrder)
+        out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, index) != 0);
+    out.WriteBit(update.isLfg);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(leaderGuid, 2) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, 6) != 0);
+    if (update.isLfg)
+    {
+        out.WriteBit(update.lfgUnknownBit0);
+        out.WriteBit(update.lfgUnknownBit1);
+    }
+    out.WriteBit(MopGroupPacketDetail::GuidByte(leaderGuid, 4) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, 3) != 0);
+    out.FlushBits();
+
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(leaderGuid, 0));
+    if (update.hasInstanceDifficulty)
+    {
+        out << update.raidDifficulty;
+        out << update.dungeonDifficulty;
+    }
+    out.append(memberData);
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 1));
+
+    if (update.isLfg)
+    {
+        out << update.lfgFloat;
+        out << update.lfgUnknownByte0 << update.lfgUnknownByte1;
+        out << update.lfgDungeonEntry;
+        out << update.lfgUnknownByte2 << update.lfgUnknownByte3 << update.lfgUnknownByte4;
+        out << update.lfgTail;
+    }
+
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(leaderGuid, 4));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(leaderGuid, 2));
+    if (update.hasLootMode)
+    {
+        out << update.lootMethod;
+        uint8 const looterBytesFirst[] = { 0, 5, 4, 3, 2 };
+        for (uint8 index : looterBytesFirst)
+            out.WriteByteSeq(MopGroupPacketDetail::GuidByte(looterGuid, index));
+        out << update.lootThreshold;
+        uint8 const looterBytesLast[] = { 7, 1, 6 };
+        for (uint8 index : looterBytesLast)
+            out.WriteByteSeq(MopGroupPacketDetail::GuidByte(looterGuid, index));
+    }
+
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 6));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 4));
+    out << update.groupType;
+    out << update.partyIndex;
+    out << update.groupPosition;
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 7));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(leaderGuid, 3));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(leaderGuid, 1));
+    out << update.sequence;
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 0));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 2));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 5));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 3));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(leaderGuid, 7));
+    out << update.groupRole;
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(leaderGuid, 5));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(leaderGuid, 6));
+    return true;
+}
+
+inline bool MopPartyUpdatePackets::BuildRemovedPartyUpdate(WorldPacket& out,
+    PartyUpdate const& update)
+{
+    if (!update.members.empty() || update.hasInstanceDifficulty ||
+        update.hasLootMode || update.isLfg)
+        return false;
+    return BuildPartyUpdate(out, update);
+}
+
+inline uint8 MopReadyCheckPackets::ReadStartRequest(WorldPacket& in)
+{
+    uint8 partyIndex = 0;
+    in >> partyIndex;
+    return partyIndex;
+}
+
+inline MopReadyCheckPackets::ResponseRequest
+MopReadyCheckPackets::ReadResponseRequest(WorldPacket& in)
+{
+    ResponseRequest request;
+    uint8 guidBytes[8] = {};
+
+    in >> request.partyIndex;
+    uint8 const maskOrder[] = { 2, 1, 0, 3, 6 };
+    for (uint8 index : maskOrder)
+        guidBytes[index] = in.ReadBit();
+    request.ready = in.ReadBit();
+    uint8 const finalMaskOrder[] = { 7, 4, 5 };
+    for (uint8 index : finalMaskOrder)
+        guidBytes[index] = in.ReadBit();
+
+    uint8 const byteOrder[] = { 1, 0, 3, 2, 4, 5, 7, 6 };
+    for (uint8 index : byteOrder)
+        in.ReadByteSeq(guidBytes[index]);
+
+    request.reservedGuid = MopGroupPacketDetail::AssembleGuid(guidBytes);
+    return request;
+}
+
+inline void MopReadyCheckPackets::BuildStarted(WorldPacket& out, uint64 groupGuid,
+    uint64 initiatorGuid, uint32 duration, uint8 partyIndex)
+{
+    uint8 const maskOwner[] = { 4, 2 };
+    uint8 const maskInitiatorFirst[] = { 4 };
+    uint8 const maskOwnerMiddle[] = { 3, 7, 1, 0 };
+    uint8 const maskInitiatorMiddle[] = { 6, 5 };
+    uint8 const maskOwnerLast[] = { 6, 5 };
+    uint8 const maskInitiatorLast[] = { 0, 1, 2, 7, 3 };
+
+    out.Initialize(SMSG_RAID_READY_CHECK, 32);
+    for (uint8 index : maskOwner)
+        out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, index) != 0);
+    for (uint8 index : maskInitiatorFirst)
+        out.WriteBit(MopGroupPacketDetail::GuidByte(initiatorGuid, index) != 0);
+    for (uint8 index : maskOwnerMiddle)
+        out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, index) != 0);
+    for (uint8 index : maskInitiatorMiddle)
+        out.WriteBit(MopGroupPacketDetail::GuidByte(initiatorGuid, index) != 0);
+    for (uint8 index : maskOwnerLast)
+        out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, index) != 0);
+    for (uint8 index : maskInitiatorLast)
+        out.WriteBit(MopGroupPacketDetail::GuidByte(initiatorGuid, index) != 0);
+    out.FlushBits();
+
+    out << duration;
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 2));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 7));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 3));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(initiatorGuid, 4));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 1));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 0));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(initiatorGuid, 1));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(initiatorGuid, 2));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(initiatorGuid, 6));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(initiatorGuid, 5));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 6));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(initiatorGuid, 0));
+    out << partyIndex;
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(initiatorGuid, 7));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 4));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(initiatorGuid, 3));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 5));
+}
+
+inline void MopReadyCheckPackets::BuildResponse(WorldPacket& out, uint64 groupGuid,
+    uint64 playerGuid, bool ready)
+{
+    out.Initialize(SMSG_RAID_READY_CHECK_CONFIRM, 24);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, 4) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(playerGuid, 5) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(playerGuid, 3) != 0);
+    out.WriteBit(ready);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, 2) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(playerGuid, 6) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, 3) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(playerGuid, 0) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(playerGuid, 1) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, 1) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, 5) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(playerGuid, 7) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(playerGuid, 4) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, 6) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(playerGuid, 2) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, 0) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, 7) != 0);
+    out.FlushBits();
+
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(playerGuid, 4));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(playerGuid, 2));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(playerGuid, 1));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 4));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 2));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(playerGuid, 0));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 5));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 3));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(playerGuid, 7));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 6));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 1));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(playerGuid, 6));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(playerGuid, 3));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(playerGuid, 5));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 0));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 7));
+}
+
+inline void MopReadyCheckPackets::BuildCompleted(WorldPacket& out, uint64 groupGuid,
+    uint8 partyIndex)
+{
+    uint8 const maskOrder[] = { 4, 2, 5, 7, 1, 0, 3, 6 };
+    uint8 const firstBytes[] = { 6, 0, 3, 1, 5 };
+    uint8 const finalBytes[] = { 7, 2, 4 };
+
+    out.Initialize(SMSG_RAID_READY_CHECK_COMPLETED, 12);
+    for (uint8 index : maskOrder)
+        out.WriteBit(MopGroupPacketDetail::GuidByte(groupGuid, index) != 0);
+    out.FlushBits();
+    for (uint8 index : firstBytes)
+        out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, index));
+    out << partyIndex;
+    for (uint8 index : finalBytes)
+        out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, index));
+}
+
 
 #define MAX_GROUP_SIZE 5
 #define MAX_RAID_SIZE 40

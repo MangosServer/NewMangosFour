@@ -54,6 +54,8 @@
 #include "Unit.h"
 #include "PlayerTaxi.h" // Player needs full PlayerTaxi
 #include "Common.h"
+#include "Opcodes.h"
+#include "WorldPacket.h"
 #include "ItemPrototype.h"
 #include "Item.h"
 #include "GlyphMgr.h"   // GlyphMgr is held by value on Player; brings in Glyph struct + GlyphUpdateState enum
@@ -80,8 +82,9 @@
 #include "Chat.h"
 #include "GMTicketMgr.h"
 
-#include<string>
-#include<vector>
+#include <array>
+#include <string>
+#include <vector>
 
 struct Mail;
 class Channel;
@@ -98,7 +101,501 @@ class Item;
 
 struct AreaTrigger;
 
-namespace MopCharEnum { struct Entry; }
+namespace MopCharEnum
+{
+    struct EquipmentSlot
+    {
+        uint32 displayId;
+        uint8 invType;
+        uint32 enchant;
+    };
+
+    struct Entry
+    {
+        uint64 charGuid;
+        uint64 guildGuid;
+        std::string name;
+        uint8 race;
+        uint8 class_;
+        uint8 gender;
+        uint8 skin;
+        uint8 face;
+        uint8 hairStyle;
+        uint8 hairColor;
+        uint8 facialHair;
+        uint8 level;
+        uint8 slot;
+        uint32 zone;
+        uint32 map;
+        float posX;
+        float posY;
+        float posZ;
+        uint32 charFlags;
+        uint32 customizeFlags;
+        uint32 petDisplayId;
+        uint32 petLevel;
+        uint32 petFamily;
+        bool flagFirstLogin;
+        bool flagA;
+        EquipmentSlot equipment[23];
+    };
+
+    inline uint8 GuidByte(uint64 guid, int index)
+    {
+        return uint8((guid >> (8 * index)) & 0xFF);
+    }
+
+    inline void WriteGuidByte(WorldPacket& out, uint64 guid, int index)
+    {
+        uint8 byte = GuidByte(guid, index);
+        if (byte != 0)
+            out << uint8(byte ^ 1);
+    }
+
+    inline void Build(WorldPacket& out, std::vector<Entry> const& chars)
+    {
+        out.WriteBits(0, 21);
+        out.WriteBits(uint32(chars.size()), 16);
+
+        for (Entry const& character : chars)
+        {
+            out.WriteBit(GuidByte(character.guildGuid, 4) != 0);
+            out.WriteBit(GuidByte(character.charGuid, 0) != 0);
+            out.WriteBit(GuidByte(character.guildGuid, 3) != 0);
+            out.WriteBit(GuidByte(character.charGuid, 3) != 0);
+            out.WriteBit(GuidByte(character.charGuid, 7) != 0);
+            out.WriteBit(character.flagA);
+            out.WriteBit(character.flagFirstLogin);
+            out.WriteBit(GuidByte(character.charGuid, 6) != 0);
+            out.WriteBit(GuidByte(character.guildGuid, 6) != 0);
+            out.WriteBits(uint32(character.name.length()), 6);
+            out.WriteBit(GuidByte(character.charGuid, 1) != 0);
+            out.WriteBit(GuidByte(character.guildGuid, 1) != 0);
+            out.WriteBit(GuidByte(character.guildGuid, 0) != 0);
+            out.WriteBit(GuidByte(character.charGuid, 4) != 0);
+            out.WriteBit(GuidByte(character.guildGuid, 7) != 0);
+            out.WriteBit(GuidByte(character.charGuid, 2) != 0);
+            out.WriteBit(GuidByte(character.charGuid, 5) != 0);
+            out.WriteBit(GuidByte(character.guildGuid, 2) != 0);
+            out.WriteBit(GuidByte(character.guildGuid, 5) != 0);
+        }
+
+        out.WriteBit(1);
+        out.FlushBits();
+
+        for (Entry const& character : chars)
+        {
+            out << uint32(0);
+            WriteGuidByte(out, character.charGuid, 1);
+            out << uint8(character.slot);
+            out << uint8(character.hairStyle);
+            WriteGuidByte(out, character.guildGuid, 2);
+            WriteGuidByte(out, character.guildGuid, 0);
+            WriteGuidByte(out, character.guildGuid, 6);
+            out.append(character.name.c_str(), character.name.length());
+            WriteGuidByte(out, character.guildGuid, 3);
+            out << float(character.posX);
+            out << uint32(character.petFamily);
+            out << uint8(character.face);
+            out << uint8(character.class_);
+            WriteGuidByte(out, character.guildGuid, 5);
+            for (int equipment = 0; equipment < 23; ++equipment)
+            {
+                out << uint32(character.equipment[equipment].enchant);
+                out << uint8(character.equipment[equipment].invType);
+                out << uint32(character.equipment[equipment].displayId);
+            }
+            out << uint32(character.customizeFlags);
+            WriteGuidByte(out, character.charGuid, 3);
+            WriteGuidByte(out, character.charGuid, 5);
+            out << uint32(0);
+            WriteGuidByte(out, character.guildGuid, 4);
+            out << uint32(character.map);
+            out << uint8(character.race);
+            out << uint8(character.skin);
+            WriteGuidByte(out, character.guildGuid, 1);
+            out << uint8(character.level);
+            WriteGuidByte(out, character.charGuid, 0);
+            WriteGuidByte(out, character.charGuid, 2);
+            out << uint8(character.hairColor);
+            out << uint8(character.gender);
+            out << uint8(character.facialHair);
+            out << uint32(character.petLevel);
+            WriteGuidByte(out, character.charGuid, 4);
+            WriteGuidByte(out, character.charGuid, 7);
+            out << float(character.posY);
+            out << uint32(character.petDisplayId);
+            out << uint32(0);
+            WriteGuidByte(out, character.charGuid, 6);
+            out << uint32(character.charFlags);
+            out << uint32(character.zone);
+            WriteGuidByte(out, character.guildGuid, 7);
+            out << float(character.posZ);
+        }
+    }
+}
+
+namespace MopControlPackets
+{
+    inline uint8 GuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (8 * index));
+    }
+
+    template <size_t N>
+    inline void WriteGuidMask(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteBit(GuidByte(guid, index) != 0);
+    }
+
+    template <size_t N>
+    inline void WriteGuidBytes(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteByteSeq(GuidByte(guid, index));
+    }
+
+    inline void BuildClientControlUpdate(WorldPacket& out, uint64 guid,
+        bool allowMove)
+    {
+        uint8 const maskA[] = { 2, 7 };
+        uint8 const maskB[] = { 0, 3, 6, 5, 1, 4 };
+        uint8 const bytes[] = { 1, 5, 7, 4, 2, 6, 3, 0 };
+
+        WriteGuidMask(out, guid, maskA);
+        out.WriteBit(allowMove);
+        WriteGuidMask(out, guid, maskB);
+        out.FlushBits();
+        WriteGuidBytes(out, guid, bytes);
+    }
+
+    inline void BuildSetActiveMover(WorldPacket& out, uint64 guid)
+    {
+        uint8 const mask[] = { 5, 1, 4, 2, 3, 7, 0, 6 };
+        uint8 const bytes[] = { 4, 6, 2, 0, 3, 7, 5, 1 };
+
+        WriteGuidMask(out, guid, mask);
+        out.FlushBits();
+        WriteGuidBytes(out, guid, bytes);
+    }
+}
+
+namespace MopInitialPackets
+{
+    static size_t const ACTION_BUTTON_COUNT = 132;
+    static size_t const ACCOUNT_DATA_COUNT = 8;
+    static size_t const REPUTATION_COUNT = 256;
+    static size_t const TUTORIAL_WORD_COUNT = 8;
+
+    struct UnlearnSpell
+    {
+        uint32 first = 0;
+        uint8 middle = 0;
+        uint32 last = 0;
+    };
+
+    struct ActionButton
+    {
+        uint32 action = 0;
+        uint8 type = 0;
+    };
+
+    struct Reputation
+    {
+        uint8 flags = 0;
+        int32 standing = 0;
+        bool bonus = false;
+    };
+
+    inline uint8 ActionButtonByte(ActionButton const& button, uint8 index)
+    {
+        uint64 const value = uint64(button.action) | (uint64(button.type) << 56);
+        return uint8(value >> (8 * index));
+    }
+
+    inline void BuildInitialSpells(WorldPacket& out,
+        std::vector<uint32> const& spells)
+    {
+        MANGOS_ASSERT(spells.size() < (size_t(1) << 22));
+        out.WriteBit(false);
+        out.WriteBits(uint32(spells.size()), 22);
+        out.FlushBits();
+        for (uint32 spell : spells)
+            out << spell;
+    }
+
+    inline void BuildSendUnlearnSpells(WorldPacket& out,
+        std::vector<UnlearnSpell> const& records)
+    {
+        MANGOS_ASSERT(records.size() < (size_t(1) << 21));
+        out.WriteBits(uint32(records.size()), 21);
+        out.FlushBits();
+        for (UnlearnSpell const& record : records)
+            out << record.first << record.middle << record.last;
+    }
+
+    inline void BuildActionButtons(WorldPacket& out,
+        std::array<ActionButton, ACTION_BUTTON_COUNT> const& buttons, uint8 state)
+    {
+        uint8 const maskOrder[] = { 4, 5, 3, 1, 6, 7, 0, 2 };
+        uint8 const byteOrder[] = { 0, 1, 4, 6, 7, 2, 5, 3 };
+
+        for (uint8 byteIndex : maskOrder)
+            for (ActionButton const& button : buttons)
+                out.WriteBit(ActionButtonByte(button, byteIndex) != 0);
+        out.FlushBits();
+
+        for (uint8 byteIndex : byteOrder)
+            for (ActionButton const& button : buttons)
+                out.WriteByteSeq(ActionButtonByte(button, byteIndex));
+        out << state;
+    }
+
+    inline void BuildAccountDataTimes(WorldPacket& out,
+        std::array<uint32, ACCOUNT_DATA_COUNT> const& times, uint32 mask,
+        uint32 serverTime, bool forceUpdate)
+    {
+        out.WriteBit(forceUpdate);
+        out.FlushBits();
+        for (uint32 value : times)
+            out << value;
+        out << mask << serverTime;
+    }
+
+    inline void BuildFeatureSystemStatus(WorldPacket& out, bool storeEnabled,
+        bool feedbackEnabled, bool excessiveWarning)
+    {
+        out << uint32(0) << uint32(0) << uint32(0) << uint8(2) << uint32(0);
+        out.WriteBit(false);
+        out.WriteBit(storeEnabled);
+        out.WriteBit(false);
+        out.WriteBit(false);
+        out.WriteBit(false);
+        out.WriteBit(true);
+        out.WriteBit(false);
+        out.WriteBit(excessiveWarning);
+        out.WriteBit(false);
+        out.WriteBit(feedbackEnabled);
+        out.FlushBits();
+
+        if (excessiveWarning)
+            out << uint32(0) << uint32(0) << uint32(0);
+        if (feedbackEnabled)
+            out << uint32(0) << uint32(1) << uint32(10) << uint32(60000);
+    }
+
+    inline void BuildInitializeFactions(WorldPacket& out,
+        std::array<Reputation, REPUTATION_COUNT> const& reputations)
+    {
+        for (Reputation const& reputation : reputations)
+            out << reputation.flags << uint32(reputation.standing);
+        for (Reputation const& reputation : reputations)
+            out.WriteBit(reputation.bonus);
+        out.FlushBits();
+    }
+
+    inline void BuildTutorialFlags(WorldPacket& out,
+        std::array<uint32, TUTORIAL_WORD_COUNT> const& words)
+    {
+        for (uint32 word : words)
+            out << word;
+    }
+
+    inline void BuildBindPointUpdate(WorldPacket& out, float x, float y,
+        float z, uint32 areaId, uint32 mapId)
+    {
+        out << x << y << z << areaId << mapId;
+    }
+
+    inline void BuildSetProficiency(WorldPacket& out, uint32 mask,
+        uint8 itemClass)
+    {
+        out << mask << itemClass;
+    }
+
+    inline void BuildWeather(WorldPacket& out, uint32 state,
+        float intensity, bool abrupt)
+    {
+        out << state << intensity;
+        out.WriteBit(abrupt);
+        out.FlushBits();
+    }
+}
+
+namespace MopWorldEntryPackets
+{
+    inline uint8 GuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (8 * index));
+    }
+
+    template <size_t N>
+    inline void WriteGuidMask(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteBit(GuidByte(guid, index) != 0);
+    }
+
+    template <size_t N>
+    inline void WriteGuidBytes(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteByteSeq(GuidByte(guid, index));
+    }
+
+    inline void BuildLoginVerifyWorld(WorldPacket& out, uint32 mapId,
+        float x, float y, float z, float orientation)
+    {
+        out << float(x) << float(orientation) << float(y) << uint32(mapId)
+            << float(z);
+    }
+
+    inline void BuildNewWorld(WorldPacket& out, uint32 mapId,
+        float x, float y, float z, float orientation)
+    {
+        out << float(x) << uint32(mapId) << float(y) << float(z)
+            << float(orientation);
+    }
+
+    inline void BuildLoginSetTimeSpeed(WorldPacket& out,
+        uint32 packedGameTime, float speed)
+    {
+        out << uint32(0) << uint32(packedGameTime) << uint32(0)
+            << uint32(packedGameTime) << float(speed);
+    }
+
+    inline void BuildMoveTeleport(WorldPacket& out, uint64 moverGuid,
+        uint64 transportGuid, uint32 counter, float x, float y, float z,
+        float orientation)
+    {
+        bool const hasTransport = transportGuid != 0;
+        uint8 const moverMaskA[] = { 0, 6, 5, 7, 2 };
+        uint8 const transportMask[] = { 1, 3, 6, 4, 5, 2, 0, 7 };
+        uint8 const moverMaskB[] = { 3, 1 };
+
+        WriteGuidMask(out, moverGuid, moverMaskA);
+        out.WriteBit(hasTransport);
+        out.WriteBit(GuidByte(moverGuid, 4) != 0);
+        if (hasTransport)
+            WriteGuidMask(out, transportGuid, transportMask);
+        WriteGuidMask(out, moverGuid, moverMaskB);
+        out.WriteBit(false);
+        out.FlushBits();
+
+        if (hasTransport)
+        {
+            uint8 const transportBytes[] = { 4, 3, 7, 1, 6, 0, 2, 5 };
+            WriteGuidBytes(out, transportGuid, transportBytes);
+        }
+
+        uint8 const moverBytesA[] = { 4, 7 };
+        uint8 const moverBytesB[] = { 2, 3, 5 };
+        uint8 const moverBytesC[] = { 0, 6, 1 };
+        WriteGuidBytes(out, moverGuid, moverBytesA);
+        out << float(z) << float(y);
+        WriteGuidBytes(out, moverGuid, moverBytesB);
+        out << float(x) << uint32(counter);
+        WriteGuidBytes(out, moverGuid, moverBytesC);
+        out << float(orientation);
+    }
+}
+
+namespace MopRespecPackets
+{
+    struct ConfirmRespecWipe
+    {
+        uint8 discriminator = 0;
+        uint64 trainerGuid = 0;
+    };
+
+    inline uint8 RespecGuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (8 * index));
+    }
+
+    template <size_t N>
+    inline void WriteRespecGuidMask(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteBit(RespecGuidByte(guid, index) != 0);
+    }
+
+    template <size_t N>
+    inline void WriteRespecGuidBytes(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteByteSeq(RespecGuidByte(guid, index));
+    }
+
+    inline void BuildRespecWipeConfirm(WorldPacket& out, uint64 trainerGuid,
+        uint8 discriminator, uint32 cost)
+    {
+        uint8 const maskOrder[] = { 5, 7, 3, 2, 1, 0, 4, 6 };
+        uint8 const firstBytes[] = { 1, 0 };
+        uint8 const trailingBytes[] = { 7, 3, 2, 5, 6, 4 };
+
+        WriteRespecGuidMask(out, trainerGuid, maskOrder);
+        out.FlushBits();
+        WriteRespecGuidBytes(out, trainerGuid, firstBytes);
+        out << discriminator;
+        WriteRespecGuidBytes(out, trainerGuid, trailingBytes);
+        out << cost;
+    }
+
+    inline ConfirmRespecWipe ReadConfirmRespecWipe(WorldPacket& in)
+    {
+        uint8 const maskOrder[] = { 7, 2, 6, 1, 4, 0, 3, 5 };
+        uint8 const byteOrder[] = { 2, 4, 1, 3, 0, 5, 7, 6 };
+        uint8 guidBytes[8] = {};
+        ConfirmRespecWipe confirm;
+
+        in >> confirm.discriminator;
+        for (uint8 index : maskOrder)
+            guidBytes[index] = in.ReadBit();
+        for (uint8 index : byteOrder)
+            in.ReadByteSeq(guidBytes[index]);
+
+        confirm.trainerGuid = 0;
+        for (uint8 index = 0; index < 8; ++index)
+            confirm.trainerGuid |= uint64(guidBytes[index]) << (index * 8);
+        return confirm;
+    }
+}
+
+namespace MopCompactPackets
+{
+    enum AttackSwingReason
+    {
+        ATTACK_SWING_NOT_IN_RANGE = 0,
+        ATTACK_SWING_BAD_FACING = 1,
+        ATTACK_SWING_DEAD_TARGET = 2,
+        ATTACK_SWING_CANT_ATTACK = 3
+    };
+
+    inline void BuildAttackSwingError(WorldPacket& out, uint8 reason)
+    {
+        MANGOS_ASSERT(reason < 4);
+        out.WriteBits(reason, 2);
+        out.FlushBits();
+    }
+
+    inline void BuildSetRaidDifficulty(WorldPacket& out, uint32 difficulty)
+    {
+        out << uint32(difficulty);
+    }
+
+    inline void BuildSetDungeonDifficulty(WorldPacket& out, uint32 difficulty)
+    {
+        out << uint32(difficulty);
+    }
+}
 
 #include <memory>
 #include "CinematicFlyover.h"
@@ -1050,6 +1547,19 @@ class TradeData
 
         ObjectGuid m_items[TRADE_SLOT_COUNT]; // Items traded from m_player's side, including non-traded slot
 };
+
+namespace MopRatedBattlegroundPackets
+{
+    using RatedStatsRecord = std::array<uint32, 8>;
+    using RatedStats = std::array<RatedStatsRecord, 4>;
+
+    inline void BuildBattlefieldRatedInfo(WorldPacket& out, RatedStats const& records)
+    {
+        for (RatedStatsRecord const& record : records)
+            for (uint32 field : record)
+                out << field;
+    }
+}
 
 class Player : public Unit
 {

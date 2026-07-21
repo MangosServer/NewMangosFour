@@ -30,7 +30,6 @@
 #include "SpellMgr.h"
 #include "World.h"
 #include "WorldPacket.h"
-#include "MopCompactPackets.h"
 #include "WorldSession.h"
 #include "UpdateMask.h"
 #include "SkillDiscovery.h"
@@ -81,13 +80,11 @@
 #endif /* ENABLE_ELUNA */
 
 #include <cmath>
-void Player::SendDungeonDifficulty(bool IsInGroup)
+
+void Player::SendDungeonDifficulty(bool /*IsInGroup*/)
 {
-    uint8 val = 0x00000001;
-    WorldPacket data(MSG_SET_DUNGEON_DIFFICULTY, 12);
-    data << uint32(GetDungeonDifficulty());
-    data << uint32(val);
-    data << uint32(IsInGroup);
+    WorldPacket data(SMSG_SET_DUNGEON_DIFFICULTY, 4);
+    MopCompactPackets::BuildSetDungeonDifficulty(data, GetDungeonDifficulty());
     GetSession()->SendPacket(&data);
 }
 

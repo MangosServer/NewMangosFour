@@ -10,7 +10,7 @@
  * expected bytes below are the exact response the client accepted.
  */
 
-#include "MopQueryPackets.h"
+#include "WorldSession.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 

@@ -1,4 +1,4 @@
-file(READ "${SOURCE_ROOT}/src/game/Server/MopGuildPackets.cpp" packet_builder)
+file(READ "${SOURCE_ROOT}/src/game/Object/Guild.h" packet_builder)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CharacterHandler.cpp" login_sender)
 file(READ "${SOURCE_ROOT}/src/game/Object/Guild.cpp" guild_sender)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)

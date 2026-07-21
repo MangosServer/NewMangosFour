@@ -26,15 +26,165 @@
 #define __MANGOS_LFGMGR_H
 
 #include "Common.h"
+#include "ObjectGuid.h"
 #include "Policies/Singleton.h"
-#include "Group.h"
+#include "Opcodes.h"
+#include "WorldPacket.h"
+#include <array>
+#include <initializer_list>
 #include <set>
+#include <string>
 #include <vector>
 
 class Object;
 class ObjectGuid;
 class Player;
 class Group;
+class WorldPacket;
+
+namespace MopLfgPackets
+{
+    struct BootUpdate
+    {
+        uint64 victimGuid = 0;
+        std::string reason;
+        bool inProgress = false;
+        bool didVote = false;
+        bool votePassed = false;
+        bool agree = false;
+        uint32 votesNeeded = 0;
+        uint32 timeLeft = 0;
+        uint32 agreeCount = 0;
+        uint32 voteCount = 0;
+    };
+
+    struct StatusUpdate
+    {
+        uint64 requesterGuid = 0;
+        std::vector<uint64> suspendedPlayerGuids;
+        std::vector<uint32> dungeonEntries;
+        std::string comment;
+        std::array<uint8, 3> needs{};
+        bool isParty = false;
+        bool joined = false;
+        bool notifyUi = true;
+        bool lfgJoined = false;
+        bool queued = false;
+        uint8 updateReason = 0;
+        uint32 requestedRoles = 0;
+        uint32 ticketId = 0;
+        uint32 ticketTime = 0;
+        uint8 dungeonCategory = 0;
+        uint32 ticketType = 3;
+    };
+
+    bool BuildBootPlayer(WorldPacket& out, BootUpdate const& update);
+    bool BuildUpdateStatus(WorldPacket& out, StatusUpdate const& update);
+}
+
+namespace MopLfgPacketDetail
+{
+    inline uint8 GuidByte(uint64 guid, size_t index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+
+    inline void WriteGuidMask(WorldPacket& out, uint64 guid,
+        std::initializer_list<size_t> order)
+    {
+        for (size_t index : order)
+            out.WriteBit(GuidByte(guid, index) != 0);
+    }
+
+    inline void WriteGuidBytes(WorldPacket& out, uint64 guid,
+        std::initializer_list<size_t> order)
+    {
+        for (size_t index : order)
+            out.WriteByteSeq(GuidByte(guid, index));
+    }
+}
+
+inline bool MopLfgPackets::BuildBootPlayer(WorldPacket& out,
+    BootUpdate const& update)
+{
+    if (update.reason.size() >= (size_t(1) << 8))
+        return false;
+
+    out.WriteBit(update.reason.empty());
+    MopLfgPacketDetail::WriteGuidMask(out, update.victimGuid, { 3 });
+    out.WriteBit(update.didVote);
+    out.WriteBit(update.votePassed);
+    out.WriteBit(update.agree);
+    MopLfgPacketDetail::WriteGuidMask(out, update.victimGuid, { 6 });
+    if (!update.reason.empty())
+        out.WriteBits(update.reason.size(), 8);
+    out.WriteBit(update.inProgress);
+    MopLfgPacketDetail::WriteGuidMask(out, update.victimGuid, { 1, 7, 5, 2, 0, 4 });
+    out.FlushBits();
+
+    MopLfgPacketDetail::WriteGuidBytes(out, update.victimGuid, { 2, 4, 3, 6 });
+    out << update.votesNeeded;
+    out << update.timeLeft;
+    if (!update.reason.empty())
+        out.append(update.reason.data(), update.reason.size());
+    MopLfgPacketDetail::WriteGuidBytes(out, update.victimGuid, { 5, 0 });
+    out << update.agreeCount;
+    MopLfgPacketDetail::WriteGuidBytes(out, update.victimGuid, { 7 });
+    out << update.voteCount;
+    MopLfgPacketDetail::WriteGuidBytes(out, update.victimGuid, { 1 });
+    return true;
+}
+
+inline bool MopLfgPackets::BuildUpdateStatus(WorldPacket& out,
+    StatusUpdate const& update)
+{
+    if (update.comment.size() >= (size_t(1) << 8) ||
+        update.dungeonEntries.size() >= (size_t(1) << 22) ||
+        update.suspendedPlayerGuids.size() >= (size_t(1) << 24))
+    {
+        return false;
+    }
+
+    out.WriteBits(update.comment.size(), 8);
+    out.WriteBit(update.isParty);
+    out.WriteBit(update.joined);
+    out.WriteBits(update.dungeonEntries.size(), 22);
+    MopLfgPacketDetail::WriteGuidMask(out, update.requesterGuid, { 2, 3, 1 });
+    out.WriteBit(update.notifyUi);
+    MopLfgPacketDetail::WriteGuidMask(out, update.requesterGuid, { 7, 6, 0 });
+    out.WriteBit(update.lfgJoined);
+    out.WriteBit(update.queued);
+    out.WriteBits(update.suspendedPlayerGuids.size(), 24);
+    MopLfgPacketDetail::WriteGuidMask(out, update.requesterGuid, { 5 });
+    for (uint64 guid : update.suspendedPlayerGuids)
+        MopLfgPacketDetail::WriteGuidMask(out, guid, { 7, 0, 4, 2, 5, 3, 1, 6 });
+    MopLfgPacketDetail::WriteGuidMask(out, update.requesterGuid, { 4 });
+    out.FlushBits();
+
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 3 });
+    for (uint8 need : update.needs)
+        out << need;
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 4 });
+    for (uint64 guid : update.suspendedPlayerGuids)
+        MopLfgPacketDetail::WriteGuidBytes(out, guid, { 7, 0, 1, 6, 4, 5, 2, 3 });
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 6 });
+    out << update.updateReason;
+    out << update.requestedRoles;
+    out << update.ticketId;
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 5 });
+    if (!update.comment.empty())
+        out.append(update.comment.data(), update.comment.size());
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 2 });
+    for (uint32 entry : update.dungeonEntries)
+        out << entry;
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 0, 1 });
+    out << update.ticketTime;
+    out << update.dungeonCategory;
+    out << update.ticketType;
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 7 });
+    return true;
+}
+
 
 struct LFGBoot;
 struct LFGGroupStatus;

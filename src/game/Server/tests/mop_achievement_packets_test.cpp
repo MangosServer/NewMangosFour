@@ -2,7 +2,7 @@
  * Byte-exact tests for the 5.4.8 ALL_ACHIEVEMENT_DATA packet body.
  */
 
-#include "MopAchievementPackets.h"
+#include "AchievementMgr.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 

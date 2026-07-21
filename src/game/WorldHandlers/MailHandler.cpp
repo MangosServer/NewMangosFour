@@ -51,7 +51,6 @@
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "Opcodes.h"
-#include "Server/MopQueryPackets.h"
 #include "Chat.h"
 
 /**

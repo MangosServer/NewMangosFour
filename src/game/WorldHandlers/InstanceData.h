@@ -27,7 +27,43 @@
 
 #include "Common.h"
 #include "ObjectGuid.h"
+#include "Opcodes.h"
 #include "WorldPacket.h"
+
+namespace MopCompactPackets
+{
+    inline bool BuildInstanceEncounter(WorldPacket& out, uint32 type,
+        uint64 sourceGuid, uint8 param1, uint8 param2)
+    {
+        if (type > 10)
+            return false;
+
+        out << uint32(type);
+        switch (type)
+        {
+            case 0:
+            case 5:
+            case 6:
+            case 8:
+                out << uint8(param1);
+                break;
+            case 1:
+            case 9:
+            case 10:
+                break;
+            case 2:
+            case 3:
+            case 4:
+                out.appendPackGUID(sourceGuid);
+                out << uint8(param1);
+                break;
+            case 7:
+                out << uint8(param1) << uint8(param2);
+                break;
+        }
+        return true;
+    }
+}
 
 class Map;
 class Unit;

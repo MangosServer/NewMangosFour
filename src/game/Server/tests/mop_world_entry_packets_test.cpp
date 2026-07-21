@@ -3,7 +3,7 @@
  * client readers at 0x6BB595, 0x6BB104, 0x6BE5A5, and 0xC90474.
  */
 
-#include "MopWorldEntryPackets.h"
+#include "Player.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 

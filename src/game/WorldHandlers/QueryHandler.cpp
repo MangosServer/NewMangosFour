@@ -55,7 +55,6 @@
 #include "Pet.h"
 #include "MapManager.h"
 #include "SQLStorages.h"
-#include "Server/MopQueryPackets.h"
 
 /**
  * @brief Sends an in-memory name query response for a player.

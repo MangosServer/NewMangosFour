@@ -2,7 +2,7 @@
  * Independent byte fixtures for the 5.4.8.18414 respec confirmation exchange.
  */
 
-#include "MopRespecPackets.h"
+#include "Player.h"
 #include "MopWireCodec.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"

@@ -1,4 +1,4 @@
-file(READ "${SOURCE_ROOT}/src/game/Server/MopCalendarPackets.cpp" packet_builder)
+file(READ "${SOURCE_ROOT}/src/game/Object/Calendar.h" packet_builder)
 file(READ "${SOURCE_ROOT}/src/game/Object/Guild.cpp" guild_sender)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CalendarHandler.cpp" calendar_sender)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)

@@ -26,11 +26,94 @@
 #define MANGOS_H_CURRENCYMGR
 
 #include "Common.h"
+#include "Opcodes.h"
+#include "WorldPacket.h"
 #include <unordered_map>
+#include <vector>
 
 class Player;
 class QueryResult;
+class WorldPacket;
 struct CurrencyTypesEntry;
+
+namespace MopCurrencyPackets
+{
+    struct CurrencyUpdate
+    {
+        uint32 currencyId;
+        uint32 gainContext;
+        uint32 totalQuantity;
+        bool hasWeeklyQuantity;
+        bool suppressGainMessage;
+        bool hasTrackedQuantity;
+        uint32 weeklyQuantity;
+        uint32 trackedQuantity;
+    };
+
+    struct CurrencySetupEntry
+    {
+        uint32 currencyId;
+        uint32 totalQuantity;
+        uint32 weeklyQuantity;
+        uint32 trackedQuantity;
+        uint32 maximumWeeklyQuantity;
+        uint8 flags;
+        bool hasWeeklyQuantity;
+        bool hasTrackedQuantity;
+        bool hasMaximumWeeklyQuantity;
+    };
+
+    inline bool BuildUpdateCurrency(WorldPacket& out, CurrencyUpdate const& update)
+    {
+        out << update.currencyId;
+        out << update.gainContext;
+        out << update.totalQuantity;
+        out.WriteBit(update.hasWeeklyQuantity);
+        out.WriteBit(update.suppressGainMessage);
+        out.WriteBit(update.hasTrackedQuantity);
+
+        if (update.hasWeeklyQuantity)
+            out << update.weeklyQuantity;
+        if (update.hasTrackedQuantity)
+            out << update.trackedQuantity;
+        out.FlushBits();
+        return true;
+    }
+
+    inline bool BuildSetupCurrency(WorldPacket& out,
+        std::vector<CurrencySetupEntry> const& entries)
+    {
+        if (entries.size() > 0x7FFFFu)
+            return false;
+
+        for (CurrencySetupEntry const& entry : entries)
+            if (entry.flags > 7)
+                return false;
+
+        out.WriteBits(entries.size(), 19);
+        for (CurrencySetupEntry const& entry : entries)
+        {
+            out.WriteBit(entry.hasTrackedQuantity);
+            out.WriteBits(entry.flags, 3);
+            out.WriteBit(entry.hasMaximumWeeklyQuantity);
+            out.WriteBit(entry.hasWeeklyQuantity);
+        }
+
+        for (CurrencySetupEntry const& entry : entries)
+        {
+            if (entry.hasWeeklyQuantity)
+                out << entry.weeklyQuantity;
+            out << entry.currencyId;
+            if (entry.hasTrackedQuantity)
+                out << entry.trackedQuantity;
+            out << entry.totalQuantity;
+            if (entry.hasMaximumWeeklyQuantity)
+                out << entry.maximumWeeklyQuantity;
+        }
+        out.FlushBits();
+        return true;
+    }
+}
 
 /**
  * Per-currency flags persisted in character_currencies.flags. Cata client

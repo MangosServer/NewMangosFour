@@ -1,4 +1,4 @@
-file(READ "${SOURCE_ROOT}/src/game/Server/MopQueryPackets.cpp" packet_builder)
+file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.h" packet_builder)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/MailHandler.cpp" mail_handler)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 
@@ -54,7 +54,7 @@ endif()
 
 foreach(token IN ITEMS
         "out.WriteBits(records.size(), 20)"
-        "out.WriteBit(GuidByte(record.senderGuid, 3) != 0)"
+        "out.WriteBit(MopQueryPacketDetail::GuidByte(record.senderGuid, 3) != 0)"
         "out.WriteBit(record.hasVirtualRealmAddress)"
         "out.WriteBit(record.hasNativeRealmAddress)"
         "out << record.nonPlayerSender"

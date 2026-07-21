@@ -2,7 +2,7 @@
  * Independent byte fixtures for the 5.4.8.18414 guild MOTD packet.
  */
 
-#include "MopGuildPackets.h"
+#include "Guild.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 

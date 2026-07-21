@@ -74,6 +74,32 @@
 #include "WorldPacket.h"
 #include "Timer.h"
 
+namespace MopCompactPackets
+{
+    inline uint8 SwimSpeedGuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (8 * index));
+    }
+
+    inline void BuildMoveSetSwimSpeed(WorldPacket& out, uint64 moverGuid,
+        uint32 counter, float speed)
+    {
+        uint8 const maskOrder[] = { 5, 0, 6, 3, 7, 2, 4, 1 };
+        uint8 const bytesBeforeSpeed[] = { 1, 3 };
+        uint8 const bytesAfterSpeed[] = { 6, 7, 0, 5, 2, 4 };
+
+        for (uint8 index : maskOrder)
+            out.WriteBit(SwimSpeedGuidByte(moverGuid, index) != 0);
+        out.FlushBits();
+        out << uint32(counter);
+        for (uint8 index : bytesBeforeSpeed)
+            out.WriteByteSeq(SwimSpeedGuidByte(moverGuid, index));
+        out << float(speed);
+        for (uint8 index : bytesAfterSpeed)
+            out.WriteByteSeq(SwimSpeedGuidByte(moverGuid, index));
+    }
+}
+
 #include <list>
 
 /**

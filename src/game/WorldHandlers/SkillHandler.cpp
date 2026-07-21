@@ -43,7 +43,6 @@
 #include "Opcodes.h"
 #include "Log.h"
 #include "Player.h"
-#include "Server/MopRespecPackets.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "UpdateMask.h"

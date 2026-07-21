@@ -4,7 +4,9 @@ file(READ "${SOURCE_ROOT}/src/game/ChatCommands/PlayerStatsMods.cpp" player_stat
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/GroupHandler.cpp" group_handler)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/InstanceData.cpp" instance_data)
 file(READ "${SOURCE_ROOT}/src/game/Object/PlayerInstance.cpp" player_instance)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CharacterHandler.cpp" character_handler)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
+file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.h" opcode_header)
 
 if(player_combat MATCHES "WorldPacket[ \t]+data\\(SMSG_ATTACKSWING_NOTINRANGE")
     message(FATAL_ERROR "legacy construction SMSG_ATTACKSWING_NOTINRANGE remains in its sender")
@@ -30,6 +32,18 @@ endif()
 if(player_instance MATCHES "WorldPacket[ \t]+data\\(MSG_SET_RAID_DIFFICULTY")
     message(FATAL_ERROR "legacy construction MSG_SET_RAID_DIFFICULTY remains in its sender")
 endif()
+if(player_instance MATCHES "WorldPacket[ \t]+data\\(MSG_SET_DUNGEON_DIFFICULTY")
+    message(FATAL_ERROR "legacy construction MSG_SET_DUNGEON_DIFFICULTY remains in its sender")
+endif()
+if(opcode_header MATCHES "[\r\n][ \t]*MSG_SET_DUNGEON_DIFFICULTY[ \t]*=")
+    message(FATAL_ERROR "legacy MSG_SET_DUNGEON_DIFFICULTY opcode remains active")
+endif()
+if(NOT player_instance MATCHES "MopCompactPackets::BuildSetDungeonDifficulty")
+    message(FATAL_ERROR "dungeon-difficulty sender bypasses the shared 5.4.8 serializer")
+endif()
+if(character_handler MATCHES "//[ \t]*pCurrChar->SendDungeonDifficulty\\(false\\)")
+    message(FATAL_ERROR "5.4.8 login dungeon-difficulty send remains suppressed")
+endif()
 
 foreach(source_text IN ITEMS "${unit_speed}" "${player_stats_mods}")
     if(NOT source_text MATCHES "MopCompactPackets::BuildMoveSetSwimSpeed")
@@ -42,7 +56,8 @@ foreach(server_name IN ITEMS
         SMSG_MOVE_SET_SWIM_SPEED
         SMSG_RANDOM_ROLL
         SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT
-        SMSG_SET_RAID_DIFFICULTY)
+        SMSG_SET_RAID_DIFFICULTY
+        SMSG_SET_DUNGEON_DIFFICULTY)
     if(NOT opcode_registry MATCHES "DefS\\(${server_name},[ \t]*\"${server_name}\"\\)")
         message(FATAL_ERROR "${server_name} is missing outbound opcode metadata")
     endif()

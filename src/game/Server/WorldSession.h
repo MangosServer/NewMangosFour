@@ -36,8 +36,13 @@
 #include "AuctionHouseMgr.h"
 #include "Item.h"
 #include "LFGMgr.h"
+#include "Opcodes.h"
+#include "WorldPacket.h"
 
+#include <array>
 #include <mutex>
+#include <string>
+#include <vector>
 
 struct ItemPrototype;
 struct AuctionEntry;
@@ -60,7 +65,660 @@ class GMTicket;
 class MovementInfo;
 class WorldSession;
 
+namespace MopQueryPackets
+{
+    struct NameQueryRequest
+    {
+        uint64 guid = 0;
+        bool hasRealmId2 = false;
+        uint32 realmId2 = 0;
+        bool hasRealmId1 = false;
+        uint32 realmId1 = 0;
+    };
+
+    struct NameQueryResponse
+    {
+        uint64 guid = 0;
+        uint8 result = 1;
+        uint32 realmId = 0;
+        uint32 accountId = 0;
+        uint8 classId = 0;
+        uint8 race = 0;
+        uint8 level = 0;
+        uint8 gender = 0;
+        uint64 auxiliaryGuid = 0;
+        uint64 displayGuid = 0;
+        bool isDeleted = false;
+        std::string name;
+        std::array<std::string, 5> declinedNames;
+    };
+
+    NameQueryRequest ReadNameQueryRequest(WorldPacket& in);
+    void BuildNameQueryResponse(WorldPacket& out,
+        NameQueryResponse const& record);
+
+    struct RealmNameQueryResponse
+    {
+        uint32 realmId = 0;
+        uint8 status = 0;
+        bool isHomeRealm = false;
+        std::string name;
+        std::string normalizedName;
+    };
+
+    uint32 ReadRealmNameQueryRequest(WorldPacket& in);
+    void BuildRealmNameQueryResponse(WorldPacket& out,
+        RealmNameQueryResponse const& record);
+
+    void BuildQueryTimeResponse(WorldPacket& out, uint32 serverTime,
+        uint32 secondsUntilReset);
+    bool ReadPlayedTimeRequest(WorldPacket& in);
+    void BuildPlayedTimeResponse(WorldPacket& out, uint32 totalPlayed,
+        uint32 levelPlayed, bool displayEvent);
+
+    struct MailNextTimeEntry
+    {
+        uint64 senderGuid = 0;
+        uint32 nonPlayerSender = 0;
+        uint8 messageType = 0;
+        float deliveryTime = 0.0f;
+        bool hasNativeRealmAddress = false;
+        uint32 nativeRealmAddress = 0;
+        uint32 stationery = 0;
+        bool hasVirtualRealmAddress = false;
+        uint32 virtualRealmAddress = 0;
+    };
+
+    bool BuildMailQueryNextTimeResult(WorldPacket& out,
+        std::vector<MailNextTimeEntry> const& records, float nextMailTime);
+
+    struct CreatureQueryResponse
+    {
+        uint32 entry = 0;
+        bool hasData = false;
+        std::string name;
+        std::string subName;
+        std::string iconName;
+        uint32 creatureType = 0;
+        uint32 family = 0;
+        uint32 rank = 0;
+        uint32 expansion = 0;
+        uint32 movementTemplateId = 0;
+        uint32 creatureTypeFlags = 0;
+        uint32 creatureTypeFlags2 = 0;
+        std::array<uint32, 4> modelIds{};
+        std::array<uint32, 2> killCredits{};
+        float healthMultiplier = 0.0f;
+        float powerMultiplier = 0.0f;
+        bool racialLeader = false;
+        std::array<uint32, 6> questItems{};
+    };
+
+    void BuildCreatureQueryResponse(WorldPacket& out,
+        CreatureQueryResponse const& record);
+
+    struct GameObjectQueryRequest
+    {
+        uint32 entry = 0;
+        uint64 guid = 0;
+    };
+
+    struct GameObjectQueryResponse
+    {
+        uint32 entry = 0;
+        bool hasData = false;
+        uint32 type = 0;
+        uint32 displayId = 0;
+        std::array<std::string, 4> names;
+        std::string iconName;
+        std::string castBarCaption;
+        std::string unknownString;
+        std::array<uint32, 32> data{};
+        float size = 0.0f;
+        std::vector<uint32> questItems;
+        uint32 trailingUnknown = 0;
+    };
+
+    GameObjectQueryRequest ReadGameObjectQueryRequest(WorldPacket& in);
+    void BuildGameObjectQueryResponse(WorldPacket& out,
+        GameObjectQueryResponse const& record);
+}
+
+namespace MopStablePackets
+{
+    struct StablePetRecord
+    {
+        uint32 entry = 0;
+        uint32 level = 0;
+        uint8 state = 0;
+        uint32 modelId = 0;
+        std::string name;
+        uint32 petNumber = 0;
+        uint32 slot = 0;
+    };
+
+    uint64 ReadStableListRequest(WorldPacket& in);
+    bool BuildPetStableList(WorldPacket& out, uint64 stableMasterGuid,
+        std::vector<StablePetRecord> const& records);
+    void BuildStableResult(WorldPacket& out, uint8 result);
+}
+
+namespace MopTrainerBuyFailed
+{
+    enum Reason
+    {
+        REASON_UNAVAILABLE = 0,
+        REASON_NOT_ENOUGH_MONEY = 1
+    };
+
+    void Build(WorldPacket& out, uint64 trainerGuid, uint32 reason, uint32 serviceId);
+}
+
+namespace MopQueryPacketDetail
+{
+    inline uint8 GuidByte(uint64 guid, size_t index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+
+    inline size_t OptionalCStringLength(std::string const& text, size_t bitCount)
+    {
+        size_t const encoded = text.empty() ? 0 : text.size() + 1;
+        MANGOS_ASSERT(encoded < (size_t(1) << bitCount));
+        return encoded;
+    }
+}
+
+namespace MopStablePacketDetail
+{
+    inline uint8 GuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+}
+
+namespace MopTrainerPacketDetail
+{
+    inline uint8 GuidByte(uint64 guid, int index)
+    {
+        return uint8(guid >> (8 * index));
+    }
+
+    inline constexpr int MaskOrder[8] = { 3, 0, 4, 7, 6, 1, 5, 2 };
+    inline constexpr int BytesPre[5] = { 1, 2, 0, 3, 4 };
+    inline constexpr int BytesPost[3] = { 5, 6, 7 };
+}
+
+inline MopQueryPackets::NameQueryRequest MopQueryPackets::ReadNameQueryRequest(
+    WorldPacket& in)
+{
+    NameQueryRequest request;
+    std::array<uint8, 8> guidBytes{};
+
+    guidBytes[4] = in.ReadBit();
+    request.hasRealmId2 = in.ReadBit();
+    guidBytes[6] = in.ReadBit();
+    guidBytes[0] = in.ReadBit();
+    guidBytes[7] = in.ReadBit();
+    guidBytes[1] = in.ReadBit();
+    request.hasRealmId1 = in.ReadBit();
+    guidBytes[5] = in.ReadBit();
+    guidBytes[2] = in.ReadBit();
+    guidBytes[3] = in.ReadBit();
+
+    in.ReadByteSeq(guidBytes[7]);
+    in.ReadByteSeq(guidBytes[5]);
+    in.ReadByteSeq(guidBytes[1]);
+    in.ReadByteSeq(guidBytes[2]);
+    in.ReadByteSeq(guidBytes[6]);
+    in.ReadByteSeq(guidBytes[3]);
+    in.ReadByteSeq(guidBytes[0]);
+    in.ReadByteSeq(guidBytes[4]);
+
+    if (request.hasRealmId2)
+        in >> request.realmId2;
+    if (request.hasRealmId1)
+        in >> request.realmId1;
+
+    for (size_t i = 0; i < guidBytes.size(); ++i)
+        request.guid |= uint64(guidBytes[i]) << (i * 8);
+    return request;
+}
+
+inline void MopQueryPackets::BuildNameQueryResponse(WorldPacket& out,
+    NameQueryResponse const& record)
+{
+    for (size_t index : { 3u, 6u, 7u, 2u, 5u, 4u, 0u, 1u })
+        out.WriteBit(MopQueryPacketDetail::GuidByte(record.guid, index) != 0);
+    out.FlushBits();
+
+    for (size_t index : { 5u, 4u, 7u, 6u, 1u, 2u })
+        out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.guid, index));
+    out << record.result;
+
+    if (record.result == 0)
+    {
+        out << record.realmId;
+        out << record.accountId;
+        out << record.classId;
+        out << record.race;
+        out << record.level;
+        out << record.gender;
+    }
+
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.guid, 0));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.guid, 3));
+    if (record.result != 0)
+        return;
+
+    MANGOS_ASSERT(record.name.size() <= 48);
+    for (std::string const& name : record.declinedNames)
+        MANGOS_ASSERT(name.size() <= 64);
+
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 2) != 0);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 7) != 0);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.displayGuid, 7) != 0);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.displayGuid, 2) != 0);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.displayGuid, 0) != 0);
+    out.WriteBit(record.isDeleted);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 4) != 0);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.displayGuid, 5) != 0);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 1) != 0);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 3) != 0);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 0) != 0);
+    for (std::string const& name : record.declinedNames)
+        out.WriteBits(uint32(name.size()), 7);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.displayGuid, 6) != 0);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.displayGuid, 3) != 0);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 5) != 0);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.displayGuid, 1) != 0);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.displayGuid, 4) != 0);
+    out.WriteBits(uint32(record.name.size()), 6);
+    out.WriteBit(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 6) != 0);
+    out.FlushBits();
+
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.displayGuid, 6));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.displayGuid, 0));
+    if (!record.name.empty())
+        out.append(record.name.c_str(), record.name.size());
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 5));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 2));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.displayGuid, 3));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 4));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 3));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.displayGuid, 4));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.displayGuid, 2));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 7));
+    for (std::string const& name : record.declinedNames)
+        if (!name.empty())
+            out.append(name.c_str(), name.size());
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 6));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.displayGuid, 7));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.displayGuid, 1));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 1));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.displayGuid, 5));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.auxiliaryGuid, 0));
+}
+
+inline uint32 MopQueryPackets::ReadRealmNameQueryRequest(WorldPacket& in)
+{
+    uint32 realmId = 0;
+    in >> realmId;
+    return realmId;
+}
+
+inline void MopQueryPackets::BuildRealmNameQueryResponse(WorldPacket& out,
+    RealmNameQueryResponse const& record)
+{
+    // 18414 wire layout for the client handler sub_1403073A0 (fills the RealmCache
+    // keyed by realmId and, on status==0, sets the ready-flag that un-gates the parked
+    // name-query result). The status byte leads, then realmId; the name/normalizedName
+    // tail follows only when the realm is reported found. (Live-confirmed: with realmId
+    // leading, the client read realmId's low byte as the status and skipped the store.)
+    out << uint8(record.status);                          // 0 = found -> commits the parked player name
+    out << uint32(record.realmId);
+    if (record.status == 0)
+    {
+        out.WriteBits(uint32(record.name.size()), 8);
+        out.WriteBit(record.isHomeRealm);                 // 1 = home realm -> no cross-realm suffix
+        out.WriteBits(uint32(record.normalizedName.size()), 8);
+        out.FlushBits();
+        if (!record.name.empty())
+            out.append(record.name.c_str(), record.name.size());       // no trailing NUL
+        if (!record.normalizedName.empty())
+            out.append(record.normalizedName.c_str(), record.normalizedName.size());
+    }
+}
+
+inline void MopQueryPackets::BuildQueryTimeResponse(WorldPacket& out, uint32 serverTime,
+    uint32 secondsUntilReset)
+{
+    out << serverTime;
+    out << secondsUntilReset;
+}
+
+inline bool MopQueryPackets::ReadPlayedTimeRequest(WorldPacket& in)
+{
+    return in.ReadBit();
+}
+
+inline void MopQueryPackets::BuildPlayedTimeResponse(WorldPacket& out, uint32 totalPlayed,
+    uint32 levelPlayed, bool displayEvent)
+{
+    out << totalPlayed;
+    out << levelPlayed;
+    out.WriteBit(displayEvent);
+    out.FlushBits();
+}
+
+inline bool MopQueryPackets::BuildMailQueryNextTimeResult(WorldPacket& out,
+    std::vector<MailNextTimeEntry> const& records, float nextMailTime)
+{
+    // The 18414 client retains only three records, and the reference server
+    // stops producing records at that same bound.
+    if (records.size() > 3)
+        return false;
+
+    out.WriteBits(records.size(), 20);
+    for (MailNextTimeEntry const& record : records)
+    {
+        out.WriteBit(MopQueryPacketDetail::GuidByte(record.senderGuid, 3) != 0);
+        out.WriteBit(record.hasVirtualRealmAddress);
+        out.WriteBit(MopQueryPacketDetail::GuidByte(record.senderGuid, 2) != 0);
+        out.WriteBit(record.hasNativeRealmAddress);
+        out.WriteBit(MopQueryPacketDetail::GuidByte(record.senderGuid, 6) != 0);
+        out.WriteBit(MopQueryPacketDetail::GuidByte(record.senderGuid, 1) != 0);
+        out.WriteBit(MopQueryPacketDetail::GuidByte(record.senderGuid, 4) != 0);
+        out.WriteBit(MopQueryPacketDetail::GuidByte(record.senderGuid, 0) != 0);
+        out.WriteBit(MopQueryPacketDetail::GuidByte(record.senderGuid, 5) != 0);
+        out.WriteBit(MopQueryPacketDetail::GuidByte(record.senderGuid, 7) != 0);
+    }
+    out.FlushBits();
+
+    for (MailNextTimeEntry const& record : records)
+    {
+        out << record.nonPlayerSender;
+        out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.senderGuid, 5));
+        out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.senderGuid, 4));
+        out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.senderGuid, 6));
+        out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.senderGuid, 1));
+        out << record.messageType;
+        out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.senderGuid, 0));
+        out << record.deliveryTime;
+        if (record.hasNativeRealmAddress)
+            out << record.nativeRealmAddress;
+        out << record.stationery;
+        out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.senderGuid, 3));
+        out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.senderGuid, 2));
+        if (record.hasVirtualRealmAddress)
+            out << record.virtualRealmAddress;
+        out.WriteByteSeq(MopQueryPacketDetail::GuidByte(record.senderGuid, 7));
+    }
+
+    out << nextMailTime;
+    return true;
+}
+
+inline void MopQueryPackets::BuildCreatureQueryResponse(WorldPacket& out,
+    CreatureQueryResponse const& record)
+{
+    out << record.entry;
+    out.WriteBit(record.hasData);
+    if (!record.hasData)
+    {
+        out.FlushBits();
+        return;
+    }
+
+    size_t const subNameLength = MopQueryPacketDetail::OptionalCStringLength(record.subName, 11);
+    size_t const nameLength = MopQueryPacketDetail::OptionalCStringLength(record.name, 11);
+    size_t const iconLength = MopQueryPacketDetail::OptionalCStringLength(record.iconName, 6);
+    MANGOS_ASSERT(record.questItems.size() < (size_t(1) << 22));
+
+    out.WriteBits(uint32(subNameLength), 11);
+    out.WriteBits(uint32(record.questItems.size()), 22);
+    out.WriteBits(0, 11);
+    out.WriteBits(uint32(nameLength), 11);
+    for (int i = 0; i < 7; ++i)
+        out.WriteBits(0, 11);
+    out.WriteBit(record.racialLeader);
+    out.WriteBits(uint32(iconLength), 6);
+    out.FlushBits();
+
+    out << record.killCredits[0];
+    out << record.modelIds[3];
+    out << record.modelIds[1];
+    out << record.expansion;
+    out << record.creatureType;
+    out << record.healthMultiplier;
+    out << record.creatureTypeFlags;
+    out << record.creatureTypeFlags2;
+    out << record.rank;
+    out << record.movementTemplateId;
+    if (nameLength)
+        out << record.name;
+    if (subNameLength)
+        out << record.subName;
+    out << record.modelIds[0];
+    out << record.modelIds[2];
+    if (iconLength)
+        out << record.iconName;
+    for (uint32 questItem : record.questItems)
+        out << questItem;
+    out << record.killCredits[1];
+    out << record.powerMultiplier;
+    out << record.family;
+}
+
+inline MopQueryPackets::GameObjectQueryRequest MopQueryPackets::ReadGameObjectQueryRequest(
+    WorldPacket& in)
+{
+    GameObjectQueryRequest request;
+    in >> request.entry;
+
+    std::array<uint8, 8> guidBytes{};
+    guidBytes[5] = in.ReadBit();
+    guidBytes[3] = in.ReadBit();
+    guidBytes[6] = in.ReadBit();
+    guidBytes[2] = in.ReadBit();
+    guidBytes[7] = in.ReadBit();
+    guidBytes[1] = in.ReadBit();
+    guidBytes[0] = in.ReadBit();
+    guidBytes[4] = in.ReadBit();
+
+    in.ReadByteSeq(guidBytes[1]);
+    in.ReadByteSeq(guidBytes[5]);
+    in.ReadByteSeq(guidBytes[3]);
+    in.ReadByteSeq(guidBytes[4]);
+    in.ReadByteSeq(guidBytes[6]);
+    in.ReadByteSeq(guidBytes[2]);
+    in.ReadByteSeq(guidBytes[7]);
+    in.ReadByteSeq(guidBytes[0]);
+
+    for (size_t i = 0; i < guidBytes.size(); ++i)
+        request.guid |= uint64(guidBytes[i]) << (i * 8);
+    return request;
+}
+
+inline void MopQueryPackets::BuildGameObjectQueryResponse(WorldPacket& out,
+    GameObjectQueryResponse const& record)
+{
+    ByteBuffer blob(160);
+    if (record.hasData)
+    {
+        for (std::string const& name : record.names)
+            MANGOS_ASSERT(name.size() < 0x400);
+        MANGOS_ASSERT(record.iconName.size() < 0x400);
+        MANGOS_ASSERT(record.castBarCaption.size() < 0x400);
+        MANGOS_ASSERT(record.unknownString.size() < 0x400);
+        MANGOS_ASSERT(record.questItems.size() <= 0xFF);
+
+        blob << record.type;
+        blob << record.displayId;
+        for (std::string const& name : record.names)
+            blob << name;
+        blob << record.iconName;
+        blob << record.castBarCaption;
+        blob << record.unknownString;
+        for (uint32 value : record.data)
+            blob << value;
+        blob << record.size;
+        blob << uint8(record.questItems.size());
+        for (uint32 questItem : record.questItems)
+            blob << questItem;
+        blob << record.trailingUnknown;
+    }
+
+    out.WriteBit(record.hasData);
+    out.FlushBits();
+    out << record.entry;
+    out << uint32(blob.size());
+    out.append(blob);
+}
+
+inline uint64 MopStablePackets::ReadStableListRequest(WorldPacket& in)
+{
+    uint8 const maskOrder[] = { 0, 5, 1, 3, 6, 7, 2, 4 };
+    uint8 const byteOrder[] = { 0, 5, 7, 1, 2, 3, 4, 6 };
+    uint8 guidBytes[8] = {};
+
+    for (uint8 index : maskOrder)
+        guidBytes[index] = in.ReadBit();
+    for (uint8 index : byteOrder)
+        in.ReadByteSeq(guidBytes[index]);
+
+    uint64 guid = 0;
+    for (uint8 index = 0; index < 8; ++index)
+        guid |= uint64(guidBytes[index]) << (index * 8);
+    return guid;
+}
+
+inline bool MopStablePackets::BuildPetStableList(WorldPacket& out,
+    uint64 stableMasterGuid, std::vector<StablePetRecord> const& records)
+{
+    if (records.size() > 55)
+        return false;
+    bool occupiedSlots[55] = {};
+    for (StablePetRecord const& record : records)
+    {
+        if (record.name.size() > 255 || record.slot > 54)
+            return false;
+        if (occupiedSlots[record.slot])
+            return false;
+        occupiedSlots[record.slot] = true;
+    }
+
+    uint8 const maskOrder[] = { 3, 0, 4, 7, 2, 1, 6, 5 };
+    uint8 const byteOrder[] = { 3, 5, 7, 2, 0, 4, 1, 6 };
+
+    out.Initialize(SMSG_PET_STABLE_LIST, 32 + records.size() * 24);
+    for (uint8 index : maskOrder)
+        out.WriteBit(MopStablePacketDetail::GuidByte(stableMasterGuid, index) != 0);
+    out.WriteBits(records.size(), 19);
+    for (StablePetRecord const& record : records)
+        out.WriteBits(record.name.size(), 8);
+    out.FlushBits();
+
+    for (StablePetRecord const& record : records)
+    {
+        out << record.entry;
+        out << record.level;
+        out << record.state;
+        out << record.modelId;
+        out.append(record.name.c_str(), record.name.size());
+        out << record.petNumber;
+        out << record.slot;
+    }
+    for (uint8 index : byteOrder)
+        out.WriteByteSeq(MopStablePacketDetail::GuidByte(stableMasterGuid, index));
+    return true;
+}
+
+inline void MopStablePackets::BuildStableResult(WorldPacket& out, uint8 result)
+{
+    out.Initialize(SMSG_STABLE_RESULT, 1);
+    out << result;
+}
+
+inline void MopTrainerBuyFailed::Build(WorldPacket& out, uint64 trainerGuid, uint32 reason, uint32 serviceId)
+{
+    for (int i = 0; i < 8; ++i)
+    {
+        out.WriteBit(MopTrainerPacketDetail::GuidByte(trainerGuid, MopTrainerPacketDetail::MaskOrder[i]) != 0);
+    }
+
+    // Exactly eight bits were written, so this emits one whole mask byte and
+    // leaves the buffer byte-aligned for the byte block below.
+    out.FlushBits();
+
+    for (int i = 0; i < 5; ++i)
+    {
+        out.WriteByteSeq(MopTrainerPacketDetail::GuidByte(trainerGuid, MopTrainerPacketDetail::BytesPre[i]));
+    }
+
+    out << uint32(reason);
+
+    for (int i = 0; i < 3; ++i)
+    {
+        out.WriteByteSeq(MopTrainerPacketDetail::GuidByte(trainerGuid, MopTrainerPacketDetail::BytesPost[i]));
+    }
+
+    out << uint32(serviceId);
+}
+
+
 struct OpcodeHandler;
+
+namespace MopCreateGating
+{
+    inline uint8 ClassRequiredExpansion(uint8 class_)
+    {
+        switch (class_)
+        {
+            case CLASS_MONK:
+                return EXPANSION_MOP;
+            case CLASS_DEATH_KNIGHT:
+                return EXPANSION_WOTLK;
+            default:
+                return EXPANSION_NONE;
+        }
+    }
+
+    inline bool TwoSideCreateViolation(Team newTeam,
+        std::vector<Team> const& existingTeams)
+    {
+        if (newTeam == TEAM_NONE)
+            return false;
+
+        for (Team existingTeam : existingTeams)
+            if (existingTeam != TEAM_NONE && existingTeam != newTeam)
+                return true;
+
+        return false;
+    }
+}
+
+namespace MopCompactPackets
+{
+    inline uint8 RandomRollGuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (8 * index));
+    }
+
+    inline void BuildRandomRoll(WorldPacket& out, uint64 rollerGuid,
+        uint32 minimum, uint32 maximum, uint32 roll)
+    {
+        uint8 const maskOrder[] = { 0, 6, 7, 1, 4, 5, 2, 3 };
+        uint8 const byteOrder[] = { 5, 4, 2, 0, 3, 1, 6, 7 };
+
+        out << uint32(roll) << uint32(minimum) << uint32(maximum);
+        for (uint8 index : maskOrder)
+            out.WriteBit(RandomRollGuidByte(rollerGuid, index) != 0);
+        out.FlushBits();
+        for (uint8 index : byteOrder)
+            out.WriteByteSeq(RandomRollGuidByte(rollerGuid, index));
+    }
+}
 
 enum AccountDataType
 {

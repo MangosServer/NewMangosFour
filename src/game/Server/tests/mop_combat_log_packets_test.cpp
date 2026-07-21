@@ -2,7 +2,7 @@
  * Independent reader-inverse fixtures for the 5.4.8.18414 combat-log packets.
  */
 
-#include "MopCombatLogPackets.h"
+#include "Spell.h"
 #include "MopWireCodec.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"

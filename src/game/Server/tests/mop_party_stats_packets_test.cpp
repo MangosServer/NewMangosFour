@@ -3,7 +3,7 @@
  * request and shared response envelope.
  */
 
-#include "MopPartyStatsPackets.h"
+#include "Group.h"
 #include "MopWireCodec.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"

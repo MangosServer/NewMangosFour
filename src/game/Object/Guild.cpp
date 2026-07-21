@@ -36,8 +36,6 @@
 #include "Language.h"
 #include "World.h"
 #include "Calendar.h"
-#include "Server/MopCalendarPackets.h"
-#include "Server/MopGuildPackets.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */

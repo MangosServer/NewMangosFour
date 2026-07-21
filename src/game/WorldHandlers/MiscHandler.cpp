@@ -73,7 +73,6 @@
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "Guild.h"
 #include "Pet.h"
-#include "Server/MopQueryPackets.h"
 #include "SocialMgr.h"
 #include "DBCEnums.h"
 #ifdef ENABLE_ELUNA
