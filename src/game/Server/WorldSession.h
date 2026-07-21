@@ -1169,10 +1169,10 @@ class WorldSession
         void SendAuctionCommandResult(AuctionEntry* auc, AuctionAction Action, AuctionError ErrorCode, InventoryResult invError = EQUIP_ERR_OK);
         void SendAuctionSoldNotification(AuctionEntry* auction);
         void SendAuctionWonNotification(AuctionEntry* auction);
+        void SendAuctionOutbidNotification(AuctionEntry* auction, uint64 newBidderGuid, uint64 newBid);
         void SendAuctionBidUpdateNotification(AuctionEntry* auction);
         void SendAuctionExpiredNotification(AuctionEntry* auction);
-        void SendAuctionRemovedNotification(AuctionEntry* auction);
-        static void SendAuctionOutbiddedMail(AuctionEntry* auction);
+        static void SendAuctionOutbiddedMail(AuctionEntry* auction, Player* newBidder, uint64 newBid);
         void SendAuctionCancelledToBidderMail(AuctionEntry* auction);
         void BuildListAuctionItems(std::vector<AuctionEntry*> const& auctions, WorldPacket& data, std::wstring const& searchedname, uint32 listfrom, uint32 levelmin,
                                    uint32 levelmax, uint32 usable, uint32 inventoryType, uint32 itemClass, uint32 itemSubClass, uint32 quality, uint32& count, uint32& totalcount, bool isFull);

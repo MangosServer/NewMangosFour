@@ -129,7 +129,22 @@ void WorldSession::SendAuctionCommandResult(AuctionEntry* auc, AuctionAction Act
 
 void WorldSession::SendAuctionSoldNotification(AuctionEntry* auction)
 {
-    MopAuctionPackets::Sold notification = {};
+    MopAuctionPackets::SoldOrExpired notification = {};
+    notification.randomPropertyId = auction->itemRandomPropertyId;
+    notification.auctionId = auction->Id;
+    notification.itemEntry = auction->itemTemplate;
+    notification.delay = 3600.0f;
+    notification.amount = auction->bid;
+    notification.sold = true;
+
+    WorldPacket data;
+    MopAuctionPackets::BuildSoldOrExpiredNotification(data, notification);
+    SendPacket(&data);
+}
+
+void WorldSession::SendAuctionWonNotification(AuctionEntry* auction)
+{
+    MopAuctionPackets::Won notification = {};
     notification.contextGuid = ObjectGuid(HIGHGUID_PLAYER, auction->bidder).GetRawValue();
     notification.itemEntry = auction->itemTemplate;
     notification.context = auction->GetHouseId();
@@ -137,23 +152,25 @@ void WorldSession::SendAuctionSoldNotification(AuctionEntry* auction)
     notification.auctionId = auction->Id;
 
     WorldPacket data;
-    MopAuctionPackets::BuildSoldNotification(data, notification);
+    MopAuctionPackets::BuildWonNotification(data, notification);
     SendPacket(&data);
 }
 
-void WorldSession::SendAuctionWonNotification(AuctionEntry* auction)
+void WorldSession::SendAuctionOutbidNotification(AuctionEntry* auction, uint64 newBidderGuid, uint64 newBid)
 {
-    MopAuctionPackets::Won notification = {};
+    MopAuctionPackets::Outbid notification = {};
     notification.auctionId = auction->Id;
     notification.auctionHouseId = auction->GetHouseId();
-    notification.bid = auction->bid;
+    notification.bid = newBid;
     notification.itemEntry = auction->itemTemplate;
     notification.randomPropertyId = auction->itemRandomPropertyId;
-    notification.minimumIncrement = auction->GetAuctionOutBid();
-    notification.bidderGuid = ObjectGuid(HIGHGUID_PLAYER, auction->bidder).GetRawValue();
+    notification.minimumIncrement = (newBid / 100) * 5;
+    if (!notification.minimumIncrement)
+        notification.minimumIncrement = 1;
+    notification.bidderGuid = newBidderGuid;
 
     WorldPacket data;
-    MopAuctionPackets::BuildWonNotification(data, notification);
+    MopAuctionPackets::BuildOutbidNotification(data, notification);
     SendPacket(&data);
 }
 
@@ -173,33 +190,18 @@ void WorldSession::SendAuctionBidUpdateNotification(AuctionEntry* auction)
 // Notify an owner that the auction expired and its item was returned.
 void WorldSession::SendAuctionExpiredNotification(AuctionEntry* auction)
 {
-    MopAuctionPackets::ExpiredOrRemoved notification = {};
-    notification.randomPropertyId = auction->itemRandomPropertyId;
-    notification.auctionId = auction->Id;
-    notification.itemEntry = auction->itemTemplate;
-    notification.expired = true;
-
-    WorldPacket data;
-    MopAuctionPackets::BuildExpiredOrRemovedNotification(data, notification);
-    SendPacket(&data);
-}
-
-// shows ERR_AUCTION_REMOVED_S
-void WorldSession::SendAuctionRemovedNotification(AuctionEntry* auction)
-{
-    MopAuctionPackets::ExpiredOrRemoved notification = {};
+    MopAuctionPackets::SoldOrExpired notification = {};
     notification.randomPropertyId = auction->itemRandomPropertyId;
     notification.auctionId = auction->Id;
     notification.itemEntry = auction->itemTemplate;
 
     WorldPacket data;
-    MopAuctionPackets::BuildExpiredOrRemovedNotification(data, notification);
-
+    MopAuctionPackets::BuildSoldOrExpiredNotification(data, notification);
     SendPacket(&data);
 }
 
 // this function sends mail to old bidder
-void WorldSession::SendAuctionOutbiddedMail(AuctionEntry* auction)
+void WorldSession::SendAuctionOutbiddedMail(AuctionEntry* auction, Player* newBidder, uint64 newBid)
 {
     ObjectGuid oldBidder_guid = ObjectGuid(HIGHGUID_PLAYER, auction->bidder);
     Player* oldBidder = sObjectMgr.GetPlayer(oldBidder_guid);
@@ -213,6 +215,9 @@ void WorldSession::SendAuctionOutbiddedMail(AuctionEntry* auction)
     // old bidder exist
     if (oldBidder || oldBidder_accId)
     {
+        if (oldBidder)
+            oldBidder->GetSession()->SendAuctionOutbidNotification(auction, newBidder ? newBidder->GetObjectGuid().GetRawValue() : 0, newBid);
+
         std::ostringstream msgAuctionOutbiddedSubject;
         msgAuctionOutbiddedSubject << auction->itemTemplate << ":" << auction->itemRandomPropertyId << ":" << AUCTION_OUTBIDDED << ":" << auction->Id << ":" << auction->itemCount;
 
@@ -239,11 +244,6 @@ void WorldSession::SendAuctionCancelledToBidderMail(AuctionEntry* auction)
     {
         std::ostringstream msgAuctionCancelledSubject;
         msgAuctionCancelledSubject << auction->itemTemplate << ":" << auction->itemRandomPropertyId << ":" << AUCTION_CANCELLED_TO_BIDDER << ":" << auction->Id << ":" << auction->itemCount;
-
-        if (bidder)
-        {
-            bidder->GetSession()->SendAuctionRemovedNotification(auction);
-        }
 
         MailDraft(msgAuctionCancelledSubject.str(), "")     // TODO: fix body
         .SetMoney(auction->bid)

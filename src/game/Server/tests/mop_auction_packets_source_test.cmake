@@ -39,9 +39,9 @@ foreach(required IN ITEMS
         "CMSG_AUCTION_HELLO = 0x0379"
         "SMSG_AUCTION_HELLO = 0x10A7"
         "SMSG_AUCTION_OWNER_NOTIFICATION = 0x1A8E"
-        "SMSG_AUCTION_SOLD_NOTIFICATION = 0x11C1"
+        "SMSG_AUCTION_WON_NOTIFICATION = 0x11C1"
         "SMSG_AUCTION_BID_UPDATE_NOTIFICATION = 0x18AE"
-        "SMSG_AUCTION_WON_NOTIFICATION = 0x1A9F")
+        "SMSG_AUCTION_OUTBID_NOTIFICATION = 0x1A9F")
     string(FIND "${opcode_h}" "${required}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "missing exact auction opcode: ${required}")
@@ -52,8 +52,8 @@ foreach(required IN ITEMS
         "DefC(CMSG_AUCTION_HELLO, \"CMSG_AUCTION_HELLO\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleAuctionHelloOpcode);"
         "DefS(SMSG_AUCTION_HELLO, \"SMSG_AUCTION_HELLO\");"
         "DefS(SMSG_AUCTION_OWNER_NOTIFICATION, \"SMSG_AUCTION_OWNER_NOTIFICATION\");"
-        "DefS(SMSG_AUCTION_SOLD_NOTIFICATION, \"SMSG_AUCTION_SOLD_NOTIFICATION\");"
         "DefS(SMSG_AUCTION_WON_NOTIFICATION, \"SMSG_AUCTION_WON_NOTIFICATION\");"
+        "DefS(SMSG_AUCTION_OUTBID_NOTIFICATION, \"SMSG_AUCTION_OUTBID_NOTIFICATION\");"
         "DefS(SMSG_AUCTION_BID_UPDATE_NOTIFICATION, \"SMSG_AUCTION_BID_UPDATE_NOTIFICATION\");")
     string(FIND "${opcode_cpp}" "${required}" found)
     if(found EQUAL -1)
@@ -65,13 +65,13 @@ foreach(required IN ITEMS
         "namespace MopAuctionPackets"
         "ReadHelloRequest"
         "BuildHello"
-        "BuildExpiredOrRemovedNotification"
-        "BuildSoldNotification"
+        "BuildSoldOrExpiredNotification"
         "BuildWonNotification"
+        "BuildOutbidNotification"
         "BuildBidUpdateNotification"
         "out.Initialize(SMSG_AUCTION_OWNER_NOTIFICATION, 29)"
-        "out.Initialize(SMSG_AUCTION_SOLD_NOTIFICATION, 29)"
-        "out.Initialize(SMSG_AUCTION_WON_NOTIFICATION, 45)"
+        "out.Initialize(SMSG_AUCTION_WON_NOTIFICATION, 29)"
+        "out.Initialize(SMSG_AUCTION_OUTBID_NOTIFICATION, 45)"
         "out.Initialize(SMSG_AUCTION_BID_UPDATE_NOTIFICATION, 41)")
     string(FIND "${auction_h}" "${required}" found)
     if(found EQUAL -1)
@@ -82,16 +82,16 @@ endforeach()
 foreach(required IN ITEMS
         "MopAuctionPackets::ReadHelloRequest(recv_data)"
         "MopAuctionPackets::BuildHello(data"
-        "MopAuctionPackets::BuildExpiredOrRemovedNotification(data, notification)"
-        "MopAuctionPackets::BuildSoldNotification(data, notification)"
+        "MopAuctionPackets::BuildSoldOrExpiredNotification(data, notification)"
         "MopAuctionPackets::BuildWonNotification(data, notification)"
+        "MopAuctionPackets::BuildOutbidNotification(data, notification)"
         "MopAuctionPackets::BuildBidUpdateNotification(data, notification)"
         "AuctionHouseEntry const* ahEntry = AuctionHouseMgr::GetAuctionHouseEntry(unit); if (!ahEntry) return;"
         "void WorldSession::SendAuctionSoldNotification(AuctionEntry* auction)"
         "void WorldSession::SendAuctionWonNotification(AuctionEntry* auction)"
+        "void WorldSession::SendAuctionOutbidNotification(AuctionEntry* auction, uint64 newBidderGuid, uint64 newBid)"
         "void WorldSession::SendAuctionBidUpdateNotification(AuctionEntry* auction)"
-        "void WorldSession::SendAuctionExpiredNotification(AuctionEntry* auction)"
-        "void WorldSession::SendAuctionRemovedNotification(AuctionEntry* auction)")
+        "void WorldSession::SendAuctionExpiredNotification(AuctionEntry* auction)")
     string(FIND "${handler}" "${required}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "auction production integration is missing ${required}")
@@ -101,14 +101,25 @@ endforeach()
 foreach(required IN ITEMS
         "void SendAuctionSoldNotification(AuctionEntry* auction);"
         "void SendAuctionWonNotification(AuctionEntry* auction);"
+        "void SendAuctionOutbidNotification(AuctionEntry* auction, uint64 newBidderGuid, uint64 newBid);"
         "void SendAuctionBidUpdateNotification(AuctionEntry* auction);"
-        "void SendAuctionExpiredNotification(AuctionEntry* auction);"
-        "void SendAuctionRemovedNotification(AuctionEntry* auction);")
+        "void SendAuctionExpiredNotification(AuctionEntry* auction);")
     string(FIND "${session_h}" "${required}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "auction session surface is missing ${required}")
     endif()
 endforeach()
+
+set(outbid_call "oldBidder->GetSession()->SendAuctionOutbidNotification(auction, newBidder ? newBidder->GetObjectGuid().GetRawValue() : 0, newBid);")
+string(FIND "${handler}" "${outbid_call}" outbid_call_pos)
+if(outbid_call_pos EQUAL -1)
+    message(FATAL_ERROR "outbid notification must be emitted to the online displaced bidder with the replacement bid context")
+endif()
+
+string(FIND "${auction_cpp}" "WorldSession::SendAuctionOutbiddedMail(this, newbidder, newbid);" outbid_mail_pos)
+if(outbid_mail_pos EQUAL -1)
+    message(FATAL_ERROR "bid update must pass replacement bidder and bid context to the outbid path")
+endif()
 
 string(REGEX MATCHALL "SendAuctionExpiredNotification\\(auction\\)" expiry_calls "${auction_cpp}")
 list(LENGTH expiry_calls expiry_call_count)
@@ -130,8 +141,8 @@ endforeach()
 foreach(required IN ITEMS
         "case SMSG_AUCTION_HELLO:"
         "case SMSG_AUCTION_OWNER_NOTIFICATION:"
-        "case SMSG_AUCTION_SOLD_NOTIFICATION:"
         "case SMSG_AUCTION_WON_NOTIFICATION:"
+        "case SMSG_AUCTION_OUTBID_NOTIFICATION:"
         "case SMSG_AUCTION_BID_UPDATE_NOTIFICATION:")
     string(FIND "${session_cpp}" "${required}" found)
     if(found EQUAL -1)
@@ -147,7 +158,8 @@ endif()
 foreach(forbidden IN ITEMS
         " MSG_AUCTION_HELLO ="
         "SMSG_AUCTION_REMOVED_NOTIFICATION ="
-        "SMSG_AUCTION_BIDDER_NOTIFICATION =")
+        "SMSG_AUCTION_BIDDER_NOTIFICATION ="
+        "SMSG_AUCTION_SOLD_NOTIFICATION =")
     string(FIND "${opcode_h}" "${forbidden}" found)
     if(NOT found EQUAL -1)
         message(FATAL_ERROR "obsolete auction opcode remains: ${forbidden}")
@@ -161,7 +173,9 @@ foreach(forbidden IN ITEMS
         "WorldPacket data(SMSG_AUCTION_OWNER_NOTIFICATION"
         "SendAuctionOwnerNotification"
         "SendAuctionBidderNotification"
-        "oldBidder->GetSession()->")
+        "SendAuctionRemovedNotification"
+        "BuildExpiredOrRemovedNotification"
+        "BuildSoldNotification")
     string(FIND "${live_sources}" "${forbidden}" found)
     if(NOT found EQUAL -1)
         message(FATAL_ERROR "legacy auction path remains live: ${forbidden}")

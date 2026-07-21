@@ -1,6 +1,6 @@
 /**
  * Independent byte fixtures for the 5.4.8.18414 auction hello and
- * expired/removed notification exchange.
+ * owner, bidder, and bid-state notification exchange.
  */
 
 #include "AuctionHouseMgr.h"
@@ -70,17 +70,17 @@ static void test_hello_response()
     }));
 }
 
-static void test_expired_or_removed_notification()
+static void test_sold_or_expired_owner_notification()
 {
-    MopAuctionPackets::ExpiredOrRemoved notification = {};
+    MopAuctionPackets::SoldOrExpired notification = {};
     notification.randomPropertyId = -123456;
     notification.auctionId = 0x11223344;
     notification.itemEntry = 0x55667788;
 
-    WorldPacket removed;
-    MopAuctionPackets::BuildExpiredOrRemovedNotification(removed, notification);
-    CHECK(removed.GetOpcode() == SMSG_AUCTION_OWNER_NOTIFICATION);
-    CHECK(Equal(removed, {
+    WorldPacket expired;
+    MopAuctionPackets::BuildSoldOrExpiredNotification(expired, notification);
+    CHECK(expired.GetOpcode() == SMSG_AUCTION_OWNER_NOTIFICATION);
+    CHECK(Equal(expired, {
         0xC0, 0x1D, 0xFE, 0xFF,
         0x44, 0x33, 0x22, 0x11,
         0x88, 0x77, 0x66, 0x55,
@@ -93,11 +93,11 @@ static void test_expired_or_removed_notification()
     notification.itemNameOverrideId = 0xAABBCCDD;
     notification.delay = 3600.0f;
     notification.amount = 0x0102030405060708ull;
-    notification.expired = true;
+    notification.sold = true;
 
-    WorldPacket expired;
-    MopAuctionPackets::BuildExpiredOrRemovedNotification(expired, notification);
-    CHECK(Equal(expired, {
+    WorldPacket sold;
+    MopAuctionPackets::BuildSoldOrExpiredNotification(sold, notification);
+    CHECK(Equal(sold, {
         0xC0, 0x1D, 0xFE, 0xFF,
         0x44, 0x33, 0x22, 0x11,
         0x88, 0x77, 0x66, 0x55,
@@ -108,9 +108,9 @@ static void test_expired_or_removed_notification()
     }));
 }
 
-static void test_sold_notification()
+static void test_won_notification()
 {
-    MopAuctionPackets::Sold notification = {};
+    MopAuctionPackets::Won notification = {};
     notification.contextGuid = 0x0123456789ABCDEFull;
     notification.itemEntry = 0x11223344;
     notification.context = 0x55667788;
@@ -119,8 +119,8 @@ static void test_sold_notification()
     notification.auctionId = 0x10203040;
 
     WorldPacket packet;
-    MopAuctionPackets::BuildSoldNotification(packet, notification);
-    CHECK(packet.GetOpcode() == SMSG_AUCTION_SOLD_NOTIFICATION);
+    MopAuctionPackets::BuildWonNotification(packet, notification);
+    CHECK(packet.GetOpcode() == SMSG_AUCTION_WON_NOTIFICATION);
     CHECK(Equal(packet, {
         0xFF,
         0x00, 0x88,
@@ -134,10 +134,10 @@ static void test_sold_notification()
         0x40, 0x30, 0x20, 0x10
     }));
 
-    MopAuctionPackets::Sold sparse = {};
+    MopAuctionPackets::Won sparse = {};
     sparse.contextGuid = 0x0000100000000020ull;
     WorldPacket sparsePacket;
-    MopAuctionPackets::BuildSoldNotification(sparsePacket, sparse);
+    MopAuctionPackets::BuildWonNotification(sparsePacket, sparse);
     CHECK(Equal(sparsePacket, {
         0x88,
         0x00, 0x00, 0x00, 0x00,
@@ -150,9 +150,9 @@ static void test_sold_notification()
     }));
 }
 
-static void test_won_notification()
+static void test_outbid_notification()
 {
-    MopAuctionPackets::Won notification = {};
+    MopAuctionPackets::Outbid notification = {};
     notification.auctionId = 0x10203040;
     notification.auctionHouseId = 0x11223344;
     notification.itemNameOverrideId = 0xAABBCCDD;
@@ -163,8 +163,8 @@ static void test_won_notification()
     notification.bidderGuid = 0x0123456789ABCDEFull;
 
     WorldPacket packet;
-    MopAuctionPackets::BuildWonNotification(packet, notification);
-    CHECK(packet.GetOpcode() == SMSG_AUCTION_WON_NOTIFICATION);
+    MopAuctionPackets::BuildOutbidNotification(packet, notification);
+    CHECK(packet.GetOpcode() == SMSG_AUCTION_OUTBID_NOTIFICATION);
     CHECK(Equal(packet, {
         0x40, 0x30, 0x20, 0x10,
         0x44, 0x33, 0x22, 0x11,
@@ -177,10 +177,10 @@ static void test_won_notification()
         0x66, 0x00, 0x88, 0xEE, 0xCC, 0x22, 0xAA, 0x44
     }));
 
-    MopAuctionPackets::Won sparse = {};
+    MopAuctionPackets::Outbid sparse = {};
     sparse.bidderGuid = 0x2000000000100000ull;
     WorldPacket sparsePacket;
-    MopAuctionPackets::BuildWonNotification(sparsePacket, sparse);
+    MopAuctionPackets::BuildOutbidNotification(sparsePacket, sparse);
     CHECK(Equal(sparsePacket, {
         0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00,
@@ -239,9 +239,9 @@ int main(int /*argc*/, char** /*argv*/)
 {
     test_hello_request();
     test_hello_response();
-    test_expired_or_removed_notification();
-    test_sold_notification();
+    test_sold_or_expired_owner_notification();
     test_won_notification();
+    test_outbid_notification();
     test_bid_update_notification();
     return g_fail == 0 ? 0 : 1;
 }

@@ -55,7 +55,7 @@ class Unit;
 
 namespace MopAuctionPackets
 {
-    struct ExpiredOrRemoved
+    struct SoldOrExpired
     {
         int32 randomPropertyId = 0;
         uint32 auctionId = 0;
@@ -63,10 +63,10 @@ namespace MopAuctionPackets
         uint32 itemNameOverrideId = 0;
         float delay = 0.0f;
         uint64 amount = 0;
-        bool expired = false;
+        bool sold = false;
     };
 
-    struct Sold
+    struct Won
     {
         uint64 contextGuid = 0;
         uint32 itemEntry = 0;
@@ -76,7 +76,7 @@ namespace MopAuctionPackets
         uint32 auctionId = 0;
     };
 
-    struct Won
+    struct Outbid
     {
         uint32 auctionId = 0;
         uint32 auctionHouseId = 0;
@@ -139,8 +139,8 @@ namespace MopAuctionPackets
             out.WriteByteSeq(GuidByte(auctioneerGuid, index));
     }
 
-    inline void BuildExpiredOrRemovedNotification(WorldPacket& out,
-        ExpiredOrRemoved const& notification)
+    inline void BuildSoldOrExpiredNotification(WorldPacket& out,
+        SoldOrExpired const& notification)
     {
         out.Initialize(SMSG_AUCTION_OWNER_NOTIFICATION, 29);
         out << notification.randomPropertyId;
@@ -149,14 +149,14 @@ namespace MopAuctionPackets
         out << notification.itemNameOverrideId;
         out << notification.delay;
         out << notification.amount;
-        out.WriteBit(notification.expired);
+        out.WriteBit(notification.sold);
         out.FlushBits();
     }
 
-    inline void BuildSoldNotification(WorldPacket& out, Sold const& notification)
+    inline void BuildWonNotification(WorldPacket& out, Won const& notification)
     {
         uint8 const maskOrder[] = { 5, 4, 7, 6, 0, 1, 2, 3 };
-        out.Initialize(SMSG_AUCTION_SOLD_NOTIFICATION, 29);
+        out.Initialize(SMSG_AUCTION_WON_NOTIFICATION, 29);
         for (uint8 index : maskOrder)
             out.WriteBit(GuidByte(notification.contextGuid, index) != 0);
         out.FlushBits();
@@ -176,11 +176,11 @@ namespace MopAuctionPackets
         out << notification.auctionId;
     }
 
-    inline void BuildWonNotification(WorldPacket& out, Won const& notification)
+    inline void BuildOutbidNotification(WorldPacket& out, Outbid const& notification)
     {
         uint8 const maskOrder[] = { 2, 5, 0, 1, 4, 6, 3, 7 };
         uint8 const byteOrder[] = { 4, 7, 3, 0, 1, 6, 2, 5 };
-        out.Initialize(SMSG_AUCTION_WON_NOTIFICATION, 45);
+        out.Initialize(SMSG_AUCTION_OUTBID_NOTIFICATION, 45);
         out << notification.auctionId;
         out << notification.auctionHouseId;
         out << notification.itemNameOverrideId;

@@ -1330,7 +1330,7 @@ bool AuctionEntry::UpdateBid(uint64 newbid, Player* newbidder /*=NULL*/)
 
         if (bidder)                                     // return money to old bidder if present
         {
-            WorldSession::SendAuctionOutbiddedMail(this);
+            WorldSession::SendAuctionOutbiddedMail(this, newbidder, newbid);
         }
     }
 
