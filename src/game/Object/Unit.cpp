@@ -23,6 +23,7 @@
  */
 
 #include "Unit.h"
+#include "MopCombatLogPackets.h"
 #include "Log.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
@@ -2408,45 +2409,45 @@ void Unit::SendPeriodicAuraLog(SpellPeriodicAuraLogInfo* pInfo)
     Aura* aura = pInfo->aura;
     Modifier* mod = aura->GetModifier();
 
-    WorldPacket data(SMSG_PERIODICAURALOG, 30);
-    data << aura->GetTarget()->GetPackGUID();
-    data << aura->GetCasterGuid().WriteAsPacked();
-    data << uint32(aura->GetId());                          // spellId
-    data << uint32(1);                                      // count
-    data << uint32(mod->m_auraname);                        // auraId
+    MopCombatLogPackets::PeriodicAuraLog log = {};
+    log.targetGuid = aura->GetTarget()->GetObjectGuid().GetRawValue();
+    log.casterGuid = aura->GetCasterGuid().GetRawValue();
+    log.spellId = aura->GetId();
+    log.auraType = mod->m_auraname;
+    log.amount = pInfo->damage;
+    log.overAmount = pInfo->overDamage;
+    log.absorb = pInfo->absorb;
+    log.resist = pInfo->resist;
+    log.multiplier = pInfo->multiplier;
+    log.critical = pInfo->critical;
+
     switch (mod->m_auraname)
     {
         case SPELL_AURA_PERIODIC_DAMAGE:
         case SPELL_AURA_PERIODIC_DAMAGE_PERCENT:
-            data << uint32(pInfo->damage);                  // damage
-            data << uint32(pInfo->overDamage);              // overkill?
-            data << uint32(GetSpellSchoolMask(aura->GetSpellProto()));
-            data << uint32(pInfo->absorb);                  // absorb
-            data << uint32(pInfo->resist);                  // resist
-            data << uint8(pInfo->critical ? 1 : 0);         // new 3.1.2 critical flag
+            log.kind = MopCombatLogPackets::PeriodicKind::Damage;
+            log.schoolOrPowerType = GetSpellSchoolMask(aura->GetSpellProto());
             break;
         case SPELL_AURA_PERIODIC_HEAL:
         case SPELL_AURA_OBS_MOD_HEALTH:
-            data << uint32(pInfo->damage);                  // damage
-            data << uint32(pInfo->overDamage);              // overheal?
-            data << uint32(pInfo->absorb);                  // absorb
-            data << uint8(pInfo->critical ? 1 : 0);         // new 3.1.2 critical flag
+            log.kind = MopCombatLogPackets::PeriodicKind::Heal;
             break;
         case SPELL_AURA_OBS_MOD_MANA:
         case SPELL_AURA_PERIODIC_ENERGIZE:
-            data << uint32(mod->m_miscvalue);               // power type
-            data << uint32(pInfo->damage);                  // damage
+            log.kind = MopCombatLogPackets::PeriodicKind::Energize;
+            log.schoolOrPowerType = mod->m_miscvalue;
             break;
         case SPELL_AURA_PERIODIC_MANA_LEECH:
-            data << uint32(mod->m_miscvalue);               // power type
-            data << uint32(pInfo->damage);                  // amount
-            data << float(pInfo->multiplier);               // gain multiplier
+            log.kind = MopCombatLogPackets::PeriodicKind::ManaLeech;
+            log.schoolOrPowerType = mod->m_miscvalue;
             break;
         default:
             sLog.outError("Unit::SendPeriodicAuraLog: unknown aura %u", uint32(mod->m_auraname));
             return;
     }
 
+    WorldPacket data(SMSG_SPELL_PERIODIC_AURA_LOG, 64);
+    MopCombatLogPackets::BuildPeriodicAuraLog(data, log);
     aura->GetTarget()->SendMessageToSet(&data, true);
 }
 
