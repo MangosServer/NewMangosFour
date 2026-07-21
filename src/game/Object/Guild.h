@@ -41,6 +41,77 @@ class WorldPacket;
 
 namespace MopGuildPackets
 {
+    struct EmblemDesign
+    {
+        uint64 vendorGuid = 0;
+        uint32 emblemStyle = 0;
+        uint32 emblemColor = 0;
+        uint32 borderStyle = 0;
+        uint32 borderColor = 0;
+        uint32 backgroundColor = 0;
+    };
+
+    inline uint8 GuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+
+    inline uint64 ReadGuid(WorldPacket& in, uint8 const (&maskOrder)[8],
+        uint8 const (&byteOrder)[8])
+    {
+        uint8 guidBytes[8] = {};
+        for (uint8 index : maskOrder)
+            guidBytes[index] = in.ReadBit();
+        for (uint8 index : byteOrder)
+            in.ReadByteSeq(guidBytes[index]);
+
+        uint64 guid = 0;
+        for (uint8 index = 0; index < 8; ++index)
+            guid |= uint64(guidBytes[index]) << (index * 8);
+        return guid;
+    }
+
+    inline uint64 ReadTabardVendorActivate(WorldPacket& in)
+    {
+        uint8 const maskOrder[] = { 2, 1, 4, 6, 3, 5, 0, 7 };
+        uint8 const byteOrder[] = { 7, 6, 2, 5, 0, 1, 4, 3 };
+        return ReadGuid(in, maskOrder, byteOrder);
+    }
+
+    inline void BuildTabardVendorActivate(WorldPacket& out, uint64 vendorGuid)
+    {
+        uint8 const maskOrder[] = { 1, 5, 0, 7, 4, 6, 3, 2 };
+        uint8 const byteOrder[] = { 5, 4, 2, 3, 6, 0, 1, 7 };
+
+        out.Initialize(SMSG_TABARD_VENDOR_ACTIVATE, 9);
+        for (uint8 index : maskOrder)
+            out.WriteBit(GuidByte(vendorGuid, index) != 0);
+        out.FlushBits();
+        for (uint8 index : byteOrder)
+            out.WriteByteSeq(GuidByte(vendorGuid, index));
+    }
+
+    inline EmblemDesign ReadSaveGuildEmblem(WorldPacket& in)
+    {
+        EmblemDesign design;
+        in >> design.borderStyle;
+        in >> design.backgroundColor;
+        in >> design.borderColor;
+        in >> design.emblemColor;
+        in >> design.emblemStyle;
+
+        uint8 const maskOrder[] = { 0, 7, 4, 6, 5, 1, 2, 3 };
+        uint8 const byteOrder[] = { 6, 2, 7, 5, 0, 4, 1, 3 };
+        design.vendorGuid = ReadGuid(in, maskOrder, byteOrder);
+        return design;
+    }
+
+    inline void BuildSaveGuildEmblemResult(WorldPacket& out, uint32 result)
+    {
+        out.Initialize(SMSG_SAVE_GUILD_EMBLEM, 4);
+        out << result;
+    }
+
     inline bool BuildGuildMotd(WorldPacket& out, std::string const& motd)
     {
         if (motd.size() >= (size_t(1) << 10))

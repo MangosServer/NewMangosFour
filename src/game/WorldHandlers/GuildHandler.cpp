@@ -1129,13 +1129,10 @@ void WorldSession::HandleGuildChangeInfoTextOpcode(WorldPacket& recvPacket)
  */
 void WorldSession::HandleSaveGuildEmblemOpcode(WorldPacket& recvPacket)
 {
-    DEBUG_LOG("WORLD: Received opcode MSG_SAVE_GUILD_EMBLEM");
+    DEBUG_LOG("WORLD: Received opcode CMSG_SAVE_GUILD_EMBLEM");
 
-    ObjectGuid vendorGuid;
-    uint32 EmblemStyle, EmblemColor, BorderStyle, BorderColor, BackgroundColor;
-
-    recvPacket >> vendorGuid;
-    recvPacket >> EmblemStyle >> EmblemColor >> BorderStyle >> BorderColor >> BackgroundColor;
+    MopGuildPackets::EmblemDesign const design = MopGuildPackets::ReadSaveGuildEmblem(recvPacket);
+    ObjectGuid const vendorGuid(design.vendorGuid);
 
     Creature* pCreature = GetPlayer()->GetNPCIfCanInteractWith(vendorGuid, UNIT_NPC_FLAG_TABARDDESIGNER);
     if (!pCreature)
@@ -1150,6 +1147,14 @@ void WorldSession::HandleSaveGuildEmblemOpcode(WorldPacket& recvPacket)
     if (GetPlayer()->hasUnitState(UNIT_STAT_DIED))
     {
         GetPlayer()->RemoveSpellsCausingAura(SPELL_AURA_FEIGN_DEATH);
+    }
+
+    if (design.emblemStyle >= 196 || design.emblemColor >= 17 ||
+        design.borderStyle >= 6 || design.borderColor >= 17 ||
+        design.backgroundColor >= 51)
+    {
+        SendSaveGuildEmblem(ERR_GUILDEMBLEM_INVALID_TABARD_COLORS);
+        return;
     }
 
     Guild* guild = sGuildMgr.GetGuildById(GetPlayer()->GetGuildId());
@@ -1175,7 +1180,8 @@ void WorldSession::HandleSaveGuildEmblemOpcode(WorldPacket& recvPacket)
     }
 
     GetPlayer()->ModifyMoney(-10 * GOLD);
-    guild->SetEmblem(EmblemStyle, EmblemColor, BorderStyle, BorderColor, BackgroundColor);
+    guild->SetEmblem(design.emblemStyle, design.emblemColor, design.borderStyle,
+        design.borderColor, design.backgroundColor);
 
     //"Guild Emblem saved."
     SendSaveGuildEmblem(ERR_GUILDEMBLEM_SUCCESS);
@@ -1743,8 +1749,8 @@ void WorldSession::HandleSetGuildBankTabText(WorldPacket& recv_data)
  */
 void WorldSession::SendSaveGuildEmblem(uint32 msg)
 {
-    WorldPacket data(MSG_SAVE_GUILD_EMBLEM, 4);
-    data << uint32(msg);                                    // not part of guild
+    WorldPacket data;
+    MopGuildPackets::BuildSaveGuildEmblemResult(data, msg);
     SendPacket(&data);
 }
 
