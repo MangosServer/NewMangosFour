@@ -493,6 +493,7 @@ class Group
 
         void SendTargetIconList(WorldSession* session);
         void SendUpdate();
+        void SendUpdateToPlayer(ObjectGuid guid);
         void UpdatePlayerOutOfRange(Player* pPlayer);
         // ignore: GUID of player that will be ignored
         void BroadcastPacket(WorldPacket* packet, bool ignorePlayersInBGRaid, int group = -1, ObjectGuid ignore = ObjectGuid());
@@ -556,6 +557,7 @@ class Group
         bool _setMainAssistant(ObjectGuid guid);
 
         void _homebindIfInstance(Player* player);
+        void SendRemovedUpdate(Player* player);
 
         void _initRaidSubGroupsCounter()
         {
@@ -655,6 +657,7 @@ class Group
         Rolls               RollId;
         BoundInstancesMap   m_boundInstances[MAX_DIFFICULTY];
         uint8*              m_subGroupsCounts;
+        uint32              m_groupUpdateCounter;
         bool                m_readyCheckActive;
         uint8               m_readyCheckPartyIndex;
         ObjectGuid          m_readyCheckInitiator;

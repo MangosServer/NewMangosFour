@@ -48,6 +48,7 @@
 #include "WorldPacket.h"
 #include "MopCompactPackets.h"
 #include "MopPartyStatsPackets.h"
+#include "MopPartyUpdatePackets.h"
 #include "MopReadyCheckPackets.h"
 #include "WorldSession.h"
 #include "World.h"
@@ -843,7 +844,7 @@ void WorldSession::HandlePartyAssignmentOpcode(WorldPacket& recv_data)
 
 namespace
 {
-    Group* GetReadyCheckGroup(Player* player, uint8 partyIndex)
+    Group* GetGroupByPartyIndex(Player* player, uint8 partyIndex)
     {
         if (partyIndex == 0)
             return player->GetOriginalGroup() ? player->GetOriginalGroup() : player->GetGroup();
@@ -862,7 +863,7 @@ void WorldSession::HandleRaidReadyCheckOpcode(WorldPacket& recv_data)
 {
     uint8 const partyIndex = MopReadyCheckPackets::ReadStartRequest(recv_data);
     Player* player = GetPlayer();
-    Group* group = GetReadyCheckGroup(player, partyIndex);
+    Group* group = GetGroupByPartyIndex(player, partyIndex);
     if (!group)
         return;
 
@@ -902,7 +903,7 @@ void WorldSession::HandleRaidReadyCheckConfirmOpcode(WorldPacket& recv_data)
         MopReadyCheckPackets::ReadResponseRequest(recv_data);
 
     Player* player = GetPlayer();
-    Group* group = GetReadyCheckGroup(player, response.partyIndex);
+    Group* group = GetGroupByPartyIndex(player, response.partyIndex);
     if (!group || !group->ReadyCheckInProgress() ||
         group->GetReadyCheckPartyIndex() != response.partyIndex)
         return;
@@ -1224,15 +1225,11 @@ void WorldSession::HandleSetAllowLowLevelRaidOpcode(WorldPacket& recv_data)
 
 void WorldSession::HandleGroupRequestJoinUpdates(WorldPacket& recv_data)
 {
-    Group* group = GetPlayer()->GetGroup();
+    uint8 const partyIndex = MopPartyUpdatePackets::ReadRequest(recv_data);
+    Player* player = GetPlayer();
+    Group* group = GetGroupByPartyIndex(player, partyIndex);
     if (!group)
-    {
         return;
-    }
 
-    WorldPacket data(SMSG_REAL_GROUP_UPDATE, 1 + 4 + 8);
-    data << uint8(group->GetGroupType());
-    data << uint32(group->GetMembersCount() - 1);
-    data << ObjectGuid(group->GetLeaderGuid());
-    SendPacket(&data);
+    group->SendUpdateToPlayer(player->GetObjectGuid());
 }

@@ -57,6 +57,7 @@
 #include "BattleGround/BattleGround.h"
 #include "MapManager.h"
 #include "MapPersistentStateMgr.h"
+#include "MopPartyUpdatePackets.h"
 #include "MopReadyCheckPackets.h"
 #include "Util.h"
 #include "LootMgr.h"
@@ -116,7 +117,7 @@ RollVoteMask Roll::GetVoteMaskFor(Player* player) const
 Group::Group() : m_Id(0), m_groupType(GROUPTYPE_NORMAL),
     m_dungeonDifficulty(REGULAR_DIFFICULTY), m_raidDifficulty(REGULAR_DIFFICULTY),
     m_bgGroup(NULL), m_lootMethod(FREE_FOR_ALL), m_lootThreshold(ITEM_QUALITY_UNCOMMON),
-    m_subGroupsCounts(NULL), m_readyCheckActive(false), m_readyCheckPartyIndex(0)
+    m_subGroupsCounts(NULL), m_groupUpdateCounter(0), m_readyCheckActive(false), m_readyCheckPartyIndex(0)
 {
 }
 
@@ -571,10 +572,7 @@ uint32 Group::RemoveMember(ObjectGuid guid, uint8 removeMethod)
             }
             else
             {
-                data.Initialize(SMSG_GROUP_LIST, 1 + 1 + 1 + 1 + 8 + 4 + 4 + 8);
-                data << uint8(0x10) << uint8(0) << uint8(0) << uint8(0);
-                data << uint64(0) << uint32(0) << uint32(0) << uint64(0);
-                player->GetSession()->SendPacket(&data);
+                SendRemovedUpdate(player);
             }
 
             _homebindIfInstance(player);
@@ -698,10 +696,7 @@ void Group::Disband(bool hideDestroy)
         }
         else
         {
-            data.Initialize(SMSG_GROUP_LIST, 1 + 1 + 1 + 1 + 8 + 4 + 4 + 8);
-            data << uint8(0x10) << uint8(0) << uint8(0) << uint8(0);
-            data << uint64(0) << uint32(0) << uint32(0) << uint64(0);
-            player->GetSession()->SendPacket(&data);
+            SendRemovedUpdate(player);
         }
 
         _homebindIfInstance(player);
@@ -1482,55 +1477,82 @@ void Group::SendTargetIconList(WorldSession* session)
 void Group::SendUpdate()
 {
     for (member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
+        SendUpdateToPlayer(citr->guid);
+}
+
+void Group::SendUpdateToPlayer(ObjectGuid guid)
+{
+    member_citerator recipient = _getMemberCSlot(guid);
+    if (recipient == m_memberSlots.end())
+        return;
+
+    Player* player = sObjectMgr.GetPlayer(guid);
+    if (!player || !player->GetSession() ||
+        (player->GetGroup() != this && player->GetOriginalGroup() != this))
+        return;
+
+    MopPartyUpdatePackets::PartyUpdate update;
+    update.groupGuid = GetObjectGuid().GetRawValue();
+    update.leaderGuid = m_leaderGuid.GetRawValue();
+    update.looterGuid = m_looterGuid.GetRawValue();
+    update.hasInstanceDifficulty = true;
+    update.raidDifficulty = uint32(m_raidDifficulty);
+    update.dungeonDifficulty = uint32(m_dungeonDifficulty);
+    update.hasLootMode = true;
+    update.lootMethod = uint8(m_lootMethod);
+    update.lootThreshold = uint8(m_lootThreshold);
+    update.isLfg = isLFGGroup();
+    update.groupType = uint8(m_groupType);
+    update.partyIndex = player->GetOriginalGroup() == this ? 0 :
+        uint8(isBGGroup() || isLFGGroup());
+    update.sequence = m_groupUpdateCounter;
+
+    uint32 position = 0;
+    for (member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
     {
-        Player* player = sObjectMgr.GetPlayer(citr->guid);
-        if (!player || !player->GetSession() || player->GetGroup() != this)
+        if (citr->group == recipient->group)
         {
-            continue;
-        }
-        // guess size
-        WorldPacket data(SMSG_GROUP_LIST, (1 + 1 + 1 + 1 + 8 + 4 + GetMembersCount() * 20));
-        data << uint8(m_groupType);                         // group type (flags in 3.3)
-        data << uint8(citr->group);                         // groupid
-        data << uint8(GetFlags(*citr));                     // group flags
-        data << uint8(isBGGroup() ? 1 : 0);                 // 2.0.x, isBattleGroundGroup?
-        if (m_groupType & GROUPTYPE_LFD)
-        {
-            data << uint8(0);
-            data << uint32(0);
-            data << uint8(0);
-        }
-        data << GetObjectGuid();                            // group guid
-        data << uint32(0);                                  // 3.3, this value increments every time SMSG_GROUP_LIST is sent
-        data << uint32(GetMembersCount() - 1);
-        for (member_citerator citr2 = m_memberSlots.begin(); citr2 != m_memberSlots.end(); ++citr2)
-        {
-            if (citr->guid == citr2->guid)
-            {
-                continue;
-            }
-            Player* member = sObjectMgr.GetPlayer(citr2->guid);
-            uint8 onlineState = (member) ? MEMBER_STATUS_ONLINE : MEMBER_STATUS_OFFLINE;
-            onlineState = onlineState | ((isBGGroup()) ? MEMBER_STATUS_PVP : 0);
-
-            data << citr2->name;
-            data << citr2->guid;
-            data << uint8(onlineState);                     // online-state
-            data << uint8(citr2->group);                    // groupid
-            data << uint8(GetFlags(*citr2));                // group flags
-            data << uint8(0);                               // roles mask
+            if (citr->guid == recipient->guid)
+                update.groupPosition = int32(position);
+            ++position;
         }
 
-        data << m_leaderGuid;                               // leader guid
-        if (GetMembersCount() - 1)
-        {
-            data << uint8(m_lootMethod);                    // loot method
-            data << m_looterGuid;                           // looter guid
-            data << uint8(m_lootThreshold);                 // loot threshold
-            data << uint8(m_dungeonDifficulty);             // Dungeon Difficulty
-            data << uint8(m_raidDifficulty);                // Raid Difficulty
-            data << uint8(0);                               // 3.3, dynamic difficulty?
-        }
+        Player* member = sObjectMgr.GetPlayer(citr->guid);
+        MopPartyUpdatePackets::Member record;
+        record.guid = citr->guid.GetRawValue();
+        record.name = citr->name;
+        record.status = member ? MEMBER_STATUS_ONLINE : MEMBER_STATUS_OFFLINE;
+        if (isBGGroup())
+            record.status |= MEMBER_STATUS_PVP;
+        record.subgroup = citr->group;
+        record.flags = uint8(GetFlags(*citr));
+        update.members.push_back(record);
+    }
+
+    WorldPacket data;
+    if (MopPartyUpdatePackets::BuildPartyUpdate(data, update))
+    {
+        ++m_groupUpdateCounter;
+        player->GetSession()->SendPacket(&data);
+    }
+}
+
+void Group::SendRemovedUpdate(Player* player)
+{
+    if (!player || !player->GetSession())
+        return;
+
+    MopPartyUpdatePackets::PartyUpdate update;
+    update.groupGuid = GetObjectGuid().GetRawValue();
+    update.groupType = 0x10;
+    update.partyIndex = uint8(isBGGroup() || isLFGGroup());
+    update.groupPosition = -1;
+    update.sequence = m_groupUpdateCounter;
+
+    WorldPacket data;
+    if (MopPartyUpdatePackets::BuildRemovedPartyUpdate(data, update))
+    {
+        ++m_groupUpdateCounter;
         player->GetSession()->SendPacket(&data);
     }
 }
