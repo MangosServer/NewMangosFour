@@ -286,6 +286,9 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_QUERY_TIME_RESPONSE:       // MopQueryPackets::BuildQueryTimeResponse
         case SMSG_REALM_NAME_QUERY_RESPONSE: // MopQueryPackets::BuildRealmNameQueryResponse (client fires the realm query from the name-cache path during login)
         case SMSG_AURA_UPDATE:                // MopAuraPackets::BuildAuraUpdate (full snapshots and incremental updates)
+        case SMSG_MINIMAP_PING:               // MopGroupMarkerPackets::BuildMinimapPing
+        case SMSG_RAID_TARGET_UPDATE_ALL:     // MopGroupMarkerPackets::BuildRaidTargetAll
+        case SMSG_RAID_TARGET_UPDATE_SINGLE:  // MopGroupMarkerPackets::BuildRaidTargetSingle
             return true;
         default:
             break;

@@ -161,6 +161,37 @@ namespace MopReadyCheckPackets
     void BuildCompleted(WorldPacket& out, uint64 groupGuid, uint8 partyIndex);
 }
 
+namespace MopGroupMarkerPackets
+{
+    struct MinimapPingRequest
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        uint8 context = 0;
+    };
+
+    struct RaidTargetRequest
+    {
+        uint8 context = 0;
+        uint8 icon = 0;
+        uint64 targetGuid = 0;
+    };
+
+    struct TargetIcon
+    {
+        uint8 icon = 0;
+        uint64 targetGuid = 0;
+    };
+
+    MinimapPingRequest ReadMinimapPingRequest(WorldPacket& in);
+    void BuildMinimapPing(WorldPacket& out, uint64 authorGuid, float x, float y);
+    RaidTargetRequest ReadRaidTargetRequest(WorldPacket& in);
+    void BuildRaidTargetSingle(WorldPacket& out, uint64 authorGuid,
+        uint64 targetGuid, uint8 icon, uint8 context);
+    bool BuildRaidTargetAll(WorldPacket& out,
+        std::vector<TargetIcon> const& targets, uint8 context);
+}
+
 namespace MopGroupPacketDetail
 {
     inline uint8 GuidByte(uint64 guid, uint8 index)
@@ -187,6 +218,119 @@ namespace MopGroupPacketDetail
 
         return true;
     }
+}
+
+inline MopGroupMarkerPackets::MinimapPingRequest
+MopGroupMarkerPackets::ReadMinimapPingRequest(WorldPacket& in)
+{
+    MinimapPingRequest request;
+    in >> request.y;
+    in >> request.x;
+    in >> request.context;
+    return request;
+}
+
+inline void MopGroupMarkerPackets::BuildMinimapPing(WorldPacket& out,
+    uint64 authorGuid, float x, float y)
+{
+    uint8 const maskOrder[] = { 0, 5, 2, 7, 1, 3, 6, 4 };
+    uint8 const byteOrder[] = { 6, 5, 7, 2, 0, 3, 1, 4 };
+
+    out.Initialize(SMSG_MINIMAP_PING, 17);
+    out << y;
+    out << x;
+    for (uint8 index : maskOrder)
+        out.WriteBit(MopGroupPacketDetail::GuidByte(authorGuid, index) != 0);
+    out.FlushBits();
+    for (uint8 index : byteOrder)
+        out.WriteByteSeq(MopGroupPacketDetail::GuidByte(authorGuid, index));
+}
+
+inline MopGroupMarkerPackets::RaidTargetRequest
+MopGroupMarkerPackets::ReadRaidTargetRequest(WorldPacket& in)
+{
+    RaidTargetRequest request;
+    uint8 guidBytes[8] = {};
+    uint8 const maskOrder[] = { 3, 2, 1, 5, 0, 6, 7, 4 };
+    uint8 const byteOrder[] = { 2, 3, 0, 7, 5, 1, 6, 4 };
+
+    in >> request.context;
+    in >> request.icon;
+    for (uint8 index : maskOrder)
+        guidBytes[index] = in.ReadBit();
+    for (uint8 index : byteOrder)
+        in.ReadByteSeq(guidBytes[index]);
+    request.targetGuid = MopGroupPacketDetail::AssembleGuid(guidBytes);
+    return request;
+}
+
+inline void MopGroupMarkerPackets::BuildRaidTargetSingle(WorldPacket& out,
+    uint64 authorGuid, uint64 targetGuid, uint8 icon, uint8 context)
+{
+    out.Initialize(SMSG_RAID_TARGET_UPDATE_SINGLE, 20);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(authorGuid, 6) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(targetGuid, 4) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(authorGuid, 0) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(authorGuid, 7) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(targetGuid, 6) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(authorGuid, 5) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(authorGuid, 3) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(authorGuid, 4) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(targetGuid, 7) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(targetGuid, 2) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(targetGuid, 5) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(targetGuid, 1) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(authorGuid, 2) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(authorGuid, 1) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(targetGuid, 0) != 0);
+    out.WriteBit(MopGroupPacketDetail::GuidByte(targetGuid, 3) != 0);
+    out.FlushBits();
+
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(targetGuid, 1));
+    out << context;
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(authorGuid, 0));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(authorGuid, 5));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(authorGuid, 3));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(targetGuid, 7));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(targetGuid, 6));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(authorGuid, 1));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(targetGuid, 2));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(targetGuid, 4));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(targetGuid, 0));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(targetGuid, 3));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(targetGuid, 5));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(authorGuid, 6));
+    out << icon;
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(authorGuid, 4));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(authorGuid, 2));
+    out.WriteByteSeq(MopGroupPacketDetail::GuidByte(authorGuid, 7));
+}
+
+inline bool MopGroupMarkerPackets::BuildRaidTargetAll(WorldPacket& out,
+    std::vector<TargetIcon> const& targets, uint8 context)
+{
+    if (targets.size() >= (size_t(1) << 17))
+        return false;
+
+    uint8 const maskOrder[] = { 2, 1, 3, 7, 6, 4, 0, 5 };
+    uint8 const firstBytes[] = { 4, 7, 1, 0, 6, 5, 3 };
+
+    out.Initialize(SMSG_RAID_TARGET_UPDATE_ALL, 4 + targets.size() * 10);
+    out.WriteBits(uint32(targets.size()), 17);
+    for (TargetIcon const& target : targets)
+        for (uint8 index : maskOrder)
+            out.WriteBit(MopGroupPacketDetail::GuidByte(target.targetGuid, index) != 0);
+    out.FlushBits();
+
+    for (TargetIcon const& target : targets)
+    {
+        for (uint8 index : firstBytes)
+            out.WriteByteSeq(MopGroupPacketDetail::GuidByte(target.targetGuid, index));
+        out << target.icon;
+        out.WriteByteSeq(MopGroupPacketDetail::GuidByte(target.targetGuid, 2));
+    }
+    out << context;
+    return true;
 }
 
 inline MopPartyStatsPackets::Request MopPartyStatsPackets::ReadRequest(WorldPacket& in)
@@ -919,7 +1063,8 @@ class Group
             }
         }
 
-        void SetTargetIcon(uint8 id, ObjectGuid whoGuid, ObjectGuid targetGuid);
+        void SetTargetIcon(uint8 id, ObjectGuid whoGuid, ObjectGuid targetGuid,
+            uint8 context);
 
         Difficulty GetDifficulty(bool isRaid) const { return isRaid ? m_raidDifficulty : m_dungeonDifficulty; }
         Difficulty GetDungeonDifficulty() const { return m_dungeonDifficulty; }

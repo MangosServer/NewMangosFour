@@ -1345,7 +1345,8 @@ void Group::CountTheRoll(Rolls::iterator& rollI)
  * @param id The icon slot index.
  * @param targetGuid The target GUID assigned to the icon.
  */
-void Group::SetTargetIcon(uint8 id, ObjectGuid whoGuid, ObjectGuid targetGuid)
+void Group::SetTargetIcon(uint8 id, ObjectGuid whoGuid, ObjectGuid targetGuid,
+    uint8 context)
 {
     if (id >= TARGET_ICON_COUNT)
     {
@@ -1357,16 +1358,14 @@ void Group::SetTargetIcon(uint8 id, ObjectGuid whoGuid, ObjectGuid targetGuid)
         for (int i = 0; i < TARGET_ICON_COUNT; ++i)
             if (m_targetIcons[i] == targetGuid)
             {
-                SetTargetIcon(i, ObjectGuid(), ObjectGuid());
+                SetTargetIcon(i, ObjectGuid(), ObjectGuid(), context);
             }
 
     m_targetIcons[id] = targetGuid;
 
-    WorldPacket data(MSG_RAID_TARGET_UPDATE, (1 + 8 + 1 + 8));
-    data << uint8(0);                                       // set targets
-    data << whoGuid;
-    data << uint8(id);
-    data << targetGuid;
+    WorldPacket data;
+    MopGroupMarkerPackets::BuildRaidTargetSingle(data,
+        whoGuid.GetRawValue(), targetGuid.GetRawValue(), id, context);
     BroadcastPacket(&data, true);
 }
 
@@ -1452,8 +1451,7 @@ void Group::SendTargetIconList(WorldSession* session)
         return;
     }
 
-    WorldPacket data(MSG_RAID_TARGET_UPDATE, (1 + TARGET_ICON_COUNT * 9));
-    data << uint8(1);                                       // list targets
+    std::vector<MopGroupMarkerPackets::TargetIcon> targets;
 
     for (int i = 0; i < TARGET_ICON_COUNT; ++i)
     {
@@ -1462,11 +1460,18 @@ void Group::SendTargetIconList(WorldSession* session)
             continue;
         }
 
-        data << uint8(i);
-        data << m_targetIcons[i];
+        MopGroupMarkerPackets::TargetIcon target;
+        target.icon = uint8(i);
+        target.targetGuid = m_targetIcons[i].GetRawValue();
+        targets.push_back(target);
     }
 
-    session->SendPacket(&data);
+    Player* player = session->GetPlayer();
+    uint8 const context = player && player->GetOriginalGroup() != this &&
+        player->GetGroup() == this && (isBGGroup() || isLFGGroup()) ? 1 : 0;
+    WorldPacket data;
+    if (MopGroupMarkerPackets::BuildRaidTargetAll(data, targets, context))
+        session->SendPacket(&data);
 }
 
 /**

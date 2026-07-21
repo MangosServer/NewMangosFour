@@ -303,6 +303,14 @@ void InitializeOpcodes()
     DefS(SMSG_RAID_READY_CHECK_CONFIRM, "SMSG_RAID_READY_CHECK_CONFIRM");
     DefS(SMSG_RAID_READY_CHECK_COMPLETED, "SMSG_RAID_READY_CHECK_COMPLETED");
 
+    // Wave 27 minimap ping and raid target markers. The inbound serializers
+    // and all three outbound readers are recovered directly from Wow.exe.
+    DefC(CMSG_MINIMAP_PING, "CMSG_MINIMAP_PING", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleMinimapPingOpcode);
+    DefC(CMSG_RAID_TARGET_UPDATE, "CMSG_RAID_TARGET_UPDATE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRaidTargetUpdateOpcode);
+    DefS(SMSG_MINIMAP_PING, "SMSG_MINIMAP_PING");
+    DefS(SMSG_RAID_TARGET_UPDATE_ALL, "SMSG_RAID_TARGET_UPDATE_ALL");
+    DefS(SMSG_RAID_TARGET_UPDATE_SINGLE, "SMSG_RAID_TARGET_UPDATE_SINGLE");
+
     // Wave 17 next-mail-time query and result.
     DefC(CMSG_MAIL_QUERY_NEXT_TIME, "CMSG_MAIL_QUERY_NEXT_TIME", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQueryNextMailTime);
     DefS(SMSG_MAIL_QUERY_NEXT_TIME_RESULT, "SMSG_MAIL_QUERY_NEXT_TIME_RESULT");

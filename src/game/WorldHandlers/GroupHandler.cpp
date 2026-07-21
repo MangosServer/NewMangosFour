@@ -585,25 +585,25 @@ void WorldSession::HandleLootRoll(WorldPacket& recv_data)
  */
 void WorldSession::HandleMinimapPingOpcode(WorldPacket& recv_data)
 {
-    float x, y;
-    recv_data >> x;
-    recv_data >> y;
+    MopGroupMarkerPackets::MinimapPingRequest const request =
+        MopGroupMarkerPackets::ReadMinimapPingRequest(recv_data);
+    if (request.context != 0x7F)
+        return;
 
     if (!GetPlayer()->GetGroup())
     {
         return;
     }
 
-    // DEBUG_LOG("Received opcode MSG_MINIMAP_PING X: %f, Y: %f", x, y);
+    // DEBUG_LOG("Received CMSG_MINIMAP_PING X: %f, Y: %f", request.x, request.y);
 
     /** error handling **/
     /********************/
 
     // everything is fine, do it
-    WorldPacket data(MSG_MINIMAP_PING, (8 + 4 + 4));
-    data << GetPlayer()->GetObjectGuid();
-    data << float(x);
-    data << float(y);
+    WorldPacket data;
+    MopGroupMarkerPackets::BuildMinimapPing(data,
+        GetPlayer()->GetObjectGuid().GetRawValue(), request.x, request.y);
     GetPlayer()->GetGroup()->BroadcastPacket(&data, true, -1, GetPlayer()->GetObjectGuid());
 }
 
@@ -649,10 +649,15 @@ void WorldSession::HandleRandomRollOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleRaidTargetUpdateOpcode(WorldPacket& recv_data)
 {
-    uint8  x;
-    recv_data >> x;
+    MopGroupMarkerPackets::RaidTargetRequest const request =
+        MopGroupMarkerPackets::ReadRaidTargetRequest(recv_data);
 
-    Group* group = GetPlayer()->GetGroup();
+    Player* player = GetPlayer();
+    Group* group = NULL;
+    if (request.context == 0)
+        group = player->GetOriginalGroup() ? player->GetOriginalGroup() : player->GetGroup();
+    else if (request.context == 1 || request.context == 0x7F)
+        group = player->GetGroup();
     if (!group)
     {
         return;
@@ -661,22 +666,16 @@ void WorldSession::HandleRaidTargetUpdateOpcode(WorldPacket& recv_data)
     /** error handling **/
     /********************/
 
-    // everything is fine, do it
-    if (x == 0xFF)                                          // target icon request
-    {
-        group->SendTargetIconList(this);
-    }
-    else                                                    // target icon update
-    {
-        if (group->isRaidGroup() &&
-                !group->IsLeader(GetPlayer()->GetObjectGuid()) &&
-                !group->IsAssistant(GetPlayer()->GetObjectGuid()))
-            return;
+    if (request.icon >= TARGET_ICON_COUNT)
+        return;
 
-        ObjectGuid guid;
-        recv_data >> guid;
-        group->SetTargetIcon(x, _player->GetObjectGuid(), guid);
-    }
+    if (group->isRaidGroup() &&
+            !group->IsLeader(player->GetObjectGuid()) &&
+            !group->IsAssistant(player->GetObjectGuid()))
+        return;
+
+    group->SetTargetIcon(request.icon, player->GetObjectGuid(),
+        ObjectGuid(request.targetGuid), request.context);
 }
 
 /**
