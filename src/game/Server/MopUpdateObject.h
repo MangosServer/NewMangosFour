@@ -15,6 +15,7 @@
 #define MANGOS_MOP_UPDATE_OBJECT_H
 
 #include "Common.h"
+#include "SharedDefines.h"   // MAX_STORED_POWERS
 
 class WorldPacket;
 
@@ -36,7 +37,12 @@ namespace MopUpdateObject
 
         // values (18414 UNIT/OBJECT fields)
         uint8  race, class_, gender, powerType;
-        uint32 health, maxHealth, power, maxPower;
+        uint32 health, maxHealth;
+        // All class power slots (dense-indexed like the server's UNIT_FIELD_POWER1..5).
+        // The client reads the displayed bar from the slot its ChrClassXPowerTypes maps
+        // the display power to (slot 0 for the primary); populating every slot avoids that
+        // assumption and keeps any secondary resource (chi/combo/etc.) correct.
+        uint32 power[MAX_STORED_POWERS], maxPower[MAX_STORED_POWERS];
         uint8  level;
         uint32 faction;
         uint32 unitFlags;

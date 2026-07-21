@@ -275,6 +275,17 @@ static bool IsEnterWorldConverted(uint16 opcode)
                                          //           path byte-identical to the 18414 reference; transport-case field
                                          //           order unverified -- follow-up when far-teleport-with-transport lands)
             return true;
+
+        // In-world query replies. The core already emits genuine 18414 bodies for these
+        // (MopQueryPackets::Build*QueryResponse in QueryHandler.cpp), so they satisfy the
+        // HARD RULE and must pass suppression -- otherwise the client's post-login name /
+        // creature / gameobject / time queries are answered server-side and then silently
+        // dropped here, leaving names and tooltips blank.
+        case SMSG_NAME_QUERY_RESPONSE:       // MopQueryPackets::BuildNameQueryResponse
+        case SMSG_CREATURE_QUERY_RESPONSE:   // MopQueryPackets::BuildCreatureQueryResponse
+        case SMSG_GAMEOBJECT_QUERY_RESPONSE: // MopQueryPackets::BuildGameObjectQueryResponse
+        case SMSG_QUERY_TIME_RESPONSE:       // MopQueryPackets::BuildQueryTimeResponse
+            return true;
         default:
             break;
     }
@@ -321,10 +332,19 @@ void WorldSession::SendPacket(WorldPacket const* packet, bool bypassSuppress)
     // PHASE 6c (MoP enter-world bring-up): once a player has entered the world, drop the
     // remaining Cata-format sends. Two escape hatches pass a packet: bypassSuppress=true at
     // the call site (the self create-block in Map::SendInitSelf), and IsEnterWorldConverted()
-    // for opcodes whose senders now emit a real 18414 body (the UI-init envelope plus the
-    // logout/teleport control packets). Everything else -- Cata self-VALUES updates and
-    // nearby-object create-blocks that would corrupt the client -- is dropped. Cleared on
-    // logout. Temporary port scaffold, lifted once the object-update/preamble paths convert.
+    // for opcodes whose senders now emit a real 18414 body (the UI-init envelope, the in-world
+    // query replies, plus the logout/teleport control packets). Everything else -- Cata
+    // self-VALUES updates and nearby-object create-blocks that would corrupt the client -- is
+    // dropped. Stays active for the whole in-world session, including logout cleanup, and dies
+    // with the session; temporary port scaffold, lifted once the object-update/preamble paths
+    // convert.
+    //
+    // KNOWN LIMITATION (follow-up, tied to converting the object-update path): while suppression
+    // is active, nearby-object SMSG_UPDATE_OBJECT creates are dropped AFTER the visibility pass
+    // has already recorded those GUIDs in m_clientGUIDs, so HaveAtClient() reports them present.
+    // Objects in the starting cells therefore stay invisible until they leave and re-enter range.
+    // Harmless today (there is no converted create to send anyway); when the multi-object update
+    // path converts, either whitelist it here or skip the visibility-cache insert while suppressed.
     if (m_suppressWorldSends && !bypassSuppress && !IsEnterWorldConverted(uint16(packet->GetOpcode())))
     {
         return;
@@ -595,7 +615,13 @@ void WorldSession::HandleBotPackets()
 /// %Log the player out
 void WorldSession::LogoutPlayer(bool Save)
 {
-    m_suppressWorldSends = false;   // PHASE 6c: re-enable sends (logout/teleport packets) once leaving the world
+    // PHASE 6c: keep enter-world suppression active THROUGH logout cleanup. Clearing it here
+    // re-enabled every stale Cata-format send emitted during teardown (loot release, group/
+    // social updates, Map::Remove visibility, transport removal) -- exactly the bodies this
+    // guard exists to drop. The world-leave control packets (SMSG_LOGOUT_RESPONSE/CANCEL_ACK/
+    // COMPLETE) are already whitelisted in IsEnterWorldConverted(), so logout still completes.
+    // The flag is a per-session member; the session is destroyed on disconnect, so it needs no
+    // explicit reset once in-world.
 
     // finish pending transfers before starting the logout
     while (_player && _player->IsBeingTeleportedFar())

@@ -41,8 +41,9 @@ namespace
         e.speedSwim = 4.7222f; e.speedSwimBack = 2.5f; e.speedFlight = 7.0f;
         e.speedFlightBack = 4.5f; e.speedTurn = 3.1415f; e.speedPitch = 3.1415f;
         e.race = 1; e.class_ = 2; e.gender = 0; e.powerType = 0;
-        e.health = 100; e.maxHealth = 120; e.power = 50; e.maxPower = 60;
-        e.level = 1; e.faction = 1; e.unitFlags = 0;
+        e.health = 100; e.maxHealth = 120;
+        for (uint32 i = 0; i < MAX_STORED_POWERS; ++i) { e.power[i] = 50 + i; e.maxPower[i] = 60 + i; }
+        e.level = 1; e.faction = 1; e.unitFlags = 0x00000008u;   // exercise a real unit flag through the serializer
         e.scale = 1.0f; e.boundingRadius = 0.388f; e.combatReach = 1.5f;
         e.displayId = 19724; e.nativeDisplayId = 19724;
         return e;
@@ -61,9 +62,10 @@ int main(int /*argc*/, char** /*argv*/)
 
     // --- exact length (movement bit-count + byte-count sanity) ---
     // header 6 + preamble (1 + [1 mask + nzgb] + 1) + movementBits ceil(104/8)=13
-    //   + byteTail (nzgb guid bytes + 13 floats + 4 time) + values 82.
+    //   + byteTail (nzgb guid bytes + 13 floats + 4 time) + values 114.
+    // values 114 = 1 blockCount + 3*4 masks + 25 fields*4 + 1 dynamic-count.
     const int nzgb = NonZeroGuidBytes(e.guid);                 // 1
-    const size_t expected = 6 + (3 + nzgb) + 13 + (nzgb + 13 * 4 + 4) + 82;
+    const size_t expected = 6 + (3 + nzgb) + 13 + (nzgb + 13 * 4 + 4) + 114;
     CHECK(p.size() == expected);
 
     // --- header ---
@@ -86,9 +88,9 @@ int main(int /*argc*/, char** /*argv*/)
     uint8 typeId; p >> typeId;
     CHECK(typeId == 4);                                        // TYPEID_PLAYER
 
-    // --- values block (fixed 82 bytes at the tail) ---
-    CHECK(p.size() >= 82);
-    p.rpos(p.size() - 82);
+    // --- values block (fixed 114 bytes at the tail) ---
+    CHECK(p.size() >= 114);
+    p.rpos(p.size() - 114);
     uint8 blockCount; p >> blockCount;
     CHECK(blockCount == 3);
     uint32 mask[3];
@@ -96,20 +98,26 @@ int main(int /*argc*/, char** /*argv*/)
     auto hasBit = [&](int idx) { return (mask[idx / 32] >> (idx % 32)) & 1u; };
     CHECK(hasBit(0)); CHECK(hasBit(1)); CHECK(hasBit(4)); CHECK(hasBit(7));
     CHECK(hasBit(30)); CHECK(hasBit(33)); CHECK(hasBit(55)); CHECK(hasBit(69)); CHECK(hasBit(70));
+    CHECK(hasBit(34)); CHECK(hasBit(38)); CHECK(hasBit(40)); CHECK(hasBit(44)); // power1..5 / maxpower1..5 span
     CHECK(!hasBit(2)); CHECK(!hasBit(32));                     // spot-check unset bits
 
-    uint32 f[17];
-    for (int i = 0; i < 17; ++i) { p >> f[i]; }
+    uint32 f[25];
+    for (int i = 0; i < 25; ++i) { p >> f[i]; }
     CHECK(f[0] == 16u);                                        // OBJECT_FIELD_GUID low
     CHECK(f[1] == 0u);                                         // OBJECT_FIELD_GUID high
     CHECK(f[2] == 25u);                                        // OBJECT_FIELD_TYPE
     CHECK(f[4] == (1u | (2u << 8) | (0u << 24)));              // SEX: race|class|gender
-    CHECK(f[6] == 100u);                                       // HEALTH
-    CHECK(f[8] == 120u);                                       // MAX_HEALTH
-    CHECK(f[10] == 1u);                                        // LEVEL
-    CHECK(f[11] == 1u);                                        // FACTION
-    CHECK(f[15] == 19724u);                                    // DISPLAY_ID
-    CHECK(f[16] == 19724u);                                    // NATIVE_DISPLAY_ID
+    CHECK(f[6] == 100u);                                       // HEALTH (idx 33)
+    CHECK(f[7] == 50u);                                        // POWER1 (idx 34)
+    CHECK(f[11] == 54u);                                       // POWER5 (idx 38)
+    CHECK(f[12] == 120u);                                      // MAX_HEALTH (idx 39)
+    CHECK(f[13] == 60u);                                       // MAXPOWER1 (idx 40)
+    CHECK(f[17] == 64u);                                       // MAXPOWER5 (idx 44)
+    CHECK(f[18] == 1u);                                        // LEVEL (idx 55)
+    CHECK(f[19] == 1u);                                        // FACTION (idx 57)
+    CHECK(f[20] == 0x8u);                                      // UNIT_FIELD_FLAGS (idx 61) passed through
+    CHECK(f[23] == 19724u);                                    // DISPLAY_ID (idx 69)
+    CHECK(f[24] == 19724u);                                    // NATIVE_DISPLAY_ID (idx 70)
     uint8 dyn; p >> dyn;
     CHECK(dyn == 0);                                           // no dynamic fields
     CHECK(p.rpos() == p.size());                               // consumed to the end

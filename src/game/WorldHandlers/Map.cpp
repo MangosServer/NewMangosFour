@@ -1911,11 +1911,23 @@ void Map::SendInitSelf(Player* player)
     sp.powerType = uint8(pw);
     sp.health = player->GetHealth();
     sp.maxHealth = player->GetMaxHealth();
-    sp.power = player->GetPower(pw);
-    sp.maxPower = player->GetMaxPower(pw);
+    // Copy every stored power slot verbatim (dense-indexed, matching the server's
+    // UNIT_FIELD_POWER1..5 array). The client reads the displayed bar from the slot
+    // its ChrClassXPowerTypes maps the display power to, so writing only slot 0 would
+    // leave any class whose display power is not stored at index 0 -- and every
+    // secondary resource -- reading zero.
+    for (uint32 i = 0; i < MAX_STORED_POWERS; ++i)
+    {
+        sp.power[i] = player->GetPowerByIndex(i);
+        sp.maxPower[i] = player->GetMaxPowerByIndex(i);
+    }
     sp.level = uint8(player->getLevel());
     sp.faction = player->getFaction();
-    sp.unitFlags = 0;
+    // Real unit flags: this MoP create-block is the only VALUES packet that bypasses
+    // enter-world suppression, so state already set by LoadFromDB/aura load (PVP-attackable,
+    // mount/stun/taxi, etc.) is lost if forced to zero -- the later Cata value-updates that
+    // would carry it are suppressed and never reach the client.
+    sp.unitFlags = player->GetUInt32Value(UNIT_FIELD_FLAGS);
     sp.scale = player->GetObjectScale();
     sp.boundingRadius = player->GetObjectBoundingRadius();
     sp.combatReach = 1.5f;               // default; exact reach not needed to stand
