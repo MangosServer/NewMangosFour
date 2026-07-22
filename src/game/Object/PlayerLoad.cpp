@@ -1426,14 +1426,8 @@ DungeonPersistentState* Player::GetBoundInstanceSaveForSelfOrGroup(uint32 mapid)
  */
 void Player::SendRaidInfo()
 {
-    uint32 counter = 0;
-
-    WorldPacket data(SMSG_RAID_INSTANCE_INFO, 4);
-
-    size_t p_counter = data.wpos();
-    data << uint32(counter);                                // placeholder
-
     time_t now = time(NULL);
+    std::vector<MopRaidInstancePackets::RaidInstance> records;
 
     for (int i = 0; i < MAX_DIFFICULTY; ++i)
     {
@@ -1442,18 +1436,22 @@ void Player::SendRaidInfo()
             if (itr->second.perm)
             {
                 DungeonPersistentState* state = itr->second.state;
-                data << uint32(state->GetMapId());          // map id
-                data << uint32(state->GetDifficulty());     // difficulty
-                data << ObjectGuid(state->GetInstanceGuid());// instance guid
-                data << uint8(1);                           // expired = 0
-                data << uint8(0);                           // extended = 1
-                data << uint32(state->GetResetTime() - now);// reset time
-                data << uint32(state->GetCompletedEncountersMask());// completed encounter mask
-                ++counter;
+                MopRaidInstancePackets::RaidInstance record;
+                record.instanceGuid = state->GetInstanceGuid();
+                record.mapId = state->GetMapId();
+                record.difficulty = state->GetDifficulty();
+                record.resetTime = uint32(state->GetResetTime() - now);
+                record.completedEncounters = state->GetCompletedEncountersMask();
+                record.expired = true;
+                record.extended = false;
+                records.push_back(record);
             }
         }
     }
-    data.put<uint32>(p_counter, counter);
+
+    WorldPacket data;
+    if (!MopRaidInstancePackets::BuildRaidInstanceInfo(data, records))
+        return;
     GetSession()->SendPacket(&data);
 }
 

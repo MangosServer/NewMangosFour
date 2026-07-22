@@ -28,6 +28,7 @@
  */
 
 #include "Channel.h"
+#include "Player.h"
 #include "WorldSession.h"
 
 #include <cstdint>
@@ -157,6 +158,59 @@ static void test_opcode_values()
     CHECK(uint32(CMSG_VOICE_SESSION_ENABLE) == 0x15A9u);
 }
 
+static void test_raid_instance_info()
+{
+    MopRaidInstancePackets::RaidInstance record;
+    record.instanceGuid = ObjectGuid(UI64LIT(0x0807060504030201));
+    record.mapId = 0x11223344u;
+    record.difficulty = 0x55667788u;
+    record.resetTime = 0x99AABBCCu;
+    record.completedEncounters = 0xDDEEFF00u;
+    record.expired = true;
+    record.extended = false;
+
+    WorldPacket packet;
+    CHECK(MopRaidInstancePackets::BuildRaidInstanceInfo(packet, { record }));
+    CHECK(packet.GetOpcode() == SMSG_RAID_INSTANCE_INFO);
+    CHECK(packet.size() == 28);
+    uint8 const expected[] = {
+        0x00,0x00,0x1E,0xFC,
+        0x09,0x06,0x04,0x02,0x00,
+        0xCC,0xBB,0xAA,0x99,
+        0x00,0xFF,0xEE,0xDD,
+        0x03,
+        0x44,0x33,0x22,0x11,
+        0x88,0x77,0x66,0x55,
+        0x05,0x07
+    };
+    CHECK(std::memcmp(packet.contents(), expected, sizeof(expected)) == 0);
+
+    MopRaidInstancePackets::RaidInstance sparseRecord;
+    sparseRecord.instanceGuid = ObjectGuid(UI64LIT(0x0000060000030001));
+    sparseRecord.extended = true;
+    sparseRecord.expired = false;
+    WorldPacket sparse;
+    CHECK(MopRaidInstancePackets::BuildRaidInstanceInfo(sparse, { sparseRecord }));
+    uint8 const sparseExpected[] = {
+        0x00,0x00,0x15,0xC0,
+        0x02,0x00,
+        0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,
+        0x07
+    };
+    CHECK(sparse.size() == sizeof(sparseExpected));
+    CHECK(std::memcmp(sparse.contents(), sparseExpected, sizeof(sparseExpected)) == 0);
+
+    WorldPacket empty;
+    CHECK(MopRaidInstancePackets::BuildRaidInstanceInfo(empty, {}));
+    CHECK(empty.size() == 3);
+    CHECK(empty.contents()[0] == 0 && empty.contents()[1] == 0 && empty.contents()[2] == 0);
+    CHECK(uint32(CMSG_REQUEST_RAID_INFO) == 0x0A87u);
+    CHECK(uint32(SMSG_RAID_INSTANCE_INFO) == 0x16BFu);
+}
+
 int main(int /*argc*/, char** /*argv*/)
 {
     test_hotfix_request();
@@ -164,6 +218,7 @@ int main(int /*argc*/, char** /*argv*/)
     test_join_channel_request();
     test_load_screen_request();
     test_opcode_values();
+    test_raid_instance_info();
 
     if (g_fail)
     {

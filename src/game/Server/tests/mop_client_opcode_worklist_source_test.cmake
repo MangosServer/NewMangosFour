@@ -6,6 +6,9 @@ file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/ItemHandler.cpp" item)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/MovementHandler.cpp" movement)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/VoiceChatHandler.cpp" voice)
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" session)
+file(READ "${SOURCE_ROOT}/src/game/Object/Player.h" player_header)
+file(READ "${SOURCE_ROOT}/src/game/Object/PlayerLoad.cpp" player_load)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/GroupHandler.cpp" group)
 
 foreach(route IN ITEMS
         "CMSG_REQUEST_HOTFIX;HandleRequestHotfix"
@@ -19,6 +22,33 @@ foreach(route IN ITEMS
         message(FATAL_ERROR "${opcode} is not registered to ${handler}")
     endif()
 endforeach()
+
+if(NOT opcodes MATCHES "DefC\\(CMSG_REQUEST_RAID_INFO,[^\n]*&WorldSession::HandleRequestRaidInfoOpcode\\)")
+    message(FATAL_ERROR "CMSG_REQUEST_RAID_INFO is not registered to its handler")
+endif()
+if(NOT opcodes MATCHES "DefS\\(SMSG_RAID_INSTANCE_INFO,")
+    message(FATAL_ERROR "SMSG_RAID_INSTANCE_INFO is not registered")
+endif()
+foreach(token IN ITEMS
+        "namespace MopRaidInstancePackets"
+        "BuildRaidInstanceInfo")
+    string(FIND "${player_header}" "${token}" found)
+    if(found EQUAL -1)
+        message(FATAL_ERROR "raid-instance builder missing: ${token}")
+    endif()
+endforeach()
+string(FIND "${player_load}" "MopRaidInstancePackets::BuildRaidInstanceInfo(data, records)" raid_builder)
+if(raid_builder EQUAL -1)
+    message(FATAL_ERROR "Player::SendRaidInfo does not use the 18414 builder")
+endif()
+string(FIND "${group}" "_player->SendRaidInfo();" raid_handler)
+if(raid_handler EQUAL -1)
+    message(FATAL_ERROR "raid-info request handler is disconnected")
+endif()
+string(FIND "${session}" "case SMSG_RAID_INSTANCE_INFO:" raid_gate)
+if(raid_gate EQUAL -1)
+    message(FATAL_ERROR "raid-instance response is not admitted through suppression")
+endif()
 
 foreach(route IN ITEMS
         "CMSG_MOVE_TIME_SKIPPED;HandleMoveTimeSkippedOpcode"

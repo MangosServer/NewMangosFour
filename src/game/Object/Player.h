@@ -1896,6 +1896,49 @@ namespace MopRatedBattlegroundPackets
     }
 }
 
+namespace MopRaidInstancePackets
+{
+    struct RaidInstance
+    {
+        ObjectGuid instanceGuid;
+        uint32 mapId = 0;
+        uint32 difficulty = 0;
+        uint32 resetTime = 0;
+        uint32 completedEncounters = 0;
+        bool expired = false;
+        bool extended = false;
+    };
+
+    inline bool BuildRaidInstanceInfo(WorldPacket& out,
+        std::vector<RaidInstance> const& records)
+    {
+        if (records.size() >= (size_t(1) << 20))
+            return false;
+
+        out.Initialize(SMSG_RAID_INSTANCE_INFO, 3 + records.size() * 32);
+        out.WriteBits(uint32(records.size()), 20);
+        for (RaidInstance const& record : records)
+        {
+            out.WriteGuidMask<1, 2, 6>(record.instanceGuid);
+            out.WriteBit(record.extended);
+            out.WriteGuidMask<0, 5, 4>(record.instanceGuid);
+            out.WriteBit(record.expired);
+            out.WriteGuidMask<7, 3>(record.instanceGuid);
+        }
+        out.FlushBits();
+
+        for (RaidInstance const& record : records)
+        {
+            out.WriteGuidBytes<7, 6, 4, 2, 0>(record.instanceGuid);
+            out << record.resetTime << record.completedEncounters;
+            out.WriteGuidBytes<1>(record.instanceGuid);
+            out << record.mapId << record.difficulty;
+            out.WriteGuidBytes<3, 5>(record.instanceGuid);
+        }
+        return true;
+    }
+}
+
 class Player : public Unit
 {
         friend class WorldSession;
