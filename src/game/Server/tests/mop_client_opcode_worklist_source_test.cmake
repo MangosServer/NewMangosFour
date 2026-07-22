@@ -4,6 +4,7 @@ file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/ChannelHandler.cpp" channel)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CharacterHandlerCustomize.cpp" character)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/ItemHandler.cpp" item)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/MovementHandler.cpp" movement)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/VoiceChatHandler.cpp" voice)
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" session)
 
 foreach(route IN ITEMS
@@ -22,6 +23,16 @@ endforeach()
 foreach(route IN ITEMS
         "CMSG_MOVE_TIME_SKIPPED;HandleMoveTimeSkippedOpcode"
         "CMSG_SET_ACTIVE_MOVER;HandleSetActiveMoverOpcode")
+    list(GET route 0 opcode)
+    list(GET route 1 handler)
+    if(NOT opcodes MATCHES "DefC\\(${opcode},[^\n]*&WorldSession::${handler}\\)")
+        message(FATAL_ERROR "${opcode} is not registered to ${handler}")
+    endif()
+endforeach()
+
+foreach(route IN ITEMS
+        "CMSG_SET_ACTIONBAR_TOGGLES;HandleSetActionBarTogglesOpcode"
+        "CMSG_VOICE_SESSION_ENABLE;HandleVoiceSessionEnableOpcode")
     list(GET route 0 opcode)
     list(GET route 1 handler)
     if(NOT opcodes MATCHES "DefC\\(${opcode},[^\n]*&WorldSession::${handler}\\)")
@@ -66,4 +77,13 @@ endif()
 string(FIND "${movement}" "MopControlPackets::ReadSetActiveMover(recv_data, request)" active_mover_parser)
 if(active_mover_parser EQUAL -1)
     message(FATAL_ERROR "active-mover handler does not use the 18414 parser")
+endif()
+
+string(FIND "${voice}" "bool const voiceEnabled = recv_data.ReadBit();" voice_bit)
+string(FIND "${voice}" "bool const microphoneEnabled = recv_data.ReadBit();" microphone_bit)
+if(voice_bit EQUAL -1 OR microphone_bit EQUAL -1)
+    message(FATAL_ERROR "voice-session handler does not consume the two 18414 bits")
+endif()
+if(voice MATCHES "read_skip<uint8>\\(\\)")
+    message(FATAL_ERROR "legacy two-byte voice-session body remains")
 endif()

@@ -31,10 +31,10 @@
 void WorldSession::HandleVoiceSessionEnableOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: CMSG_VOICE_SESSION_ENABLE");
-    // uint8 isVoiceEnabled, uint8 isMicrophoneEnabled
-    recv_data.read_skip<uint8>();
-    recv_data.read_skip<uint8>();
-    recv_data.hexlike();
+    bool const voiceEnabled = recv_data.ReadBit();
+    bool const microphoneEnabled = recv_data.ReadBit();
+    (void)voiceEnabled;
+    (void)microphoneEnabled;
 }
 
 void WorldSession::HandleChannelVoiceOnOpcode(WorldPacket& recv_data)

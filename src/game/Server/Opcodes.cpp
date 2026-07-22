@@ -259,6 +259,11 @@ void InitializeOpcodes()
     DefC(CMSG_MOVE_TIME_SKIPPED, "CMSG_MOVE_TIME_SKIPPED", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleMoveTimeSkippedOpcode);
     DefC(CMSG_SET_ACTIVE_MOVER, "CMSG_SET_ACTIVE_MOVER", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleSetActiveMoverOpcode);
 
+    // Live-log client preference toggles. The 18414 writers emit one byte for
+    // action bars and two bits for the voice/microphone flags.
+    DefC(CMSG_SET_ACTIONBAR_TOGGLES, "CMSG_SET_ACTIONBAR_TOGGLES", STATUS_AUTHED, PROCESS_THREADUNSAFE, &WorldSession::HandleSetActionBarTogglesOpcode);
+    DefC(CMSG_VOICE_SESSION_ENABLE, "CMSG_VOICE_SESSION_ENABLE", STATUS_LOGGEDIN, PROCESS_INPLACE, &WorldSession::HandleVoiceSessionEnableOpcode);
+
     // Wave 6 creature query request and response.
     DefC(CMSG_CREATURE_QUERY, "CMSG_CREATURE_QUERY", STATUS_LOGGEDIN, PROCESS_INPLACE, &WorldSession::HandleCreatureQueryOpcode);
     DefS(SMSG_CREATURE_QUERY_RESPONSE, "SMSG_CREATURE_QUERY_RESPONSE");

@@ -128,6 +128,8 @@ static void test_opcode_values()
     CHECK(uint32(CMSG_LOAD_SCREEN) == 0x1DBDu);
     CHECK(uint32(SMSG_UI_TIME) == 0x0027u);
     CHECK(uint32(SMSG_DB_REPLY) == 0x103Bu);
+    CHECK(uint32(CMSG_SET_ACTIONBAR_TOGGLES) == 0x0672u);
+    CHECK(uint32(CMSG_VOICE_SESSION_ENABLE) == 0x15A9u);
 }
 
 int main(int /*argc*/, char** /*argv*/)
