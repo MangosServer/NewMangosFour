@@ -363,52 +363,42 @@ void WorldSession::HandleGameObjectQueryOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleCorpseQueryOpcode(WorldPacket & /*recv_data*/)
 {
-    DETAIL_LOG("WORLD: Received opcode MSG_CORPSE_QUERY");
+    DETAIL_LOG("WORLD: Received opcode CMSG_CORPSE_QUERY");
 
     Corpse* corpse = GetPlayer()->GetCorpse();
-
-    if (!corpse)
+    MopQueryPackets::CorpseQueryResponse response;
+    if (corpse)
     {
-        WorldPacket data(MSG_CORPSE_QUERY, 1);
-        data << uint8(0);                                   // corpse not found
-        SendPacket(&data);
-        return;
-    }
+        response.found = true;
+        response.corpseMapId = corpse->GetMapId();
+        response.displayMapId = int32(response.corpseMapId);
+        response.x = corpse->GetPositionX();
+        response.y = corpse->GetPositionY();
+        response.z = corpse->GetPositionZ();
 
-    uint32 corpsemapid = corpse->GetMapId();
-    float x = corpse->GetPositionX();
-    float y = corpse->GetPositionY();
-    float z = corpse->GetPositionZ();
-    int32 mapid = corpsemapid;
-
-    // if corpse at different map
-    if (corpsemapid != _player->GetMapId())
-    {
-        // search entrance map for proper show entrance
-        if (MapEntry const* corpseMapEntry = sMapStore.LookupEntry(corpsemapid))
+        // If the corpse is on a different map, show a dungeon entrance when one exists.
+        if (response.corpseMapId != _player->GetMapId())
         {
-            if (corpseMapEntry->IsDungeon() && corpseMapEntry->CorpseMapID >= 0)
+            if (MapEntry const* corpseMapEntry = sMapStore.LookupEntry(response.corpseMapId))
             {
-                // if corpse map have entrance
-                if (TerrainInfo const* entranceMap = sTerrainMgr.LoadTerrain(corpseMapEntry->CorpseMapID))
+                if (corpseMapEntry->IsDungeon() && corpseMapEntry->CorpseMapID >= 0)
                 {
-                    mapid = corpseMapEntry->CorpseMapID;
-                    x = corpseMapEntry->ghost_entrance_x;
-                    y = corpseMapEntry->ghost_entrance_y;
-                    z = entranceMap->GetHeightStatic(x, y, MAX_HEIGHT);
+                    if (TerrainInfo const* entranceMap =
+                        sTerrainMgr.LoadTerrain(corpseMapEntry->CorpseMapID))
+                    {
+                        response.displayMapId = corpseMapEntry->CorpseMapID;
+                        response.x = corpseMapEntry->ghost_entrance_x;
+                        response.y = corpseMapEntry->ghost_entrance_y;
+                        response.z = entranceMap->GetHeightStatic(response.x,
+                            response.y, MAX_HEIGHT);
+                    }
                 }
             }
         }
     }
 
-    WorldPacket data(MSG_CORPSE_QUERY, 1 + (6 * 4));
-    data << uint8(1);                                       // corpse found
-    data << int32(mapid);
-    data << float(x);
-    data << float(y);
-    data << float(z);
-    data << uint32(corpsemapid);
-    data << uint32(0);                                      // unknown
+    WorldPacket data(SMSG_CORPSE_QUERY_RESPONSE, 30);
+    MopQueryPackets::BuildCorpseQueryResponse(data, response);
     SendPacket(&data);
 }
 
@@ -558,14 +548,14 @@ void WorldSession::HandleCorpseMapPositionQueryOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: Recv CMSG_CORPSE_MAP_POSITION_QUERY");
 
-    uint32 unk;
-    recv_data >> unk;
+    ObjectGuid const transportGuid(
+        MopQueryPackets::ReadCorpseMapPositionQuery(recv_data));
+    DEBUG_LOG("WORLD: Corpse map-position transport: %s",
+        transportGuid.GetString().c_str());
 
-    WorldPacket data(SMSG_CORPSE_TRANSPORT_QUERY, 4 + 4 + 4 + 4);
-    data << float(0);
-    data << float(0);
-    data << float(0);
-    data << float(0);
+    WorldPacket data(SMSG_CORPSE_MAP_POSITION_QUERY_RESPONSE, 16);
+    MopQueryPackets::BuildCorpseMapPositionQueryResponse(data,
+        0.0f, 0.0f, 0.0f, 0.0f);
     SendPacket(&data);
 }
 

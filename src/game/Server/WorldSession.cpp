@@ -308,6 +308,8 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_NAME_QUERY_RESPONSE:       // MopQueryPackets::BuildNameQueryResponse
         case SMSG_CREATURE_QUERY_RESPONSE:   // MopQueryPackets::BuildCreatureQueryResponse
         case SMSG_GAMEOBJECT_QUERY_RESPONSE: // MopQueryPackets::BuildGameObjectQueryResponse
+        case SMSG_CORPSE_QUERY_RESPONSE:     // MopQueryPackets::BuildCorpseQueryResponse
+        case SMSG_CORPSE_MAP_POSITION_QUERY_RESPONSE: // MopQueryPackets::BuildCorpseMapPositionQueryResponse
         case SMSG_QUERY_TIME_RESPONSE:       // MopQueryPackets::BuildQueryTimeResponse
         case SMSG_PLAYED_TIME:               // MopQueryPackets::BuildPlayedTimeResponse
         case SMSG_REALM_NAME_QUERY_RESPONSE: // MopQueryPackets::BuildRealmNameQueryResponse (client fires the realm query from the name-cache path during login)

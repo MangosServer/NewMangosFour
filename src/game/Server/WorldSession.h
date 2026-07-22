@@ -182,6 +182,23 @@ namespace MopQueryPackets
     GameObjectQueryRequest ReadGameObjectQueryRequest(WorldPacket& in);
     void BuildGameObjectQueryResponse(WorldPacket& out,
         GameObjectQueryResponse const& record);
+
+    struct CorpseQueryResponse
+    {
+        bool found = false;
+        int32 displayMapId = 0;
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+        uint32 corpseMapId = 0;
+        uint64 transportGuid = 0;
+    };
+
+    uint64 ReadCorpseMapPositionQuery(WorldPacket& in);
+    void BuildCorpseQueryResponse(WorldPacket& out,
+        CorpseQueryResponse const& response);
+    void BuildCorpseMapPositionQueryResponse(WorldPacket& out,
+        float x, float y, float z, float orientation);
 }
 
 namespace MopStablePackets
@@ -574,6 +591,56 @@ inline void MopQueryPackets::BuildGameObjectQueryResponse(WorldPacket& out,
     out << record.entry;
     out << uint32(blob.size());
     out.append(blob);
+}
+
+inline uint64 MopQueryPackets::ReadCorpseMapPositionQuery(WorldPacket& in)
+{
+    uint8 const maskOrder[] = { 7, 6, 3, 0, 4, 1, 5, 2 };
+    uint8 const byteOrder[] = { 1, 6, 0, 5, 3, 2, 4, 7 };
+    uint8 guidBytes[8] = {};
+
+    for (uint8 index : maskOrder)
+        guidBytes[index] = in.ReadBit();
+    for (uint8 index : byteOrder)
+        in.ReadByteSeq(guidBytes[index]);
+
+    uint64 guid = 0;
+    for (uint8 index = 0; index < 8; ++index)
+        guid |= uint64(guidBytes[index]) << (index * 8);
+    return guid;
+}
+
+inline void MopQueryPackets::BuildCorpseQueryResponse(WorldPacket& out,
+    CorpseQueryResponse const& response)
+{
+    uint64 const guid = response.transportGuid;
+
+    for (uint8 index : { uint8(0), uint8(3), uint8(2) })
+        out.WriteBit(MopQueryPacketDetail::GuidByte(guid, index) != 0);
+    out.WriteBit(response.found);
+    for (uint8 index : { uint8(5), uint8(4), uint8(1), uint8(7), uint8(6) })
+        out.WriteBit(MopQueryPacketDetail::GuidByte(guid, index) != 0);
+    out.FlushBits();
+
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(guid, 5));
+    out << response.z;
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(guid, 1));
+    out << response.displayMapId;
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(guid, 6));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(guid, 4));
+    out << response.x;
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(guid, 3));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(guid, 7));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(guid, 2));
+    out.WriteByteSeq(MopQueryPacketDetail::GuidByte(guid, 0));
+    out << response.corpseMapId;
+    out << response.y;
+}
+
+inline void MopQueryPackets::BuildCorpseMapPositionQueryResponse(
+    WorldPacket& out, float x, float y, float z, float orientation)
+{
+    out << x << orientation << z << y;
 }
 
 inline uint64 MopStablePackets::ReadStableListRequest(WorldPacket& in)
