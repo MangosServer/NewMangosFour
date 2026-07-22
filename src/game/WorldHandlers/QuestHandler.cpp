@@ -686,19 +686,19 @@ void WorldSession::HandlePushQuestToParty(WorldPacket& recvPacket)
  */
 void WorldSession::HandleQuestPushResult(WorldPacket& recvPacket)
 {
-    ObjectGuid guid;
-    uint32 quest;
-    uint8 msg;
-    recvPacket >> guid >> quest >> msg;
+    MopQuestPackets::QuestPushResult const result =
+        MopQuestPackets::ReadQuestPushResult(recvPacket);
 
-    DEBUG_LOG("WORLD: Received opcode MSG_QUEST_PUSH_RESULT");
+    DEBUG_LOG("WORLD: Received opcode CMSG_QUEST_PUSH_RESULT quest = %u result = %u",
+        result.questId, uint32(result.result));
+
+    if (result.result > QUEST_PARTY_MSG_NOT_ALLOWED || !result.sharerGuid ||
+        result.sharerGuid != _player->GetDividerGuid().GetRawValue())
+        return;
 
     if (Player* pPlayer = sObjectAccessor.FindPlayer(_player->GetDividerGuid()))
     {
-        WorldPacket data(MSG_QUEST_PUSH_RESULT, (8 + 1));
-        data << ObjectGuid(guid);
-        data << uint8(msg);                             // valid values: 0-8
-        pPlayer->GetSession()->SendPacket(&data);
+        pPlayer->SendPushToPartyResponse(_player, result.result);
         _player->ClearDividerGuid();
     }
 }

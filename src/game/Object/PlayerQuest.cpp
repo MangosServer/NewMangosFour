@@ -2890,13 +2890,13 @@ void Player::SendQuestConfirmAccept(const Quest* pQuest, Player* pReceiver)
         std::string title = pQuest->GetTitle();
         sObjectMgr.GetQuestLocaleStrings(pQuest->GetQuestId(), loc_idx, &title);
 
-        WorldPacket data(SMSG_QUEST_CONFIRM_ACCEPT, (4 + title.size() + 8));
-        data << uint32(pQuest->GetQuestId());
-        data << title;
-        data << GetObjectGuid();
-        pReceiver->GetSession()->SendPacket(&data);
-
-        DEBUG_LOG("WORLD: Sent SMSG_QUEST_CONFIRM_ACCEPT");
+        WorldPacket data;
+        if (MopQuestPackets::BuildQuestConfirmAccept(data,
+                pQuest->GetQuestId(), title, GetObjectGuid().GetRawValue()))
+        {
+            pReceiver->GetSession()->SendPacket(&data);
+            DEBUG_LOG("WORLD: Sent SMSG_QUEST_CONFIRM_ACCEPT");
+        }
     }
 }
 
@@ -2910,11 +2910,11 @@ void Player::SendPushToPartyResponse(Player* pPlayer, uint32 msg)
 {
     if (pPlayer)
     {
-        WorldPacket data(MSG_QUEST_PUSH_RESULT, (8 + 1));
-        data << pPlayer->GetObjectGuid();
-        data << uint8(msg);                                 // valid values: 0-8
+        WorldPacket data;
+        MopQuestPackets::BuildQuestPushResult(data,
+            pPlayer->GetObjectGuid().GetRawValue(), uint8(msg));
         GetSession()->SendPacket(&data);
-        DEBUG_LOG("WORLD: Sent MSG_QUEST_PUSH_RESULT");
+        DEBUG_LOG("WORLD: Sent SMSG_QUEST_PUSH_RESULT");
     }
 }
 

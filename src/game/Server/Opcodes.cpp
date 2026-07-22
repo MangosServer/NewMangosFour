@@ -249,6 +249,13 @@ void InitializeOpcodes()
     // Wave 35 spirit-healer location state.
     DefS(SMSG_DEATH_RELEASE_LOC, "SMSG_DEATH_RELEASE_LOC");
 
+    // Wave 36 quest-sharing requests, confirmation prompt, and split result paths.
+    DefC(CMSG_PUSHQUESTTOPARTY, "CMSG_PUSHQUESTTOPARTY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandlePushQuestToParty);
+    DefC(CMSG_QUEST_CONFIRM_ACCEPT, "CMSG_QUEST_CONFIRM_ACCEPT", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestConfirmAccept);
+    DefC(CMSG_QUEST_PUSH_RESULT, "CMSG_QUEST_PUSH_RESULT", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestPushResult);
+    DefS(SMSG_QUEST_CONFIRM_ACCEPT, "SMSG_QUEST_CONFIRM_ACCEPT");
+    DefS(SMSG_QUEST_PUSH_RESULT, "SMSG_QUEST_PUSH_RESULT");
+
     // Wave 9 name query request and response.
     DefC(CMSG_NAME_QUERY, "CMSG_NAME_QUERY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleNameQueryOpcode);
     DefS(SMSG_NAME_QUERY_RESPONSE, "SMSG_NAME_QUERY_RESPONSE");

@@ -435,6 +435,96 @@ namespace MopDeathPackets
     }
 }
 
+namespace MopQuestPackets
+{
+    struct QuestPushResult
+    {
+        uint32 questId = 0;
+        uint8 result = 0;
+        uint64 sharerGuid = 0;
+    };
+
+    inline uint8 GuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+
+    template <size_t N>
+    inline void WriteGuidMask(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteBit(GuidByte(guid, index) != 0);
+    }
+
+    template <size_t N>
+    inline void WriteGuidBytes(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteByteSeq(GuidByte(guid, index));
+    }
+
+    inline bool BuildQuestConfirmAccept(WorldPacket& out, uint32 questId,
+        std::string const& title, uint64 sharerGuid)
+    {
+        if (title.size() >= (size_t(1) << 10))
+            return false;
+
+        out.Initialize(SMSG_QUEST_CONFIRM_ACCEPT, title.size() + 15);
+        uint8 const firstMask[] = { 0, 3 };
+        uint8 const middleMask[] = { 2, 5, 6, 4, 1 };
+        WriteGuidMask(out, sharerGuid, firstMask);
+        bool const titleOmitted = title.empty();
+        out.WriteBit(titleOmitted);
+        WriteGuidMask(out, sharerGuid, middleMask);
+        if (!titleOmitted)
+            out.WriteBits(uint32(title.size()), 10);
+        out.WriteBit(GuidByte(sharerGuid, 7) != 0);
+        out.FlushBits();
+
+        out.WriteByteSeq(GuidByte(sharerGuid, 6));
+        if (!titleOmitted)
+            out.append(title.data(), title.size());
+        uint8 const byteOrder[] = { 0, 5, 3, 1, 4, 2, 7 };
+        WriteGuidBytes(out, sharerGuid, byteOrder);
+        out << questId;
+        return true;
+    }
+
+    inline void BuildQuestPushResult(WorldPacket& out, uint64 targetGuid,
+        uint8 result)
+    {
+        out.Initialize(SMSG_QUEST_PUSH_RESULT, 10);
+        uint8 const maskOrder[] = { 3, 0, 1, 4, 7, 5, 6, 2 };
+        WriteGuidMask(out, targetGuid, maskOrder);
+        out.FlushBits();
+        out.WriteByteSeq(GuidByte(targetGuid, 4));
+        out << result;
+        uint8 const byteOrder[] = { 1, 5, 3, 7, 6, 2, 0 };
+        WriteGuidBytes(out, targetGuid, byteOrder);
+    }
+
+    inline QuestPushResult ReadQuestPushResult(WorldPacket& in)
+    {
+        QuestPushResult response;
+        in >> response.questId >> response.result;
+
+        uint8 guidBytes[8] = {};
+        uint8 const maskOrder[] = { 5, 3, 0, 6, 1, 2, 7, 4 };
+        for (uint8 index : maskOrder)
+            guidBytes[index] = in.ReadBit();
+
+        uint8 const byteOrder[] = { 1, 2, 0, 5, 6, 4, 7, 3 };
+        for (uint8 index : byteOrder)
+            in.ReadByteSeq(guidBytes[index]);
+
+        for (uint8 index = 0; index < 8; ++index)
+            response.sharerGuid |= uint64(guidBytes[index]) << (index * 8);
+        return response;
+    }
+}
+
 namespace MopBindPackets
 {
     inline uint8 GuidByte(uint64 guid, uint8 index)
