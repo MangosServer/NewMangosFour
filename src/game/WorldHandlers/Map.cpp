@@ -1887,7 +1887,7 @@ void Map::SendInitSelf(Player* player)
                       player->GetGuidStr().c_str());
     }
 
-    MopUpdateObject::SelfPlayer sp;
+    MopUpdateObject::SelfPlayer sp{};
     sp.guid = player->GetObjectGuid().GetRawValue();
     sp.mapId = uint16(player->GetMapId());
     sp.x = player->GetPositionX();
@@ -1937,6 +1937,37 @@ void Map::SendInitSelf(Player* player)
     WorldPacket packet;
     MopUpdateObject::BuildSelfCreate(packet, sp);
     player->GetSession()->SendPacket(&packet, true);   // bypass enter-world suppression: this is the MoP create-block
+
+    // Inventory objects must exist client-side before the self player links to
+    // them. Player's existing traversal emits top-level items/bags, while Bag's
+    // override recursively emits its contents.
+    UpdateData inventoryData(player->GetMapId());
+    player->BuildCreateUpdateBlockForPlayer(&inventoryData, player);
+
+    std::vector<MopUpdateObject::StaticField> inventoryFields;
+    inventoryFields.reserve(MopUpdateObject::SelfInventoryFieldCount);
+    for (uint16 i = 0; i < MopUpdateObject::SelfInventoryFieldCount; ++i)
+    {
+        const uint16 sourceIndex = uint16(MopUpdateObject::SelfInventorySourceStart + i);
+        const uint32 value = player->GetUInt32Value(sourceIndex);
+        if (value != 0)
+        {
+            inventoryFields.push_back({ sourceIndex, value });
+        }
+    }
+    if (!inventoryFields.empty())
+    {
+        MopUpdateObject::AppendSelfInventoryValuesBlock(inventoryData.GetBuffer(), sp.guid,
+            inventoryFields.data(), uint32(inventoryFields.size()));
+        inventoryData.AddUpdateBlock();
+    }
+
+    if (inventoryData.HasData())
+    {
+        WorldPacket inventoryPacket;
+        inventoryData.BuildPacket(&inventoryPacket);
+        player->GetSession()->SendPacket(&inventoryPacket, true);
+    }
 }
 
 /**

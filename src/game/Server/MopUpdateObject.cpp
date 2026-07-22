@@ -8,6 +8,7 @@
 #include "WorldPacket.h"
 #include "Opcodes.h"
 #include <cstring>
+#include <vector>
 
 namespace
 {
@@ -36,6 +37,13 @@ namespace
             out.append(bytes, n);
         }
     }
+}
+
+uint16 MopUpdateObject::TranslateSelfInventoryIndex(uint16 legacyIndex)
+{
+    MANGOS_ASSERT(legacyIndex >= SelfInventorySourceStart &&
+        legacyIndex < SelfInventorySourceStart + SelfInventoryFieldCount);
+    return uint16(legacyIndex + 5);
 }
 
 uint32 MopUpdateObject::RepackUnitBytes0(uint32 legacyBytes0)
@@ -69,6 +77,11 @@ bool MopUpdateObject::CanUseStationaryGameObjectMovement(StationaryGameObjectEli
         !eligibility.hasUnsupportedMovement;
 }
 
+bool MopUpdateObject::CanUseInventoryObject(InventoryObjectEligibility const& eligibility)
+{
+    return eligibility.hasTarget && eligibility.hasOwner && eligibility.ownerMatchesTarget;
+}
+
 void MopUpdateObject::AppendStaticValuesNoDynamic(ByteBuffer& out, StaticField const* fields, uint32 fieldCount)
 {
     MANGOS_ASSERT(fields || fieldCount == 0);
@@ -99,6 +112,68 @@ void MopUpdateObject::AppendStaticValuesNoDynamic(ByteBuffer& out, StaticField c
     }
 
     out << uint8(0);
+}
+
+void MopUpdateObject::AppendEmptyMovement(ByteBuffer& out)
+{
+    out.WriteBits(0, 42);
+    out.FlushBits();
+}
+
+void MopUpdateObject::AppendEmptyMovementCreateBlock(ByteBuffer& out, uint8 updateType, uint64 guid, uint8 typeId,
+    StaticField const* fields, uint32 fieldCount)
+{
+    out << updateType;
+    AppendPackedGuid(out, guid);
+    out << typeId;
+    AppendEmptyMovement(out);
+    AppendStaticValuesNoDynamic(out, fields, fieldCount);
+}
+
+void MopUpdateObject::AppendInventoryCreateBlock(ByteBuffer& out, uint64 guid, uint8 typeId,
+    uint32 const* values, uint32 valueCount)
+{
+    MANGOS_ASSERT(values);
+    MANGOS_ASSERT((typeId == 1 && valueCount == ItemFieldCount) ||
+        (typeId == 2 && valueCount == ContainerFieldCount));
+
+    std::vector<StaticField> fields;
+    fields.reserve(valueCount);
+    for (uint16 i = 0; i < valueCount; ++i)
+    {
+        fields.push_back({ i, values[i] });
+    }
+
+    AppendEmptyMovementCreateBlock(out, 1, guid, typeId, fields.data(), uint32(fields.size()));
+}
+
+void MopUpdateObject::AppendInventoryValuesBlock(ByteBuffer& out, uint64 guid, uint8 typeId,
+    StaticField const* fields, uint32 fieldCount)
+{
+    MANGOS_ASSERT(fields || fieldCount == 0);
+    MANGOS_ASSERT(typeId == 1 || typeId == 2);
+    const uint16 valueCount = typeId == 2 ? ContainerFieldCount : ItemFieldCount;
+    for (uint32 i = 0; i < fieldCount; ++i)
+    {
+        MANGOS_ASSERT(fields[i].index < valueCount);
+    }
+    AppendValuesBlock(out, guid, fields, fieldCount);
+}
+
+void MopUpdateObject::AppendSelfInventoryValuesBlock(ByteBuffer& out, uint64 guid,
+    StaticField const* sourceFields, uint32 fieldCount)
+{
+    MANGOS_ASSERT(sourceFields || fieldCount == 0);
+
+    std::vector<StaticField> fields;
+    fields.reserve(fieldCount);
+    for (uint32 i = 0; i < fieldCount; ++i)
+    {
+        MANGOS_ASSERT(i == 0 || sourceFields[i - 1].index < sourceFields[i].index);
+        fields.push_back({ TranslateSelfInventoryIndex(sourceFields[i].index), sourceFields[i].value });
+    }
+
+    AppendValuesBlock(out, guid, fields.data(), uint32(fields.size()));
 }
 
 void MopUpdateObject::AppendStationaryGameObjectMovement(ByteBuffer& out, StationaryGameObjectMovement const& movement)

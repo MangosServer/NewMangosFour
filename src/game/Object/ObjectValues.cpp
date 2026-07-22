@@ -461,22 +461,36 @@ bool Object::PrintEntryError(char const* descr) const
  */
 void Object::BuildUpdateDataForPlayer(Player* pl, UpdateDataMapType& update_players)
 {
-    if ((GetTypeId() != TYPEID_UNIT && GetTypeId() != TYPEID_GAMEOBJECT) ||
-        (GetTypeId() == TYPEID_GAMEOBJECT && !CanBuildMopCreateUpdate()))
+    if (GetTypeId() == TYPEID_PLAYER)
+    {
+        if (pl != static_cast<Player*>(this))
+        {
+            return;
+        }
+    }
+    else if ((GetTypeId() != TYPEID_UNIT && GetTypeId() != TYPEID_GAMEOBJECT &&
+              GetTypeId() != TYPEID_ITEM && GetTypeId() != TYPEID_CONTAINER) ||
+             (GetTypeId() == TYPEID_GAMEOBJECT && !CanBuildMopCreateUpdate()))
     {
         return;
     }
 
     UpdateDataMapType::iterator iter = update_players.find(pl);
+    bool inserted = false;
 
     if (iter == update_players.end())
     {
         std::pair<UpdateDataMapType::iterator, bool> p = update_players.insert(UpdateDataMapType::value_type(pl, UpdateData(pl->GetMapId())));
         MANGOS_ASSERT(p.second);
         iter = p.first;
+        inserted = true;
     }
 
     BuildValuesUpdateBlockForPlayer(&iter->second, iter->first);
+    if (inserted && !iter->second.HasData())
+    {
+        update_players.erase(iter);
+    }
 }
 
 /**

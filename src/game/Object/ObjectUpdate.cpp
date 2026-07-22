@@ -23,6 +23,7 @@
  */
 
 #include "Object.h"
+#include "Item.h"
 #include "SharedDefines.h"
 #include "WorldPacket.h"
 #include "Opcodes.h"
@@ -67,6 +68,32 @@
 
 namespace
 {
+    static_assert(ITEM_END == MopUpdateObject::ItemFieldCount,
+        "18414 Item direct-copy range must remain fields 0..68");
+    static_assert(CONTAINER_END == MopUpdateObject::ContainerFieldCount,
+        "18414 Container direct-copy range must remain fields 0..141");
+    static_assert(PLAYER_FIELD_INV_SLOT_HEAD == MopUpdateObject::SelfInventorySourceStart,
+        "self inventory translation must start at local field 960");
+    static_assert(PLAYER_FIELD_VENDORBUYBACK_SLOT_1 + 24 ==
+        MopUpdateObject::SelfInventorySourceStart + MopUpdateObject::SelfInventoryFieldCount,
+        "self inventory translation must end before local field 1132");
+
+    bool CanBuildMopInventoryObject(Object const& object, Player* target)
+    {
+        if (object.GetTypeId() != TYPEID_ITEM && object.GetTypeId() != TYPEID_CONTAINER)
+        {
+            return false;
+        }
+
+        Item const* item = static_cast<Item const*>(&object);
+        ObjectGuid const& owner = item->GetOwnerGuid();
+        MopUpdateObject::InventoryObjectEligibility eligibility{};
+        eligibility.hasTarget = target != NULL;
+        eligibility.hasOwner = !owner.IsEmpty();
+        eligibility.ownerMatchesTarget = target && owner == target->GetObjectGuid();
+        return MopUpdateObject::CanUseInventoryObject(eligibility);
+    }
+
     void BuildMopUnitStaticFields(Object const& object, Player* target,
         std::vector<MopUpdateObject::StaticField>& fields)
     {
@@ -248,6 +275,17 @@ void Object::SendForcedObjectUpdate()
  */
 void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) const
 {
+    if (CanBuildMopInventoryObject(*this, target))
+    {
+        const uint32 valueCount = GetTypeId() == TYPEID_CONTAINER ?
+            MopUpdateObject::ContainerFieldCount : MopUpdateObject::ItemFieldCount;
+        MANGOS_ASSERT(m_valuesCount == valueCount);
+        MopUpdateObject::AppendInventoryCreateBlock(data->GetBuffer(),
+            GetObjectGuid().GetRawValue(), m_objectTypeId, m_uint32Values, valueCount);
+        data->AddUpdateBlock();
+        return;
+    }
+
     if (!target || !CanBuildMopCreateUpdate())
     {
         return;
@@ -352,7 +390,7 @@ bool Object::CanBuildMopCreateUpdate() const
  */
 bool Object::SendCreateUpdateToPlayer(Player* player)
 {
-    if (!player || !CanBuildMopCreateUpdate())
+    if (!player)
     {
         return false;
     }
@@ -381,6 +419,59 @@ bool Object::SendCreateUpdateToPlayer(Player* player)
  */
 void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player* target) const
 {
+    if (GetTypeId() == TYPEID_ITEM || GetTypeId() == TYPEID_CONTAINER)
+    {
+        if (!CanBuildMopInventoryObject(*this, target))
+        {
+            return;
+        }
+
+        const uint16 valueCount = GetTypeId() == TYPEID_CONTAINER ?
+            MopUpdateObject::ContainerFieldCount : MopUpdateObject::ItemFieldCount;
+        std::vector<MopUpdateObject::StaticField> fields;
+        fields.reserve(valueCount);
+        for (uint16 i = 0; i < valueCount; ++i)
+        {
+            if (m_changedValues[i])
+            {
+                fields.push_back({ i, m_uint32Values[i] });
+            }
+        }
+        if (!fields.empty())
+        {
+            MopUpdateObject::AppendInventoryValuesBlock(data->GetBuffer(),
+                GetObjectGuid().GetRawValue(), m_objectTypeId, fields.data(), uint32(fields.size()));
+            data->AddUpdateBlock();
+        }
+        return;
+    }
+
+    if (GetTypeId() == TYPEID_PLAYER)
+    {
+        if (target != static_cast<Player const*>(this))
+        {
+            return;
+        }
+
+        std::vector<MopUpdateObject::StaticField> fields;
+        fields.reserve(MopUpdateObject::SelfInventoryFieldCount);
+        for (uint16 i = MopUpdateObject::SelfInventorySourceStart;
+             i < MopUpdateObject::SelfInventorySourceStart + MopUpdateObject::SelfInventoryFieldCount; ++i)
+        {
+            if (m_changedValues[i])
+            {
+                fields.push_back({ i, m_uint32Values[i] });
+            }
+        }
+        if (!fields.empty())
+        {
+            MopUpdateObject::AppendSelfInventoryValuesBlock(data->GetBuffer(),
+                GetObjectGuid().GetRawValue(), fields.data(), uint32(fields.size()));
+            data->AddUpdateBlock();
+        }
+        return;
+    }
+
     if (!target || (GetTypeId() != TYPEID_UNIT && GetTypeId() != TYPEID_GAMEOBJECT) ||
         (GetTypeId() == TYPEID_GAMEOBJECT && !CanBuildMopCreateUpdate()))
     {

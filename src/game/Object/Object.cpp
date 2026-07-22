@@ -96,6 +96,7 @@ Object::Object(): m_updateFlag(0)
 
     m_inWorld           = false;
     m_objectUpdated     = false;
+    m_itsNewObject      = false;
 }
 
 /**
@@ -186,7 +187,6 @@ void Object::SetObjectScale(float newScale)
 {
     SetFloatValue(OBJECT_FIELD_SCALE_X, newScale);
 }
-
 
 
 

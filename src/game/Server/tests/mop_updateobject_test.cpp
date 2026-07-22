@@ -53,6 +53,158 @@ namespace
 // ACE (dragged in via 'game') rewrites main() and requires (int, char**).
 int main(int /*argc*/, char** /*argv*/)
 {
+    CHECK(MopUpdateObject::TranslateSelfInventoryIndex(960) == 965);
+    CHECK(MopUpdateObject::TranslateSelfInventoryIndex(1131) == 1136);
+
+    MopUpdateObject::InventoryObjectEligibility inventoryEligibility{};
+    CHECK(!MopUpdateObject::CanUseInventoryObject(inventoryEligibility));
+    inventoryEligibility.hasTarget = true;
+    CHECK(!MopUpdateObject::CanUseInventoryObject(inventoryEligibility));
+    inventoryEligibility.hasOwner = true;
+    CHECK(!MopUpdateObject::CanUseInventoryObject(inventoryEligibility));
+    inventoryEligibility.ownerMatchesTarget = true;
+    CHECK(MopUpdateObject::CanUseInventoryObject(inventoryEligibility));
+
+    {
+        ByteBuffer emptyMovement;
+        MopUpdateObject::AppendEmptyMovement(emptyMovement);
+        const uint8 expected[] = { 0, 0, 0, 0, 0, 0 };
+        CHECK(emptyMovement.size() == sizeof(expected));
+        CHECK(emptyMovement.size() == sizeof(expected) &&
+            std::memcmp(emptyMovement.contents(), expected, sizeof(expected)) == 0);
+
+        const MopUpdateObject::StaticField fields[] = { { 0, 0x11223344u } };
+        ByteBuffer create;
+        MopUpdateObject::AppendEmptyMovementCreateBlock(create, 1, 0x10, 1,
+            fields, sizeof(fields) / sizeof(fields[0]));
+        ByteBuffer expectedCreate;
+        expectedCreate << uint8(1) << uint8(0x01) << uint8(0x10) << uint8(1);
+        expectedCreate.append(expected, sizeof(expected));
+        MopUpdateObject::AppendStaticValuesNoDynamic(expectedCreate, fields, sizeof(fields) / sizeof(fields[0]));
+        CHECK(create.size() == expectedCreate.size());
+        CHECK(create.size() == expectedCreate.size() &&
+            std::memcmp(create.contents(), expectedCreate.contents(), expectedCreate.size()) == 0);
+    }
+
+    {
+        uint32 itemValues[69];
+        for (uint32 i = 0; i < 69; ++i) itemValues[i] = 0x10000000u + i;
+
+        ByteBuffer itemCreate;
+        MopUpdateObject::AppendInventoryCreateBlock(itemCreate, 0x10, 1, itemValues, 69);
+        itemCreate.rpos(10); // create + packed GUID + type + six-byte movement body
+        uint8 blockCount;
+        itemCreate >> blockCount;
+        CHECK(blockCount == 3);
+        uint32 masks[3];
+        for (uint32& mask : masks) itemCreate >> mask;
+        CHECK(masks[0] == 0xFFFFFFFFu);
+        CHECK(masks[1] == 0xFFFFFFFFu);
+        CHECK(masks[2] == 0x0000001Fu);
+        for (uint32 i = 0; i < 69; ++i)
+        {
+            uint32 value;
+            itemCreate >> value;
+            CHECK(value == itemValues[i]);
+        }
+        uint8 dynamicCount;
+        itemCreate >> dynamicCount;
+        CHECK(dynamicCount == 0);
+        CHECK(itemCreate.rpos() == itemCreate.size());
+
+        uint32 containerValues[142];
+        for (uint32 i = 0; i < 142; ++i) containerValues[i] = 0x20000000u + i;
+
+        ByteBuffer containerCreate;
+        MopUpdateObject::AppendInventoryCreateBlock(containerCreate, 0x10, 2, containerValues, 142);
+        containerCreate.rpos(10);
+        containerCreate >> blockCount;
+        CHECK(blockCount == 5);
+        uint32 containerMasks[5];
+        for (uint32& mask : containerMasks) containerCreate >> mask;
+        CHECK(containerMasks[0] == 0xFFFFFFFFu);
+        CHECK(containerMasks[1] == 0xFFFFFFFFu);
+        CHECK(containerMasks[2] == 0xFFFFFFFFu);
+        CHECK(containerMasks[3] == 0xFFFFFFFFu);
+        CHECK(containerMasks[4] == 0x00003FFFu);
+        for (uint32 i = 0; i < 142; ++i)
+        {
+            uint32 value;
+            containerCreate >> value;
+            CHECK(value == containerValues[i]);
+        }
+        containerCreate >> dynamicCount;
+        CHECK(dynamicCount == 0);
+        CHECK(containerCreate.rpos() == containerCreate.size());
+
+        const MopUpdateObject::StaticField itemChanges[] =
+        {
+            { 0, 0 },
+            { 68, 0x55667788u },
+        };
+        ByteBuffer itemValuesUpdate;
+        MopUpdateObject::AppendInventoryValuesBlock(itemValuesUpdate, 0x10, 1,
+            itemChanges, sizeof(itemChanges) / sizeof(itemChanges[0]));
+        itemValuesUpdate.rpos(3); // VALUES + packed GUID
+        itemValuesUpdate >> blockCount;
+        CHECK(blockCount == 3);
+        for (uint32& mask : masks) itemValuesUpdate >> mask;
+        CHECK(masks[0] == 0x00000001u);
+        CHECK(masks[1] == 0x00000000u);
+        CHECK(masks[2] == 0x00000010u);
+        uint32 clearedValue, endpointValue;
+        itemValuesUpdate >> clearedValue >> endpointValue >> dynamicCount;
+        CHECK(clearedValue == 0);
+        CHECK(endpointValue == 0x55667788u);
+        CHECK(dynamicCount == 0);
+        CHECK(itemValuesUpdate.rpos() == itemValuesUpdate.size());
+
+        const MopUpdateObject::StaticField containerChange[] =
+        {
+            { 141, 0x99AABBCCu },
+        };
+        ByteBuffer containerValuesUpdate;
+        MopUpdateObject::AppendInventoryValuesBlock(containerValuesUpdate, 0x10, 2,
+            containerChange, sizeof(containerChange) / sizeof(containerChange[0]));
+        containerValuesUpdate.rpos(3);
+        containerValuesUpdate >> blockCount;
+        CHECK(blockCount == 5);
+        for (uint32& mask : containerMasks) containerValuesUpdate >> mask;
+        CHECK(containerMasks[4] == 0x00002000u);
+        containerValuesUpdate >> endpointValue >> dynamicCount;
+        CHECK(endpointValue == 0x99AABBCCu);
+        CHECK(dynamicCount == 0);
+        CHECK(containerValuesUpdate.rpos() == containerValuesUpdate.size());
+    }
+
+    {
+        const MopUpdateObject::StaticField sourceFields[] =
+        {
+            { 960, 0 },
+            { 1131, 0xAABBCCDDu },
+        };
+        ByteBuffer values;
+        MopUpdateObject::AppendSelfInventoryValuesBlock(values, 0x10, sourceFields,
+            sizeof(sourceFields) / sizeof(sourceFields[0]));
+        values.rpos(3); // VALUES + packed GUID
+        uint8 blockCount;
+        values >> blockCount;
+        CHECK(blockCount == 36);
+        uint32 masks[36];
+        for (uint32& mask : masks) values >> mask;
+        CHECK(masks[965 / 32] == (uint32(1) << (965 % 32)));
+        CHECK(masks[1136 / 32] == (uint32(1) << (1136 % 32)));
+        CHECK((masks[960 / 32] & (uint32(1) << (960 % 32))) == 0);
+        uint32 clearedValue, endpointValue;
+        values >> clearedValue >> endpointValue;
+        CHECK(clearedValue == 0);
+        CHECK(endpointValue == 0xAABBCCDDu);
+        uint8 dynamicCount;
+        values >> dynamicCount;
+        CHECK(dynamicCount == 0);
+        CHECK(values.rpos() == values.size());
+    }
+
     CHECK(MopUpdateObject::RepackUnitBytes0(0x04030201u) == 0x03040201u);
     CHECK(MopUpdateObject::TranslateUnitDynamicFlags(0x000000A5u) == 0x0000014Au);
     CHECK(MopUpdateObject::TranslateUnitDynamicFlags(0xFFFF01A5u) == 0x0000014Au);

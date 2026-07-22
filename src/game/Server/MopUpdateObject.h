@@ -22,6 +22,13 @@ class ByteBuffer;
 
 namespace MopUpdateObject
 {
+    static constexpr uint16 SelfInventorySourceStart = 960;
+    static constexpr uint16 SelfInventoryFieldCount = 172;
+    static constexpr uint16 ItemFieldCount = 69;
+    static constexpr uint16 ContainerFieldCount = 142;
+
+    uint16 TranslateSelfInventoryIndex(uint16 legacyIndex);
+
     struct StaticField
     {
         uint16 index;
@@ -31,6 +38,37 @@ namespace MopUpdateObject
     /// Append the byte-aligned 18414 static-field mask and values followed by
     /// the zero dynamic-field terminator. Fields must be ordered by index.
     void AppendStaticValuesNoDynamic(ByteBuffer& out, StaticField const* fields, uint32 fieldCount);
+
+    /// Append the mandatory all-zero 18414 movement ladder used by objects
+    /// with no movement branches (Item and Container).
+    void AppendEmptyMovement(ByteBuffer& out);
+
+    void AppendEmptyMovementCreateBlock(ByteBuffer& out, uint8 updateType, uint64 guid, uint8 typeId,
+        StaticField const* fields, uint32 fieldCount);
+
+    /// Append an Item or Container CREATE_OBJECT block. Values are copied
+    /// directly from legacy fields 0..68 or 0..141 respectively.
+    void AppendInventoryCreateBlock(ByteBuffer& out, uint64 guid, uint8 typeId,
+        uint32 const* values, uint32 valueCount);
+
+    /// Append changed Item or Container VALUES, retaining changed-to-zero
+    /// fields and enforcing the direct-copy field range for the object type.
+    void AppendInventoryValuesBlock(ByteBuffer& out, uint64 guid, uint8 typeId,
+        StaticField const* fields, uint32 fieldCount);
+
+    struct InventoryObjectEligibility
+    {
+        bool hasTarget;
+        bool hasOwner;
+        bool ownerMatchesTarget;
+    };
+
+    bool CanUseInventoryObject(InventoryObjectEligibility const& eligibility);
+
+    /// Translate ordered legacy self-inventory fields from [960,1132) to
+    /// 18414 [965,1137) and append one VALUES block. Zero values are retained.
+    void AppendSelfInventoryValuesBlock(ByteBuffer& out, uint64 guid,
+        StaticField const* sourceFields, uint32 fieldCount);
 
     /// Convert the legacy [race,class,gender,power] packed value to the 18414
     /// [race,class,power,gender] layout.
