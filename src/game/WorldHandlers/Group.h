@@ -1063,8 +1063,10 @@ class Group
             }
         }
 
+        // context defaults to 0 (a normal target-icon set) so pre-MoP 3-argument callers --
+        // notably Eluna's shared Group:SetTargetIcon binding -- stay source-compatible.
         void SetTargetIcon(uint8 id, ObjectGuid whoGuid, ObjectGuid targetGuid,
-            uint8 context);
+            uint8 context = 0);
 
         Difficulty GetDifficulty(bool isRaid) const { return isRaid ? m_raidDifficulty : m_dungeonDifficulty; }
         Difficulty GetDungeonDifficulty() const { return m_dungeonDifficulty; }
