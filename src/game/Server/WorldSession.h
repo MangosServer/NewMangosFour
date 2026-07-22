@@ -65,6 +65,72 @@ class GMTicket;
 class MovementInfo;
 class WorldSession;
 
+namespace MopHotfixPackets
+{
+    struct HotfixRecord
+    {
+        uint64 guid = 0;
+        uint32 entry = 0;
+    };
+
+    struct HotfixRequest
+    {
+        uint32 type = 0;
+        std::vector<HotfixRecord> records;
+    };
+
+    inline bool ReadHotfixRequest(WorldPacket& in, HotfixRequest& request)
+    {
+        request.records.clear();
+        in >> request.type;
+        uint32 const count = in.ReadBits(21);
+        size_t const remaining = in.size() - in.rpos();
+        if (count > remaining / 5)
+            return false;
+
+        std::vector<ObjectGuid> guids(count);
+        request.records.resize(count);
+        for (ObjectGuid& guid : guids)
+            in.ReadGuidMask<6, 3, 0, 1, 4, 5, 7, 2>(guid);
+
+        for (uint32 i = 0; i < count; ++i)
+        {
+            in.ReadGuidBytes<1>(guids[i]);
+            in >> request.records[i].entry;
+            in.ReadGuidBytes<0, 5, 6, 4, 7, 2, 3>(guids[i]);
+            request.records[i].guid = guids[i].GetRawValue();
+        }
+        return true;
+    }
+
+    inline void BuildDbReply(WorldPacket& out, uint32 entry, uint32 hotfixDate,
+        uint32 type, ByteBuffer const& record)
+    {
+        out << entry;
+        out << hotfixDate;
+        out << type;
+        out << uint32(record.size());
+        out.append(record);
+    }
+}
+
+namespace MopClientRequestPackets
+{
+    struct LoadScreenRequest
+    {
+        uint32 mapId = 0;
+        bool loading = false;
+    };
+
+    inline LoadScreenRequest ReadLoadScreenRequest(WorldPacket& in)
+    {
+        LoadScreenRequest request;
+        in >> request.mapId;
+        request.loading = in.ReadBit();
+        return request;
+    }
+}
+
 namespace MopQueryPackets
 {
     struct NameQueryRequest

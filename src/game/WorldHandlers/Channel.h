@@ -32,6 +32,34 @@
 
 #include <map>
 
+namespace MopChannelPackets
+{
+    struct JoinChannelRequest
+    {
+        uint32 channelId = 0;
+        bool hasVoice = false;
+        bool zoneUpdate = false;
+        std::string channelName;
+        std::string password;
+    };
+
+    inline bool ReadJoinChannelRequest(WorldPacket& in,
+        JoinChannelRequest& request)
+    {
+        in >> request.channelId;
+        request.hasVoice = in.ReadBit();
+        uint32 const channelLength = in.ReadBits(7);
+        uint32 const passwordLength = in.ReadBits(7);
+        request.zoneUpdate = in.ReadBit();
+        if (channelLength + passwordLength > in.size() - in.rpos())
+            return false;
+
+        request.password = in.ReadString(passwordLength);
+        request.channelName = in.ReadString(channelLength);
+        return true;
+    }
+}
+
 enum ChatNotify
 {
     CHAT_JOINED_NOTICE                = 0x00,               //+ "%s joined channel.";

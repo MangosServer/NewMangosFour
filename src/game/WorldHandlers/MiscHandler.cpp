@@ -1756,38 +1756,28 @@ void WorldSession::HandleHearthandResurrect(WorldPacket& /*recv_data*/)
 
 void WorldSession::HandleRequestHotfix(WorldPacket& recv_data)
 {
-    uint32 type = 0, count = 0;
-    recv_data >> type;
-
-    count = recv_data.ReadBits(23);
-
-    std::vector<ObjectGuid> guids;
-    guids.resize(count);
-
-    for (uint32 i = 0; i < count; ++i)
+    MopHotfixPackets::HotfixRequest request;
+    if (!MopHotfixPackets::ReadHotfixRequest(recv_data, request))
     {
-        recv_data.ReadGuidMask<0, 4, 7, 2, 5, 3, 6, 1>(guids[i]);
+        sLog.outError("CMSG_REQUEST_HOTFIX: malformed request from account %u", GetAccountId());
+        recv_data.rfinish();
+        return;
     }
 
-    uint32 entry = 0;
-    for (uint32 i = 0; i < count; ++i)
+    for (MopHotfixPackets::HotfixRecord const& record : request.records)
     {
-        recv_data.ReadGuidBytes<5, 6, 7, 0, 1, 3, 4>(guids[i]);
-        recv_data >> entry;
-        recv_data.ReadGuidBytes<2>(guids[i]);
-
-        switch (type)
+        switch (request.type)
         {
             case DB2_REPLY_ITEM:
-                SendItemDb2Reply(entry);
+                SendItemDb2Reply(record.entry);
                 break;
             case DB2_REPLY_SPARSE:
-                SendItemSparseDb2Reply(entry);
+                SendItemSparseDb2Reply(record.entry);
                 break;
             default:
-                sLog.outError("CMSG_REQUEST_HOTFIX: Received unknown hotfix type: %u", type);
+                sLog.outError("CMSG_REQUEST_HOTFIX: Received unknown hotfix type: %u", request.type);
                 recv_data.rfinish();
-                break;
+                return;
         }
     }
 }

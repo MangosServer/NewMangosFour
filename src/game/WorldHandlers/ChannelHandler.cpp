@@ -53,27 +53,19 @@ void WorldSession::HandleJoinChannelOpcode(WorldPacket& recvPacket)
 {
     DEBUG_LOG("WORLD: Received opcode %s (%u, 0x%X)", LookupOpcodeName(DIR_CLIENT, recvPacket.GetOpcode()), recvPacket.GetOpcode(), recvPacket.GetOpcode());
 
-    uint32 channel_id;
-    std::string channelname, pass;
+    MopChannelPackets::JoinChannelRequest request;
+    if (!MopChannelPackets::ReadJoinChannelRequest(recvPacket, request))
+        return;
 
-    recvPacket >> channel_id;
-    recvPacket.ReadBit();       // has voice
-    recvPacket.ReadBit();       // zone update
-
-    uint8 channelLength = recvPacket.ReadBits(8);
-    uint8 passwordLength = recvPacket.ReadBits(8);
-    channelname = recvPacket.ReadString(channelLength);
-    pass = recvPacket.ReadString(passwordLength);
-
-    if (channelname.empty())
+    if (request.channelName.empty())
     {
         return;
     }
 
     if (ChannelMgr* cMgr = channelMgr(_player->GetTeam()))
-        if (Channel* chn = cMgr->GetJoinChannel(channelname, channel_id))
+        if (Channel* chn = cMgr->GetJoinChannel(request.channelName, request.channelId))
         {
-            chn->Join(_player, pass.c_str());
+            chn->Join(_player, request.password.c_str());
         }
 }
 

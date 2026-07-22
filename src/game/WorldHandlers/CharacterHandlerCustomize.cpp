@@ -601,8 +601,7 @@ void WorldSession::HandleSetCurrencyFlagsOpcode(WorldPacket& recv_data)
 void WorldSession::HandleLoadScreenOpcode(WorldPacket& recvPacket)
 {
     DEBUG_LOG("CMSG_LOAD_SCREEN");
-    uint32 mapID;
-
-    recvPacket >> mapID;
-    recvPacket.ReadBit();
+    MopClientRequestPackets::LoadScreenRequest const request =
+        MopClientRequestPackets::ReadLoadScreenRequest(recvPacket);
+    (void)request;
 }

@@ -518,17 +518,11 @@ void WorldSession::SendItemDb2Reply(uint32 entry)
     ItemPrototype const* proto = sObjectMgr.GetItemPrototype(entry);
     if (!proto)
     {
-        data << uint32(-1);         // entry
-        data << uint32(DB2_REPLY_ITEM);
-        data << uint32(time(NULL)); // hotfix date
-        data << uint32(0);          // size of next block
+        ByteBuffer empty;
+        MopHotfixPackets::BuildDbReply(data, uint32(-1), uint32(time(NULL)), DB2_REPLY_ITEM, empty);
         SendPacket(&data);
         return;
     }
-
-    data << uint32(entry);
-    data << uint32(DB2_REPLY_ITEM);
-    data << uint32(sObjectMgr.GetHotfixDate(entry, DB2_REPLY_ITEM));
 
     ByteBuffer buff;
     buff << uint32(entry);
@@ -540,8 +534,8 @@ void WorldSession::SendItemDb2Reply(uint32 entry)
     buff << uint32(proto->InventoryType);
     buff << uint32(proto->Sheath);
 
-    data << uint32(buff.size());
-    data.append(buff);
+    MopHotfixPackets::BuildDbReply(data, entry,
+        sObjectMgr.GetHotfixDate(entry, DB2_REPLY_ITEM), DB2_REPLY_ITEM, buff);
 
     SendPacket(&data);
 }
@@ -552,17 +546,11 @@ void WorldSession::SendItemSparseDb2Reply(uint32 entry)
     ItemPrototype const* proto = sObjectMgr.GetItemPrototype(entry);
     if (!proto)
     {
-        data << uint32(-1);         // entry
-        data << uint32(DB2_REPLY_SPARSE);
-        data << uint32(time(NULL)); // hotfix date
-        data << uint32(0);          // size of next block
+        ByteBuffer empty;
+        MopHotfixPackets::BuildDbReply(data, uint32(-1), uint32(time(NULL)), DB2_REPLY_SPARSE, empty);
         SendPacket(&data);
         return;
     }
-
-    data << uint32(entry);
-    data << uint32(DB2_REPLY_SPARSE);
-    data << uint32(sObjectMgr.GetHotfixDate(entry, DB2_REPLY_SPARSE));
 
     ByteBuffer buff;
     buff << uint32(entry);
@@ -703,8 +691,8 @@ void WorldSession::SendItemSparseDb2Reply(uint32 entry)
     buff << uint32(proto->Unknown400_1);
     buff << uint32(proto->Unknown400_2);
 
-    data << uint32(buff.size());
-    data.append(buff);
+    MopHotfixPackets::BuildDbReply(data, entry,
+        sObjectMgr.GetHotfixDate(entry, DB2_REPLY_SPARSE), DB2_REPLY_SPARSE, buff);
 
     SendPacket(&data);
 }

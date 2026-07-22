@@ -244,6 +244,16 @@ void InitializeOpcodes()
     DefS(SMSG_LOGOUT_CANCEL_ACK, "SMSG_LOGOUT_CANCEL_ACK");
     DefS(SMSG_LOGOUT_COMPLETE, "SMSG_LOGOUT_COMPLETE");
 
+    // Live-log worklist batch 1. Client constructors and body writers were
+    // verified directly in the IDA 9.4 18414 Wow.exe database.
+    DefC(CMSG_REQUEST_HOTFIX, "CMSG_REQUEST_HOTFIX", STATUS_LOGGEDIN, PROCESS_INPLACE, &WorldSession::HandleRequestHotfix);
+    DefC(CMSG_JOIN_CHANNEL, "CMSG_JOIN_CHANNEL", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleJoinChannelOpcode);
+    DefC(CMSG_CANCEL_TRADE, "CMSG_CANCEL_TRADE", STATUS_LOGGEDIN_OR_RECENTLY_LOGGEDOUT, PROCESS_THREADUNSAFE, &WorldSession::HandleCancelTradeOpcode);
+    DefC(CMSG_UI_TIME_REQUEST, "CMSG_UI_TIME_REQUEST", STATUS_LOGGEDIN, PROCESS_INPLACE, &WorldSession::HandleUITimeRequestOpcode);
+    DefC(CMSG_LOAD_SCREEN, "CMSG_LOAD_SCREEN", STATUS_AUTHED, PROCESS_THREADUNSAFE, &WorldSession::HandleLoadScreenOpcode);
+    DefS(SMSG_UI_TIME, "SMSG_UI_TIME");
+    DefS(SMSG_DB_REPLY, "SMSG_DB_REPLY");
+
     // Wave 6 creature query request and response.
     DefC(CMSG_CREATURE_QUERY, "CMSG_CREATURE_QUERY", STATUS_LOGGEDIN, PROCESS_INPLACE, &WorldSession::HandleCreatureQueryOpcode);
     DefS(SMSG_CREATURE_QUERY_RESPONSE, "SMSG_CREATURE_QUERY_RESPONSE");
