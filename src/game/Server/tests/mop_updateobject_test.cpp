@@ -56,6 +56,9 @@ int main(int /*argc*/, char** /*argv*/)
     CHECK(MopUpdateObject::RepackUnitBytes0(0x04030201u) == 0x03040201u);
     CHECK(MopUpdateObject::TranslateUnitDynamicFlags(0x000000A5u) == 0x0000014Au);
     CHECK(MopUpdateObject::TranslateUnitDynamicFlags(0xFFFF01A5u) == 0x0000014Au);
+    CHECK(MopUpdateObject::TranslateGameObjectDynamic(0xFFFF0001u) == 0xFFFF0002u);
+    CHECK(MopUpdateObject::TranslateGameObjectDynamic(0xFFFF0009u) == 0xFFFF0012u);
+    CHECK(MopUpdateObject::TranslateGameObjectDynamic(0x123400F3u) == 0x12340006u);
 
     MopUpdateObject::SimpleUnitEligibility eligibility{};
     CHECK(MopUpdateObject::CanUseSimpleUnitMovement(eligibility));
@@ -67,6 +70,26 @@ int main(int /*argc*/, char** /*argv*/)
     eligibility.movementFlags2 = 1; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.movementFlags2 = 0;
     eligibility.hasOptionalMovement = true; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.hasOptionalMovement = false;
     eligibility.hasAttackingTarget = true; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility));
+
+    MopUpdateObject::StationaryGameObjectEligibility gameObjectEligibility{};
+    gameObjectEligibility.hasTemplate = true;
+    gameObjectEligibility.hasStationaryPosition = true;
+    gameObjectEligibility.hasRotation = true;
+    CHECK(MopUpdateObject::CanUseStationaryGameObjectMovement(gameObjectEligibility));
+    gameObjectEligibility.isTransport = true;
+    CHECK(!MopUpdateObject::CanUseStationaryGameObjectMovement(gameObjectEligibility));
+    gameObjectEligibility.isTransport = false; gameObjectEligibility.isBoarded = true;
+    CHECK(!MopUpdateObject::CanUseStationaryGameObjectMovement(gameObjectEligibility));
+    gameObjectEligibility.isBoarded = false; gameObjectEligibility.hasUnsupportedMovement = true;
+    CHECK(!MopUpdateObject::CanUseStationaryGameObjectMovement(gameObjectEligibility));
+    gameObjectEligibility.hasUnsupportedMovement = false; gameObjectEligibility.hasStationaryPosition = false;
+    CHECK(!MopUpdateObject::CanUseStationaryGameObjectMovement(gameObjectEligibility));
+    gameObjectEligibility.hasStationaryPosition = true; gameObjectEligibility.hasRotation = false;
+    CHECK(!MopUpdateObject::CanUseStationaryGameObjectMovement(gameObjectEligibility));
+    gameObjectEligibility.hasRotation = true; gameObjectEligibility.hasTemplate = false;
+    CHECK(!MopUpdateObject::CanUseStationaryGameObjectMovement(gameObjectEligibility));
+    gameObjectEligibility.hasTemplate = true; gameObjectEligibility.isDestructibleBuilding = true;
+    CHECK(!MopUpdateObject::CanUseStationaryGameObjectMovement(gameObjectEligibility));
 
     {
         WorldPacket destroy;
@@ -140,6 +163,21 @@ int main(int /*argc*/, char** /*argv*/)
         CHECK(y == movement.y); CHECK(z == movement.z); CHECK(o == movement.o); CHECK(x == movement.x);
         CHECK(rotation == movement.rotation);
         CHECK(bytes.rpos() == bytes.size());
+
+        const MopUpdateObject::StaticField fields[] =
+        {
+            { 0, 0xAABBCCDDu },
+            { 17, 60u },
+        };
+        ByteBuffer create;
+        MopUpdateObject::AppendStationaryGameObjectCreateBlock(create, 2, 0x10, 5, movement,
+            fields, sizeof(fields) / sizeof(fields[0]));
+        ByteBuffer expected;
+        expected << uint8(2) << uint8(0x01) << uint8(0x10) << uint8(5);
+        expected.append(bytes);
+        MopUpdateObject::AppendStaticValuesNoDynamic(expected, fields, sizeof(fields) / sizeof(fields[0]));
+        CHECK(create.size() == expected.size());
+        CHECK(create.size() == expected.size() && std::memcmp(create.contents(), expected.contents(), expected.size()) == 0);
     }
 
     MopUpdateObject::SelfPlayer e = MakeSelf();

@@ -40,6 +40,10 @@ namespace MopUpdateObject
     /// DISABLE_CLIENT_SIDE bit. Unknown legacy bits are deliberately dropped.
     uint32 TranslateUnitDynamicFlags(uint32 legacyFlags);
 
+    /// Preserve the legacy high-half interaction sentinel while translating
+    /// the four defined low GameObject flags past target bit zero.
+    uint32 TranslateGameObjectDynamic(uint32 legacyDynamic);
+
     struct SimpleUnitEligibility
     {
         bool isVehicle;
@@ -55,6 +59,19 @@ namespace MopUpdateObject
     /// True only when the proved narrow LIVING layout can represent the Unit.
     bool CanUseSimpleUnitMovement(SimpleUnitEligibility const& eligibility);
 
+    struct StationaryGameObjectEligibility
+    {
+        bool hasTemplate;
+        bool isDestructibleBuilding;
+        bool isTransport;
+        bool isBoarded;
+        bool hasStationaryPosition;
+        bool hasRotation;
+        bool hasUnsupportedMovement;
+    };
+
+    bool CanUseStationaryGameObjectMovement(StationaryGameObjectEligibility const& eligibility);
+
     struct StationaryGameObjectMovement
     {
         float x;
@@ -67,6 +84,9 @@ namespace MopUpdateObject
     /// Append the narrow 18414 stationary game-object movement subset. This
     /// deliberately excludes transports, animation kits, targets and scenes.
     void AppendStationaryGameObjectMovement(ByteBuffer& out, StationaryGameObjectMovement const& movement);
+
+    void AppendStationaryGameObjectCreateBlock(ByteBuffer& out, uint8 updateType, uint64 guid, uint8 typeId,
+        StationaryGameObjectMovement const& movement, StaticField const* fields, uint32 fieldCount);
 
     struct SimpleLivingMovement
     {

@@ -461,7 +461,8 @@ bool Object::PrintEntryError(char const* descr) const
  */
 void Object::BuildUpdateDataForPlayer(Player* pl, UpdateDataMapType& update_players)
 {
-    if (GetTypeId() != TYPEID_UNIT)
+    if ((GetTypeId() != TYPEID_UNIT && GetTypeId() != TYPEID_GAMEOBJECT) ||
+        (GetTypeId() == TYPEID_GAMEOBJECT && !CanBuildMopCreateUpdate()))
     {
         return;
     }

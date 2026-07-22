@@ -158,6 +158,52 @@ namespace
         add(155, object.GetUInt32Value(UNIT_FIELD_MIN_ITEM_LEVEL));
         add(156, object.GetUInt32Value(UNIT_FIELD_MAXITEMLEVEL));
     }
+
+    void BuildMopGameObjectStaticFields(Object const& object, Player* target,
+        std::vector<MopUpdateObject::StaticField>& fields)
+    {
+        GameObject const* gameObject = static_cast<GameObject const*>(&object);
+        auto add = [&fields](uint16 index, uint32 value)
+        {
+            fields.push_back({ index, value });
+        };
+
+        uint16 dynamicLow = 0;
+        if (gameObject->ActivateToQuest(target) || target->isGameMaster())
+        {
+            switch (gameObject->GetGoType())
+            {
+                case GAMEOBJECT_TYPE_QUESTGIVER:
+                    dynamicLow = GO_DYNFLAG_LO_ACTIVATE;
+                    break;
+                case GAMEOBJECT_TYPE_CHEST:
+                case GAMEOBJECT_TYPE_GENERIC:
+                case GAMEOBJECT_TYPE_SPELL_FOCUS:
+                case GAMEOBJECT_TYPE_GOOBER:
+                    dynamicLow = GO_DYNFLAG_LO_ACTIVATE | GO_DYNFLAG_LO_SPARKLE;
+                    break;
+                default:
+                    break;
+            }
+        }
+        uint32 dynamic = MopUpdateObject::TranslateGameObjectDynamic(0xFFFF0000u | dynamicLow);
+
+        add(0, object.GetUInt32Value(OBJECT_FIELD_GUID));
+        add(1, object.GetUInt32Value(OBJECT_FIELD_GUID + 1));
+        add(2, object.GetUInt32Value(OBJECT_FIELD_DATA));
+        add(3, object.GetUInt32Value(OBJECT_FIELD_DATA + 1));
+        add(4, object.GetUInt32Value(OBJECT_FIELD_TYPE));
+        add(5, object.GetUInt32Value(OBJECT_FIELD_ENTRY));
+        add(6, dynamic);
+        add(7, object.GetUInt32Value(OBJECT_FIELD_SCALE_X));
+        add(8, object.GetUInt32Value(OBJECT_FIELD_CREATED_BY));
+        add(9, object.GetUInt32Value(OBJECT_FIELD_CREATED_BY + 1));
+        add(10, object.GetUInt32Value(GAMEOBJECT_DISPLAYID));
+        add(11, object.GetUInt32Value(GAMEOBJECT_FLAGS));
+        for (uint16 i = 0; i < 4; ++i) add(uint16(12 + i), object.GetUInt32Value(GAMEOBJECT_PARENTROTATION + i));
+        add(16, object.GetUInt32Value(GAMEOBJECT_FACTION));
+        add(17, object.GetUInt32Value(GAMEOBJECT_LEVEL));
+    }
 }
 
 /**
@@ -207,36 +253,72 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
         return;
     }
 
-    Unit const* unit = static_cast<Unit const*>(this);
-    MopUpdateObject::SimpleLivingMovement movement{};
-    movement.guid = GetObjectGuid().GetRawValue();
-    movement.x = unit->GetPositionX();
-    movement.y = unit->GetPositionY();
-    movement.z = unit->GetPositionZ();
-    movement.o = unit->GetOrientation();
-    movement.moveTime = GameTime::GetGameTimeMS();
-    movement.speedWalk = unit->GetSpeed(MOVE_WALK);
-    movement.speedRun = unit->GetSpeed(MOVE_RUN);
-    movement.speedRunBack = unit->GetSpeed(MOVE_RUN_BACK);
-    movement.speedSwim = unit->GetSpeed(MOVE_SWIM);
-    movement.speedSwimBack = unit->GetSpeed(MOVE_SWIM_BACK);
-    movement.speedFlight = unit->GetSpeed(MOVE_FLIGHT);
-    movement.speedFlightBack = unit->GetSpeed(MOVE_FLIGHT_BACK);
-    movement.speedTurn = unit->GetSpeed(MOVE_TURN_RATE);
-    movement.speedPitch = unit->GetSpeed(MOVE_PITCH_RATE);
-    movement.self = false;
-
+    uint8 updateType = m_itsNewObject ? UPDATETYPE_CREATE_OBJECT2 : UPDATETYPE_CREATE_OBJECT;
+    uint64 guid = GetObjectGuid().GetRawValue();
     std::vector<MopUpdateObject::StaticField> fields;
-    fields.reserve(47);
-    BuildMopUnitStaticFields(*this, target, fields);
-    MopUpdateObject::AppendSimpleLivingCreateBlock(data->GetBuffer(),
-        m_itsNewObject ? UPDATETYPE_CREATE_OBJECT2 : UPDATETYPE_CREATE_OBJECT,
-        movement.guid, m_objectTypeId, movement, fields.data(), uint32(fields.size()));
+
+    if (GetTypeId() == TYPEID_UNIT)
+    {
+        Unit const* unit = static_cast<Unit const*>(this);
+        MopUpdateObject::SimpleLivingMovement movement{};
+        movement.guid = guid;
+        movement.x = unit->GetPositionX();
+        movement.y = unit->GetPositionY();
+        movement.z = unit->GetPositionZ();
+        movement.o = unit->GetOrientation();
+        movement.moveTime = GameTime::GetGameTimeMS();
+        movement.speedWalk = unit->GetSpeed(MOVE_WALK);
+        movement.speedRun = unit->GetSpeed(MOVE_RUN);
+        movement.speedRunBack = unit->GetSpeed(MOVE_RUN_BACK);
+        movement.speedSwim = unit->GetSpeed(MOVE_SWIM);
+        movement.speedSwimBack = unit->GetSpeed(MOVE_SWIM_BACK);
+        movement.speedFlight = unit->GetSpeed(MOVE_FLIGHT);
+        movement.speedFlightBack = unit->GetSpeed(MOVE_FLIGHT_BACK);
+        movement.speedTurn = unit->GetSpeed(MOVE_TURN_RATE);
+        movement.speedPitch = unit->GetSpeed(MOVE_PITCH_RATE);
+        movement.self = false;
+
+        fields.reserve(47);
+        BuildMopUnitStaticFields(*this, target, fields);
+        MopUpdateObject::AppendSimpleLivingCreateBlock(data->GetBuffer(), updateType, guid,
+            m_objectTypeId, movement, fields.data(), uint32(fields.size()));
+    }
+    else
+    {
+        GameObject const* gameObject = static_cast<GameObject const*>(this);
+        MopUpdateObject::StationaryGameObjectMovement movement{};
+        movement.x = gameObject->GetPositionX();
+        movement.y = gameObject->GetPositionY();
+        movement.z = gameObject->GetPositionZ();
+        movement.o = gameObject->GetOrientation();
+        movement.rotation = uint64(gameObject->GetPackedWorldRotation());
+
+        fields.reserve(18);
+        BuildMopGameObjectStaticFields(*this, target, fields);
+        MopUpdateObject::AppendStationaryGameObjectCreateBlock(data->GetBuffer(), updateType, guid,
+            m_objectTypeId, movement, fields.data(), uint32(fields.size()));
+    }
     data->AddUpdateBlock();
 }
 
 bool Object::CanBuildMopCreateUpdate() const
 {
+    if (GetTypeId() == TYPEID_GAMEOBJECT)
+    {
+        GameObject const* gameObject = static_cast<GameObject const*>(this);
+        uint16 const supportedFlags = UPDATEFLAG_HAS_POSITION | UPDATEFLAG_ROTATION;
+        MopUpdateObject::StationaryGameObjectEligibility eligibility{};
+        eligibility.hasTemplate = gameObject->GetGOInfo() != NULL;
+        eligibility.isDestructibleBuilding = eligibility.hasTemplate &&
+            gameObject->GetGoType() == GAMEOBJECT_TYPE_DESTRUCTIBLE_BUILDING;
+        eligibility.isTransport = gameObject->IsTransport();
+        eligibility.isBoarded = gameObject->IsBoarded();
+        eligibility.hasStationaryPosition = (m_updateFlag & UPDATEFLAG_HAS_POSITION) != 0;
+        eligibility.hasRotation = (m_updateFlag & UPDATEFLAG_ROTATION) != 0;
+        eligibility.hasUnsupportedMovement = (m_updateFlag & ~supportedFlags) != 0;
+        return MopUpdateObject::CanUseStationaryGameObjectMovement(eligibility);
+    }
+
     if (GetTypeId() != TYPEID_UNIT)
     {
         return false;
@@ -299,14 +381,23 @@ bool Object::SendCreateUpdateToPlayer(Player* player)
  */
 void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player* target) const
 {
-    if (!target || GetTypeId() != TYPEID_UNIT)
+    if (!target || (GetTypeId() != TYPEID_UNIT && GetTypeId() != TYPEID_GAMEOBJECT) ||
+        (GetTypeId() == TYPEID_GAMEOBJECT && !CanBuildMopCreateUpdate()))
     {
         return;
     }
 
     std::vector<MopUpdateObject::StaticField> fields;
-    fields.reserve(47);
-    BuildMopUnitStaticFields(*this, target, fields);
+    if (GetTypeId() == TYPEID_UNIT)
+    {
+        fields.reserve(47);
+        BuildMopUnitStaticFields(*this, target, fields);
+    }
+    else
+    {
+        fields.reserve(18);
+        BuildMopGameObjectStaticFields(*this, target, fields);
+    }
     MopUpdateObject::AppendValuesBlock(data->GetBuffer(), GetObjectGuid().GetRawValue(),
         fields.data(), uint32(fields.size()));
     data->AddUpdateBlock();

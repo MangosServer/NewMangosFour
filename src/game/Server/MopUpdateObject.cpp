@@ -50,11 +50,23 @@ uint32 MopUpdateObject::TranslateUnitDynamicFlags(uint32 legacyFlags)
     return (legacyFlags & 0x000000FFu) << 1;
 }
 
+uint32 MopUpdateObject::TranslateGameObjectDynamic(uint32 legacyDynamic)
+{
+    return (legacyDynamic & 0xFFFF0000u) | ((legacyDynamic & 0x0000000Fu) << 1);
+}
+
 bool MopUpdateObject::CanUseSimpleUnitMovement(SimpleUnitEligibility const& eligibility)
 {
     return !eligibility.isVehicle && !eligibility.isBoarded && !eligibility.hasTransport &&
         !eligibility.hasSpline && eligibility.movementFlags == 0 && eligibility.movementFlags2 == 0 &&
         !eligibility.hasOptionalMovement && !eligibility.hasAttackingTarget;
+}
+
+bool MopUpdateObject::CanUseStationaryGameObjectMovement(StationaryGameObjectEligibility const& eligibility)
+{
+    return eligibility.hasTemplate && !eligibility.isDestructibleBuilding && !eligibility.isTransport &&
+        !eligibility.isBoarded && eligibility.hasStationaryPosition && eligibility.hasRotation &&
+        !eligibility.hasUnsupportedMovement;
 }
 
 void MopUpdateObject::AppendStaticValuesNoDynamic(ByteBuffer& out, StaticField const* fields, uint32 fieldCount)
@@ -116,6 +128,16 @@ void MopUpdateObject::AppendStationaryGameObjectMovement(ByteBuffer& out, Statio
 
     out << movement.y << movement.z << movement.o << movement.x;
     out << movement.rotation;
+}
+
+void MopUpdateObject::AppendStationaryGameObjectCreateBlock(ByteBuffer& out, uint8 updateType, uint64 guid, uint8 typeId,
+    StationaryGameObjectMovement const& movement, StaticField const* fields, uint32 fieldCount)
+{
+    out << updateType;
+    AppendPackedGuid(out, guid);
+    out << typeId;
+    AppendStationaryGameObjectMovement(out, movement);
+    AppendStaticValuesNoDynamic(out, fields, fieldCount);
 }
 
 void MopUpdateObject::AppendSimpleLivingMovement(ByteBuffer& out, SimpleLivingMovement const& movement)

@@ -3120,8 +3120,12 @@ void Player::UpdateForQuestWorldObjects()
             }
         }
     }
+    if (!udata.HasData())
+    {
+        return;
+    }
     udata.BuildPacket(&packet);
-    GetSession()->SendPacket(&packet);
+    GetSession()->SendPacket(&packet, true);
 }
 
 void Player::SetDailyQuestStatus(uint32 quest_id)
