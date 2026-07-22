@@ -2,6 +2,19 @@ file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CharacterHandler.cpp" character
 file(READ "${SOURCE_ROOT}/src/game/Object/Player.cpp" player)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" world_session)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/MiscHandler.cpp" misc_handler)
+
+if(MUTATION STREQUAL "time_sync_registration")
+    string(REPLACE
+        "DefC(CMSG_TIME_SYNC_RESP, \"CMSG_TIME_SYNC_RESP\""
+        "RemovedC(CMSG_TIME_SYNC_RESP, \"CMSG_TIME_SYNC_RESP\""
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "time_sync_parse_order")
+    string(REPLACE
+        "recv_data >> counter >> clientTicks;"
+        "recv_data >> clientTicks >> counter;"
+        misc_handler "${misc_handler}")
+endif()
 
 if(character_handler MATCHES "WorldPacket[ \t]+data\\(SMSG_LOGIN_VERIFY_WORLD")
     message(FATAL_ERROR "inline SMSG_LOGIN_VERIFY_WORLD writer remains")
@@ -29,6 +42,15 @@ foreach(builder IN ITEMS
         message(FATAL_ERROR "${builder} is not used by a production sender")
     endif()
 endforeach()
+
+if(NOT opcode_registry MATCHES
+        "DefC\\(CMSG_TIME_SYNC_RESP,[ \t]*\"CMSG_TIME_SYNC_RESP\"[^\n]*HandleTimeSyncResp")
+    message(FATAL_ERROR "CMSG_TIME_SYNC_RESP is missing inbound opcode metadata")
+endif()
+
+if(NOT misc_handler MATCHES "recv_data[ \t]*>>[ \t]*counter[ \t]*>>[ \t]*clientTicks;")
+    message(FATAL_ERROR "CMSG_TIME_SYNC_RESP must parse counter before client ticks")
+endif()
 
 foreach(server_name IN ITEMS
         SMSG_LOGIN_VERIFY_WORLD

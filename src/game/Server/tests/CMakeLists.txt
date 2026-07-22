@@ -247,6 +247,16 @@ add_test(NAME mop_world_entry_packets_source
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_world_entry_packets_source_test.cmake)
 
+foreach(mutation IN ITEMS time_sync_registration time_sync_parse_order)
+    add_test(NAME mop_world_entry_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND}
+            -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_world_entry_packets_source_test.cmake)
+    set_tests_properties(mop_world_entry_packets_source_mutation_${mutation}
+        PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_control_packets_test mop_control_packets_test.cpp)
 target_include_directories(mop_control_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..

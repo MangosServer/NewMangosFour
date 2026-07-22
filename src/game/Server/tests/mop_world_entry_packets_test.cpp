@@ -183,6 +183,7 @@ static void test_opcode_values_are_framable()
     CHECK(uint32_t(SMSG_LOGIN_SETTIMESPEED) == 0x082Bu);
     CHECK(uint32_t(SMSG_MOVE_TELEPORT) == 0x0B39u);
     CHECK(uint32_t(SMSG_TIME_SYNC_REQ) == 0x1A8Fu);
+    CHECK(uint32_t(CMSG_TIME_SYNC_RESP) == 0x01DBu);
     CHECK(uint32_t(SMSG_TRIGGER_CINEMATIC) == 0x0B01u);
     CHECK(uint32_t(SMSG_WORLD_SERVER_INFO) == 0x0082u);
     CHECK(uint32_t(SMSG_INIT_WORLD_STATES) == 0x1560u);
@@ -191,6 +192,7 @@ static void test_opcode_values_are_framable()
     CHECK(uint32_t(SMSG_LOGIN_SETTIMESPEED) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_MOVE_TELEPORT) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_TIME_SYNC_REQ) <= 0x1FFFu);
+    CHECK(uint32_t(CMSG_TIME_SYNC_RESP) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_TRIGGER_CINEMATIC) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_WORLD_SERVER_INFO) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_INIT_WORLD_STATES) <= 0x1FFFu);
