@@ -1573,6 +1573,12 @@ struct QuestFactionRewardEntry
     int32       Difficulty[10];                            // 1-10     m_Difficulty  (was rewardValue)
 };
 
+struct QuestV2Entry
+{
+    uint32      ID;                                         // 0        m_ID
+    uint32      UniqueBitFlag;                              // 1        m_UniqueBitFlag
+};
+
 struct QuestSortEntry
 {
     uint32      ID;                                         // 0        m_ID

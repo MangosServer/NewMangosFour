@@ -151,7 +151,7 @@ bool ChatHandler::HandleQuestRemoveCommand(char* args)
     player->SetQuestStatus(entry, QUEST_STATUS_NONE);
 
     // reset rewarded for restart repeatable quest
-    player->getQuestStatusMap()[entry].m_rewarded = false;
+    player->ClearQuestRewardStatus(entry);
 
     SendSysMessage(LANG_COMMAND_QUEST_REMOVED);
     return true;

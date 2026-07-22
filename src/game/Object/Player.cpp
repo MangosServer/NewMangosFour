@@ -4478,6 +4478,8 @@ void Player::SendInitialPacketsBeforeAddToMap()
     data << uint32(GetMap()->GetDifficulty());
     GetSession()->SendPacket(&data);
 
+    SendInitialQuestSetup();
+
     SendInitialSpells();
 
     data.Initialize(SMSG_SEND_UNLEARN_SPELLS, 3);

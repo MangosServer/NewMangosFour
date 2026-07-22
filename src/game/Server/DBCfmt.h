@@ -104,6 +104,7 @@ const char MountTypefmt[]="niiiiiiiiiiiiiiiiiiiiiiii";
 const char NumTalentsAtLevelfmt[]="df";
 const char OverrideSpellDatafmt[]="niiiiiiiiiixx";
 const char QuestFactionRewardfmt[] = "niiiiiiiiii";
+const char QuestV2fmt[] = "ni";                                  // 5.4.8: ID, UniqueBitFlag
 const char QuestSortEntryfmt[]="nx";                                // 5.3.0 Checked
 const char QuestXPLevelfmt[] = "niiiiiiiiii";                       // 5.3.0 Checked
 const char Phasefmt[]="nsi";                                        // 5.4.8 registry: idx1 Name(string), was i PhaseShift

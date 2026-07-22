@@ -437,6 +437,77 @@ namespace MopDeathPackets
 
 namespace MopQuestPackets
 {
+    static size_t const COMPLETED_QUEST_BYTES = 2048;
+    static uint32 const MAX_COMPLETED_QUEST_BIT = COMPLETED_QUEST_BYTES * 8;
+    typedef std::array<uint8, COMPLETED_QUEST_BYTES> CompletedQuestBits;
+
+    inline bool SetCompletedQuestBit(CompletedQuestBits& bits,
+        uint32 uniqueBit)
+    {
+        if (uniqueBit == 0 || uniqueBit > MAX_COMPLETED_QUEST_BIT)
+            return false;
+
+        uint32 const zeroBased = uniqueBit - 1;
+        bits[zeroBased / 8] |= uint8(1u << (zeroBased % 8));
+        return true;
+    }
+
+    inline void BuildInitialSetup(WorldPacket& out,
+        CompletedQuestBits const& bits, uint32 regionId,
+        uint8 expansionTier, bool hasWeeklyEpoch, uint32 weeklyEpoch,
+        uint8 realmExpansion)
+    {
+        out.Initialize(SMSG_INITIAL_SETUP, 2062);
+        out.WriteBit(!hasWeeklyEpoch);
+        out.WriteBits(uint32(bits.size()), 24);
+        out.FlushBits();
+        out << regionId << expansionTier;
+        if (hasWeeklyEpoch)
+            out << weeklyEpoch;
+        out.append(bits.data(), bits.size());
+        out << realmExpansion;
+    }
+
+    inline bool BuildSetQuestCompletedBit(WorldPacket& out,
+        uint32 uniqueBit)
+    {
+        if (uniqueBit == 0 || uniqueBit > MAX_COMPLETED_QUEST_BIT)
+            return false;
+
+        out.Initialize(SMSG_SET_QUEST_COMPLETED_BIT, 4);
+        out << uniqueBit;
+        return true;
+    }
+
+    inline bool BuildClearQuestCompletedBit(WorldPacket& out,
+        uint32 uniqueBit)
+    {
+        if (uniqueBit > MAX_COMPLETED_QUEST_BIT)
+            return false;
+
+        out.Initialize(SMSG_CLEAR_QUEST_COMPLETED_BIT, 4);
+        out << uniqueBit;
+        return true;
+    }
+
+    inline bool BuildClearQuestCompletedBits(WorldPacket& out,
+        std::vector<uint32> const& uniqueBits)
+    {
+        if (uniqueBits.size() >= (size_t(1) << 22))
+            return false;
+        for (uint32 uniqueBit : uniqueBits)
+            if (uniqueBit == 0 || uniqueBit > MAX_COMPLETED_QUEST_BIT)
+                return false;
+
+        out.Initialize(SMSG_CLEAR_QUEST_COMPLETED_BITS,
+            3 + uniqueBits.size() * sizeof(uint32));
+        out.WriteBits(uint32(uniqueBits.size()), 22);
+        out.FlushBits();
+        for (uint32 uniqueBit : uniqueBits)
+            out << uniqueBit;
+        return true;
+    }
+
     struct QuestPushResult
     {
         uint32 questId = 0;
@@ -2445,6 +2516,10 @@ class Player : public Unit
 
         // Reward a quest
         void RewardQuest(Quest const* pQuest, uint32 reward, Object* questGiver, bool announce = true);
+        void SendInitialQuestSetup();
+        void SendQuestCompletedBit(uint32 questId);
+        void SendClearQuestCompletedBits(std::set<uint32> const& quests);
+        void ClearQuestRewardStatus(uint32 questId);
 
         // Fail a quest
         void FailQuest(uint32 quest_id);
@@ -4432,6 +4507,7 @@ class Player : public Unit
         // We allow only one timed quest active at the same time. Below can then be simple value instead of set.
         typedef std::set<uint32> QuestSet;
         QuestSet m_timedquests;
+        QuestSet m_dailyquests;
         QuestSet m_weeklyquests;
         QuestSet m_monthlyquests;
 

@@ -947,10 +947,7 @@ void Player::_LoadQuestStatus(QueryResult* result)
 
 void Player::_LoadDailyQuestStatus(QueryResult* result)
 {
-    //for (uint32 quest_daily_idx = 0; quest_daily_idx < PLAYER_MAX_DAILY_QUESTS; ++quest_daily_idx)
-    //{
-    //    SetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx, 0);
-    //}
+    m_dailyquests.clear();
 
     // QueryResult *result = CharacterDatabase.PQuery("SELECT `quest` FROM `character_queststatus_daily` WHERE `guid` = '%u'", GetGUIDLow());
 
@@ -976,7 +973,7 @@ void Player::_LoadDailyQuestStatus(QueryResult* result)
                 continue;
             }
 
-            //SetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx, quest_id);
+            m_dailyquests.insert(quest_id);
             ++quest_daily_idx;
 
             DEBUG_LOG("Daily quest {%u} cooldown for player (GUID: %u)", quest_id, GetGUIDLow());

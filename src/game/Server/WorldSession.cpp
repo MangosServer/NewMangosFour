@@ -317,6 +317,10 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_DEATH_RELEASE_LOC:         // MopDeathPackets::BuildDeathReleaseLocation
         case SMSG_QUEST_CONFIRM_ACCEPT:      // MopQuestPackets::BuildQuestConfirmAccept
         case SMSG_QUEST_PUSH_RESULT:         // MopQuestPackets::BuildQuestPushResult
+        case SMSG_INITIAL_SETUP:             // MopQuestPackets::BuildInitialSetup
+        case SMSG_SET_QUEST_COMPLETED_BIT:   // MopQuestPackets::BuildSetQuestCompletedBit
+        case SMSG_CLEAR_QUEST_COMPLETED_BIT: // MopQuestPackets::BuildClearQuestCompletedBit
+        case SMSG_CLEAR_QUEST_COMPLETED_BITS: // MopQuestPackets::BuildClearQuestCompletedBits
         case SMSG_QUERY_TIME_RESPONSE:       // MopQueryPackets::BuildQueryTimeResponse
         case SMSG_PLAYED_TIME:               // MopQueryPackets::BuildPlayedTimeResponse
         case SMSG_REALM_NAME_QUERY_RESPONSE: // MopQueryPackets::BuildRealmNameQueryResponse (client fires the realm query from the name-cache path during login)

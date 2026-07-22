@@ -270,6 +270,7 @@ extern DBCStorage <MountTypeEntry>               sMountTypeStore;
 extern DBCStorage <NumTalentsAtLevelEntry>       sNumTalentsAtLevelStore;
 extern DBCStorage <OverrideSpellDataEntry>       sOverrideSpellDataStore;
 extern DBCStorage <QuestFactionRewardEntry>      sQuestFactionRewardStore;
+extern DBCStorage <QuestV2Entry>                 sQuestV2Store;
 extern DBCStorage <QuestSortEntry>               sQuestSortStore;
 extern DBCStorage <QuestXPLevel>                 sQuestXPLevelStore;
 extern DBCStorage <PhaseEntry>                   sPhaseStore;

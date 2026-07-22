@@ -87,6 +87,18 @@
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
 
+namespace
+{
+    uint32 GetCompletedQuestUniqueBit(uint32 questId)
+    {
+        QuestV2Entry const* entry = sQuestV2Store.LookupEntry(questId);
+        if (!entry || entry->UniqueBitFlag == 0 ||
+            entry->UniqueBitFlag > MopQuestPackets::MAX_COMPLETED_QUEST_BIT)
+            return 0;
+        return entry->UniqueBitFlag;
+    }
+}
+
 /*********************************************************/
 /***                    QUEST SYSTEM                   ***/
 /*********************************************************/
@@ -886,6 +898,91 @@ void Player::AddQuest(Quest const* pQuest, Object* questGiver)
     }
 }
 
+void Player::SendInitialQuestSetup()
+{
+    MopQuestPackets::CompletedQuestBits completed{};
+    auto addQuest = [&completed](uint32 questId)
+    {
+        if (uint32 uniqueBit = GetCompletedQuestUniqueBit(questId))
+            MopQuestPackets::SetCompletedQuestBit(completed, uniqueBit);
+    };
+
+    for (QuestStatusMap::const_iterator itr = mQuestStatus.begin();
+         itr != mQuestStatus.end(); ++itr)
+    {
+        if (!itr->second.m_rewarded)
+            continue;
+
+        Quest const* quest = sObjectMgr.GetQuestTemplate(itr->first);
+        if (!quest || quest->IsDaily() || quest->IsWeekly() || quest->IsMonthly())
+            continue;
+        addQuest(itr->first);
+    }
+
+    for (uint32 questId : m_dailyquests)
+        addQuest(questId);
+    for (uint32 questId : m_weeklyquests)
+        addQuest(questId);
+    for (uint32 questId : m_monthlyquests)
+        addQuest(questId);
+
+    // The packet semantics are binary-proved. These two policy values are the
+    // working 5.4.8 EU defaults: Cfg_Regions ID 3 and the canonical weekly epoch.
+    static uint32 const EU_REGION_ID = 3;
+    static uint32 const WEEKLY_EPOCH = 1135753200;
+    WorldPacket data;
+    MopQuestPackets::BuildInitialSetup(data, completed, EU_REGION_ID, 0,
+        true, WEEKLY_EPOCH,
+        uint8(sWorld.getConfig(CONFIG_UINT32_EXPANSION)));
+    GetSession()->SendPacket(&data);
+}
+
+void Player::SendQuestCompletedBit(uint32 questId)
+{
+    uint32 const uniqueBit = GetCompletedQuestUniqueBit(questId);
+    if (!uniqueBit)
+        return;
+
+    WorldPacket data;
+    if (MopQuestPackets::BuildSetQuestCompletedBit(data, uniqueBit))
+        GetSession()->SendPacket(&data);
+}
+
+void Player::SendClearQuestCompletedBits(std::set<uint32> const& quests)
+{
+    std::vector<uint32> uniqueBits;
+    uniqueBits.reserve(quests.size());
+    for (uint32 questId : quests)
+        if (uint32 uniqueBit = GetCompletedQuestUniqueBit(questId))
+            uniqueBits.push_back(uniqueBit);
+
+    if (uniqueBits.empty())
+        return;
+
+    WorldPacket data;
+    if (MopQuestPackets::BuildClearQuestCompletedBits(data, uniqueBits))
+        GetSession()->SendPacket(&data);
+}
+
+void Player::ClearQuestRewardStatus(uint32 questId)
+{
+    QuestStatusMap::iterator itr = mQuestStatus.find(questId);
+    if (itr == mQuestStatus.end() || !itr->second.m_rewarded)
+        return;
+
+    itr->second.m_rewarded = false;
+    if (itr->second.uState != QUEST_NEW)
+        itr->second.uState = QUEST_CHANGED;
+
+    uint32 const uniqueBit = GetCompletedQuestUniqueBit(questId);
+    if (!uniqueBit)
+        return;
+
+    WorldPacket data;
+    if (MopQuestPackets::BuildClearQuestCompletedBit(data, uniqueBit))
+        GetSession()->SendPacket(&data);
+}
+
 /**
  * @brief Marks a quest as complete and updates quest tracker data.
  *
@@ -1116,6 +1213,7 @@ void Player::RewardQuest(Quest const* pQuest, uint32 reward, Object* questGiver,
     {
         q_status.uState = QUEST_CHANGED;
     }
+    SendQuestCompletedBit(quest_id);
 
     if (announce)
     {
@@ -1733,22 +1831,10 @@ bool Player::SatisfyQuestDay(Quest const* qInfo, bool msg) const
         return true;
     }
 
-    bool have_slot = false;
-    //for (uint32 quest_daily_idx = 0; quest_daily_idx < PLAYER_MAX_DAILY_QUESTS; ++quest_daily_idx)
-    //{
-    //    uint32 id = GetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx);
-    //    if (qInfo->GetQuestId() == id)
-    //    {
-    //        return false;
-    //    }
+    if (m_dailyquests.find(qInfo->GetQuestId()) != m_dailyquests.end())
+        return false;
 
-    //    if (!id)
-    //    {
-    //        have_slot = true;
-    //    }
-    //}
-
-    if (!have_slot)
+    if (m_dailyquests.size() >= PLAYER_MAX_DAILY_QUESTS)
     {
         if (msg)
         {
@@ -3129,15 +3215,8 @@ void Player::UpdateForQuestWorldObjects()
 
 void Player::SetDailyQuestStatus(uint32 quest_id)
 {
-    //for (uint32 quest_daily_idx = 0; quest_daily_idx < PLAYER_MAX_DAILY_QUESTS; ++quest_daily_idx)
-    //{
-    //    if (!GetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx))
-    //    {
-    //        SetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx, quest_id);
-    //        m_DailyQuestChanged = true;
-    //        break;
-    //    }
-    //}
+    m_dailyquests.insert(quest_id);
+    m_DailyQuestChanged = true;
 }
 
 void Player::SetWeeklyQuestStatus(uint32 quest_id)
@@ -3154,10 +3233,8 @@ void Player::SetMonthlyQuestStatus(uint32 quest_id)
 
 void Player::ResetDailyQuestStatus()
 {
-    //for (uint32 quest_daily_idx = 0; quest_daily_idx < PLAYER_MAX_DAILY_QUESTS; ++quest_daily_idx)
-    //{
-    //    SetUInt32Value(PLAYER_FIELD_DAILY_QUESTS_1 + quest_daily_idx, 0);
-    //}
+    SendClearQuestCompletedBits(m_dailyquests);
+    m_dailyquests.clear();
 
     // DB data deleted in caller
     m_DailyQuestChanged = false;
@@ -3170,6 +3247,7 @@ void Player::ResetWeeklyQuestStatus()
         return;
     }
 
+    SendClearQuestCompletedBits(m_weeklyquests);
     m_weeklyquests.clear();
     // DB data deleted in caller
     m_WeeklyQuestChanged = false;
@@ -3182,6 +3260,7 @@ void Player::ResetMonthlyQuestStatus()
         return;
     }
 
+    SendClearQuestCompletedBits(m_monthlyquests);
     m_monthlyquests.clear();
     // DB data deleted in caller
     m_MonthlyQuestChanged = false;
