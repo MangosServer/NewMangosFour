@@ -385,7 +385,6 @@ enum OpcodesList
     SMSG_LOOT_RESPONSE                           = 0x128A,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_LOOT_RELEASE_RESPONSE                   = 0x123F,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_LOOT_REMOVED                            = 0x0C3E,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
-    SMSG_LOOT_CURRENCY_REMOVED                   = 0x1DB4,    // 4.3.4 15595 (no client leaf)
     SMSG_LOOT_MONEY_NOTIFY                       = 0x14C0,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_LOOT_ITEM_NOTIFY                        = 0x080F,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_LOOT_CLEAR_MONEY                        = 0x1632,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)

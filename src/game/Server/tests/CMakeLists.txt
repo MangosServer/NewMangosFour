@@ -568,6 +568,19 @@ foreach(mutation IN ITEMS length_width registration allowlist area_trigger_route
     set_tests_properties(mop_notification_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_test(NAME mop_currency_loot_legacy_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_currency_loot_legacy_source_test.cmake)
+
+foreach(mutation IN ITEMS currency_send legacy_selector legacy_opcode currency_accounting
+        generic_backend premature_registration premature_allowlist)
+    add_test(NAME mop_currency_loot_legacy_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_currency_loot_legacy_source_test.cmake)
+    set_tests_properties(mop_currency_loot_legacy_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_lfg_packets_test mop_lfg_packets_test.cpp)
 target_include_directories(mop_lfg_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..

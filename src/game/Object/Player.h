@@ -3839,7 +3839,7 @@ class Player : public Unit
 
         // Send loot release information to the client
         void SendLootRelease(ObjectGuid guid);
-        void SendNotifyLootItemRemoved(uint8 lootSlot, bool currency = false);
+        void SendNotifyLootItemRemoved(uint8 lootSlot);
 
         // Notify the client that a loot item was removed
 

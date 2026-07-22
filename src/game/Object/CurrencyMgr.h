@@ -178,8 +178,6 @@ typedef std::unordered_map<uint32, PlayerCurrency> PlayerCurrenciesMap;
  *  - CurrencyAddedQuestCheck / CurrencyRemovedQuestCheck: quest-tracker
  *    integration. ModifyCount calls these through m_owner so the quest
  *    side-effects fire at the right moment.
- *  - SendNotifyLootItemRemoved(_, bool currency): loot system, the
- *    "currency" param is a loot-type indicator, not a currency method.
  *  - HasCurrencyCount / HasCurrencySeasonCount: inline convenience
  *    methods that just call the count getters; trivial to keep inline
  *    on Player.

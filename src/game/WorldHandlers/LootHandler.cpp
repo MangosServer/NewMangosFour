@@ -156,7 +156,6 @@ void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recv_data)
             player->ModifyCurrencyCount(item->itemid, int32(item->count * currencyEntry->GetPrecision()));
         }
 
-        player->SendNotifyLootItemRemoved(lootSlot, true);
         currency->is_looted = true;
         --loot->unlootedCount;
         return;

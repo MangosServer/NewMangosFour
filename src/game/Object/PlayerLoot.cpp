@@ -582,10 +582,14 @@ void Player::SendNotifyLootMoneyRemoved()
  * @brief Notifies the client that a loot slot was removed.
  *
  * @param lootSlot The loot slot index that was removed.
+ *
+ * The 5.4.8 body also needs source-object and loot-view GUIDs. Keep this
+ * legacy one-byte body gated until the loot-response identity model is
+ * migrated with it.
  */
-void Player::SendNotifyLootItemRemoved(uint8 lootSlot, bool currency)
+void Player::SendNotifyLootItemRemoved(uint8 lootSlot)
 {
-    WorldPacket data(currency ? SMSG_LOOT_CURRENCY_REMOVED : SMSG_LOOT_REMOVED, 1);
+    WorldPacket data(SMSG_LOOT_REMOVED, 1);
     data << uint8(lootSlot);
     GetSession()->SendPacket(&data);
 }
