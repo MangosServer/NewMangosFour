@@ -4093,7 +4093,20 @@ enum ArenaType
     ARENA_TYPE_5v5          = 5
 };
 
+#define MAX_ARENA_SLOT 3
+
 inline bool IsArenaTypeValid(ArenaType type) { return type == ARENA_TYPE_2v2 || type == ARENA_TYPE_3v3 || type == ARENA_TYPE_5v5; }
+
+inline uint8 GetArenaSlotByType(ArenaType type)
+{
+    switch (type)
+    {
+        case ARENA_TYPE_2v2: return 0;
+        case ARENA_TYPE_3v3: return 1;
+        case ARENA_TYPE_5v5: return 2;
+        default: return MAX_ARENA_SLOT;
+    }
+}
 
 enum MailResponseType
 {

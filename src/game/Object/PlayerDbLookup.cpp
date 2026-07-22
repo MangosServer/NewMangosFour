@@ -59,7 +59,6 @@
 #include "BattleGround/BattleGroundMgr.h"
 #include "BattleGround/BattleGroundAV.h"
 #include "OutdoorPvP/OutdoorPvP.h"
-#include "ArenaTeam.h"
 #include "Chat.h"
 #include "revision_data.h"
 #include "Database/DatabaseImpl.h"
@@ -133,19 +132,6 @@ uint32 Player::GetRankFromDB(ObjectGuid guid)
     {
         return 0;
     }
-}
-
-uint32 Player::GetArenaTeamIdFromDB(ObjectGuid guid, ArenaType type)
-{
-    QueryResult* result = CharacterDatabase.PQuery("SELECT `arena_team_member`.`arenateamid` FROM `arena_team_member` JOIN `arena_team` ON `arena_team_member`.`arenateamid` = `arena_team`.`arenateamid` WHERE `guid`='%u' AND `type`='%u' LIMIT 1", guid.GetCounter(), type);
-    if (!result)
-    {
-        return 0;
-    }
-
-    uint32 id = (*result)[0].GetUInt32();
-    delete result;
-    return id;
 }
 
 /**

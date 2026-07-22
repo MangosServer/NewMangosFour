@@ -829,30 +829,10 @@ enum OpcodesList
     CMSG_MOVE_SET_CAN_FLY_ACK                    = 0x1052, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MOVE_SET_FLY                            = 0x01F1, // 5.4.8 18414 (Wow.exe binary)
     CMSG_SOCKET_GEMS                             = 0x02CB, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_ARENA_TEAM_CREATE                       = 0x04A1, // not in 5.4.8 (legacy; handler retained)
-    SMSG_ARENA_TEAM_COMMAND_RESULT               = 0x06C1,    // (legacy; no client leaf)
     MSG_MOVE_UPDATE_CAN_TRANSITION_BETWEEN_SWIM_AND_FLY = 0x134B, // (no client leaf)
-    CMSG_ARENA_TEAM_QUERY                        = 0x0514, // not in 5.4.8 (legacy; handler retained)
-    SMSG_ARENA_TEAM_QUERY_RESPONSE               = 0x6336,    // (legacy; no client leaf; unframable >0x1FFF)
-    CMSG_ARENA_TEAM_ROSTER                       = 0x6F37, // not in 5.4.8 (legacy; handler retained)
-    SMSG_ARENA_TEAM_ROSTER                       = 0x14C0, // WRONG: 0x14C0 is SMSG_LOOT_MONEY_NOTIFY in 5.4.8.
-                                                           // Client handler is LootFrame.cpp and references
-                                                           // COPPER_AMOUNT / GOLD_AMOUNT / LOOT_MONEY_SPLIT.
-                                                           // Sending on this value is parsed as a money loot.
-                                                           // Sender: ArenaTeam.cpp:404. Correct value unknown.
-    CMSG_ARENA_TEAM_INVITE                       = 0x2F27, // not in 5.4.8 (legacy; handler retained)
-    SMSG_ARENA_TEAM_INVITE                       = 0x0F36,    // 4.3.4 15595 (unverified; no client leaf)
-    CMSG_ARENA_TEAM_ACCEPT                       = 0x2A25, // not in 5.4.8 (legacy; handler retained)
-    CMSG_ARENA_TEAM_DECLINE                      = 0x6925, // not in 5.4.8 (legacy; handler retained)
-    CMSG_ARENA_TEAM_LEAVE                        = 0x0E16, // not in 5.4.8 (legacy; handler retained)
-    CMSG_ARENA_TEAM_REMOVE                       = 0x2F05, // not in 5.4.8 (legacy; handler retained)
-    CMSG_ARENA_TEAM_DISBAND                      = 0x6504, // not in 5.4.8 (legacy; handler retained)
-    CMSG_ARENA_TEAM_LEADER                       = 0x4204, // not in 5.4.8 (legacy; handler retained)
-    SMSG_ARENA_TEAM_EVENT                        = 0x0617,    // 4.3.4 15595 (unverified; no client leaf)
     CMSG_BATTLEMASTER_JOIN_ARENA                 = 0x02D2, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MOVE_START_ASCEND                       = 0x11FA, // 5.4.8 18414
     CMSG_MOVE_STOP_ASCEND                        = 0x115A, // 5.4.8 18414
-    SMSG_ARENA_TEAM_STATS                        = 0x4425,    // 4.3.4 15595 (unverified; no client leaf; unframable >0x1FFF)
     CMSG_LFG_JOIN                                = 0x046B, // 5.4.8 18414 (Wow.exe binary)
     CMSG_LFG_LEAVE                               = 0x01E0, // 5.4.8 18414 (Wow.exe binary)
     CMSG_LFG_SEARCH_JOIN                         = 0x135F, // not in 5.4.8 (legacy)
@@ -877,7 +857,6 @@ enum OpcodesList
     CMSG_SET_TITLE                               = 0x03C7, // 5.4.8 18414 (Wow.exe binary)
     CMSG_CANCEL_MOUNT_AURA                       = 0x1552, // 5.4.8 18414 (Wow.exe binary)
     SMSG_ARENA_ERROR                             = 0x04BA,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
-    MSG_INSPECT_ARENA_TEAMS                      = 0x2704,    // 4.3.4 15595 (no client leaf; unframable >0x1FFF)
     SMSG_DEATH_RELEASE_LOC                       = 0x1063,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_CANCEL_TEMP_ENCHANTMENT                 = 0x024B, // 5.4.8 18414 (Wow.exe binary)
     SMSG_FORCED_DEATH_UPDATE                     = 0x0E8F,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
@@ -1031,7 +1010,6 @@ enum OpcodesList
     CMSG_CALENDAR_GET_CALENDAR                   = 0x1F9F, // 5.4.8 18414 (Wow.exe binary)
     CMSG_CALENDAR_GET_EVENT                      = 0x030C, // 5.4.8 18414 (Wow.exe binary)
     CMSG_CALENDAR_GUILD_FILTER                   = 0x04E3, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_CALENDAR_ARENA_TEAM                     = 0x142D, // not in 5.4.8 (legacy; handler retained)
     CMSG_CALENDAR_ADD_EVENT                      = 0x0A37, // 5.4.8 18414 (Wow.exe binary)
     CMSG_CALENDAR_UPDATE_EVENT                   = 0x1F8D, // 5.4.8 18414 (Wow.exe binary)
     CMSG_CALENDAR_REMOVE_EVENT                   = 0x0C61, // 5.4.8 18414 (Wow.exe binary)
@@ -1043,11 +1021,6 @@ enum OpcodesList
     CMSG_CALENDAR_EVENT_MODERATOR_STATUS         = 0x0708, // 5.4.8 18414 (Wow.exe binary)
     SMSG_CALENDAR_SEND_CALENDAR                  = 0x1A0A,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_CALENDAR_SEND_EVENT                     = 0x12AE,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
-    SMSG_CALENDAR_ARENA_TEAM                     = 0x143A, // WRONG: 0x143A is SMSG_CAST_FAILED in 5.4.8.
-                                                           // Client handler is Spell_C.cpp and references
-                                                           // SPELL_FAILED_UNKNOWN / SI3::PlaySpellFizzleSound.
-                                                           // Sending on this value is parsed as a cast failure.
-                                                           // Sender: ArenaTeam.cpp:890. Correct value unknown.
     SMSG_CALENDAR_EVENT_INVITE                   = 0x15C3,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_CALENDAR_EVENT_INVITE_REMOVED           = 0x00A2,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_CALENDAR_COMMAND_RESULT                 = 0x142A,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
@@ -1153,7 +1126,6 @@ enum OpcodesList
     CMSG_LEARN_TALENT_GROUP                      = 0x2415, // not in 5.4.8 (legacy)
     CMSG_PET_LEARN_TALENT_GROUP                  = 0x6E24, // not in 5.4.8 (legacy)
     SMSG_DESTROY_ARENA_UNIT                      = 0x2637,    // (legacy; no client leaf; unframable >0x1FFF)
-    SMSG_ARENA_TEAM_CHANGE_FAILED                = 0x6E34,    // (legacy; no client leaf; unframable >0x1FFF)
     SMSG_PROFILEDATA_RESPONSE                    = 0x14CB,    // (legacy; no client leaf)
     SMSG_COMPOUND_MOVE                           = 0x0061,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus; fuzzy via SMSG_MOVE_SET_COMPOUND_STATE)
     SMSG_MOVE_GRAVITY_DISABLE                    = 0x159F,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)

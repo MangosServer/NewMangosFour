@@ -36,7 +36,6 @@
 #include "ProgressBar.h"
 #include "SQLStorages.h"
 #include "DBCStores.h"
-#include "ArenaTeam.h"
 #include "Group.h"
 
 /**
@@ -51,59 +50,6 @@ WorldTemplate const* ObjectMgr::GetWorldTemplate(uint32 map) { return sWorldTemp
 /* ********************************************************************************************* */
 /* *                                Loading Functions                                            */
 /* ********************************************************************************************* */
-void ObjectMgr::LoadArenaTeams()
-{
-    uint32 count = 0;
-
-    //                                                     0                          1      2             3      4                 5
-    QueryResult* result = CharacterDatabase.Query("SELECT `arena_team`.`arenateamid`,`name`,`captainguid`,`type`,`BackgroundColor`,`EmblemStyle`,"
-                          //   6          7             8              9        10           11          12             13            14
-                          "`EmblemColor`,`BorderStyle`,`BorderColor`, `rating`,`games_week`,`wins_week`,`games_season`,`wins_season`,`rank` "
-                          "FROM `arena_team` LEFT JOIN `arena_team_stats` ON `arena_team`.`arenateamid` = `arena_team_stats`.`arenateamid` ORDER BY `arena_team`.`arenateamid` ASC");
-
-    if (!result)
-    {
-        BarGoLink bar(1);
-
-        bar.step();
-
-        sLog.outString();
-        sLog.outString(">> Loaded %u arenateam definitions", count);
-        return;
-    }
-
-    // load arena_team members
-    QueryResult* arenaTeamMembersResult = CharacterDatabase.Query(
-            //          0                   1      2             3           4               5             6                 7      8
-            "SELECT `arenateamid`,`member`.`guid`,`played_week`,`wons_week`,`played_season`,`wons_season`,`personal_rating`,`name`,`class` "
-            "FROM `arena_team_member` member LEFT JOIN `characters` chars on member.`guid` = chars.`guid` ORDER BY member.`arenateamid` ASC");
-
-    BarGoLink bar(result->GetRowCount());
-
-    do
-    {
-        bar.step();
-        ++count;
-
-        ArenaTeam* newArenaTeam = new ArenaTeam;
-        if (!newArenaTeam->LoadArenaTeamFromDB(result) ||
-                !newArenaTeam->LoadMembersFromDB(arenaTeamMembersResult))
-        {
-            newArenaTeam->Disband(NULL);
-            delete newArenaTeam;
-            continue;
-        }
-        AddArenaTeam(newArenaTeam);
-    }
-    while (result->NextRow());
-
-    delete result;
-    delete arenaTeamMembersResult;
-
-    sLog.outString();
-    sLog.outString(">> Loaded %u arenateam definitions", count);
-}
-
 /**
  * @brief Loads groups, group members, and group instance bindings from the database.
  */

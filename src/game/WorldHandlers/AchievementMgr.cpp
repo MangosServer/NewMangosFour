@@ -35,7 +35,6 @@
 #include "Database/DatabaseEnv.h"
 #include "World.h"
 #include "SpellMgr.h"
-#include "ArenaTeam.h"
 #include "ProgressBar.h"
 #include "Mail.h"
 #include "GridNotifiersImpl.h"
@@ -880,7 +879,7 @@ void AchievementMgr::UpdateAchievementCriteria(AchievementCriteriaTypes type, ui
                     if (achievIdByArenaSlot[j] == achievement->ID)
                     {
                         BattleGround* bg = GetPlayer()->GetBattleGround();
-                        if (!bg || !bg->isArena() || ArenaTeam::GetSlotByType(bg->GetArenaType()) != j)
+                        if (!bg || !bg->isArena() || GetArenaSlotByType(bg->GetArenaType()) != j)
                         {
                             notfit = true;
                         }

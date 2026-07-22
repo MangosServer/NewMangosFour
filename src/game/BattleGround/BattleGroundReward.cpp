@@ -28,7 +28,6 @@
 #include "BattleGroundMgr.h"
 #include "Creature.h"
 #include "Language.h"
-#include "ArenaTeam.h"
 #include "World.h"
 #include "Group.h"
 #include "ObjectGuid.h"
@@ -164,10 +163,6 @@ void BattleGround::EndBattleGround(Team winner)
 #endif /* ENABLE_ELUNA */
     this->RemoveFromBGFreeSlotQueue();
 
-    ArenaTeam* winner_arena_team = NULL;
-    ArenaTeam* loser_arena_team = NULL;
-    uint32 loser_rating = 0;
-    uint32 winner_rating = 0;
     WorldPacket data;
     int32 winmsg_id = 0;
 
@@ -222,54 +217,12 @@ void BattleGround::EndBattleGround(Team winner)
     // we must set it this way, because end time is sent in packet!
     m_EndTime = TIME_TO_AUTOREMOVE;
 
-    // arena rating calculation
-    if (isArena() && isRated())
-    {
-        if (winner != TEAM_NONE)
-        {
-            winner_arena_team = sObjectMgr.GetArenaTeamById(GetArenaTeamIdForTeam(winner));
-            loser_arena_team = sObjectMgr.GetArenaTeamById(GetArenaTeamIdForTeam(GetOtherTeam(winner)));
-            if (winner_arena_team && loser_arena_team)
-            {
-                loser_rating = loser_arena_team->GetStats().rating;
-                winner_rating = winner_arena_team->GetStats().rating;
-                int32 winner_change = winner_arena_team->WonAgainst(loser_rating);
-                int32 loser_change = loser_arena_team->LostAgainst(winner_rating);
-                DEBUG_LOG("--- Winner rating: %u, Loser rating: %u, Winner change: %i, Loser change: %i ---", winner_rating, loser_rating, winner_change, loser_change);
-                SetArenaTeamRatingChangeForTeam(winner, winner_change);
-                SetArenaTeamRatingChangeForTeam(GetOtherTeam(winner), loser_change);
-            }
-            else
-            {
-                SetArenaTeamRatingChangeForTeam(ALLIANCE, 0);
-                SetArenaTeamRatingChangeForTeam(HORDE, 0);
-            }
-        }
-        else
-        {
-            SetArenaTeamRatingChangeForTeam(ALLIANCE, ARENA_TIMELIMIT_POINTS_LOSS);
-            SetArenaTeamRatingChangeForTeam(HORDE, ARENA_TIMELIMIT_POINTS_LOSS);
-        }
-    }
-
     for (BattleGroundPlayerMap::iterator itr = m_Players.begin(); itr != m_Players.end(); ++itr)
     {
         Team team = itr->second.PlayerTeam;
 
         if (itr->second.OfflineRemoveTime)
         {
-            // if rated arena match - make member lost!
-            if (isArena() && isRated() && winner_arena_team && loser_arena_team)
-            {
-                if (team == winner)
-                {
-                    winner_arena_team->OfflineMemberLost(itr->first, loser_rating);
-                }
-                else
-                {
-                    loser_arena_team->OfflineMemberLost(itr->first, winner_rating);
-                }
-            }
             continue;
         }
 
@@ -300,36 +253,6 @@ void BattleGround::EndBattleGround(Team winner)
 
         // this line is obsolete - team is set ALWAYS
         // if (!team) team = plr->GetTeam();
-
-        // per player calculation
-        if (isArena() && isRated() && winner_arena_team && loser_arena_team)
-        {
-            if (team == winner)
-            {
-                // update achievement BEFORE personal rating update
-                ArenaTeamMember* member = winner_arena_team->GetMember(plr->GetObjectGuid());
-                if (member)
-                {
-                    plr->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_WIN_RATED_ARENA, member->personal_rating);
-                }
-
-                winner_arena_team->MemberWon(plr, loser_rating);
-                plr->ModifyCurrencyCount(CURRENCY_CONQUEST_ARENA_META, sWorld.getConfig(CONFIG_UINT32_CURRENCY_ARENA_CONQUEST_POINTS_REWARD));
-
-                if (member)
-                {
-                    plr->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_PERSONAL_RATING, GetArenaType(), member->personal_rating);
-                    plr->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_HIGHEST_TEAM_RATING, GetArenaType(), winner_arena_team->GetStats().rating);
-                }
-            }
-            else
-            {
-                loser_arena_team->MemberLost(plr, winner_rating);
-
-                // Arena lost => reset the win_rated_arena having the "no_loose" condition
-                plr->GetAchievementMgr().ResetAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_WIN_RATED_ARENA, ACHIEVEMENT_CRITERIA_CONDITION_NO_LOOSE);
-            }
-        }
 
         // store battleground score statistics for each player
         if (isBattleGround() && sWorld.getConfig(CONFIG_BOOL_BATTLEGROUND_SCORE_STATISTICS))
@@ -377,20 +300,6 @@ void BattleGround::EndBattleGround(Team winner)
         sBattleGroundMgr.BuildBattleGroundStatusPacket(&data, this, plr, plr->GetBattleGroundQueueIndex(bgQueueTypeId), STATUS_IN_PROGRESS, TIME_TO_AUTOREMOVE, GetStartTime(), GetArenaType());
         plr->GetSession()->SendPacket(&data);
         plr->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_COMPLETE_BATTLEGROUND, 1);
-    }
-
-    if (isArena() && isRated() && winner_arena_team && loser_arena_team)
-    {
-        // update arena points only after increasing the player's match count!
-        // obsolete: winner_arena_team->UpdateArenaPointsHelper();
-        // obsolete: loser_arena_team->UpdateArenaPointsHelper();
-        // save the stat changes
-        winner_arena_team->SaveToDB();
-        loser_arena_team->SaveToDB();
-        // send updated arena team stats to players
-        // this way all arena team members will get notified, not only the ones who participated in this match
-        winner_arena_team->NotifyStatsChanged();
-        loser_arena_team->NotifyStatsChanged();
     }
 
     if (winmsg_id)

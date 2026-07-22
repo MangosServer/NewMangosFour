@@ -59,7 +59,6 @@
 #include "BattleGround/BattleGroundMgr.h"
 #include "BattleGround/BattleGroundAV.h"
 #include "OutdoorPvP/OutdoorPvP.h"
-#include "ArenaTeam.h"
 #include "Chat.h"
 #include "revision_data.h"
 #include "Database/DatabaseImpl.h"

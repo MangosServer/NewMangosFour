@@ -164,7 +164,7 @@ void Group::UpdateLooterGuid(WorldObject* pSource, bool ifneed)
  * @param MaxPlayerCount The maximum allowed group size.
  * @return uint32 A battleground join error code.
  */
-GroupJoinBattlegroundResult Group::CanJoinBattleGroundQueue(BattleGround const* bgOrTemplate, BattleGroundQueueTypeId bgQueueTypeId, uint32 MinPlayerCount, uint32 MaxPlayerCount, bool isRated, uint32 arenaSlot)
+GroupJoinBattlegroundResult Group::CanJoinBattleGroundQueue(BattleGround const* bgOrTemplate, BattleGroundQueueTypeId bgQueueTypeId, uint32 MinPlayerCount, uint32 MaxPlayerCount)
 {
     BattlemasterListEntry const* bgEntry = sBattlemasterListStore.LookupEntry(bgOrTemplate->GetTypeID());
     if (!bgEntry)
@@ -178,7 +178,7 @@ GroupJoinBattlegroundResult Group::CanJoinBattleGroundQueue(BattleGround const* 
     // only check for MinPlayerCount since MinPlayerCount == MaxPlayerCount for arenas...
     if (bgOrTemplate->isArena() && memberscount != MinPlayerCount)
     {
-        return ERR_ARENA_TEAM_PARTY_SIZE;
+        return ERR_ARENA_PARTY_SIZE;
     }
 
     if (memberscount > bgEntry->MaxGroupSize)               // no MinPlayerCount for battlegrounds
@@ -186,7 +186,7 @@ GroupJoinBattlegroundResult Group::CanJoinBattleGroundQueue(BattleGround const* 
         return ERR_BATTLEGROUND_NONE;                       // ERR_GROUP_JOIN_BATTLEGROUND_TOO_MANY handled on client side
     }
 
-    // get a player as reference, to compare other players' stats to (arena team id, queue id based on level, etc.)
+    // get a player as reference to compare queue and level-bracket eligibility
     Player* reference = GetFirstMember()->getSource();
     // no reference found, can't join this way
     if (!reference)
@@ -200,7 +200,6 @@ GroupJoinBattlegroundResult Group::CanJoinBattleGroundQueue(BattleGround const* 
         return ERR_BATTLEGROUND_JOIN_FAILED;
     }
 
-    uint32 arenaTeamId = reference->GetArenaTeamId(arenaSlot);
     Team team = reference->GetTeam();
 
     // check every member of the group to be able to join
@@ -222,11 +221,6 @@ GroupJoinBattlegroundResult Group::CanJoinBattleGroundQueue(BattleGround const* 
         if (memberBracketEntry != bracketEntry)
         {
             return ERR_BATTLEGROUND_JOIN_RANGE_INDEX;
-        }
-        // don't let join rated matches if the arena team id doesn't match
-        if (isRated && member->GetArenaTeamId(arenaSlot) != arenaTeamId)
-        {
-            return ERR_BATTLEGROUND_JOIN_FAILED;
         }
         // don't let join if someone from the group is already in that bg queue
         if (member->InBattleGroundQueueForBattleGroundQueueType(bgQueueTypeId))

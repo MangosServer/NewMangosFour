@@ -88,7 +88,6 @@ typedef std::unordered_map<uint32, BattleGroundEventIdx> CreatureBattleEventInde
  */
 typedef std::unordered_map<uint32, BattleGroundEventIdx> GameObjectBattleEventIndexesMap;
 
-#define BATTLEGROUND_ARENA_POINT_DISTRIBUTION_DAY 86400     // seconds in a day
 #define COUNT_OF_PLAYERS_TO_AVERAGE_WAIT_TIME 10
 
 struct GroupQueueInfo; // type predefinition
@@ -117,11 +116,10 @@ struct GroupQueueInfo
     BattleGroundTypeId BgTypeId;                            /**< battleground type id */
     bool    IsRated;                                        // rated
     ArenaType arenaType;                                    // 2v2, 3v3, 5v5 or 0 when BG
-    uint32  ArenaTeamId;                                    // team id if rated match
     uint32  JoinTime;                                       /**< time when group was added */
     uint32  RemoveInviteTime;                               /**< time when we will remove invite for players in group */
     uint32  IsInvitedToBGInstanceGUID;                      /**< was invited to certain BG */
-    uint32  ArenaTeamRating;                                // if rated match, inited to the rating of the team
+    uint32  MatchmakingRating;                                // if rated match, inited to the rating of the team
     uint32  OpponentsTeamRating;                            // for rated arena matches
 };
 
@@ -199,11 +197,10 @@ class BattleGroundQueue
          * @param arenaType The arena type.
          * @param isRated Whether the queue is rated.
          * @param isPremade True if the group is premade, false otherwise.
-         * @param ArenaRating Arena team rating for rated queues.
-         * @param ArenaTeamId Arena team id (0 for non-arena).
+         * @param ArenaRating Matchmaking rating for rated queues.
          * @return GroupQueueInfo* Pointer to the group queue info.
          */
-        GroupQueueInfo* AddGroup(Player* leader, Group* group, BattleGroundTypeId bgTypeId, PvPDifficultyEntry const*  bracketEntry, ArenaType arenaType, bool isRated, bool isPremade, uint32 ArenaRating, uint32 ArenaTeamId = 0);
+        GroupQueueInfo* AddGroup(Player* leader, Group* group, BattleGroundTypeId bgTypeId, PvPDifficultyEntry const*  bracketEntry, ArenaType arenaType, bool isRated, bool isPremade, uint32 ArenaRating);
 
         /**
          * @brief Removes a player from the battleground queue.
@@ -647,8 +644,6 @@ class BattleGroundMgr
          */
         uint32 GetPrematureFinishTime() const;
 
-        void InitAutomaticArenaPointDistribution();
-       // void DistributeArenaPoints();   // there does not appear to be a way to do this in Three
         void ToggleArenaTesting();
 
         /**
@@ -785,7 +780,6 @@ class BattleGroundMgr
         typedef std::set<uint32> ClientBattleGroundIdSet;
         ClientBattleGroundIdSet m_ClientBattleGroundIds[MAX_BATTLEGROUND_TYPE_ID][MAX_BATTLEGROUND_BRACKETS]; /**< Array of sets storing client-visible battleground instance IDs. */
         uint32 m_NextRatingDiscardUpdate;
-        time_t m_NextAutoDistributionTime;
         uint32 m_AutoDistributionTimeChecker;
         bool   m_ArenaTesting;
         bool   m_Testing; /**< Flag indicating if testing mode is enabled. */

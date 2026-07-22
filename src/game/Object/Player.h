@@ -1407,19 +1407,6 @@ enum InstanceResetWarningType
     RAID_INSTANCE_EXPIRED           = 5
 };
 
-// PLAYER_FIELD_ARENA_TEAM_INFO_1_1 offsets
-enum ArenaTeamInfoType
-{
-    ARENA_TEAM_ID               = 0,
-    ARENA_TEAM_TYPE             = 1,                        // new in 3.2 - team type?
-    ARENA_TEAM_MEMBER           = 2,                        // 0 - captain, 1 - member
-    ARENA_TEAM_GAMES_WEEK       = 3,
-    ARENA_TEAM_GAMES_SEASON     = 4,
-    ARENA_TEAM_WINS_SEASON      = 5,
-    ARENA_TEAM_PERSONAL_RATING  = 6,
-    ARENA_TEAM_END              = 7
-};
-
 // Rest types
 enum RestType
 {
@@ -1486,7 +1473,6 @@ enum PlayerLoginQueryIndex
     PLAYER_LOGIN_QUERY_LOADSPELLCOOLDOWNS,
     PLAYER_LOGIN_QUERY_LOADDECLINEDNAMES,
     PLAYER_LOGIN_QUERY_LOADGUILD,
-    PLAYER_LOGIN_QUERY_LOADARENAINFO,
     PLAYER_LOGIN_QUERY_LOADACHIEVEMENTS,
     PLAYER_LOGIN_QUERY_LOADCRITERIAPROGRESS,
     PLAYER_LOGIN_QUERY_LOADEQUIPMENTSETS,
@@ -3226,36 +3212,10 @@ class Player : public Unit
 
         // Remove petitions and signs for the player
 
-        // Arena Team
-        void SetInArenaTeam(uint32 ArenaTeamId, uint8 slot, ArenaType type)
-        {
-            SetArenaTeamInfoField(slot, ARENA_TEAM_ID, ArenaTeamId);
-            SetArenaTeamInfoField(slot, ARENA_TEAM_TYPE, type);
-        }
-
-        // Set the player's arena team info field
-        void SetArenaTeamInfoField(uint8 slot, ArenaTeamInfoType type, uint32 value)
-        {
-            SetUInt32Value(PLAYER_FIELD_ARENA_TEAM_INFO_1_1 + (slot * ARENA_TEAM_END) + type, value);
-        }
-
-        // Get the player's arena team ID
-        uint32 GetArenaTeamId(uint8 slot) { return GetUInt32Value(PLAYER_FIELD_ARENA_TEAM_INFO_1_1 + (slot * ARENA_TEAM_END) + ARENA_TEAM_ID); }
-
-        // Get the player's arena personal rating
-        uint32 GetArenaPersonalRating(uint8 slot) { return GetUInt32Value(PLAYER_FIELD_ARENA_TEAM_INFO_1_1 + (slot * ARENA_TEAM_END) + ARENA_TEAM_PERSONAL_RATING); }
-
-        // Get the player's arena team ID from the database
-        static uint32 GetArenaTeamIdFromDB(ObjectGuid guid, ArenaType type);
-
-        // Set the arena team ID the player is invited to
-        void SetArenaTeamIdInvited(uint32 ArenaTeamId) { m_ArenaTeamIdInvited = ArenaTeamId; }
-
-        // Get the arena team ID the player is invited to
-        uint32 GetArenaTeamIdInvited() { return m_ArenaTeamIdInvited; }
-
-        // Leave all arena teams
-        static void LeaveAllArenaTeams(ObjectGuid guid);
+        // Compatibility for optional scripts. Persistent arena teams do not
+        // exist in 5.4.8, so these legacy queries are always empty.
+        uint32 GetArenaTeamId(uint8 /*slot*/) const { return 0; }
+        uint32 GetArenaPersonalRating(uint8 /*slot*/) const { return 0; }
 
         Difficulty GetDifficulty(bool isRaid) const { return isRaid ? m_raidDifficulty : m_dungeonDifficulty; }
         Difficulty GetDungeonDifficulty() const { return m_dungeonDifficulty; }
@@ -4526,8 +4486,6 @@ class Player : public Unit
         // Load declined names from the database
         void _LoadDeclinedNames(QueryResult* result);
 
-        // Load arena team information from the database
-        void _LoadArenaTeamInfo(QueryResult* result);
         void _LoadEquipmentSets(QueryResult* result);
         void _LoadBGData(QueryResult* result);
         void _LoadGlyphs(QueryResult* result) { m_glyphMgr.Load(result); }
@@ -4640,7 +4598,6 @@ class Player : public Unit
         SpellCooldownMgr m_spellCooldownMgr;
         uint32 m_lastPotionId;                              // last used health/mana potion in combat, that block next potion use
         uint32 m_GuildIdInvited; // Guild ID invited
-        uint32 m_ArenaTeamIdInvited; // Arena team ID invited
 
         uint8 m_activeSpec;
         uint8 m_specsCount;

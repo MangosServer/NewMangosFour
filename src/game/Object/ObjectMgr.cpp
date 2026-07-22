@@ -37,7 +37,6 @@
 #include "UpdateMask.h"
 #include "World.h"
 #include "Group.h"
-#include "ArenaTeam.h"
 #include "Transports.h"
 #include "ProgressBar.h"
 #include "Language.h"
@@ -206,7 +205,6 @@ template uint64 IdGenerator<uint64>::Generate();
  * @brief Initializes the global object manager.
  */
 ObjectMgr::ObjectMgr() :
-    m_ArenaTeamIds("Arena team ids"),
     m_AuctionIds("Auction ids"),
     m_EquipmentSetIds("Equipment set ids"),
     m_GuildIds("Guild ids"),
@@ -247,11 +245,6 @@ ObjectMgr::~ObjectMgr()
         delete itr->second;
     }
 
-    for (ArenaTeamMap::iterator itr = mArenaTeamMap.begin(); itr != mArenaTeamMap.end(); ++itr)
-    {
-        delete itr->second;
-    }
-
     for (CacheVendorItemMap::iterator itr = m_mCacheVendorTemplateItemMap.begin(); itr != m_mCacheVendorTemplateItemMap.end(); ++itr)
     {
         itr->second.Clear();
@@ -284,40 +277,6 @@ Group* ObjectMgr::GetGroupById(uint32 id) const
 
     return NULL;
 }
-
-ArenaTeam* ObjectMgr::GetArenaTeamById(uint32 arenateamid) const
-{
-    ArenaTeamMap::const_iterator itr = mArenaTeamMap.find(arenateamid);
-    if (itr != mArenaTeamMap.end())
-    {
-        return itr->second;
-    }
-
-    return NULL;
-}
-
-ArenaTeam* ObjectMgr::GetArenaTeamByName(const std::string& arenateamname) const
-{
-    for (ArenaTeamMap::const_iterator itr = mArenaTeamMap.begin(); itr != mArenaTeamMap.end(); ++itr)
-        if (itr->second->GetName() == arenateamname)
-        {
-            return itr->second;
-        }
-
-    return NULL;
-}
-
-ArenaTeam* ObjectMgr::GetArenaTeamByCaptain(ObjectGuid guid) const
-{
-    for (ArenaTeamMap::const_iterator itr = mArenaTeamMap.begin(); itr != mArenaTeamMap.end(); ++itr)
-        if (itr->second->GetCaptainGuid() == guid)
-        {
-            return itr->second;
-        }
-
-    return NULL;
-}
-
 
 // name must be checked to correctness (if received) before call this function
 ObjectGuid ObjectMgr::GetPlayerGuidByName(std::string name) const
@@ -1040,13 +999,6 @@ void ObjectMgr::SetHighestGuids()
     if (result)
     {
         m_CorpseGuids.Set((*result)[0].GetUInt32() + 1);
-        delete result;
-    }
-
-    result = CharacterDatabase.Query("SELECT MAX(`arenateamid`) FROM `arena_team`");
-    if (result)
-    {
-        m_ArenaTeamIds.Set((*result)[0].GetUInt32() + 1);
         delete result;
     }
 
@@ -3540,16 +3492,6 @@ void ObjectMgr::AddGroup(Group* group)
 void ObjectMgr::RemoveGroup(Group* group)
 {
     mGroupMap.erase(group->GetId());
-}
-
-void ObjectMgr::AddArenaTeam(ArenaTeam* arenaTeam)
-{
-    mArenaTeamMap[arenaTeam->GetId()] = arenaTeam;
-}
-
-void ObjectMgr::RemoveArenaTeam(uint32 Id)
-{
-    mArenaTeamMap.erase(Id);
 }
 
 // Functions for scripting access

@@ -56,7 +56,6 @@
 #include "SkillDiscovery.h"
 #include "AccountMgr.h"
 #include "AchievementMgr.h"
-#include "ArenaTeam.h"
 #include "AuctionHouseMgr.h"
 #include "ObjectMgr.h"
 #include "CreatureEventAIMgr.h"
@@ -627,9 +626,6 @@ void World::SetInitialWorldSettings()
     sLog.outString("Loading Guilds...");
     sGuildMgr.LoadGuilds();
 
-    sLog.outString("Loading ArenaTeams...");
-    sObjectMgr.LoadArenaTeams();
-
     sLog.outString("Loading Groups...");
     sObjectMgr.LoadGroups();
 
@@ -789,8 +785,6 @@ void World::SetInitialWorldSettings()
     ///- Initialize Battlegrounds
     sLog.outString("Starting BattleGround System");
     sBattleGroundMgr.CreateInitialBattleGrounds();
-    sBattleGroundMgr.InitAutomaticArenaPointDistribution();
-
     ///- Initialize Outdoor PvP
     sLog.outString("Starting Outdoor PvP System");
     sOutdoorPvPMgr.InitOutdoorPvP();
@@ -1996,16 +1990,6 @@ void World::ResetCurrencyWeekCounts()
         {
             itr->second->GetPlayer()->ResetCurrencyWeekCounts();
         }
-
-    for(ObjectMgr::ArenaTeamMap::iterator titr = sObjectMgr.GetArenaTeamMapBegin(); titr != sObjectMgr.GetArenaTeamMapEnd(); ++titr)
-    {
-        if (ArenaTeam * at = titr->second)
-        {
-            at->FinishWeek();                              // set played this week etc values to 0 in memory, too
-            at->SaveToDB();                                // save changes
-            at->NotifyStatsChanged();                      // notify the players of the changes
-        }
-    }
 
     m_NextCurrencyReset = time_t(m_NextCurrencyReset + DAY * sWorld.getConfig(CONFIG_UINT32_CURRENCY_RESET_INTERVAL));
 

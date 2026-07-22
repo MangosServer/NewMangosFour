@@ -59,7 +59,6 @@
 #include "BattleGround/BattleGroundMgr.h"
 #include "BattleGround/BattleGroundAV.h"
 #include "OutdoorPvP/OutdoorPvP.h"
-#include "ArenaTeam.h"
 #include "Chat.h"
 #include "revision_data.h"
 #include "Database/DatabaseImpl.h"
@@ -231,30 +230,6 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder* holder)
     SetDungeonDifficulty(Difficulty(difficulty));           // may be changed in _LoadGroup
 
     _LoadGroup(holder->GetResult(PLAYER_LOGIN_QUERY_LOADGROUP));
-
-    _LoadArenaTeamInfo(holder->GetResult(PLAYER_LOGIN_QUERY_LOADARENAINFO));
-
-    // check arena teams integrity
-    for (uint32 arena_slot = 0; arena_slot < MAX_ARENA_SLOT; ++arena_slot)
-    {
-        uint32 arena_team_id = GetArenaTeamId(arena_slot);
-        if (!arena_team_id)
-        {
-            continue;
-        }
-
-        if (ArenaTeam* at = sObjectMgr.GetArenaTeamById(arena_team_id))
-            if (at->HaveMember(GetObjectGuid()))
-            {
-                continue;
-            }
-
-        // arena team not exist or not member, cleanup fields
-        for (int j = 0; j < ARENA_TEAM_END; ++j)
-        {
-            SetArenaTeamInfoField(arena_slot, ArenaTeamInfoType(j), 0);
-        }
-    }
 
     SetUInt32Value(PLAYER_FIELD_LIFETIME_HONORABLE_KILLS, fields[40].GetUInt32());
     SetUInt16Value(PLAYER_FIELD_KILLS, 0, fields[41].GetUInt16()); // today
@@ -756,5 +731,4 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder* holder)
 
     return true;
 }
-
 

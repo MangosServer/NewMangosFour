@@ -44,7 +44,6 @@
 #include "ObjectMgr.h"
 #include "ProgressBar.h"
 #include "Chat.h"
-#include "ArenaTeam.h"
 #include "World.h"
 #include "WorldPacket.h"
 #include "GameEventMgr.h"

@@ -42,7 +42,6 @@
 #include "BattleGroundMgr.h"
 #include "Creature.h"
 #include "Language.h"
-#include "ArenaTeam.h"
 #include "World.h"
 #include "Group.h"
 #include "ObjectGuid.h"
@@ -284,12 +283,6 @@ BattleGround::BattleGround(): m_BuffChange(false), m_ArenaBuffSpawned(false), m_
 
     m_TeamStartLocO[TEAM_INDEX_ALLIANCE]   = 0;
     m_TeamStartLocO[TEAM_INDEX_HORDE]      = 0;
-
-    m_ArenaTeamIds[TEAM_INDEX_ALLIANCE]   = 0;
-    m_ArenaTeamIds[TEAM_INDEX_HORDE]      = 0;
-
-    m_ArenaTeamRatingChanges[TEAM_INDEX_ALLIANCE]   = 0;
-    m_ArenaTeamRatingChanges[TEAM_INDEX_HORDE]      = 0;
 
     m_BgRaids[TEAM_INDEX_ALLIANCE]         = NULL;
     m_BgRaids[TEAM_INDEX_HORDE]            = NULL;
@@ -860,16 +853,6 @@ void BattleGround::RemovePlayerAtLeave(ObjectGuid guid, bool Transport, bool Sen
                 plr->RemovePet(PET_SAVE_NOT_IN_SLOT);
                 plr->ResummonPetTemporaryUnSummonedIfAny();
 
-                if (isRated() && GetStatus() == STATUS_IN_PROGRESS)
-                {
-                    // left a rated match while the encounter was in progress, consider as loser
-                    ArenaTeam* winner_arena_team = sObjectMgr.GetArenaTeamById(GetArenaTeamIdForTeam(GetOtherTeam(team)));
-                    ArenaTeam* loser_arena_team = sObjectMgr.GetArenaTeamById(GetArenaTeamIdForTeam(team));
-                    if (winner_arena_team && loser_arena_team)
-                    {
-                        loser_arena_team->MemberLost(plr, winner_arena_team->GetRating());
-                    }
-                }
             }
             if (SendPacket)
             {
@@ -881,21 +864,6 @@ void BattleGround::RemovePlayerAtLeave(ObjectGuid guid, bool Transport, bool Sen
             // this call is important, because player, when joins to battleground, this method is not called, so it must be called when leaving bg
             plr->RemoveBattleGroundQueueId(bgQueueTypeId);
         }
-        else
-            // removing offline participant
-        {
-            if (isRated() && GetStatus() == STATUS_IN_PROGRESS)
-            {
-                // left a rated match while the encounter was in progress, consider as loser
-                ArenaTeam* others_arena_team = sObjectMgr.GetArenaTeamById(GetArenaTeamIdForTeam(GetOtherTeam(team)));
-                ArenaTeam* players_arena_team = sObjectMgr.GetArenaTeamById(GetArenaTeamIdForTeam(team));
-                if (others_arena_team && players_arena_team)
-                {
-                    players_arena_team->OfflineMemberLost(guid, others_arena_team->GetRating());
-                }
-            }
-        }
-
         // remove from raid group if player is member
         if (Group* group = GetBgRaid(team))
         {

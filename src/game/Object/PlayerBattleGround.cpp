@@ -59,7 +59,6 @@
 #include "BattleGround/BattleGroundMgr.h"
 #include "BattleGround/BattleGroundAV.h"
 #include "OutdoorPvP/OutdoorPvP.h"
-#include "ArenaTeam.h"
 #include "Chat.h"
 #include "revision_data.h"
 #include "Database/DatabaseImpl.h"
@@ -110,29 +109,6 @@ void Player::FillBGWeekendWorldStates(WorldPacket& data, uint32& count)
             }
         }
     }
-}
-
-void Player::LeaveAllArenaTeams(ObjectGuid guid)
-{
-    uint32 lowguid = guid.GetCounter();
-    QueryResult* result = CharacterDatabase.PQuery("SELECT `arena_team_member`.`arenateamid` FROM `arena_team_member` JOIN `arena_team` ON `arena_team_member`.`arenateamid` = `arena_team`.`arenateamid` WHERE `guid`='%u'", lowguid);
-    if (!result)
-    {
-        return;
-    }
-
-    do
-    {
-        Field* fields = result->Fetch();
-        if (uint32 at_id = fields[0].GetUInt32())
-            if (ArenaTeam* at = sObjectMgr.GetArenaTeamById(at_id))
-            {
-                at->DelMember(guid);
-            }
-    }
-    while (result->NextRow());
-
-    delete result;
 }
 
 /**

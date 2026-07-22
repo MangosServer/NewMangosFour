@@ -68,7 +68,6 @@
 #include "BattleGround/BattleGroundMgr.h"
 #include "BattleGround/BattleGroundAV.h"
 #include "OutdoorPvP/OutdoorPvP.h"
-#include "ArenaTeam.h"
 #include "Chat.h"
 #include "revision_data.h"
 #include "Database/DatabaseImpl.h"
@@ -113,45 +112,6 @@ void Player::_LoadDeclinedNames(QueryResult* result)
         m_declinedname->name[i] = fields[i].GetCppString();
     }
 
-    delete result;
-}
-
-void Player::_LoadArenaTeamInfo(QueryResult* result)
-{
-    // arenateamid, played_week, played_season, personal_rating
-    memset((void*)&m_uint32Values[PLAYER_FIELD_ARENA_TEAM_INFO_1_1], 0, sizeof(uint32) * MAX_ARENA_SLOT * ARENA_TEAM_END);
-    if (!result)
-    {
-        return;
-    }
-
-    do
-    {
-        Field* fields = result->Fetch();
-
-        uint32 arenateamid     = fields[0].GetUInt32();
-        uint32 played_week     = fields[1].GetUInt32();
-        uint32 played_season   = fields[2].GetUInt32();
-        uint32 wons_season     = fields[3].GetUInt32();
-        uint32 personal_rating = fields[4].GetUInt32();
-
-        ArenaTeam* aTeam = sObjectMgr.GetArenaTeamById(arenateamid);
-        if (!aTeam)
-        {
-            sLog.outError("Player::_LoadArenaTeamInfo: couldn't load arenateam %u", arenateamid);
-            continue;
-        }
-        uint8  arenaSlot = aTeam->GetSlot();
-
-        SetArenaTeamInfoField(arenaSlot, ARENA_TEAM_ID, arenateamid);
-        SetArenaTeamInfoField(arenaSlot, ARENA_TEAM_TYPE, aTeam->GetType());
-        SetArenaTeamInfoField(arenaSlot, ARENA_TEAM_MEMBER, (aTeam->GetCaptainGuid() == GetObjectGuid()) ? 0 : 1);
-        SetArenaTeamInfoField(arenaSlot, ARENA_TEAM_GAMES_WEEK, played_week);
-        SetArenaTeamInfoField(arenaSlot, ARENA_TEAM_GAMES_SEASON, played_season);
-        SetArenaTeamInfoField(arenaSlot, ARENA_TEAM_WINS_SEASON, wons_season);
-        SetArenaTeamInfoField(arenaSlot, ARENA_TEAM_PERSONAL_RATING, personal_rating);
-    }
-    while (result->NextRow());
     delete result;
 }
 
@@ -1663,4 +1623,3 @@ bool Player::_LoadHomeBind(QueryResult* result)
 
     return true;
 }
-

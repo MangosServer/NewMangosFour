@@ -59,7 +59,6 @@
 // only arena event
 // cause this buff to appear 90secs after start in every bg i implement it here
 #define ARENA_BUFF_EVENT 253
-#define ARENA_TIMELIMIT_POINTS_LOSS -16
 
 
 class Creature;
@@ -321,7 +320,7 @@ enum GroupJoinBattlegroundResult
     // positive values are indexes in BattlemasterList.dbc
     ERR_BATTLEGROUND_NONE                           = 0,
     ERR_GROUP_JOIN_BATTLEGROUND_DESERTERS           = 2,    // You cannot join the battleground yet because you or one of your party members is flagged as a Deserter.
-    ERR_ARENA_TEAM_PARTY_SIZE                       = 3,    // Incorrect party size for this arena.
+    ERR_ARENA_PARTY_SIZE                            = 3,    // Incorrect party size for this arena.
     ERR_BATTLEGROUND_TOO_MANY_QUEUES                = 4,    // You can only be queued for 2 battles at once
     ERR_BATTLEGROUND_CANNOT_QUEUE_FOR_RATED         = 5,    // You cannot queue for a rated match while queued for other battles
     ERR_BATTLEDGROUND_QUEUED_FOR_RATED              = 6,    // You cannot queue for another battle while queued for a rated arena match
@@ -1087,11 +1086,6 @@ class BattleGround
             }
         }
 
-        // used for rated arena battles
-        void SetArenaTeamIdForTeam(Team team, uint32 ArenaTeamId) { m_ArenaTeamIds[GetTeamIndexByTeamId(team)] = ArenaTeamId; }
-        uint32 GetArenaTeamIdForTeam(Team team) const             { return m_ArenaTeamIds[GetTeamIndexByTeamId(team)]; }
-        void SetArenaTeamRatingChangeForTeam(Team team, int32 RatingChange) { m_ArenaTeamRatingChanges[GetTeamIndexByTeamId(team)] = RatingChange; }
-        int32 GetArenaTeamRatingChangeForTeam(Team team) const    { return m_ArenaTeamRatingChanges[GetTeamIndexByTeamId(team)]; }
         void CheckArenaWinConditions();
 
         /* Triggers handle */
@@ -1463,11 +1457,6 @@ class BattleGround
 
         /* Players count by team */
         uint32 m_PlayersCount[PVP_TEAM_COUNT]; /**< TODO */
-
-        /* Arena team ids by team */
-        uint32 m_ArenaTeamIds[PVP_TEAM_COUNT];
-
-        int32 m_ArenaTeamRatingChanges[PVP_TEAM_COUNT];
 
         /* Limits */
         uint32 m_LevelMin; /**< TODO */

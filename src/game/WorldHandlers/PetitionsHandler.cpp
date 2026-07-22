@@ -48,15 +48,8 @@
 #include "Opcodes.h"
 #include "Guild.h"
 #include "GuildMgr.h"
-#include "ArenaTeam.h"
 #include "GossipDef.h"
 #include "SocialMgr.h"
-
-/*enum PetitionType // dbc data
-{
-    PETITION_TYPE_GUILD      = 1,
-    PETITION_TYPE_ARENA_TEAM = 3
-};*/
 
 // Charters ID in item_template
 #define GUILD_CHARTER               5863
@@ -163,13 +156,12 @@ void WorldSession::HandlePetitionBuyOpcode(WorldPacket& recv_data)
     }
 
     charter->SetUInt32Value(ITEM_FIELD_ENCHANTMENT_1_1, charter->GetGUIDLow());
-    // ITEM_FIELD_ENCHANTMENT_1_1 is guild/arenateam id
+    // ITEM_FIELD_ENCHANTMENT_1_1 stores the guild petition id.
     // ITEM_FIELD_ENCHANTMENT_1_1+1 is current signatures count (showed on item)
     charter->SetState(ITEM_CHANGED, _player);
     _player->SendNewItem(charter, 1, true, false);
 
-    // a petition is invalid, if both the owner and the type matches
-    // we checked above, if this player is in an arenateam, so this must be data corruption
+    // A second petition owned by this player is invalid data.
     QueryResult* result = CharacterDatabase.PQuery("SELECT `petitionguid` FROM `petition` WHERE `ownerguid` = '%u'", _player->GetGUIDLow());
 
     std::ostringstream ssInvalidPetitionGUIDs;

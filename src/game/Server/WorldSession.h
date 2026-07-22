@@ -1259,8 +1259,6 @@ class WorldSession
 
         // Guild/Arena Team
         void SendGuildCommandResult(uint32 typecmd, const std::string& str, uint32 cmdresult);
-        void SendArenaTeamCommandResult(uint32 team_action, const std::string& team, const std::string& player, uint32 error_id);
-        void SendNotInArenaTeamPacket(uint8 type);
         void SendPetitionShowList(ObjectGuid guid);
         void SendSaveGuildEmblem(uint32 msg);
 
@@ -1693,7 +1691,6 @@ class WorldSession
         void HandleBattleFieldPortOpcode(WorldPacket& recv_data);
         void HandleBattlefieldListOpcode(WorldPacket& recv_data);
         void HandleLeaveBattlefieldOpcode(WorldPacket& recv_data);
-        void HandleBattlemasterJoinArena(WorldPacket& recv_data);
         void HandleReportPvPAFK(WorldPacket& recv_data);
         void HandleRequestPvPOptionsEnabledOpcode(WorldPacket& recv_data);
         void HandleRequestPvPRewardsOpcode(WorldPacket& recv_data);
@@ -1718,19 +1715,6 @@ class WorldSession
         void HandleWhoisOpcode(WorldPacket& recv_data);
         void HandleResetInstancesOpcode(WorldPacket& recv_data);
         void HandleHearthandResurrect(WorldPacket& recv_data);
-
-        // Arena Team
-        void HandleInspectArenaTeamsOpcode(WorldPacket& recv_data);
-        void HandleArenaTeamQueryOpcode(WorldPacket& recv_data);
-        void HandleArenaTeamRosterOpcode(WorldPacket& recv_data);
-        void HandleArenaTeamCreateOpcode(WorldPacket& recv_data);
-        void HandleArenaTeamInviteOpcode(WorldPacket& recv_data);
-        void HandleArenaTeamAcceptOpcode(WorldPacket& recv_data);
-        void HandleArenaTeamDeclineOpcode(WorldPacket& recv_data);
-        void HandleArenaTeamLeaveOpcode(WorldPacket& recv_data);
-        void HandleArenaTeamRemoveOpcode(WorldPacket& recv_data);
-        void HandleArenaTeamDisbandOpcode(WorldPacket& recv_data);
-        void HandleArenaTeamLeaderOpcode(WorldPacket& recv_data);
 
         void HandleAreaSpiritHealerQueryOpcode(WorldPacket& recv_data);
         void HandleAreaSpiritHealerQueueOpcode(WorldPacket& recv_data);
@@ -1776,7 +1760,6 @@ class WorldSession
         void HandleCalendarGetEvent(WorldPacket& recv_data);
         void HandleCalendarGuildFilter(WorldPacket& recv_data);
         void HandleCalendarEventSignup(WorldPacket& recvData);
-        void HandleCalendarArenaTeam(WorldPacket& recv_data);
         void HandleCalendarAddEvent(WorldPacket& recv_data);
         void HandleCalendarUpdateEvent(WorldPacket& recv_data);
         void HandleCalendarRemoveEvent(WorldPacket& recv_data);

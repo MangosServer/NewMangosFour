@@ -58,7 +58,6 @@
 #include "ObjectMgr.h"
 #include "ProgressBar.h"
 #include "Chat.h"
-#include "ArenaTeam.h"
 #include "World.h"
 #include "WorldPacket.h"
 #include "GameEventMgr.h"
@@ -440,17 +439,9 @@ void BattleGroundMgr::BuildPvpLogDataPacket(WorldPacket* data, BattleGround* bg)
 
     if (bg->isArena())
     {
-        // it seems this must be according to BG_WINNER_A/H and _NOT_ BG_TEAM_A/H
         for (int8 i = 0; i < PVP_TEAM_COUNT; ++i)
         {
-            if (ArenaTeam* at = sObjectMgr.GetArenaTeamById(bg->m_ArenaTeamIds[i]))
-            {
-                data->WriteBits(at->GetName().length(), 8);
-            }
-            else
-            {
-                data->WriteBits(0, 8);
-            }
+            data->WriteBits(0, 8);                         // no persistent arena-team names in 5.4.8
         }
     }
 
@@ -559,29 +550,15 @@ void BattleGroundMgr::BuildPvpLogDataPacket(WorldPacket* data, BattleGround* bg)
     {
         for (int8 i = 0; i < PVP_TEAM_COUNT; ++i)
         {
-            uint32 pointsLost = bg->m_ArenaTeamRatingChanges[i] < 0 ? abs(bg->m_ArenaTeamRatingChanges[i]) : 0;
-            uint32 pointsGained = bg->m_ArenaTeamRatingChanges[i] > 0 ? bg->m_ArenaTeamRatingChanges[i] : 0;
-
+            (void)i;
             *data << uint32(0);                             // Matchmaking Value
-            *data << uint32(pointsLost);                    // Rating Lost
-            *data << uint32(pointsGained);                  // Rating gained
-            DEBUG_LOG("rating change: %d", bg->m_ArenaTeamRatingChanges[i]);
+            *data << uint32(0);                             // Rating Lost
+            *data << uint32(0);                             // Rating Gained
         }
     }
 
     data->FlushBits();
     data->append(buffer);
-
-    if (bg->isArena())
-    {
-        for (int8 i = 0; i < PVP_TEAM_COUNT; ++i)
-        {
-            if (ArenaTeam* at = sObjectMgr.GetArenaTeamById(bg->m_ArenaTeamIds[i]))
-            {
-                data->append(at->GetName().data(), at->GetName().length());
-            }
-        }
-    }
 
     *data << uint8(bg->GetPlayersCountByTeam(HORDE));
 
@@ -1147,80 +1124,6 @@ void BattleGroundMgr::CreateInitialBattleGrounds()
     sLog.outString();
 }
 
-void BattleGroundMgr::InitAutomaticArenaPointDistribution()
-{
-    if (sWorld.getConfig(CONFIG_BOOL_ARENA_AUTO_DISTRIBUTE_POINTS))
-    {
-        DEBUG_LOG("Initializing Automatic Arena Point Distribution");
-        QueryResult* result = CharacterDatabase.Query("SELECT `NextArenaPointDistributionTime` FROM `saved_variables`");
-        if (!result)
-        {
-            DEBUG_LOG("Battleground: Next arena point distribution time not found in SavedVariables, reseting it now.");
-            m_NextAutoDistributionTime = time_t(sWorld.GetGameTime() + BATTLEGROUND_ARENA_POINT_DISTRIBUTION_DAY * sWorld.getConfig(CONFIG_UINT32_ARENA_AUTO_DISTRIBUTE_INTERVAL_DAYS));
-            CharacterDatabase.PExecute("INSERT INTO `saved_variables` (`NextArenaPointDistributionTime`) VALUES ('" UI64FMTD "')", uint64(m_NextAutoDistributionTime));
-        }
-        else
-        {
-            m_NextAutoDistributionTime = time_t((*result)[0].GetUInt64());
-            delete result;
-        }
-        DEBUG_LOG("Automatic Arena Point Distribution initialized.");
-    }
-}
-
-/*
- *  there does not appear to be a way to do this in Three
-void BattleGroundMgr::DistributeArenaPoints()
-{
-    // used to distribute arena points based on last week's stats
-    sWorld.SendWorldText(LANG_DIST_ARENA_POINTS_START);
-
-    sWorld.SendWorldText(LANG_DIST_ARENA_POINTS_ONLINE_START);
-
-    // temporary structure for storing maximum points to add values for all players
-    std::map<uint32, uint32> PlayerPoints;
-
-    // at first update all points for all team members
-    for (ObjectMgr::ArenaTeamMap::iterator team_itr = sObjectMgr.GetArenaTeamMapBegin(); team_itr != sObjectMgr.GetArenaTeamMapEnd(); ++team_itr)
-    {
-        if (ArenaTeam* at = team_itr->second)
-        {
-            at->UpdateArenaPointsHelper(PlayerPoints);
-        }
-    }
-
-    // cycle that gives points to all players
-    for (std::map<uint32, uint32>::iterator plr_itr = PlayerPoints.begin(); plr_itr != PlayerPoints.end(); ++plr_itr)
-    {
-        // update to database
-        CharacterDatabase.PExecute("UPDATE `characters` SET `arenaPoints` = `arenaPoints` + '%u' WHERE `guid` = '%u'", plr_itr->second, plr_itr->first);
-        // add points if player is online
-        if (Player* pl = sObjectMgr.GetPlayer(ObjectGuid(HIGHGUID_PLAYER, plr_itr->first)))
-        {
-            pl->ModifyArenaPoints(plr_itr->second);
-        }
-    }
-
-    PlayerPoints.clear();
-
-    sWorld.SendWorldText(LANG_DIST_ARENA_POINTS_ONLINE_END);
-
-    sWorld.SendWorldText(LANG_DIST_ARENA_POINTS_TEAM_START);
-    for (ObjectMgr::ArenaTeamMap::iterator titr = sObjectMgr.GetArenaTeamMapBegin(); titr != sObjectMgr.GetArenaTeamMapEnd(); ++titr)
-    {
-        if (ArenaTeam* at = titr->second)
-        {
-            at->FinishWeek();                              // set played this week etc values to 0 in memory, too
-            at->SaveToDB();                                // save changes
-            at->NotifyStatsChanged();                      // notify the players of the changes
-        }
-    }
-
-    sWorld.SendWorldText(LANG_DIST_ARENA_POINTS_TEAM_END);
-
-    sWorld.SendWorldText(LANG_DIST_ARENA_POINTS_END);
-}
-*/
 
 /**
  * @brief Builds the battleground instance list packet for a player.
@@ -1320,4 +1223,3 @@ void BattleGroundMgr::SendToBattleGround(Player* pl, uint32 instanceId, BattleGr
         sLog.outError("player %u trying to port to nonexistent bg instance %u", pl->GetGUIDLow(), instanceId);
     }
 }
-

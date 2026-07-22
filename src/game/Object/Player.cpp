@@ -60,7 +60,6 @@
 #include "BattleGround/BattleGroundMgr.h"
 #include "BattleGround/BattleGroundAV.h"
 #include "OutdoorPvP/OutdoorPvP.h"
-#include "ArenaTeam.h"
 #include "Chat.h"
 #include "revision_data.h"
 #include "Database/DatabaseImpl.h"
@@ -380,7 +379,6 @@ Player::Player(WorldSession* session): Unit(), m_mover(this), m_camera(this), m_
     duel = NULL;
 
     m_GuildIdInvited = 0;
-    m_ArenaTeamIdInvited = 0;
 
     m_atLoginFlags = AT_LOGIN_NONE;
 
@@ -3216,9 +3214,6 @@ void Player::DeleteFromDB(ObjectGuid playerguid, uint32 accountId, bool updateRe
             }
         }
     }
-
-    // remove from arena teams
-    LeaveAllArenaTeams(playerguid);
 
     // the player was uninvited already on logout so just remove from group
     QueryResult* resultGroup = CharacterDatabase.PQuery("SELECT `groupId` FROM `group_member` WHERE `memberGuid`='%u'", lowguid);

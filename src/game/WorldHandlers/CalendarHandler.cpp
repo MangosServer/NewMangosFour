@@ -35,7 +35,6 @@
 #include "World.h"
 #include "Guild.h"
 #include "GuildMgr.h"
-#include "ArenaTeam.h"
 
 void WorldSession::HandleCalendarGetCalendar(WorldPacket& /*recv_data*/)
 {
@@ -262,18 +261,6 @@ void WorldSession::HandleCalendarEventSignup(WorldPacket& recv_data)
     else
     {
         sCalendarMgr.SendCalendarCommandResult(_player, CALENDAR_ERROR_EVENT_INVALID);
-    }
-}
-
-void WorldSession::HandleCalendarArenaTeam(WorldPacket& recv_data)
-{
-    DEBUG_LOG("WORLD: Received opcode CMSG_CALENDAR_ARENA_TEAM [%s]", _player->GetGuidStr().c_str());
-    uint32 areanTeamId;
-    recv_data >> areanTeamId;
-
-    if (ArenaTeam* team = sObjectMgr.GetArenaTeamById(areanTeamId))
-    {
-        team->MassInviteToEvent(this);
     }
 }
 
