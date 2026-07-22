@@ -1086,7 +1086,6 @@ class WorldSession
         void SendNotification(const char* format, ...) ATTR_PRINTF(2, 3);
         void SendNotification(int32 string_id, ...);
         void SendPetNameInvalid(uint32 error, const std::string& name, DeclinedName* declinedName);
-        void SendLfgSearchResults(LfgType type, uint32 entry);
         void SendLfgJoinResult(LfgJoinResult result, LFGState state, partyForbidden const& lockedDungeons);
         void SendLfgUpdate(bool isGroup, LFGPlayerStatus status);
         void SendLfgQueueStatus(LFGQueueStatus const& status);
@@ -1700,8 +1699,6 @@ class WorldSession
         void HandleMoveSetCanFlyAckOpcode(WorldPacket& recv_data);
         void HandleLfgJoinOpcode(WorldPacket& recv_data);
         void HandleLfgLeaveOpcode(WorldPacket& recv_data);
-        void HandleSearchLfgJoinOpcode(WorldPacket& recv_data);
-        void HandleSearchLfgLeaveOpcode(WorldPacket& recv_data);
         void HandleSetLfgCommentOpcode(WorldPacket& recv_data);
         void HandleSetTitleOpcode(WorldPacket& recv_data);
         void HandleRealmSplitOpcode(WorldPacket& recv_data);

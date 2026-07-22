@@ -523,6 +523,18 @@ foreach(mutation IN ITEMS hidden_option legacy_sender legacy_handler legacy_opco
     set_tests_properties(mop_pet_unlearn_legacy_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_test(NAME mop_lfg_search_legacy_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_lfg_search_legacy_source_test.cmake)
+
+foreach(mutation IN ITEMS legacy_sender legacy_handlers legacy_opcodes modern_update)
+    add_test(NAME mop_lfg_search_legacy_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_lfg_search_legacy_source_test.cmake)
+    set_tests_properties(mop_lfg_search_legacy_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_lfg_packets_test mop_lfg_packets_test.cpp)
 target_include_directories(mop_lfg_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..

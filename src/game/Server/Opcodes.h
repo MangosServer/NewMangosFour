@@ -827,9 +827,6 @@ enum OpcodesList
     CMSG_MOVE_STOP_ASCEND                        = 0x115A, // 5.4.8 18414
     CMSG_LFG_JOIN                                = 0x046B, // 5.4.8 18414 (Wow.exe binary)
     CMSG_LFG_LEAVE                               = 0x01E0, // 5.4.8 18414 (Wow.exe binary)
-    CMSG_LFG_SEARCH_JOIN                         = 0x135F, // not in 5.4.8 (legacy)
-    CMSG_LFG_SEARCH_LEAVE                        = 0x1360, // not in 5.4.8 (legacy)
-    SMSG_LFG_SEARCH_RESULTS                      = 0x1361,    // (legacy; no client leaf)
     SMSG_LFG_PROPOSAL_UPDATE                     = 0x1E3B,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     CMSG_LFG_PROPOSAL_RESPONSE                   = 0x1D9D, // 5.4.8 18414 (Wow.exe binary, via CMSG_LFG_PROPOSAL_RESULT)
     SMSG_LFG_ROLE_CHECK_UPDATE                   = 0x12BB,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
