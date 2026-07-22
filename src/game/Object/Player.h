@@ -2715,8 +2715,6 @@ class Player : public Unit
         // Reward rage to the player
         void RewardRage(uint32 damage, uint32 weaponSpeedHitFactor, bool attacker);
 
-        // Send a pet skill wipe confirmation message
-        void SendPetSkillWipeConfirm();
         void CalcRage(uint32 damage, bool attacker);
         void RegenerateAll(uint32 diff = REGEN_TIME_FULL);
         void Regenerate(Powers power, uint32 diff);

@@ -742,8 +742,6 @@ enum OpcodesList
     SMSG_BATTLEGROUND_PLAYER_LEFT                = 0x0206,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_BATTLEMASTER_JOIN                       = 0x0769, // 5.4.8 18414 (Wow.exe binary)
     SMSG_ADDON_INFO                              = 0x160A,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
-    CMSG_PET_UNLEARN                             = 0x12F1, // not in 5.4.8 (legacy; handler retained)
-    SMSG_PET_UNLEARN_CONFIRM                     = 0x12F2,    // (legacy; no client leaf)
     SMSG_PARTY_MEMBER_STATS_FULL                 = 0x0215,    // 4.3.4 15595 (no client leaf)
     CMSG_PET_SPELL_AUTOCAST                      = 0x06F0, // 5.4.8 18414 (Wow.exe binary) [was 0x12E9 alias of PET_SET_ACTION]
     SMSG_WEATHER                                 = 0x06AB,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)

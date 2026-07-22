@@ -511,6 +511,18 @@ foreach(mutation IN ITEMS builder registration allowlist cross_faction_denial te
     set_tests_properties(mop_chat_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_test(NAME mop_pet_unlearn_legacy_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_pet_unlearn_legacy_source_test.cmake)
+
+foreach(mutation IN ITEMS hidden_option legacy_sender legacy_handler legacy_opcodes)
+    add_test(NAME mop_pet_unlearn_legacy_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_pet_unlearn_legacy_source_test.cmake)
+    set_tests_properties(mop_pet_unlearn_legacy_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_lfg_packets_test mop_lfg_packets_test.cpp)
 target_include_directories(mop_lfg_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..

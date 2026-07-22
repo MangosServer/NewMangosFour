@@ -187,21 +187,7 @@ void Player::PrepareGossipMenu(WorldObject* pSource, uint32 menuId)
                     }
                     break;
                 case GOSSIP_OPTION_UNLEARNPETSKILLS:
-                    if (pCreature->GetCreatureInfo()->TrainerType != TRAINER_TYPE_PETS || pCreature->GetCreatureInfo()->TrainerClass != CLASS_HUNTER)
-                    {
-                        hasMenuItem = false;
-                    }
-                    else if (Pet* pet = GetPet())
-                    {
-                        if (pet->getPetType() != HUNTER_PET || pet->m_spells.size() <= 1)
-                        {
-                            hasMenuItem = false;
-                        }
-                    }
-                    else
-                    {
-                        hasMenuItem = false;
-                    }
+                    hasMenuItem = false;
                     break;
                 case GOSSIP_OPTION_TAXIVENDOR:
                     if (GetSession()->SendLearnNewTaxiNode(pCreature))
@@ -465,10 +451,6 @@ void Player::OnGossipSelect(WorldObject* pSource, uint32 gossipListId, uint32 me
         case GOSSIP_OPTION_UNLEARNTALENTS:
             PlayerTalkClass->CloseGossip();
             SendTalentWipeConfirm(guid);
-            break;
-        case GOSSIP_OPTION_UNLEARNPETSKILLS:
-            PlayerTalkClass->CloseGossip();
-            SendPetSkillWipeConfirm();
             break;
         case GOSSIP_OPTION_TAXIVENDOR:
             GetSession()->SendTaxiMenu(((Creature*)pSource));

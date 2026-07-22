@@ -3914,23 +3914,6 @@ void Player::SendTalentWipeConfirm(ObjectGuid guid)
     GetSession()->SendPacket(&data);
 }
 
-/**
- * @brief Sends a pet talent reset confirmation prompt to the client.
- */
-void Player::SendPetSkillWipeConfirm()
-{
-    Pet* pet = GetPet();
-    if (!pet)
-    {
-        return;
-    }
-    WorldPacket data(SMSG_PET_UNLEARN_CONFIRM, (8 + 4));
-    data << ObjectGuid(pet->GetObjectGuid());
-    data << uint32(pet->resetTalentsCost());
-    GetSession()->SendPacket(&data);
-}
-
-
 bool Player::IsTappedByMeOrMyGroup(Creature* creature)
 {
     /* Nobody tapped the monster (solo kill by another NPC) */
