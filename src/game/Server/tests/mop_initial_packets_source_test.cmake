@@ -49,6 +49,26 @@ elseif(MUTATION STREQUAL "binder_allowlist")
         "case SMSG_BINDER_CONFIRM:"
         "case 0xFFFF: /* removed binder confirmation allowlist */"
         world_session "${world_session}")
+elseif(MUTATION STREQUAL "tutorial_flag_registration")
+    string(REPLACE
+        "DefC(CMSG_TUTORIAL_FLAG, \"CMSG_TUTORIAL_FLAG\""
+        "RemovedC(CMSG_TUTORIAL_FLAG, \"CMSG_TUTORIAL_FLAG\""
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "tutorial_clear_registration")
+    string(REPLACE
+        "DefC(CMSG_TUTORIAL_CLEAR, \"CMSG_TUTORIAL_CLEAR\""
+        "RemovedC(CMSG_TUTORIAL_CLEAR, \"CMSG_TUTORIAL_CLEAR\""
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "tutorial_reset_registration")
+    string(REPLACE
+        "DefC(CMSG_TUTORIAL_RESET, \"CMSG_TUTORIAL_RESET\""
+        "RemovedC(CMSG_TUTORIAL_RESET, \"CMSG_TUTORIAL_RESET\""
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "tutorial_flag_reader")
+    string(REPLACE
+        "recv_data >> iFlag;"
+        "/* removed tutorial flag reader */"
+        character_handler "${character_handler}")
 endif()
 
 function(strip_cpp_comments output source)
@@ -341,6 +361,20 @@ foreach(registration IN ITEMS
         message(FATAL_ERROR "bind opcode registration missing: ${registration}")
     endif()
 endforeach()
+
+foreach(registration IN ITEMS
+        "DefC(CMSG_TUTORIAL_FLAG, \"CMSG_TUTORIAL_FLAG\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTutorialFlagOpcode);"
+        "DefC(CMSG_TUTORIAL_CLEAR, \"CMSG_TUTORIAL_CLEAR\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTutorialClearOpcode);"
+        "DefC(CMSG_TUTORIAL_RESET, \"CMSG_TUTORIAL_RESET\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTutorialResetOpcode);")
+    string(FIND "${opcode_registry}" "${registration}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "tutorial opcode registration missing: ${registration}")
+    endif()
+endforeach()
+
+if(NOT character_handler MATCHES "recv_data[ \t]*>>[ \t]*iFlag;")
+    message(FATAL_ERROR "CMSG_TUTORIAL_FLAG must read its uint32 flag index")
+endif()
 
 foreach(allowlist IN ITEMS "case SMSG_BINDER_CONFIRM:" "case SMSG_PLAYERBOUND:")
     string(FIND "${world_session}" "${allowlist}" position)

@@ -228,6 +228,11 @@ void InitializeOpcodes()
     DefS(SMSG_MESSAGECHAT, "SMSG_MESSAGECHAT");
     DefS(SMSG_NOTIFICATION, "SMSG_NOTIFICATION");
 
+    // 18414 tutorial state requests: one uint32 flag index, then empty clear/reset controls.
+    DefC(CMSG_TUTORIAL_FLAG, "CMSG_TUTORIAL_FLAG", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTutorialFlagOpcode);
+    DefC(CMSG_TUTORIAL_CLEAR, "CMSG_TUTORIAL_CLEAR", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTutorialClearOpcode);
+    DefC(CMSG_TUTORIAL_RESET, "CMSG_TUTORIAL_RESET", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTutorialResetOpcode);
+
     // Wave 5 regular initial UI/input envelope messages.
     DefS(SMSG_INITIAL_SPELLS, "SMSG_INITIAL_SPELLS");
     DefS(SMSG_SEND_UNLEARN_SPELLS, "SMSG_SEND_UNLEARN_SPELLS");
