@@ -684,7 +684,7 @@ enum OpcodesList
     SMSG_SUMMON_REQUEST                          = 0x081F,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_SUMMON_RESPONSE                         = 0x0A33, // 5.4.8 18414 (Wow.exe binary)
     MSG_DEV_SHOWLABEL                            = 0x12AE,    // 5.4.8 18414 (Wow.exe leaf)
-    SMSG_MONSTER_MOVE_TRANSPORT                  = 0x2004,    // 4.3.4 15595 (unverified; no client leaf; unframable >0x1FFF)
+    SMSG_MONSTER_MOVE_TRANSPORT                  = 0x2004,    // legacy only: merged into SMSG_MONSTER_MOVE in 5.4.8; never send
     SMSG_PET_BROKEN                              = 0x12B0,    // (value unverified; no client leaf)
     MSG_MOVE_FEATHER_FALL                        = 0x12B1,    // (no client leaf)
     MSG_MOVE_WATER_WALK                          = 0x12B2,    // (no client leaf)

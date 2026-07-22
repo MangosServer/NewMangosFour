@@ -6,6 +6,10 @@ file(READ "${SOURCE_ROOT}/src/game/movement/MovementInfo.cpp" movement_codec)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.h" opcode_header)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/MovementHandler.cpp" movement_handler)
+file(READ "${SOURCE_ROOT}/src/game/movement/packet_builder.h" spline_packet_header)
+file(READ "${SOURCE_ROOT}/src/game/movement/packet_builder.cpp" spline_packet_source)
+file(READ "${SOURCE_ROOT}/src/game/movement/MoveSplineInit.cpp" spline_init_source)
+file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" world_session_source)
 
 if(MUTATION STREQUAL "inbound_sequence")
     string(REPLACE "MSEPositionZ,\n    MSEPositionX,\n    MSEPositionY,\n    MSEHasMovementFlags2"
@@ -40,6 +44,19 @@ elseif(MUTATION STREQUAL "spline_state_registration")
     string(REPLACE "DefS(SMSG_SPLINE_MOVE_SET_NORMAL_FALL, \"SMSG_SPLINE_MOVE_SET_NORMAL_FALL\");"
         "DefS_disabled(SMSG_SPLINE_MOVE_SET_NORMAL_FALL, \"SMSG_SPLINE_MOVE_SET_NORMAL_FALL\");"
         opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "monster_move_writer")
+    string(REPLACE "data.WriteBits(type, 3)" "data.WriteBits(type, 2)"
+        spline_packet_source "${spline_packet_source}")
+elseif(MUTATION STREQUAL "monster_move_registration")
+    string(REPLACE "DefS(SMSG_MONSTER_MOVE, \"SMSG_MONSTER_MOVE\");"
+        "DefS_disabled(SMSG_MONSTER_MOVE, \"SMSG_MONSTER_MOVE\");"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "monster_move_integration")
+    string(REPLACE "PacketBuilder::WriteStopMovement" "PacketBuilder::WriteLegacyStopMovement"
+        spline_init_source "${spline_init_source}")
+elseif(MUTATION STREQUAL "monster_move_gate")
+    string(REPLACE "case SMSG_MONSTER_MOVE:" "case SMSG_MONSTER_MOVE_REMOVED:"
+        world_session_source "${world_session_source}")
 endif()
 
 function(strip_cpp_comments output source)
@@ -103,6 +120,10 @@ strip_cpp_comments(movement_codec "${movement_codec}")
 strip_cpp_comments(opcode_registry "${opcode_registry}")
 strip_cpp_comments(opcode_header "${opcode_header}")
 strip_cpp_comments(movement_handler "${movement_handler}")
+strip_cpp_comments(spline_packet_header "${spline_packet_header}")
+strip_cpp_comments(spline_packet_source "${spline_packet_source}")
+strip_cpp_comments(spline_init_source "${spline_init_source}")
+strip_cpp_comments(world_session_source "${world_session_source}")
 
 set(start_forward "MSEPositionZ,MSEPositionX,MSEPositionY,MSEHasMovementFlags2,MSEUnknownBit149,MSEHasUnknownUInt32,MSEUnknownBit148,MSEGuidBit0,MSEHasOrientation,MSEHasFallData,MSEMovementForceCount,MSEGuidBit4,MSEGuidBit1,MSEHasTimestamp,MSEGuidBit7,MSEHasPitch,MSEHasTransportData,MSEGuidBit5,MSEHasMovementFlags,MSEGuidBit3,MSEHasSplineElevation,MSEGuidBit2,MSEGuidBit6,MSEUnknownBit172,MSETransportGuidBit1,MSEHasTransportTime3,MSETransportGuidBit3,MSETransportGuidBit4,MSETransportGuidBit2,MSETransportGuidBit5,MSETransportGuidBit0,MSETransportGuidBit7,MSETransportGuidBit6,MSEHasTransportTime2,MSEHasFallDirection,MSEFlags2_13,MSEFlags,MSEGuidByte1,MSEGuidByte6,MSEGuidByte7,MSEMovementForceIds,MSEGuidByte5,MSEGuidByte0,MSEGuidByte3,MSEGuidByte2,MSEGuidByte4,MSETransportGuidByte3,MSETransportGuidByte1,MSETransportGuidByte6,MSETransportPositionZ,MSETransportGuidByte4,MSETransportTime3,MSETransportSeat,MSETransportGuidByte7,MSETransportPositionO,MSETransportTime2,MSETransportGuidByte5,MSETransportGuidByte2,MSETransportPositionX,MSETransportGuidByte0,MSETransportPositionY,MSETransportTime,MSEFallCosAngle,MSEFallSinAngle,MSEFallHorizontalSpeed,MSEFallTime,MSEFallVerticalSpeed,MSETimestamp,MSEPitch,MSESplineElevation,MSEPositionO,MSEUnknownUInt32,MSEEnd")
 set(start_backward "MSEPositionY,MSEPositionZ,MSEPositionX,MSEHasTimestamp,MSEHasOrientation,MSEGuidBit7,MSEGuidBit2,MSEMovementForceCount,MSEHasFallData,MSEUnknownBit172,MSEGuidBit5,MSEGuidBit3,MSEGuidBit6,MSEHasSplineElevation,MSEGuidBit4,MSEHasTransportData,MSEGuidBit0,MSEHasMovementFlags,MSEHasPitch,MSEHasUnknownUInt32,MSEHasMovementFlags2,MSEUnknownBit148,MSEGuidBit1,MSEUnknownBit149,MSETransportGuidBit1,MSEHasTransportTime2,MSETransportGuidBit0,MSETransportGuidBit7,MSEHasTransportTime3,MSETransportGuidBit3,MSETransportGuidBit5,MSETransportGuidBit6,MSETransportGuidBit2,MSETransportGuidBit4,MSEFlags2_13,MSEFlags,MSEHasFallDirection,MSEMovementForceIds,MSEGuidByte1,MSEGuidByte3,MSEGuidByte5,MSEGuidByte2,MSEGuidByte0,MSEGuidByte4,MSEGuidByte7,MSEGuidByte6,MSEUnknownUInt32,MSETransportTime,MSETransportGuidByte4,MSETransportGuidByte1,MSETransportGuidByte5,MSETransportGuidByte3,MSETransportGuidByte6,MSETransportSeat,MSETransportPositionO,MSETransportPositionX,MSETransportGuidByte0,MSETransportPositionY,MSETransportTime3,MSETransportGuidByte7,MSETransportTime2,MSETransportPositionZ,MSETransportGuidByte2,MSEPositionO,MSEFallTime,MSEFallSinAngle,MSEFallCosAngle,MSEFallHorizontalSpeed,MSEFallVerticalSpeed,MSEPitch,MSETimestamp,MSESplineElevation,MSEEnd")
@@ -148,6 +169,45 @@ foreach(name IN ITEMS MSG_MOVE_HEARTBEAT CMSG_MOVE_START_FORWARD CMSG_MOVE_START
         "${name} registration")
 endforeach()
 require_once("${opcode_registry}" "DefS(SMSG_PLAYER_MOVE, \"SMSG_PLAYER_MOVE\");" "SMSG_PLAYER_MOVE metadata")
+require_once("${opcode_registry}" "DefS(SMSG_MONSTER_MOVE, \"SMSG_MONSTER_MOVE\");" "SMSG_MONSTER_MOVE metadata")
+
+foreach(required IN ITEMS
+        "WriteBits(type, 3)" "WriteBits(uncompressedSplineCount, 20)"
+        "WriteBits(compressedSplineCount, 22)"
+        "WriteGuidMask<7, 1, 3, 0, 6, 4, 5, 2>(transportGuid)"
+        "WriteGuidBytes<6, 4, 1, 7, 0, 3, 5, 2>(transportGuid)")
+    string(FIND "${spline_packet_source}" "${required}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "18414 monster-move writer missing: ${required}")
+    endif()
+endforeach()
+
+foreach(required IN ITEMS
+        "WorldPacket data(SMSG_MONSTER_MOVE, 64)"
+        "PacketBuilder::WriteMonsterMove(move_spline, data, unit.GetObjectGuid()"
+        "PacketBuilder::WriteStopMovement(real_position, move_spline.GetId(), data")
+    string(FIND "${spline_init_source}" "${required}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "18414 monster-move integration missing: ${required}")
+    endif()
+endforeach()
+
+foreach(forbidden IN ITEMS "SMSG_MONSTER_MOVE_TRANSPORT" "GetPackGUID()")
+    string(FIND "${spline_init_source}" "${forbidden}" position)
+    if(NOT position EQUAL -1)
+        message(FATAL_ERROR "legacy monster-move framing remains live: ${forbidden}")
+    endif()
+endforeach()
+
+string(FIND "${world_session_source}" "case SMSG_MONSTER_MOVE:" monster_move_whitelist)
+if(monster_move_whitelist EQUAL -1)
+    message(FATAL_ERROR "SMSG_MONSTER_MOVE is not in the converted enter-world allow-list")
+endif()
+
+string(FIND "${opcode_header}" "SMSG_MONSTER_MOVE                            = 0x1A07" monster_move_opcode)
+if(monster_move_opcode EQUAL -1)
+    message(FATAL_ERROR "SMSG_MONSTER_MOVE 18414 opcode value missing")
+endif()
 
 foreach(name IN ITEMS NORMAL_FALL WATER_WALK FEATHER_FALL LAND_WALK)
     require_once("${opcode_registry}"

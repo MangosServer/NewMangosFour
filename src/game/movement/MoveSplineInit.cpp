@@ -133,16 +133,9 @@ namespace Movement
         move_spline.Initialize(args);
 
         WorldPacket data(SMSG_MONSTER_MOVE, 64);
-        data << unit.GetPackGUID();
-
-        if (transportInfo)
-        {
-            data.SetOpcode(SMSG_MONSTER_MOVE_TRANSPORT);
-            data << transportInfo->GetTransportGuid().WriteAsPacked();
-            data << int8(transportInfo->GetTransportSeat());
-        }
-
-        PacketBuilder::WriteMonsterMove(move_spline, data);
+        ObjectGuid const transportGuid = transportInfo ? transportInfo->GetTransportGuid() : ObjectGuid();
+        int8 const transportSeat = transportInfo ? int8(transportInfo->GetTransportSeat()) : int8(-1);
+        PacketBuilder::WriteMonsterMove(move_spline, data, unit.GetObjectGuid(), transportGuid, transportSeat);
         unit.SendMessageToSet(&data, true);
 
         return move_spline.Duration();
@@ -192,19 +185,10 @@ namespace Movement
         move_spline.Initialize(args);
 
         WorldPacket data(SMSG_MONSTER_MOVE, 64);
-        data << unit.GetPackGUID();
-
-        if (transportInfo)
-        {
-            data.SetOpcode(SMSG_MONSTER_MOVE_TRANSPORT);
-            data << transportInfo->GetTransportGuid().WriteAsPacked();
-            data << int8(transportInfo->GetTransportSeat());
-        }
-
-        data << uint8(0);
-        data << real_position.x << real_position.y << real_position.z;
-        data << move_spline.GetId();
-        data << uint8(MonsterMoveStop);
+        ObjectGuid const transportGuid = transportInfo ? transportInfo->GetTransportGuid() : ObjectGuid();
+        int8 const transportSeat = transportInfo ? int8(transportInfo->GetTransportSeat()) : int8(-1);
+        PacketBuilder::WriteStopMovement(real_position, move_spline.GetId(), data,
+            unit.GetObjectGuid(), transportGuid, transportSeat);
         unit.SendMessageToSet(&data, true);
     }
 

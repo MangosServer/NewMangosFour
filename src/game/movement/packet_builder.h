@@ -25,6 +25,10 @@
 #ifndef MANGOSSERVER_PACKET_BUILDER_H
 #define MANGOSSERVER_PACKET_BUILDER_H
 
+#include "ObjectGuid.h"
+#include <G3D/Vector3.h>
+#include <vector>
+
 class ByteBuffer;
 class WorldPacket;
 
@@ -32,17 +36,30 @@ namespace Movement
 {
     class MoveSpline;
 
+    struct MonsterMoveData
+    {
+        G3D::Vector3 position;
+        uint32 splineId = 0;
+        uint8 type = 0;
+        ObjectGuid moverGuid;
+        ObjectGuid transportGuid;
+        int8 transportSeat = -1;
+        uint32 splineFlags = 0;
+        uint32 duration = 0;
+        bool hasVerticalAcceleration = false;
+        float verticalAcceleration = 0.0f;
+        ObjectGuid facingTargetGuid;
+        float facingAngle = 0.0f;
+        G3D::Vector3 facingPoint;
+        std::vector<G3D::Vector3> compressedPath;
+        std::vector<G3D::Vector3> uncompressedPath;
+    };
+
     /**
      * @brief The PacketBuilder class is responsible for constructing movement-related packets.
      */
     class PacketBuilder
     {
-            /**
-             * @brief Writes the common part of a monster move packet.
-             * @param mov The MoveSpline object containing movement data.
-             * @param data The WorldPacket to write the data to.
-             */
-            static void WriteCommonMonsterMovePart(const MoveSpline& mov, WorldPacket& data);
         public:
 
             /**
@@ -50,7 +67,13 @@ namespace Movement
              * @param mov The MoveSpline object containing movement data.
              * @param data The WorldPacket to write the data to.
              */
-            static void WriteMonsterMove(const MoveSpline& mov, WorldPacket& data);
+            static void WriteMonsterMove(const MoveSpline& mov, WorldPacket& data,
+                ObjectGuid moverGuid, ObjectGuid transportGuid = ObjectGuid(), int8 transportSeat = -1);
+
+            static void WriteMonsterMove(MonsterMoveData const& move, WorldPacket& data);
+
+            static void WriteStopMovement(G3D::Vector3 const& position, uint32 splineId, WorldPacket& data,
+                ObjectGuid moverGuid, ObjectGuid transportGuid = ObjectGuid(), int8 transportSeat = -1);
 
             /**
              * @brief Writes the creation data of a MoveSpline to a ByteBuffer.

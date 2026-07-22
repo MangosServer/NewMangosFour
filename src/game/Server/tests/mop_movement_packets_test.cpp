@@ -8,6 +8,7 @@
 #include "Unit.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
+#include "movement/packet_builder.h"
 
 #include <array>
 #include <cstdint>
@@ -510,6 +511,45 @@ static void test_opcode_values_are_framable()
     CHECK(uint32(SMSG_SPLINE_MOVE_SET_LAND_WALK) < uint32(OPCODE_TABLE_SIZE));
 }
 
+static void test_transport_stop_monster_move_fixture()
+{
+    WorldPacket packet(SMSG_MONSTER_MOVE, 64);
+    Movement::PacketBuilder::WriteStopMovement(G3D::Vector3(7.0f, 8.0f, 9.0f), 0xAABBCCDDu,
+        packet, ObjectGuid(0x8877665544332211ull), ObjectGuid(0xA8A7A6A5A4A3A2A1ull), int8(3));
+
+    std::vector<uint8> const expected {
+        0x00, 0x00, 0x10, 0x41, 0x00, 0x00, 0xE0, 0x40, 0xDD, 0xCC, 0xBB, 0xAA,
+        0x00, 0x00, 0x00, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0xCE, 0x00, 0x00, 0x0F, 0xFC, 0x00, 0x00, 0x0B,
+        0xFC, 0xC0, 0x23, 0xA6, 0xA4, 0xA3, 0xA9, 0xA0, 0xA5, 0xA7, 0xA2, 0x67,
+        0x45, 0x76, 0x10, 0x03, 0x89, 0x32, 0x54
+    };
+    CHECK(Equal(packet, expected));
+}
+
+static void test_linear_monster_move_fixture()
+{
+    Movement::MonsterMoveData move;
+    move.position = G3D::Vector3(1.0f, 2.0f, 3.0f);
+    move.splineId = 0x11223344u;
+    move.moverGuid = ObjectGuid(0x0807060504030201ull);
+    move.duration = 1000;
+    move.compressedPath.push_back(G3D::Vector3(1.0f, 1.0f, 1.0f));
+    move.uncompressedPath.push_back(G3D::Vector3(9.0f, 10.0f, 11.0f));
+
+    WorldPacket packet(SMSG_MONSTER_MOVE, 64);
+    Movement::PacketBuilder::WriteMonsterMove(move, packet);
+    std::vector<uint8> const expected {
+        0x00, 0x00, 0x40, 0x40, 0x00, 0x00, 0x80, 0x3F, 0x44, 0x33, 0x22, 0x11,
+        0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0xC7, 0x00, 0x00, 0x1F, 0xBC, 0x00, 0x00, 0x18,
+        0x00, 0xC0, 0x04, 0x20, 0x00, 0x01, 0x03, 0x00, 0x00, 0x20, 0x41, 0x00,
+        0x00, 0x10, 0x41, 0x00, 0x00, 0x30, 0x41, 0x07, 0x05, 0x06, 0x00, 0x09,
+        0x02, 0x04, 0xE8, 0x03, 0x00, 0x00
+    };
+    CHECK(Equal(packet, expected));
+}
+
 int main(int, char**)
 {
     test_six_inbound_fixtures_and_exact_relay();
@@ -518,6 +558,8 @@ int main(int, char**)
     test_spline_state_packets();
     test_hostile_counts_rejected();
     test_opcode_values_are_framable();
+    test_transport_stop_monster_move_fixture();
+    test_linear_monster_move_fixture();
     if (g_fail) return 1;
     std::printf("mop_movement_packets: all checks passed\n");
     return 0;

@@ -80,133 +80,150 @@ namespace Movement
         b >> v.x >> v.y >> v.z;
     }
 
-    /**
-     * @brief Writes the common part of a monster move packet.
-     * @param move_spline The MoveSpline object containing movement data.
-     * @param data The WorldPacket to write the data to.
-     */
-    void PacketBuilder::WriteCommonMonsterMovePart(const MoveSpline& move_spline, WorldPacket& data)
+    static MonsterMoveType GetMonsterMoveType(MoveSplineFlag const& splineFlags)
     {
-        MoveSplineFlag splineflags = move_spline.splineflags;
-
-        data << uint8(0);
-        data << move_spline.spline.getPoint(move_spline.spline.first());
-        data << move_spline.GetId();
-
-        switch (splineflags & MoveSplineFlag::Mask_Final_Facing)
+        switch (splineFlags & MoveSplineFlag::Mask_Final_Facing)
         {
-            default:
-                data << uint8(MonsterMoveNormal);
-                break;
             case MoveSplineFlag::Final_Target:
-                data << uint8(MonsterMoveFacingTarget);
-                data << move_spline.facing.target;
-                break;
+                return MonsterMoveFacingTarget;
             case MoveSplineFlag::Final_Angle:
-                data << uint8(MonsterMoveFacingAngle);
-                data << NormalizeOrientation(move_spline.facing.angle);
-                break;
+                return MonsterMoveFacingAngle;
             case MoveSplineFlag::Final_Point:
-                data << uint8(MonsterMoveFacingSpot);
-                data << move_spline.facing.f.x << move_spline.facing.f.y << move_spline.facing.f.z;
+                return MonsterMoveFacingSpot;
+            default:
+                return MonsterMoveNormal;
+        }
+    }
+
+    void PacketBuilder::WriteMonsterMove(MonsterMoveData const& move, WorldPacket& data)
+    {
+        uint8 const type = move.type;
+        ObjectGuid const moverGuid = move.moverGuid;
+        ObjectGuid const transportGuid = move.transportGuid;
+        uint32 const uncompressedSplineCount = uint32(move.uncompressedPath.size());
+        uint32 const compressedSplineCount = uint32(move.compressedPath.size());
+
+        data << float(move.position.z) << float(move.position.x) << uint32(move.splineId) << float(move.position.y);
+        data << float(0.0f) << float(0.0f) << float(0.0f);
+
+        data.WriteBit(!move.hasVerticalAcceleration);
+        data.WriteGuidMask<0>(moverGuid);
+        data.WriteBits(type, 3);
+        if (type == MonsterMoveFacingTarget)
+            data.WriteGuidMask<6, 4, 3, 0, 5, 7, 1, 2>(move.facingTargetGuid);
+        data.WriteBit(true);
+        data.WriteBit(true);
+        data.WriteBit(move.transportSeat == -1);
+        data.WriteBits(uncompressedSplineCount, 20);
+        data.WriteBit(!move.splineFlags);
+        data.WriteGuidMask<3>(moverGuid);
+        data.WriteBit(true);
+        data.WriteBit(true);
+        data.WriteBit(true);
+        data.WriteBit(!move.duration);
+        data.WriteGuidMask<7, 4>(moverGuid);
+        data.WriteBit(true);
+        data.WriteGuidMask<5>(moverGuid);
+        data.WriteBits(compressedSplineCount, 22);
+        data.WriteGuidMask<6>(moverGuid);
+        data.WriteBit(false);
+        data.WriteGuidMask<7, 1, 3, 0, 6, 4, 5, 2>(transportGuid);
+        data.WriteBit(false);
+        data.WriteBit(false);
+        data.WriteGuidMask<2, 1>(moverGuid);
+        data.FlushBits();
+
+        for (Vector3 const& offset : move.compressedPath)
+            data.appendPackXYZ(offset.x, offset.y, offset.z);
+        data.WriteGuidBytes<1>(moverGuid);
+        data.WriteGuidBytes<6, 4, 1, 7, 0, 3, 5, 2>(transportGuid);
+        for (Vector3 const& point : move.uncompressedPath)
+            data << point.y << point.x << point.z;
+        if (type == MonsterMoveFacingTarget)
+            data.WriteGuidBytes<5, 7, 0, 4, 3, 2, 6, 1>(move.facingTargetGuid);
+        data.WriteGuidBytes<5>(moverGuid);
+        if (move.hasVerticalAcceleration)
+            data << move.verticalAcceleration;
+        if (type == MonsterMoveFacingAngle)
+            data << float(NormalizeOrientation(move.facingAngle));
+        data.WriteGuidBytes<3>(moverGuid);
+        if (move.splineFlags)
+            data << move.splineFlags;
+        data.WriteGuidBytes<6>(moverGuid);
+        if (type == MonsterMoveFacingSpot)
+            data << move.facingPoint.x << move.facingPoint.y << move.facingPoint.z;
+        data.WriteGuidBytes<0>(moverGuid);
+        if (move.transportSeat != -1)
+            data << move.transportSeat;
+        data.WriteGuidBytes<7, 2, 4>(moverGuid);
+        if (move.duration)
+            data << move.duration;
+    }
+
+    void PacketBuilder::WriteStopMovement(Vector3 const& position, uint32 splineId, WorldPacket& data,
+        ObjectGuid moverGuid, ObjectGuid transportGuid, int8 transportSeat)
+    {
+        MonsterMoveData move;
+        move.position = position;
+        move.splineId = splineId;
+        move.type = MonsterMoveStop;
+        move.moverGuid = moverGuid;
+        move.transportGuid = transportGuid;
+        move.transportSeat = transportSeat;
+        WriteMonsterMove(move, data);
+    }
+
+    void PacketBuilder::WriteMonsterMove(const MoveSpline& move_spline, WorldPacket& data,
+        ObjectGuid moverGuid, ObjectGuid transportGuid, int8 transportSeat)
+    {
+        MonsterMoveType const type = GetMonsterMoveType(move_spline.splineflags);
+        Vector3 const& firstPoint = move_spline.spline.getPoint(move_spline.spline.first());
+        MonsterMoveData move;
+        move.position = firstPoint;
+        move.splineId = move_spline.GetId();
+        move.type = uint8(type);
+        move.moverGuid = moverGuid;
+        move.transportGuid = transportGuid;
+        move.transportSeat = transportSeat;
+        move.splineFlags = move_spline.splineflags.raw();
+        move.duration = uint32(move_spline.Duration());
+        move.hasVerticalAcceleration = move_spline.splineflags.parabolic;
+        move.verticalAcceleration = move_spline.vertical_acceleration;
+        switch (type)
+        {
+            case MonsterMoveFacingTarget:
+                move.facingTargetGuid = ObjectGuid(move_spline.facing.target);
+                break;
+            case MonsterMoveFacingAngle:
+                move.facingAngle = move_spline.facing.angle;
+                break;
+            case MonsterMoveFacingSpot:
+                move.facingPoint = Vector3(move_spline.facing.f.x, move_spline.facing.f.y, move_spline.facing.f.z);
+                break;
+            default:
                 break;
         }
 
-        // add fake Enter_Cycle flag - needed for client-side cyclic movement (client will erase first spline vertex after first cycle done)
-        splineflags.enter_cycle = move_spline.isCyclic();
-        data << uint32(splineflags & ~MoveSplineFlag::Mask_No_Monster_Move);
-
-        if (splineflags.animation)
+        if (move_spline.splineflags & MoveSplineFlag::UncompressedPath)
         {
-            data << splineflags.getAnimationId();
-            data << move_spline.effect_start_time;
-        }
-
-        data << move_spline.Duration();
-
-        if (splineflags.parabolic)
-        {
-            data << move_spline.vertical_acceleration;
-            data << move_spline.effect_start_time;
-        }
-    }
-
-    /**
-     * @brief Writes a linear path to a ByteBuffer.
-     * @param spline The spline containing the path points.
-     * @param data The ByteBuffer to write the data to.
-     */
-    void WriteLinearPath(const Spline<int32>& spline, ByteBuffer& data)
-    {
-        uint32 last_idx = spline.getPointCount() - 3;
-        const Vector3* real_path = &spline.getPoint(1);
-
-        data << last_idx;
-        data << real_path[last_idx];   // destination
-        if (last_idx > 1)
-        {
-            Vector3 middle = (real_path[0] + real_path[last_idx]) / 2.f;
-            Vector3 offset;
-            // first and last points already appended
-            for (uint32 i = 1; i < last_idx; ++i)
-            {
-                offset = middle - real_path[i];
-                data.appendPackXYZ(offset.x, offset.y, offset.z);
-            }
-        }
-    }
-
-    /**
-     * @brief Writes a Catmull-Rom path to a ByteBuffer.
-     * @param spline The spline containing the path points.
-     * @param data The ByteBuffer to write the data to.
-     */
-    void WriteCatmullRomPath(const Spline<int32>& spline, ByteBuffer& data)
-    {
-        uint32 count = spline.getPointCount() - 3;
-        data << count;
-        data.append<Vector3>(&spline.getPoint(2), count);
-    }
-
-    /**
-     * @brief Writes a cyclic Catmull-Rom path to a ByteBuffer.
-     * @param spline The spline containing the path points.
-     * @param data The ByteBuffer to write the data to.
-     */
-    void WriteCatmullRomCyclicPath(const Spline<int32>& spline, ByteBuffer& data)
-    {
-        uint32 count = spline.getPointCount() - 3;
-        data << uint32(count + 1);
-        data << spline.getPoint(1); // fake point, client will erase it from the spline after first cycle done
-        data.append<Vector3>(&spline.getPoint(1), count);
-    }
-
-    /**
-     * @brief Writes a monster move packet.
-     * @param move_spline The MoveSpline object containing movement data.
-     * @param data The WorldPacket to write the data to.
-     */
-    void PacketBuilder::WriteMonsterMove(const MoveSpline& move_spline, WorldPacket& data)
-    {
-        WriteCommonMonsterMovePart(move_spline, data);
-
-        const Spline<int32>& spline = move_spline.spline;
-        MoveSplineFlag splineflags = move_spline.splineflags;
-        if (splineflags & MoveSplineFlag::UncompressedPath)
-        {
-            if (splineflags.cyclic)
-            {
-                WriteCatmullRomCyclicPath(spline, data);
-            }
-            else
-            {
-                WriteCatmullRomPath(spline, data);
-            }
+            int32 const end = move_spline.spline.getPointCount() - (move_spline.splineflags.cyclic ? 2 : 1);
+            for (int32 i = 2; i < end; ++i)
+                move.uncompressedPath.push_back(move_spline.spline.getPoint(i));
         }
         else
         {
-            WriteLinearPath(spline, data);
+            uint32 const lastIndex = move_spline.spline.getPointCount() - 3;
+            Vector3 const* realPath = &move_spline.spline.getPoint(1);
+            if (lastIndex > 1)
+            {
+                Vector3 const middle = (realPath[0] + realPath[lastIndex]) / 2.0f;
+                for (uint32 i = 1; i < lastIndex; ++i)
+                    move.compressedPath.push_back(middle - realPath[i]);
+            }
+            Vector3 const& destination = move_spline.spline.getPoint(move_spline.spline.getPointCount() - 2);
+            move.uncompressedPath.push_back(destination);
         }
+        WriteMonsterMove(move, data);
     }
 
     void PacketBuilder::WriteCreateBits(const MoveSpline& move_spline, ByteBuffer& data)
