@@ -1463,9 +1463,7 @@ class WorldSession
         void HandlePetitionBuyOpcode(WorldPacket& recv_data);
         void HandlePetitionShowSignOpcode(WorldPacket& recv_data);
         void HandlePetitionQueryOpcode(WorldPacket& recv_data);
-        void HandlePetitionRenameOpcode(WorldPacket& recv_data);
         void HandlePetitionSignOpcode(WorldPacket& recv_data);
-        void HandlePetitionDeclineOpcode(WorldPacket& recv_data);
         void HandleOfferPetitionOpcode(WorldPacket& recv_data);
         void HandleTurnInPetitionOpcode(WorldPacket& recv_data);
 

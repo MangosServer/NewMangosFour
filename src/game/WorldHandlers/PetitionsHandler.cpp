@@ -333,60 +333,6 @@ void WorldSession::SendPetitionQueryOpcode(ObjectGuid petitionguid)
 }
 
 /**
- * @brief Handles petition renaming and updates persistent storage.
- *
- * @param recv_data The incoming petition rename packet.
- */
-void WorldSession::HandlePetitionRenameOpcode(WorldPacket& recv_data)
-{
-    DEBUG_LOG("Received opcode MSG_PETITION_RENAME");   // ok
-    // recv_data.hexlike();
-
-    ObjectGuid petitionGuid;
-    std::string newname;
-
-    recv_data >> petitionGuid;                              // guid
-    recv_data >> newname;                                   // new name
-
-    Item* item = _player->GetItemByGuid(petitionGuid);
-    if (!item)
-    {
-        return;
-    }
-
-    QueryResult* result = CharacterDatabase.PQuery("SELECT 1 FROM `petition` WHERE `petitionguid` = '%u'", petitionGuid.GetCounter());
-    if (!result)
-    {
-        DEBUG_LOG("CMSG_PETITION_QUERY failed for petition: %s", petitionGuid.GetString().c_str());
-        return;
-    }
-    delete result;
-
-    if (sGuildMgr.GetGuildByName(newname))
-    {
-        SendGuildCommandResult(GUILD_CREATE_S, newname, ERR_GUILD_NAME_EXISTS_S);
-        return;
-    }
-    if (sObjectMgr.IsReservedName(newname) || !ObjectMgr::IsValidCharterName(newname))
-    {
-        SendGuildCommandResult(GUILD_CREATE_S, newname, ERR_GUILD_NAME_INVALID);
-        return;
-    }
-
-    std::string db_newname = newname;
-    CharacterDatabase.escape_string(db_newname);
-    CharacterDatabase.PExecute("UPDATE `petition` SET `name` = '%s' WHERE `petitionguid` = '%u'",
-                               db_newname.c_str(), petitionGuid.GetCounter());
-
-    DEBUG_LOG("Petition %s renamed to '%s'", petitionGuid.GetString().c_str(), newname.c_str());
-
-    WorldPacket data(MSG_PETITION_RENAME, 8 + newname.size() + 1);
-    data << petitionGuid;
-    data << newname;
-    SendPacket(&data);
-}
-
-/**
  * @brief Handles signing a guild petition.
  *
  * @param recv_data The incoming petition sign packet.
@@ -503,41 +449,6 @@ void WorldSession::HandlePetitionSignOpcode(WorldPacket& recv_data)
     if (Player* owner = sObjectMgr.GetPlayer(ownerGuid))
     {
         owner->SendPetitionSignResult(petitionGuid, _player, PETITION_SIGN_OK);
-    }
-}
-
-/**
- * @brief Handles declining a petition offer and notifies the owner.
- *
- * @param recv_data The incoming petition decline packet.
- */
-void WorldSession::HandlePetitionDeclineOpcode(WorldPacket& recv_data)
-{
-    DEBUG_LOG("Received opcode MSG_PETITION_DECLINE");  // ok
-    // recv_data.hexlike();
-
-    ObjectGuid petitionGuid;
-    recv_data >> petitionGuid;                              // petition guid
-
-    DEBUG_LOG("Petition %s declined by %s", petitionGuid.GetString().c_str(), _player->GetGuidStr().c_str());
-
-    uint32 petitionLowGuid = petitionGuid.GetCounter();
-
-    QueryResult* result = CharacterDatabase.PQuery("SELECT `ownerguid` FROM `petition` WHERE `petitionguid` = '%u'", petitionLowGuid);
-    if (!result)
-    {
-        return;
-    }
-
-    Field* fields = result->Fetch();
-    ObjectGuid ownerguid = ObjectGuid(HIGHGUID_PLAYER, fields[0].GetUInt32());
-    delete result;
-
-    if (Player* owner = sObjectMgr.GetPlayer(ownerguid))    // petition owner online
-    {
-        WorldPacket data(MSG_PETITION_DECLINE, 8);
-        data << _player->GetObjectGuid();
-        owner->GetSession()->SendPacket(&data);
     }
 }
 
