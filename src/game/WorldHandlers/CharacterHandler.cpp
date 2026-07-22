@@ -823,12 +823,8 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     // camera) is granted implicitly by that create-block: its SELF flag marks the object as the
     // local player, and the 18414 client's self-path binds the active mover/camera on create --
     // no separate active-mover packet is sent (verified by IDA RE of the client self-path).
-    // m_suppressWorldSends then silences the remaining Cata-format login/after-add sends; only
-    // the create-block, the converted 18414 UI-init envelope, world-states, and the
-    // logout/teleport control packets reach the client. Movement/time-sync opcodes are left
-    // unregistered (movement is client-authoritative -- the client walks locally, the server
-    // drops them). Validated on the empty start map (Pandaren, Wandering Isle); nearby-object
-    // create-blocks on populated maps still use the Cata path (Option B).
+    // m_suppressWorldSends then silences remaining unconverted login/after-add sends. Converted
+    // movement, time-sync, UI, query, and control packets pass through the central admission list.
     {
         // SMSG_LOGIN_SETTIMESPEED: start the client's world clock. Without it the client
         // renders but stays inert (dead UI, no local movement) -- the #1 activation gate
@@ -842,15 +838,6 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
         lts << packedNow;
         lts << float(0.01666667f);
         SendPacket(&lts, true);
-    }
-    // SMSG_TIME_SYNC_REQUEST: establish the time base the 18414 client needs before it will
-    // process movement input (without it the client sits discarding time-sync acks and never
-    // moves). Counter 0; the client echoes it in CMSG_TIME_SYNC_RESPONSE, which we leave
-    // unregistered/dropped. Bypasses suppression.
-    {
-        WorldPacket ts(SMSG_TIME_SYNC_REQ, 4);
-        ts << uint32(0);
-        SendPacket(&ts, true);
     }
     // PHASE 6c: NO control/mover packet is sent -- none is needed. The 18414 client grants player
     // control itself when it processes the SELF create-block: the create/add-to-world path marks the

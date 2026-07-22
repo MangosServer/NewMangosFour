@@ -698,6 +698,27 @@ namespace MopWorldEntryPackets
             << uint32(packedGameTime) << float(speed);
     }
 
+    inline void BuildTimeSync(WorldPacket& out, uint32 counter)
+    {
+        out << counter;
+    }
+
+    inline void BuildTriggerCinematic(WorldPacket& out, uint32 cinematicSequenceId)
+    {
+        out << cinematicSequenceId;
+    }
+
+    inline void BuildWorldServerInfo(WorldPacket& out, uint8 tournamentRealm,
+        uint32 lastWeeklyReset, uint32 difficulty)
+    {
+        out.WriteBit(false); // optional uint32 presence 0
+        out.WriteBit(false); // optional uint32 presence 1
+        out.WriteBit(false); // optional uint32 presence 2
+        out.WriteBit(false); // optional uint32 presence 3
+        out.FlushBits();
+        out << tournamentRealm << lastWeeklyReset << difficulty;
+    }
+
     inline void BuildMoveTeleport(WorldPacket& out, uint64 moverGuid,
         uint64 transportGuid, uint32 counter, float x, float y, float z,
         float orientation)

@@ -279,6 +279,9 @@ static bool IsEnterWorldConverted(uint16 opcode)
         // row is backed by its owning 18414 serializer and focused byte fixtures. Keeping
         // these outside the gate silently discarded otherwise-valid gameplay traffic.
         case SMSG_LOGIN_SETTIMESPEED:              // MopWorldEntryPackets::BuildLoginSetTimeSpeed
+        case SMSG_TIME_SYNC_REQ:                   // one uint32 counter; client reader sub_6D9F28
+        case SMSG_TRIGGER_CINEMATIC:               // one uint32 sequence; dynamic handler sub_7AD161
+        case SMSG_WORLD_SERVER_INFO:               // four presence bits + minimal fixed fields; sub_6F470B
         case SMSG_CLIENT_CONTROL_UPDATE:           // MopControlPackets::BuildClientControlUpdate
         case SMSG_MOVE_SET_ACTIVE_MOVER:           // MopControlPackets::BuildSetActiveMover
         case SMSG_PLAYER_MOVE:                     // MovementInfo relay serializer

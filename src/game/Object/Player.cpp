@@ -3620,7 +3620,7 @@ void Player::SendDirectMessage(WorldPacket* data) const
 void Player::SendCinematicStart(uint32 CinematicSequenceId)
 {
     WorldPacket data(SMSG_TRIGGER_CINEMATIC, 4);
-    data << uint32(CinematicSequenceId);
+    MopWorldEntryPackets::BuildTriggerCinematic(data, CinematicSequenceId);
     SendDirectMessage(&data);
 }
 
@@ -4460,22 +4460,10 @@ void Player::SendInitialPacketsBeforeAddToMap()
 
     SendTalentsInfoData(false);
 
-    data.Initialize(SMSG_WORLD_SERVER_INFO, 1 + 1 + 4 + 4);
-    data.WriteBit(0);                                               // HasRestrictedLevel
-    data.WriteBit(0);                                               // HasRestrictedMoney
-    data.WriteBit(0);                                               // IneligibleForLoot
-    data.FlushBits();
-    //if (IneligibleForLoot)
-    //    data << uint32(0);                                        // EncounterMask
-
-    data << uint8(0);                                               // IsOnTournamentRealm
-    //if (HasRestrictedMoney)
-    //    data << uint32(100000);                                   // RestrictedMoney (starter accounts)
-    //if (HasRestrictedLevel)
-    //    data << uint32(20);                                       // RestrictedLevel (starter accounts)
-
-    data << uint32(sWorld.GetNextWeeklyQuestsResetTime() - WEEK);  // LastWeeklyReset (not instance reset)
-    data << uint32(GetMap()->GetDifficulty());
+    data.Initialize(SMSG_WORLD_SERVER_INFO, 10);
+    MopWorldEntryPackets::BuildWorldServerInfo(data, 0,
+        uint32(sWorld.GetNextWeeklyQuestsResetTime() - WEEK),
+        uint32(GetMap()->GetDifficulty()));
     GetSession()->SendPacket(&data);
 
     SendInitialQuestSetup();
@@ -6092,7 +6080,7 @@ void Player::ResetTimeSync()
 void Player::SendTimeSync()
 {
     WorldPacket data(SMSG_TIME_SYNC_REQ, 4);
-    data << uint32(m_timeSyncCounter++);
+    MopWorldEntryPackets::BuildTimeSync(data, m_timeSyncCounter++);
     GetSession()->SendPacket(&data);
 
     // Schedule next sync in 10 sec
