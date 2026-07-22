@@ -87,6 +87,25 @@ static void test_world_server_info()
     }));
 }
 
+static void test_init_world_states()
+{
+    ByteBuffer states;
+    states << uint32_t(0x01020304u) << uint32_t(0x05060708u);
+    states << uint32_t(0x11121314u) << uint32_t(0x15161718u);
+
+    WorldPacket packet(SMSG_INIT_WORLD_STATES, 31);
+    MopWorldEntryPackets::BuildInitWorldStates(packet, 0x11223344u,
+        0x55667788u, 0x99AABBCCu, 2, states);
+    CHECK(ExpectBytes(packet, {
+        0x44, 0x33, 0x22, 0x11,
+        0x88, 0x77, 0x66, 0x55,
+        0xCC, 0xBB, 0xAA, 0x99,
+        0x00, 0x00, 0x10,
+        0x04, 0x03, 0x02, 0x01, 0x08, 0x07, 0x06, 0x05,
+        0x14, 0x13, 0x12, 0x11, 0x18, 0x17, 0x16, 0x15
+    }));
+}
+
 static void test_move_teleport()
 {
     {
@@ -141,6 +160,7 @@ static void test_opcode_values_are_framable()
     CHECK(uint32_t(SMSG_TIME_SYNC_REQ) == 0x1A8Fu);
     CHECK(uint32_t(SMSG_TRIGGER_CINEMATIC) == 0x0B01u);
     CHECK(uint32_t(SMSG_WORLD_SERVER_INFO) == 0x0082u);
+    CHECK(uint32_t(SMSG_INIT_WORLD_STATES) == 0x1560u);
     CHECK(uint32_t(SMSG_LOGIN_VERIFY_WORLD) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_NEW_WORLD) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_LOGIN_SETTIMESPEED) <= 0x1FFFu);
@@ -148,6 +168,7 @@ static void test_opcode_values_are_framable()
     CHECK(uint32_t(SMSG_TIME_SYNC_REQ) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_TRIGGER_CINEMATIC) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_WORLD_SERVER_INFO) <= 0x1FFFu);
+    CHECK(uint32_t(SMSG_INIT_WORLD_STATES) <= 0x1FFFu);
 }
 
 int main(int /*argc*/, char** /*argv*/)
@@ -158,6 +179,7 @@ int main(int /*argc*/, char** /*argv*/)
     test_time_sync();
     test_trigger_cinematic();
     test_world_server_info();
+    test_init_world_states();
     test_move_teleport();
     test_opcode_values_are_framable();
 

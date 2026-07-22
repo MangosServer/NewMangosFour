@@ -23,7 +23,8 @@ foreach(builder IN ITEMS
         BuildMoveTeleport
         BuildTimeSync
         BuildTriggerCinematic
-        BuildWorldServerInfo)
+        BuildWorldServerInfo
+        BuildInitWorldStates)
     if(NOT "${character_handler}${player}" MATCHES "MopWorldEntryPackets::${builder}")
         message(FATAL_ERROR "${builder} is not used by a production sender")
     endif()
@@ -36,7 +37,8 @@ foreach(server_name IN ITEMS
         SMSG_MOVE_TELEPORT
         SMSG_TIME_SYNC_REQ
         SMSG_TRIGGER_CINEMATIC
-        SMSG_WORLD_SERVER_INFO)
+        SMSG_WORLD_SERVER_INFO
+        SMSG_INIT_WORLD_STATES)
     if(NOT opcode_registry MATCHES "DefS\\(${server_name},[ \t]*\"${server_name}\"\\)")
         message(FATAL_ERROR "${server_name} is missing outbound opcode metadata")
     endif()
@@ -45,7 +47,8 @@ endforeach()
 foreach(server_name IN ITEMS
         SMSG_TIME_SYNC_REQ
         SMSG_TRIGGER_CINEMATIC
-        SMSG_WORLD_SERVER_INFO)
+        SMSG_WORLD_SERVER_INFO
+        SMSG_INIT_WORLD_STATES)
     if(NOT world_session MATCHES "case[ \t]+${server_name}:")
         message(FATAL_ERROR "${server_name} is missing from central enter-world admission")
     endif()
@@ -54,4 +57,9 @@ endforeach()
 string(FIND "${character_handler}" "WorldPacket ts(SMSG_TIME_SYNC_REQ" inline_time_sync)
 if(NOT inline_time_sync EQUAL -1)
     message(FATAL_ERROR "duplicate inline login SMSG_TIME_SYNC_REQ sender remains")
+endif()
+
+string(FIND "${character_handler}" "WorldPacket iws(SMSG_INIT_WORLD_STATES" inline_world_states)
+if(NOT inline_world_states EQUAL -1)
+    message(FATAL_ERROR "duplicate inline login SMSG_INIT_WORLD_STATES sender remains")
 endif()

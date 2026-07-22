@@ -3809,22 +3809,16 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
     DEBUG_LOG("Sending SMSG_INIT_WORLD_STATES to Map:%u, Zone: %u", mapid, zoneid);
 
     uint32 count = 0;                                       // count of world states in packet
-
-    WorldPacket data(SMSG_INIT_WORLD_STATES, (4 + 4 + 4 + 2 + 8 * 8)); // guess
-    data << uint32(mapid);                                  // mapid
-    data << uint32(zoneid);                                 // zone id
-    data << uint32(areaid);                                 // area id, new 2.1.0
-    size_t count_pos = data.wpos();
-    data << uint16(0);                                      // count of uint64 blocks, placeholder
+    WorldPacket states;
 
     // Current arena season
-    FillInitialWorldState(data, count, 0xC77, sWorld.getConfig(CONFIG_UINT32_ARENA_SEASON_ID));
+    FillInitialWorldState(states, count, 0xC77, sWorld.getConfig(CONFIG_UINT32_ARENA_SEASON_ID));
     // Previous arena season
-    FillInitialWorldState(data, count, 0xF3D, sWorld.getConfig(CONFIG_UINT32_ARENA_SEASON_PREVIOUS_ID));
+    FillInitialWorldState(states, count, 0xF3D, sWorld.getConfig(CONFIG_UINT32_ARENA_SEASON_PREVIOUS_ID));
     // 0 - Battle for Wintergrasp in progress, 1 - otherwise
-    FillInitialWorldState(data, count, 0xED9, 1);
+    FillInitialWorldState(states, count, 0xED9, 1);
     // Time when next Battle for Wintergrasp starts
-    FillInitialWorldState(data, count, 0x1102, uint32(time(NULL) + 9000));
+    FillInitialWorldState(states, count, 0x1102, uint32(time(NULL) + 9000));
 
     switch (zoneid)
     {
@@ -3836,57 +3830,58 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
         case 3521:                                          // Zangarmarsh
             if (OutdoorPvP* outdoorPvP = sOutdoorPvPMgr.GetScript(zoneid))
             {
-                outdoorPvP->FillInitialWorldStates(data, count);
+                outdoorPvP->FillInitialWorldStates(states, count);
             }
             break;
         case 2597:                                          // AV
             if (bg && bg->GetTypeID() == BATTLEGROUND_AV)
             {
-                bg->FillInitialWorldStates(data, count);
+                bg->FillInitialWorldStates(states, count);
             }
             break;
         case 3277:                                          // WS
             if (bg && bg->GetTypeID() == BATTLEGROUND_WS)
             {
-                bg->FillInitialWorldStates(data, count);
+                bg->FillInitialWorldStates(states, count);
             }
             break;
         case 3358:                                          // AB
             if (bg && bg->GetTypeID() == BATTLEGROUND_AB)
             {
-                bg->FillInitialWorldStates(data, count);
+                bg->FillInitialWorldStates(states, count);
             }
             break;
         case 3820:                                          // EY
             if (bg && bg->GetTypeID() == BATTLEGROUND_EY)
             {
-                bg->FillInitialWorldStates(data, count);
+                bg->FillInitialWorldStates(states, count);
             }
             break;
         case 3698:                                          // Nagrand Arena
             if (bg && bg->GetTypeID() == BATTLEGROUND_NA)
             {
-                bg->FillInitialWorldStates(data, count);
+                bg->FillInitialWorldStates(states, count);
             }
             break;
         case 3702:                                          // Blade's Edge Arena
             if (bg && bg->GetTypeID() == BATTLEGROUND_BE)
             {
-                bg->FillInitialWorldStates(data, count);
+                bg->FillInitialWorldStates(states, count);
             }
             break;
         case 3968:                                          // Ruins of Lordaeron
             if (bg && bg->GetTypeID() == BATTLEGROUND_RL)
             {
-                bg->FillInitialWorldStates(data, count);
+                bg->FillInitialWorldStates(states, count);
             }
             break;
     }
 
-    FillBGWeekendWorldStates(data, count);
+    FillBGWeekendWorldStates(states, count);
 
-    data.put<uint16>(count_pos, count);                     // set actual world state amount
-
+    WorldPacket data(SMSG_INIT_WORLD_STATES, 15 + states.size());
+    MopWorldEntryPackets::BuildInitWorldStates(data, mapid, areaid, zoneid,
+        count, states);
     GetSession()->SendPacket(&data);
 }
 

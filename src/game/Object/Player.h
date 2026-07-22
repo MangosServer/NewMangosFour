@@ -769,6 +769,18 @@ namespace MopWorldEntryPackets
         out << tournamentRealm << lastWeeklyReset << difficulty;
     }
 
+    inline void BuildInitWorldStates(WorldPacket& out, uint32 mapId,
+        uint32 areaId, uint32 zoneId, uint32 count,
+        ByteBuffer const& states)
+    {
+        MANGOS_ASSERT(count < (uint32(1) << 21));
+        MANGOS_ASSERT(states.size() == size_t(count) * 8);
+        out << mapId << areaId << zoneId;
+        out.WriteBits(count, 21);
+        out.FlushBits();
+        out.append(states);
+    }
+
     inline void BuildMoveTeleport(WorldPacket& out, uint64 moverGuid,
         uint64 transportGuid, uint32 counter, float x, float y, float z,
         float orientation)

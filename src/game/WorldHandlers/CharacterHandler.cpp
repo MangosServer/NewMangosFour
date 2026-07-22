@@ -1024,19 +1024,6 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     sObjectAccessor.AddObject(pCurrChar);
     // DEBUG_LOG("Player %s added to Map.",pCurrChar->GetName());
 
-    // PHASE 6c: SMSG_INIT_WORLD_STATES -- part of the client's world activation (Codex #4),
-    // sent after the self create-block (Map::Add above). 18414 format: mapId, areaId, zoneId,
-    // 21-bit world-state count (0 = minimal), flush. Bypasses the enter-world suppression.
-    {
-        WorldPacket iws(SMSG_INIT_WORLD_STATES, 4 + 4 + 4 + 3);
-        iws << uint32(pCurrChar->GetMapId());
-        iws << uint32(pCurrChar->GetAreaId());
-        iws << uint32(pCurrChar->GetZoneId());
-        iws.WriteBits(0, 21);
-        iws.FlushBits();
-        SendPacket(&iws, true);
-    }
-
     pCurrChar->SendInitialPacketsAfterAddToMap();
 
     /* If it's the player's first login, create the cinematic flyover if enabled */

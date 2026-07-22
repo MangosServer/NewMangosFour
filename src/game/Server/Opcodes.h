@@ -696,7 +696,7 @@ enum OpcodesList
     SMSG_PLAYER_SKINNED                          = 0x1463,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     SMSG_DURABILITY_DAMAGE_DEATH                 = 0x1E3E,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_SET_ACTIONBAR_TOGGLES                   = 0x0672, // 5.4.8 18414 (Wow.exe binary)
-    SMSG_INIT_WORLD_STATES                       = 0x1560,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
+    SMSG_INIT_WORLD_STATES                       = 0x1560,    // 5.4.8 18414 (Wow.exe binary; reader sub_7341EC/sub_732740)
     SMSG_UPDATE_WORLD_STATE                      = 0x121B,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_PET_ACTION_FEEDBACK                     = 0x080E,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_CHAR_RENAME                             = 0x0963, // 5.4.8 18414 (Wow.exe binary)
