@@ -103,11 +103,22 @@ static void test_moderator_status()
     }));
 }
 
+static void test_pending_count()
+{
+    WorldPacket packet(SMSG_CALENDAR_SEND_NUM_PENDING, 4);
+    packet << uint32(0x11223344u);
+    CHECK(Equal(packet, { 0x44,0x33,0x22,0x11 }));
+}
+
 static void test_opcodes()
 {
     CHECK(uint32(SMSG_CALENDAR_EVENT_INITIAL_INVITE) == 0x16AEu);
     CHECK(uint32(SMSG_CALENDAR_EVENT_INVITE_STATUS) == 0x1C9Bu);
     CHECK(uint32(SMSG_CALENDAR_EVENT_MODERATOR_STATUS) == 0x048Fu);
+    CHECK(uint32(CMSG_CALENDAR_GET_NUM_PENDING) == 0x0813u);
+    CHECK(uint32(SMSG_CALENDAR_SEND_NUM_PENDING) == 0x0A3Fu);
+    CHECK(uint32(CMSG_CALENDAR_GET_NUM_PENDING) < uint32(OPCODE_TABLE_SIZE));
+    CHECK(uint32(SMSG_CALENDAR_SEND_NUM_PENDING) < uint32(OPCODE_TABLE_SIZE));
     CHECK(uint32(SMSG_CALENDAR_EVENT_INITIAL_INVITE) < uint32(OPCODE_TABLE_SIZE));
     CHECK(uint32(SMSG_CALENDAR_EVENT_INVITE_STATUS) < uint32(OPCODE_TABLE_SIZE));
     CHECK(uint32(SMSG_CALENDAR_EVENT_MODERATOR_STATUS) < uint32(OPCODE_TABLE_SIZE));
@@ -118,6 +129,7 @@ int main(int /*argc*/, char** /*argv*/)
     test_initial_invite_list();
     test_invite_status();
     test_moderator_status();
+    test_pending_count();
     test_opcodes();
 
     if (g_fail)

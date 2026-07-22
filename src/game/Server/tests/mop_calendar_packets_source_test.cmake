@@ -3,6 +3,7 @@ file(READ "${SOURCE_ROOT}/src/game/Object/Guild.cpp" guild_sender)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CalendarHandler.cpp" calendar_sender)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.h" opcode_header)
+file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" world_session)
 
 if(MUTATION STREQUAL "initial_builder")
     string(REPLACE
@@ -34,6 +35,21 @@ elseif(MUTATION STREQUAL "moderator_registration")
         "DefS(SMSG_CALENDAR_EVENT_MODERATOR_STATUS, \"SMSG_CALENDAR_EVENT_MODERATOR_STATUS\");"
         "/* removed moderator-status registration */"
         opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "pending_client_registration")
+    string(REPLACE
+        "DefC(CMSG_CALENDAR_GET_NUM_PENDING, \"CMSG_CALENDAR_GET_NUM_PENDING\""
+        "/* removed pending-count client registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "pending_server_registration")
+    string(REPLACE
+        "DefS(SMSG_CALENDAR_SEND_NUM_PENDING, \"SMSG_CALENDAR_SEND_NUM_PENDING\");"
+        "/* removed pending-count server registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "pending_gate")
+    string(REPLACE
+        "case SMSG_CALENDAR_SEND_NUM_PENDING:"
+        "/* removed pending-count framing gate */"
+        world_session "${world_session}")
 endif()
 
 function(require_once source token context)
@@ -72,6 +88,18 @@ require_once("${opcode_registry}"
 require_once("${opcode_registry}"
     "DefS(SMSG_CALENDAR_EVENT_MODERATOR_STATUS, \"SMSG_CALENDAR_EVENT_MODERATOR_STATUS\");"
     "moderator-status registration")
+require_once("${opcode_registry}"
+    "DefC(CMSG_CALENDAR_GET_NUM_PENDING, \"CMSG_CALENDAR_GET_NUM_PENDING\""
+    "pending-count client registration")
+require_once("${opcode_registry}"
+    "DefS(SMSG_CALENDAR_SEND_NUM_PENDING, \"SMSG_CALENDAR_SEND_NUM_PENDING\");"
+    "pending-count server registration")
+require_once("${calendar_sender}"
+    "WorldPacket data(SMSG_CALENDAR_SEND_NUM_PENDING, 4);"
+    "pending-count response body")
+require_once("${world_session}"
+    "case SMSG_CALENDAR_SEND_NUM_PENDING:"
+    "pending-count framing gate")
 
 foreach(source IN ITEMS "${guild_sender}" "${calendar_sender}" "${opcode_header}")
     foreach(legacy IN ITEMS
