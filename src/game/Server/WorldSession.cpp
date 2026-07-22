@@ -315,6 +315,8 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_GUILD_EVENT_MOTD:           // MopGuildPackets::BuildGuildMotd
         case SMSG_TABARD_VENDOR_ACTIVATE:     // MopGuildPackets::BuildTabardVendorActivate
         case SMSG_SAVE_GUILD_EMBLEM:          // MopGuildPackets::BuildSaveGuildEmblemResult
+        case SMSG_BINDER_CONFIRM:              // MopBindPackets::BuildBinderConfirm
+        case SMSG_PLAYERBOUND:                 // MopBindPackets::BuildPlayerBound
         case SMSG_LFG_BOOT_PLAYER:            // MopLfgPackets::BuildBootPlayer
         case SMSG_LFG_UPDATE_STATUS:          // MopLfgPackets::BuildUpdateStatus
         case SMSG_RESPEC_WIPE_CONFIRM:        // MopRespecPackets::BuildRespecWipeConfirm

@@ -3901,8 +3901,8 @@ void Player::SendInitWorldStates(uint32 zoneid, uint32 areaid)
  */
 void Player::SetBindPoint(ObjectGuid guid)
 {
-    WorldPacket data(SMSG_BINDER_CONFIRM, 8);
-    data << ObjectGuid(guid);
+    WorldPacket data;
+    MopBindPackets::BuildBinderConfirm(data, guid.GetRawValue());
     GetSession()->SendPacket(&data);
 }
 

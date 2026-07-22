@@ -425,6 +425,64 @@ namespace MopInitialPackets
     }
 }
 
+namespace MopBindPackets
+{
+    inline uint8 GuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+
+    inline uint64 ReadGuid(WorldPacket& in, uint8 const (&maskOrder)[8],
+        uint8 const (&byteOrder)[8])
+    {
+        uint8 guidBytes[8] = {};
+        for (uint8 index : maskOrder)
+            guidBytes[index] = in.ReadBit();
+        for (uint8 index : byteOrder)
+            in.ReadByteSeq(guidBytes[index]);
+
+        uint64 guid = 0;
+        for (uint8 index = 0; index < 8; ++index)
+            guid |= uint64(guidBytes[index]) << (index * 8);
+        return guid;
+    }
+
+    inline void WriteGuid(WorldPacket& out, uint64 guid,
+        uint8 const (&maskOrder)[8], uint8 const (&byteOrder)[8])
+    {
+        for (uint8 index : maskOrder)
+            out.WriteBit(GuidByte(guid, index) != 0);
+        out.FlushBits();
+        for (uint8 index : byteOrder)
+            out.WriteByteSeq(GuidByte(guid, index));
+    }
+
+    inline uint64 ReadBinderActivate(WorldPacket& in)
+    {
+        uint8 const maskOrder[] = { 0, 5, 4, 7, 6, 2, 1, 3 };
+        uint8 const byteOrder[] = { 0, 4, 2, 3, 7, 1, 5, 6 };
+        return ReadGuid(in, maskOrder, byteOrder);
+    }
+
+    inline void BuildBinderConfirm(WorldPacket& out, uint64 binderGuid)
+    {
+        uint8 const maskOrder[] = { 4, 6, 2, 1, 5, 3, 0, 7 };
+        uint8 const byteOrder[] = { 6, 2, 5, 0, 4, 7, 1, 3 };
+        out.Initialize(SMSG_BINDER_CONFIRM, 9);
+        WriteGuid(out, binderGuid, maskOrder, byteOrder);
+    }
+
+    inline void BuildPlayerBound(WorldPacket& out, uint64 binderGuid,
+        uint32 areaId)
+    {
+        uint8 const maskOrder[] = { 2, 4, 0, 3, 6, 7, 5, 1 };
+        uint8 const byteOrder[] = { 6, 1, 2, 3, 4, 5, 7, 0 };
+        out.Initialize(SMSG_PLAYERBOUND, 13);
+        WriteGuid(out, binderGuid, maskOrder, byteOrder);
+        out << areaId;
+    }
+}
+
 namespace MopWorldEntryPackets
 {
     inline uint8 GuidByte(uint64 guid, uint8 index)

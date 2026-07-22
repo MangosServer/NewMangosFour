@@ -293,7 +293,9 @@ foreach(mutation IN ITEMS pre_map_call after_map_call opcode_metadata)
     set_tests_properties(mop_ui_envelope_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
-foreach(mutation IN ITEMS builder_call opcode_metadata)
+foreach(mutation IN ITEMS builder_call opcode_metadata binder_reader
+        binder_confirm_builder playerbound_builder binder_registration
+        binder_allowlist)
     add_test(NAME mop_initial_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND}
             -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}

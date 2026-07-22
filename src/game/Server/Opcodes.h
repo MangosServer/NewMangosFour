@@ -375,7 +375,7 @@ enum OpcodesList
     SMSG_BREAK_TARGET                            = 0x021A,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_BINDPOINTUPDATE                         = 0x0E3B,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     SMSG_BINDZONEREPLY                           = 0x1158,    // (legacy; no client leaf)
-    SMSG_PLAYERBOUND                             = 0x088E,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
+    SMSG_PLAYERBOUND                             = 0x088E,    // 5.4.8 18414 (Wow.exe retained literal and reader)
     SMSG_CLIENT_CONTROL_UPDATE                   = 0x1043,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_REPOP_REQUEST                           = 0x134A, // 5.4.8 18414 (Wow.exe binary)
     SMSG_RESURRECT_REQUEST                       = 0x1062,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)

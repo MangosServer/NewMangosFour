@@ -280,6 +280,11 @@ void InitializeOpcodes()
     DefC(CMSG_SAVE_GUILD_EMBLEM, "CMSG_SAVE_GUILD_EMBLEM", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleSaveGuildEmblemOpcode);
     DefS(SMSG_SAVE_GUILD_EMBLEM, "SMSG_SAVE_GUILD_EMBLEM");
 
+    // Wave 33 innkeeper bind confirmation and completion.
+    DefC(CMSG_BINDER_ACTIVATE, "CMSG_BINDER_ACTIVATE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleBinderActivateOpcode);
+    DefS(SMSG_BINDER_CONFIRM, "SMSG_BINDER_CONFIRM");
+    DefS(SMSG_PLAYERBOUND, "SMSG_PLAYERBOUND");
+
     // Wave 22 LFG boot-vote update, binary-named LFG_BOOT_PLAYER.
     DefS(SMSG_LFG_BOOT_PLAYER, "SMSG_LFG_BOOT_PLAYER");
 

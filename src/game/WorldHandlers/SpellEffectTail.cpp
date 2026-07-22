@@ -914,9 +914,8 @@ void Spell::EffectBind(SpellEffectEntry const* effect)
     DEBUG_LOG("New Home Position for %s: XYZ: %f %f %f on Map %u", player->GetGuidStr().c_str(), loc.coord_x, loc.coord_y, loc.coord_z, loc.mapid);
 
     // zone update
-    data.Initialize(SMSG_PLAYERBOUND, 8 + 4);
-    data << m_caster->GetObjectGuid();
-    data << uint32(area_id);
+    MopBindPackets::BuildPlayerBound(data,
+        m_caster->GetObjectGuid().GetRawValue(), area_id);
     player->SendDirectMessage(&data);
 }
 

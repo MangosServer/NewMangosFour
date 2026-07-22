@@ -652,8 +652,7 @@ void WorldSession::HandleReturnToGraveyardOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleBinderActivateOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid npcGuid;
-    recv_data >> npcGuid;
+    ObjectGuid const npcGuid(MopBindPackets::ReadBinderActivate(recv_data));
 
     if (!GetPlayer()->IsInWorld() || !GetPlayer()->IsAlive())
     {
@@ -691,12 +690,6 @@ void WorldSession::SendBindPoint(Creature* npc)
 
     // send spell for bind 3286 bind magic
     npc->CastSpell(_player, 3286, true);                    // Bind
-
-    WorldPacket data(SMSG_TRAINER_SERVICE, 16);
-    data << npc->GetObjectGuid();
-    data << uint32(3286);                                   // Bind
-    data << uint32(2);
-    SendPacket(&data);
 
     _player->PlayerTalkClass->CloseGossip();
 }

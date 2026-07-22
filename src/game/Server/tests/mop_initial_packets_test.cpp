@@ -231,6 +231,59 @@ static void test_bind_point_update()
     }));
 }
 
+static void test_binder_activate()
+{
+    {
+        WorldPacket packet(CMSG_BINDER_ACTIVATE, 9);
+        uint8_t const bytes[] = { 0xFF, 0x00, 0x04, 0x02, 0x05, 0x09, 0x03, 0x07, 0x06 };
+        packet.append(bytes, sizeof(bytes));
+        CHECK(MopBindPackets::ReadBinderActivate(packet) == UI64LIT(0x0807060504030201));
+    }
+    {
+        WorldPacket packet(CMSG_BINDER_ACTIVATE, 4);
+        uint8_t const bytes[] = { 0x89, 0xA0, 0xB3, 0xC2 };
+        packet.append(bytes, sizeof(bytes));
+        CHECK(MopBindPackets::ReadBinderActivate(packet) == UI64LIT(0x00C30000B20000A1));
+    }
+}
+
+static void test_binder_confirm()
+{
+    {
+        WorldPacket packet;
+        MopBindPackets::BuildBinderConfirm(packet, UI64LIT(0x0807060504030201));
+        CHECK(packet.GetOpcode() == SMSG_BINDER_CONFIRM);
+        CHECK(ExpectBytes(packet, {
+            0xFF, 0x06, 0x02, 0x07, 0x00, 0x04, 0x09, 0x03, 0x05
+        }));
+    }
+    {
+        WorldPacket packet;
+        MopBindPackets::BuildBinderConfirm(packet, UI64LIT(0x00C30000B20000A1));
+        CHECK(ExpectBytes(packet, { 0x46, 0xC2, 0xA0, 0xB3 }));
+    }
+}
+
+static void test_player_bound()
+{
+    {
+        WorldPacket packet;
+        MopBindPackets::BuildPlayerBound(packet, UI64LIT(0x0807060504030201), 0x11223344u);
+        CHECK(packet.GetOpcode() == SMSG_PLAYERBOUND);
+        CHECK(ExpectBytes(packet, {
+            0xFF, 0x06, 0x03, 0x02, 0x05, 0x04, 0x07, 0x09, 0x00,
+            0x44, 0x33, 0x22, 0x11
+        }));
+    }
+    {
+        WorldPacket packet;
+        MopBindPackets::BuildPlayerBound(packet, UI64LIT(0x00C30000B20000A1), 0x55667788u);
+        CHECK(ExpectBytes(packet, {
+            0x38, 0xC2, 0xB3, 0xA0, 0x88, 0x77, 0x66, 0x55
+        }));
+    }
+}
+
 static void test_set_proficiency()
 {
     WorldPacket packet(SMSG_SET_PROFICIENCY, 5);
@@ -268,6 +321,9 @@ static void test_opcode_values_are_framable()
         { uint32_t(SMSG_INITIALIZE_FACTIONS), 0x0AAAu },
         { uint32_t(SMSG_TUTORIAL_FLAGS), 0x1B90u },
         { uint32_t(SMSG_BINDPOINTUPDATE), 0x0E3Bu },
+        { uint32_t(CMSG_BINDER_ACTIVATE), 0x1248u },
+        { uint32_t(SMSG_BINDER_CONFIRM), 0x1287u },
+        { uint32_t(SMSG_PLAYERBOUND), 0x088Eu },
         { uint32_t(SMSG_SET_PROFICIENCY), 0x1440u },
         { uint32_t(SMSG_WEATHER), 0x06ABu }
     };
@@ -289,6 +345,9 @@ int main(int /*argc*/, char** /*argv*/)
     test_initialize_factions();
     test_tutorial_flags();
     test_bind_point_update();
+    test_binder_activate();
+    test_binder_confirm();
+    test_player_bound();
     test_set_proficiency();
     test_weather();
     test_opcode_values_are_framable();

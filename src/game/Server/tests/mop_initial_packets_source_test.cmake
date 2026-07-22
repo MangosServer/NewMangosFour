@@ -6,6 +6,7 @@ file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CharacterHandler.cpp" character
 file(READ "${SOURCE_ROOT}/src/game/Object/ReputationMgr.cpp" reputation)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/Weather.cpp" weather)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/SpellEffectTail.cpp" spell_effect)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/NPCHandler.cpp" npc_handler)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/opcode_register.inc" login_registry)
 
@@ -19,6 +20,31 @@ elseif(MUTATION STREQUAL "opcode_metadata")
         "    DefS(SMSG_INITIAL_SPELLS, \"SMSG_INITIAL_SPELLS\");"
         "    // DefS(SMSG_INITIAL_SPELLS, \"SMSG_INITIAL_SPELLS\");"
         opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "binder_reader")
+    string(REPLACE
+        "MopBindPackets::ReadBinderActivate(recv_data)"
+        "uint64(0) /* removed binder request reader */"
+        npc_handler "${npc_handler}")
+elseif(MUTATION STREQUAL "binder_confirm_builder")
+    string(REPLACE
+        "MopBindPackets::BuildBinderConfirm(data, guid.GetRawValue())"
+        "/* removed binder confirmation builder */"
+        player "${player}")
+elseif(MUTATION STREQUAL "playerbound_builder")
+    string(REPLACE
+        "MopBindPackets::BuildPlayerBound(data,"
+        "/* removed player-bound builder */ (void)(data), (void)("
+        spell_effect "${spell_effect}")
+elseif(MUTATION STREQUAL "binder_registration")
+    string(REPLACE
+        "DefC(CMSG_BINDER_ACTIVATE, \"CMSG_BINDER_ACTIVATE\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleBinderActivateOpcode);"
+        "/* removed binder request registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "binder_allowlist")
+    string(REPLACE
+        "case SMSG_BINDER_CONFIRM:"
+        "case 0xFFFF: /* removed binder confirmation allowlist */"
+        world_session "${world_session}")
 endif()
 
 function(strip_cpp_comments output source)
@@ -64,6 +90,7 @@ strip_cpp_comments(character_handler "${character_handler}")
 strip_cpp_comments(reputation "${reputation}")
 strip_cpp_comments(weather "${weather}")
 strip_cpp_comments(spell_effect "${spell_effect}")
+strip_cpp_comments(npc_handler "${npc_handler}")
 strip_cpp_comments(opcode_registry "${opcode_registry}")
 strip_cpp_comments(login_registry "${login_registry}")
 
@@ -90,6 +117,9 @@ extract_body(initial_reputation "${reputation}" "void ReputationMgr::SendInitial
 extract_body(single_weather "${weather}" "void Weather::SendWeatherUpdateToPlayer(" "bool Weather::SendWeatherForPlayersInZone")
 extract_body(zone_weather "${weather}" "bool Weather::SendWeatherForPlayersInZone(" "void Weather::SetWeather")
 extract_body(bind_spell "${spell_effect}" "void Spell::EffectBind(" "void Spell::EffectRestoreItemCharges")
+extract_body(set_bind "${player}" "void Player::SetBindPoint(" "void Player::SendTalentWipeConfirm")
+extract_body(binder_activate "${npc_handler}" "void WorldSession::HandleBinderActivateOpcode" "void WorldSession::SendBindPoint")
+extract_body(send_bind "${npc_handler}" "void WorldSession::SendBindPoint" "void WorldSession::HandleListStabledPetsOpcode")
 
 if(initial_spells MATCHES "GetSpellCooldownMap|put<uint16>|<<[ \t]*uint16\(0\)")
     message(FATAL_ERROR "legacy INITIAL_SPELLS slot/cooldown body remains")
@@ -145,6 +175,18 @@ if(NOT initial_before_map MATCHES "MopInitialPackets::BuildBindPointUpdate" OR
    NOT bind_spell MATCHES "MopInitialPackets::BuildBindPointUpdate")
     message(FATAL_ERROR "BuildBindPointUpdate is not used by both production senders")
 endif()
+if(NOT binder_activate MATCHES "MopBindPackets::ReadBinderActivate")
+    message(FATAL_ERROR "ReadBinderActivate is not used by the binder handler")
+endif()
+if(NOT set_bind MATCHES "MopBindPackets::BuildBinderConfirm")
+    message(FATAL_ERROR "BuildBinderConfirm is not used by Player::SetBindPoint")
+endif()
+if(NOT bind_spell MATCHES "MopBindPackets::BuildPlayerBound")
+    message(FATAL_ERROR "BuildPlayerBound is not used by Spell::EffectBind")
+endif()
+if(send_bind MATCHES "SMSG_TRAINER_SERVICE")
+    message(FATAL_ERROR "legacy SMSG_TRAINER_SERVICE bind send remains")
+endif()
 if(NOT proficiency MATCHES "MopInitialPackets::BuildSetProficiency")
     message(FATAL_ERROR "BuildSetProficiency is not used by its production sender")
 endif()
@@ -193,6 +235,19 @@ require_ordered("${bind_spell}" "spell BINDPOINTUPDATE writer"
     "WorldPacket data(SMSG_BINDPOINTUPDATE"
     "MopInitialPackets::BuildBindPointUpdate(data"
     "player->SendDirectMessage(&data)")
+require_ordered("${binder_activate}" "binder activation reader"
+    "MopBindPackets::ReadBinderActivate(recv_data)"
+    "GetNPCIfCanInteractWith(npcGuid, UNIT_NPC_FLAG_INNKEEPER)"
+    "SendBindPoint(unit)")
+require_ordered("${set_bind}" "binder confirmation writer"
+    "MopBindPackets::BuildBinderConfirm(data, guid.GetRawValue())"
+    "GetSession()->SendPacket(&data)")
+require_ordered("${send_bind}" "bind spell flow"
+    "npc->CastSpell(_player, 3286, true)"
+    "_player->PlayerTalkClass->CloseGossip()")
+require_ordered("${bind_spell}" "player-bound writer"
+    "MopBindPackets::BuildPlayerBound(data,"
+    "player->SendDirectMessage(&data)")
 require_ordered("${initial_before_map}" "pre-map regular UI envelope"
     "WorldPacket data(SMSG_BINDPOINTUPDATE"
     "MopInitialPackets::BuildBindPointUpdate(data"
@@ -234,6 +289,23 @@ foreach(server_name IN ITEMS
         SMSG_WEATHER)
     if(NOT opcode_registry MATCHES "DefS\\(${server_name},[ \t]*\"${server_name}\"\\)")
         message(FATAL_ERROR "${server_name} is missing outbound opcode metadata")
+    endif()
+endforeach()
+
+foreach(registration IN ITEMS
+        "DefC(CMSG_BINDER_ACTIVATE, \"CMSG_BINDER_ACTIVATE\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleBinderActivateOpcode);"
+        "DefS(SMSG_BINDER_CONFIRM, \"SMSG_BINDER_CONFIRM\");"
+        "DefS(SMSG_PLAYERBOUND, \"SMSG_PLAYERBOUND\");")
+    string(FIND "${opcode_registry}" "${registration}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "bind opcode registration missing: ${registration}")
+    endif()
+endforeach()
+
+foreach(allowlist IN ITEMS "case SMSG_BINDER_CONFIRM:" "case SMSG_PLAYERBOUND:")
+    string(FIND "${world_session}" "${allowlist}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "bind packet suppression allowlist missing: ${allowlist}")
     endif()
 endforeach()
 
