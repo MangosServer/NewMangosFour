@@ -425,6 +425,16 @@ namespace MopInitialPackets
     }
 }
 
+namespace MopDeathPackets
+{
+    inline void BuildDeathReleaseLocation(WorldPacket& out, uint32 mapId,
+        float x, float y, float z)
+    {
+        out.Initialize(SMSG_DEATH_RELEASE_LOC, 16);
+        out << mapId << y << x << z;
+    }
+}
+
 namespace MopBindPackets
 {
     inline uint8 GuidByte(uint64 guid, uint8 index)

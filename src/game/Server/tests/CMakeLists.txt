@@ -592,3 +592,23 @@ foreach(mutation IN ITEMS inbound_sequence player_move_sequence allocation_bound
             -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_movement_source_test.cmake)
     set_tests_properties(mop_movement_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
+
+add_executable(mop_death_packets_test mop_death_packets_test.cpp)
+target_include_directories(mop_death_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_death_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_death_packets_test PRIVATE game)
+add_test(NAME mop_death_packets COMMAND mop_death_packets_test)
+
+add_test(NAME mop_death_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_death_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS wire_order player_call misc_call registration whitelist opcode_value)
+    add_test(NAME mop_death_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_death_packets_source_test.cmake)
+    set_tests_properties(mop_death_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()

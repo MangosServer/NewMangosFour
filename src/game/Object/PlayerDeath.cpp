@@ -154,11 +154,9 @@ void Player::BuildPlayerRepop()
  */
 void Player::ResurrectPlayer(float restore_percent, bool applySickness)
 {
-    WorldPacket data(SMSG_DEATH_RELEASE_LOC, 4 * 4);        // remove spirit healer position
-    data << uint32(-1);
-    data << float(0);
-    data << float(0);
-    data << float(0);
+    WorldPacket data;
+    MopDeathPackets::BuildDeathReleaseLocation(data, uint32(-1),
+        0.0f, 0.0f, 0.0f);                                // remove spirit healer position
     GetSession()->SendPacket(&data);
 
     // speed change, land walk
@@ -401,11 +399,10 @@ void Player::RepopAtGraveyard()
         TeleportTo(ClosestGrave->Continent, ClosestGrave->Pos_X, ClosestGrave->Pos_Y, ClosestGrave->Pos_Z, GetOrientation());
         if (IsDead())                                       // not send if alive, because it used in TeleportTo()
         {
-            WorldPacket data(SMSG_DEATH_RELEASE_LOC, 4 * 4);// show spirit healer position on minimap
-            data << ClosestGrave->Continent;
-            data << ClosestGrave->Pos_X;
-            data << ClosestGrave->Pos_Y;
-            data << ClosestGrave->Pos_Z;
+            WorldPacket data;
+            MopDeathPackets::BuildDeathReleaseLocation(data,
+                ClosestGrave->Continent, ClosestGrave->Pos_X,
+                ClosestGrave->Pos_Y, ClosestGrave->Pos_Z);  // show spirit healer position on minimap
             GetSession()->SendPacket(&data);
         }
         if (updateVisibility && IsInWorld())

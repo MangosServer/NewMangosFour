@@ -755,11 +755,10 @@ void WorldSession::HandleReturnToGraveyard(WorldPacket& /*recvPacket*/)
         pPlayer->TeleportTo(ClosestGrave->Continent, ClosestGrave->Pos_X, ClosestGrave->Pos_Y, ClosestGrave->Pos_Z, pPlayer->GetOrientation());
         if (pPlayer->IsDead())                                       // not send if alive, because it used in TeleportTo()
         {
-            WorldPacket data(SMSG_DEATH_RELEASE_LOC, 4 * 4);// show spirit healer position on minimap
-            data << ClosestGrave->Continent;
-            data << ClosestGrave->Pos_X;
-            data << ClosestGrave->Pos_Y;
-            data << ClosestGrave->Pos_Z;
+            WorldPacket data;
+            MopDeathPackets::BuildDeathReleaseLocation(data,
+                ClosestGrave->Continent, ClosestGrave->Pos_X,
+                ClosestGrave->Pos_Y, ClosestGrave->Pos_Z);  // show spirit healer position on minimap
             pPlayer->GetSession()->SendPacket(&data);
         }
 
