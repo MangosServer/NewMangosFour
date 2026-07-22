@@ -535,6 +535,18 @@ foreach(mutation IN ITEMS legacy_sender legacy_handlers legacy_opcodes modern_up
     set_tests_properties(mop_lfg_search_legacy_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_test(NAME mop_all_quests_completed_legacy_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_all_quests_completed_legacy_source_test.cmake)
+
+foreach(mutation IN ITEMS legacy_handler legacy_opcode quest_backend)
+    add_test(NAME mop_all_quests_completed_legacy_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_all_quests_completed_legacy_source_test.cmake)
+    set_tests_properties(mop_all_quests_completed_legacy_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_lfg_packets_test mop_lfg_packets_test.cpp)
 target_include_directories(mop_lfg_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..

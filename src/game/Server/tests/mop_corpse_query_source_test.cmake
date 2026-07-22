@@ -109,7 +109,7 @@ extract_body(corpse_handler "${query_handler}"
     "void WorldSession::HandleNpcTextQueryOpcode")
 extract_body(map_handler "${query_handler}"
     "void WorldSession::HandleCorpseMapPositionQueryOpcode"
-    "void WorldSession::HandleQueryQuestsCompletedOpcode")
+    "void WorldSession::HandleQuestPOIQueryOpcode")
 extract_body(map_reader "${packet_helpers}"
     "inline uint64 MopQueryPackets::ReadCorpseMapPositionQuery"
     "inline void MopQueryPackets::BuildCorpseQueryResponse")

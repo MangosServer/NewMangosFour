@@ -1155,7 +1155,6 @@ enum OpcodesList
     SMSG_DEBUG_SERVER_GEO                        = 0x14FD,    // (legacy; no client leaf)
     SMSG_LOOT_UPDATE                             = 0x1863,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork; fuzzy via SMSG_UPDATE_DUNGEON_ENCOUNTER_FOR_LOOT)
     CMSG_READY_FOR_ACCOUNT_DATA_TIMES            = 0x031C, // 5.4.8 18414 (Wow.exe binary)
-    SMSG_ALL_QUESTS_COMPLETED                    = 0x6314,    // (legacy; no client leaf; unframable >0x1FFF)
     SMSG_AFK_MONITOR_INFO_RESPONSE               = 0x1505,    // (legacy; no client leaf)
     SMSG_AREA_TRIGGER_NO_CORPSE                  = 0x089E,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     SMSG_CAMERA_SHAKE                            = 0x0C3A,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
