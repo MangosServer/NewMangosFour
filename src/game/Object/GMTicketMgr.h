@@ -46,10 +46,59 @@ enum GMTicketResponse
 
 namespace MopGMTicketPackets
 {
+    struct TicketInfo
+    {
+        uint32 ticketId = 0;
+        uint8 escalationStatus = 0;
+        uint8 openedByGm = 0;
+        uint8 category = 0;
+        uint32 mapId = 0;
+        std::string message;
+        uint32 unknownTime = 0;
+        uint32 oldestTicketTime = 0;
+        uint32 lastChangeTime = 0;
+        std::string waitTimeOverride;
+    };
+
     inline void BuildUpdate(WorldPacket& out, GMTicketResponse response)
     {
         out.Initialize(SMSG_GM_TICKET_UPDATE, 1);
         out << uint8(response);
+    }
+
+    inline bool BuildGetTicket(WorldPacket& out, TicketInfo const* ticket,
+        uint32 status)
+    {
+        if (ticket && (ticket->message.size() >= (size_t(1) << 11) ||
+                ticket->waitTimeOverride.size() >= (size_t(1) << 10)))
+            return false;
+
+        out.Initialize(SMSG_GMTICKET_GETTICKET, ticket ?
+            31 + ticket->message.size() + ticket->waitTimeOverride.size() : 5);
+        out.WriteBit(ticket != nullptr);
+        if (ticket)
+        {
+            out.WriteBits(uint32(ticket->message.size()), 11);
+            out.WriteBits(uint32(ticket->waitTimeOverride.size()), 10);
+        }
+        out.FlushBits();
+
+        if (ticket)
+        {
+            out << ticket->ticketId << ticket->escalationStatus << ticket->openedByGm
+                << ticket->category << ticket->mapId;
+            out.WriteStringData(ticket->message);
+            out << ticket->unknownTime << ticket->oldestTicketTime << ticket->lastChangeTime;
+            out.WriteStringData(ticket->waitTimeOverride);
+        }
+        out << status;
+        return true;
+    }
+
+    inline void BuildSystemStatus(WorldPacket& out, bool enabled)
+    {
+        out.Initialize(SMSG_GMTICKET_SYSTEMSTATUS, 4);
+        out << uint32(enabled ? 1 : 0);
     }
 }
 

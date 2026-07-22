@@ -61,24 +61,20 @@
  */
 void WorldSession::SendGMTicketGetTicket(uint32 status, GMTicket* ticket /*= NULL*/)
 {
-    std::string text = ticket ? ticket->GetText() : "";
-
-    int len = text.size() + 1;
-    WorldPacket data(SMSG_GMTICKET_GETTICKET, (4 + len + 1 + 4 + 2 + 4 + 4));
-    data << uint32(status);                                 // standard 0x0A, 0x06 if text present
-    if (status == 6)
+    MopGMTicketPackets::TicketInfo info;
+    MopGMTicketPackets::TicketInfo const* payload = nullptr;
+    if (status == 6 && ticket)
     {
-        data << uint32(123);                                // unk
-        data << text;                                       // ticket text
-        data << uint8(0x7);                                 // ticket category
-        data << float(0);                                   // tickets in queue?
-        data << float(0);                                   // if > "tickets in queue" then "We are currently experiencing a high volume of petitions."
-        data << float(0);                                   // 0 - "Your ticket will be serviced soon", 1 - "Wait time currently unavailable"
-        data << uint8(0);                                   // if == 2 and next field == 1 then "Your ticket has been escalated"
-        data << uint8(0);                                   // const
-        data << uint8(0);                                   // average wait time string
-        data << uint32(0);                                  // average wait time
+        info.ticketId = ticket->GetId();
+        info.category = 1;
+        info.mapId = GetPlayer()->GetMapId();
+        info.message = ticket->GetText();
+        payload = &info;
     }
+
+    WorldPacket data;
+    if (!MopGMTicketPackets::BuildGetTicket(data, payload, status))
+        return;
     SendPacket(&data);
 }
 
@@ -270,9 +266,8 @@ void WorldSession::HandleGMTicketCreateOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleGMTicketSystemStatusOpcode(WorldPacket& /*recv_data*/)
 {
-    WorldPacket data(SMSG_GMTICKET_SYSTEMSTATUS, 4);
-    // Controlled by GM command .ticket system_on/off
-    data << uint32(sTicketMgr.WillAcceptTickets() ? 1 : 0);
+    WorldPacket data;
+    MopGMTicketPackets::BuildSystemStatus(data, sTicketMgr.WillAcceptTickets());
     SendPacket(&data);
 }
 

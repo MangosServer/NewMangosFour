@@ -32,6 +32,7 @@
 #include "WorldPacket.h"
 
 #include <cstdio>
+#include <cstring>
 
 static int g_fail = 0;
 #define CHECK(c) do { if (!(c)) { std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); ++g_fail; } } while (0)
@@ -64,9 +65,63 @@ static void test_opcode_is_framable()
     CHECK(uint32(SMSG_GM_TICKET_UPDATE) < uint32(OPCODE_TABLE_SIZE));
 }
 
+static void test_get_ticket_response()
+{
+    WorldPacket none;
+    CHECK(MopGMTicketPackets::BuildGetTicket(none, nullptr, 0x0Au));
+    uint8 const noneExpected[] = { 0x00, 0x0A,0x00,0x00,0x00 };
+    CHECK(none.size() == sizeof(noneExpected));
+    CHECK(std::memcmp(none.contents(), noneExpected, sizeof(noneExpected)) == 0);
+
+    MopGMTicketPackets::TicketInfo ticket;
+    ticket.ticketId = 0x11223344u;
+    ticket.escalationStatus = 0xA1;
+    ticket.openedByGm = 0xB2;
+    ticket.category = 0xC3;
+    ticket.mapId = 0xDDEEFF00u;
+    ticket.message = "AB";
+    ticket.unknownTime = 0x01020304u;
+    ticket.oldestTicketTime = 0x55667788u;
+    ticket.lastChangeTime = 0x99AABBCCu;
+    ticket.waitTimeOverride = "C";
+
+    WorldPacket present;
+    CHECK(MopGMTicketPackets::BuildGetTicket(present, &ticket, 0x06u));
+    uint8 const presentExpected[] = {
+        0x80,0x20,0x04,
+        0x44,0x33,0x22,0x11,
+        0xA1,0xB2,0xC3,
+        0x00,0xFF,0xEE,0xDD,
+        0x41,0x42,
+        0x04,0x03,0x02,0x01,
+        0x88,0x77,0x66,0x55,
+        0xCC,0xBB,0xAA,0x99,
+        0x43,
+        0x06,0x00,0x00,0x00
+    };
+    CHECK(present.size() == sizeof(presentExpected));
+    CHECK(std::memcmp(present.contents(), presentExpected, sizeof(presentExpected)) == 0);
+}
+
+static void test_system_status_response()
+{
+    WorldPacket enabled;
+    MopGMTicketPackets::BuildSystemStatus(enabled, true);
+    uint8 const expected[] = { 0x01,0x00,0x00,0x00 };
+    CHECK(enabled.GetOpcode() == SMSG_GMTICKET_SYSTEMSTATUS);
+    CHECK(enabled.size() == sizeof(expected));
+    CHECK(std::memcmp(enabled.contents(), expected, sizeof(expected)) == 0);
+    CHECK(uint32(CMSG_GMTICKET_GETTICKET) == 0x1F89u);
+    CHECK(uint32(SMSG_GMTICKET_GETTICKET) == 0x129Bu);
+    CHECK(uint32(CMSG_GMTICKET_SYSTEMSTATUS) == 0x0A82u);
+    CHECK(uint32(SMSG_GMTICKET_SYSTEMSTATUS) == 0x163Bu);
+}
+
 int main(int /*argc*/, char** /*argv*/)
 {
     test_response_values();
     test_opcode_is_framable();
+    test_get_ticket_response();
+    test_system_status_response();
     return g_fail ? 1 : 0;
 }
