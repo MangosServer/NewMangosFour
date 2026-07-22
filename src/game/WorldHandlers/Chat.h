@@ -26,8 +26,12 @@
 #define MANGOSSERVER_CHAT_H
 
 #include "Common.h"
-#include "SharedDefines.h"
 #include "ObjectGuid.h"
+#include "Opcodes.h"
+#include "SharedDefines.h"
+#include "WorldPacket.h"
+
+#include <string>
 
 struct AchievementEntry;
 struct AchievementCriteriaEntry;
@@ -42,7 +46,6 @@ struct SpellEntry;
 class QueryResult;
 class ChatHandler;
 class WorldSession;
-class WorldPacket;
 class GMTicket;
 class MailDraft;
 class Object;
@@ -100,6 +103,152 @@ enum PlayerChatTag
 };
 typedef uint32 ChatTagFlags;
 
+namespace MopChatPackets
+{
+    struct Message
+    {
+        ChatMsg chatType = CHAT_MSG_SYSTEM;
+        Language language = LANG_UNIVERSAL;
+        ChatTagFlags chatTag = CHAT_TAG_NONE;
+        uint64 senderGuid = 0;
+        uint64 receiverGuid = 0;
+        uint64 groupGuid = 0;
+        uint64 guildGuid = 0;
+        uint32 realmId1 = 0;
+        uint32 realmId2 = 0;
+        uint32 achievementId = 0;
+        std::string text;
+        std::string senderName;
+        std::string receiverName;
+        std::string channelName;
+        std::string addonPrefix;
+        bool hideInChatLog = false;
+        bool hasFakeTime = false;
+        float fakeTime = 0.0f;
+    };
+
+    inline uint8 GuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+
+    template <size_t N>
+    inline void WriteGuidMask(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteBit(GuidByte(guid, index) != 0);
+    }
+
+    template <size_t N>
+    inline void WriteGuidBytes(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteByteSeq(GuidByte(guid, index));
+    }
+
+    inline bool BuildMessage(WorldPacket& out, Message const& message)
+    {
+        if (message.senderName.size() >= (size_t(1) << 11) ||
+            message.receiverName.size() >= (size_t(1) << 11) ||
+            message.channelName.size() >= (size_t(1) << 7) ||
+            message.addonPrefix.size() >= (size_t(1) << 5) ||
+            message.text.size() >= (size_t(1) << 12) ||
+            message.chatTag >= (uint32(1) << 9))
+        {
+            return false;
+        }
+
+        bool const hasSenderName = !message.senderName.empty();
+        bool const hasReceiverName = !message.receiverName.empty();
+        bool const hasChannelName = !message.channelName.empty();
+        bool const hasAddonPrefix = !message.addonPrefix.empty();
+        bool const hasChatTag = message.chatTag != 0;
+        bool const hasLanguage = message.language != LANG_UNIVERSAL;
+        bool const hasAchievement =
+            (message.chatType == CHAT_MSG_ACHIEVEMENT ||
+             message.chatType == CHAT_MSG_GUILD_ACHIEVEMENT) &&
+            message.achievementId != 0;
+        bool const hasText = !message.text.empty();
+
+        uint8 const groupMaskOrder[] = { 0, 1, 5, 4, 3, 2, 6, 7 };
+        uint8 const receiverMaskOrder[] = { 7, 6, 1, 4, 0, 2, 3, 5 };
+        uint8 const senderMaskOrder[] = { 0, 3, 7, 2, 1, 5, 4, 6 };
+        uint8 const guildMaskOrder[] = { 2, 5, 7, 4, 0, 1, 3, 6 };
+        uint8 const guildByteOrder[] = { 4, 5, 7, 3, 2, 6, 0, 1 };
+        uint8 const senderByteOrder[] = { 4, 7, 1, 5, 0, 6, 2, 3 };
+        uint8 const groupByteOrder[] = { 1, 3, 4, 6, 0, 2, 5, 7 };
+        uint8 const receiverByteOrder[] = { 2, 5, 3, 6, 7, 4, 1, 0 };
+
+        out.Initialize(SMSG_MESSAGECHAT, message.text.size() +
+            message.senderName.size() + message.receiverName.size() +
+            message.channelName.size() + message.addonPrefix.size() + 64);
+
+        out.WriteBit(!hasSenderName);
+        out.WriteBit(message.hideInChatLog);
+        if (hasSenderName)
+            out.WriteBits(message.senderName.size(), 11);
+        out.WriteBit(0);
+        out.WriteBit(!hasChannelName);
+        out.WriteBit(0);
+        out.WriteBit(!message.hasFakeTime);
+        out.WriteBit(!hasChatTag);
+        out.WriteBit(message.realmId1 == 0);
+        WriteGuidMask(out, message.groupGuid, groupMaskOrder);
+        if (hasChatTag)
+            out.WriteBits(message.chatTag, 9);
+        out.WriteBit(0);
+        WriteGuidMask(out, message.receiverGuid, receiverMaskOrder);
+        out.WriteBit(0);
+        out.WriteBit(!hasLanguage);
+        out.WriteBit(!hasAddonPrefix);
+        WriteGuidMask(out, message.senderGuid, senderMaskOrder);
+        out.WriteBit(!hasAchievement);
+        out.WriteBit(!hasText);
+        if (hasChannelName)
+            out.WriteBits(message.channelName.size(), 7);
+        if (hasText)
+            out.WriteBits(message.text.size(), 12);
+        out.WriteBit(!hasReceiverName);
+        if (hasAddonPrefix)
+            out.WriteBits(message.addonPrefix.size(), 5);
+        out.WriteBit(message.realmId2 == 0);
+        if (hasReceiverName)
+            out.WriteBits(message.receiverName.size(), 11);
+        out.WriteBit(0);
+        WriteGuidMask(out, message.guildGuid, guildMaskOrder);
+        out.FlushBits();
+
+        WriteGuidBytes(out, message.guildGuid, guildByteOrder);
+        if (hasChannelName)
+            out.append(message.channelName.data(), message.channelName.size());
+        if (hasAddonPrefix)
+            out.append(message.addonPrefix.data(), message.addonPrefix.size());
+        if (message.hasFakeTime)
+            out << message.fakeTime;
+        WriteGuidBytes(out, message.senderGuid, senderByteOrder);
+        out << uint8(message.chatType);
+        if (hasAchievement)
+            out << message.achievementId;
+        WriteGuidBytes(out, message.groupGuid, groupByteOrder);
+        WriteGuidBytes(out, message.receiverGuid, receiverByteOrder);
+        if (hasLanguage)
+            out << uint8(message.language);
+        if (message.realmId2)
+            out << message.realmId2;
+        if (hasText)
+            out.append(message.text.data(), message.text.size());
+        if (hasReceiverName)
+            out.append(message.receiverName.data(), message.receiverName.size());
+        if (hasSenderName)
+            out.append(message.senderName.data(), message.senderName.size());
+        if (message.realmId1)
+            out << message.realmId1;
+        return true;
+    }
+}
+
 class ChatHandler
 {
     public:
@@ -127,7 +276,7 @@ class ChatHandler
         bool HasSentErrorMessage() { return sentErrorMessage;}
 
         /**
-        * \brief Prepare SMSG_GM_MESSAGECHAT/SMSG_MESSAGECHAT
+        * \brief Prepare SMSG_MESSAGECHAT
         *
         * Method:    BuildChatPacket build message chat packet generic way
         * FullName:  ChatHandler::BuildChatPacket

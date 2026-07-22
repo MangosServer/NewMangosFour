@@ -36,7 +36,9 @@
 #include "WorldSession.h"
 #include "Opcodes.h"
 #include "World.h"
+#include "ObjectAccessor.h"
 #include "Player.h"
+#include "Group.h"
 
 /**
  * @brief Sends a system message to the current session, splitting multiline text.
@@ -189,90 +191,92 @@ void ChatHandler::BuildChatPacket(WorldPacket& data, ChatMsg msgtype, char const
                                   ObjectGuid const& targetGuid /*= ObjectGuid()*/, char const* targetName /*= NULL*/,
                                   char const* channelName /*= NULL*/, uint32 achievementId /*= 0*/, const char* addonPrefix /*= NULL*/)
 {
-    bool isGM = chatTag & CHAT_TAG_GM;
-    bool isAchievement = false;
+    MANGOS_ASSERT(message);
 
-    data.Initialize(isGM ? SMSG_GM_MESSAGECHAT : SMSG_MESSAGECHAT);
-    data << uint8(msgtype);
-    data << uint32(language);
-    data << ObjectGuid(senderGuid);
-    data << uint32(0);                                              // 2.1.0
+    MopChatPackets::Message packet;
+    packet.chatType = msgtype;
+    packet.language = language;
+    packet.chatTag = chatTag;
+    packet.senderGuid = senderGuid.GetRawValue();
+    packet.receiverGuid = targetGuid.GetRawValue();
+    packet.realmId1 = realmID;
+    packet.realmId2 = realmID;
+    packet.achievementId = achievementId;
+    packet.text = message;
+
+    bool const isGM = (chatTag & CHAT_TAG_GM) != 0;
+    bool hasGroupGuid = false;
+    bool hasGuildGuid = false;
 
     switch (msgtype)
     {
+        case CHAT_MSG_PARTY:
+        case CHAT_MSG_PARTY_LEADER:
+        case CHAT_MSG_RAID:
+        case CHAT_MSG_RAID_LEADER:
+        case CHAT_MSG_RAID_WARNING:
+            hasGroupGuid = true;
+            break;
+        case CHAT_MSG_GUILD:
+        case CHAT_MSG_OFFICER:
+        case CHAT_MSG_GUILD_ACHIEVEMENT:
+            hasGuildGuid = true;
+            break;
+        case CHAT_MSG_MONSTER_WHISPER:
+        case CHAT_MSG_RAID_BOSS_WHISPER:
+            if (targetGuid && !targetGuid.IsPlayer() && !targetGuid.IsPet())
+            {
+                MANGOS_ASSERT(targetName);
+                packet.receiverName = targetName;
+            }
+            // Fall through: monster whispers also carry the sender's name.
         case CHAT_MSG_MONSTER_SAY:
         case CHAT_MSG_MONSTER_PARTY:
         case CHAT_MSG_MONSTER_YELL:
-        case CHAT_MSG_MONSTER_WHISPER:
         case CHAT_MSG_MONSTER_EMOTE:
-        case CHAT_MSG_RAID_BOSS_WHISPER:
         case CHAT_MSG_RAID_BOSS_EMOTE:
         case CHAT_MSG_BATTLENET:
         case CHAT_MSG_WHISPER_FOREIGN:
             MANGOS_ASSERT(senderName);
-            data << uint32(strlen(senderName) + 1);
-            data << senderName;
-            data << ObjectGuid(targetGuid);                         // Unit Target
-            if (targetGuid && !targetGuid.IsPlayer() && !targetGuid.IsPet() && (msgtype != CHAT_MSG_WHISPER_FOREIGN))
-            {
-                data << uint32(strlen(targetName) + 1);             // target name length
-                data << targetName;                                 // target name
-            }
+            packet.senderName = senderName;
             break;
         case CHAT_MSG_BG_SYSTEM_NEUTRAL:
         case CHAT_MSG_BG_SYSTEM_ALLIANCE:
         case CHAT_MSG_BG_SYSTEM_HORDE:
-            data << ObjectGuid(targetGuid);                         // Unit Target
             if (targetGuid && !targetGuid.IsPlayer())
             {
                 MANGOS_ASSERT(targetName);
-                data << uint32(strlen(targetName) + 1);             // target name length
-                data << targetName;                                 // target name
+                packet.receiverName = targetName;
             }
             break;
-        case CHAT_MSG_ACHIEVEMENT:
-        case CHAT_MSG_GUILD_ACHIEVEMENT:
-            data << ObjectGuid(targetGuid);                         // Unit Target
-            isAchievement = true;
+        case CHAT_MSG_CHANNEL:
+            MANGOS_ASSERT(channelName);
+            packet.channelName = channelName;
+            MANGOS_ASSERT(senderName);
+            packet.senderName = senderName;
             break;
         default:
             if (isGM)
             {
                 MANGOS_ASSERT(senderName);
-                data << uint32(strlen(senderName) + 1);
-                data << senderName;
-            }
-
-            if (msgtype == CHAT_MSG_CHANNEL)
-            {
-                MANGOS_ASSERT(channelName);
-                data << channelName;
-                data << ObjectGuid(targetGuid);
-            }
-            else if (msgtype == CHAT_MSG_ADDON)
-            {
-                MANGOS_ASSERT(addonPrefix);
-                data << addonPrefix;
-            }
-            else
-            {
-                data << ObjectGuid(targetGuid);
+                packet.senderName = senderName;
             }
             break;
     }
-    MANGOS_ASSERT(message);
-    data << uint32(strlen(message) + 1);
-    data << message;
-    data << uint8(chatTag);
 
-    if (isAchievement)
+    if (language == LANG_ADDON && addonPrefix)
+        packet.addonPrefix = addonPrefix;
+
+    if ((hasGroupGuid || hasGuildGuid) && senderGuid)
     {
-        data << uint32(achievementId);
+        if (Player* sender = sObjectAccessor.FindPlayer(senderGuid))
+        {
+            if (hasGroupGuid && sender->GetGroup())
+                packet.groupGuid = sender->GetGroup()->GetObjectGuid().GetRawValue();
+            if (hasGuildGuid)
+                packet.guildGuid = sender->GetGuildGuid().GetRawValue();
+        }
     }
 
-    if (msgtype == CHAT_MSG_RAID_BOSS_WHISPER || msgtype == CHAT_MSG_RAID_BOSS_EMOTE)
-    {
-        data << float(0.0f);                                    // Added in 4.2.0, unk
-        data << uint8(0);                                       // Added in 4.2.0, unk
-    }
+    MANGOS_ASSERT(MopChatPackets::BuildMessage(data, packet));
 }

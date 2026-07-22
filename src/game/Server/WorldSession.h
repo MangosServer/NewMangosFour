@@ -1612,7 +1612,6 @@ class WorldSession
         bool processChatmessageFurtherAfterSecurityChecks(std::string&, uint32);
         void SendPlayerNotFoundNotice(const std::string& name);
         void SendPlayerAmbiguousNotice(const std::string& name);
-        void SendWrongFactionNotice();
         void SendChatRestrictedNotice(ChatRestrictionType restriction);
         void HandleMessagechatOpcode(WorldPacket& recvPacket);
         void HandleAddonMessagechatOpcode(WorldPacket& recvPacket);
@@ -1643,7 +1642,6 @@ class WorldSession
         void HandleChannelAnnouncementsOpcode(WorldPacket& recvPacket);
         void HandleChannelModerateOpcode(WorldPacket& recvPacket);
         void HandleChannelDisplayListQueryOpcode(WorldPacket& recvPacket);
-        void HandleGetChannelMemberCountOpcode(WorldPacket& recvPacket);
         void HandleSetChannelWatchOpcode(WorldPacket& recvPacket);
 
         void HandleCompleteCinematic(WorldPacket& recvPacket);

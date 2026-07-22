@@ -809,8 +809,10 @@ void Guild::BroadcastAddonToGuild(WorldSession* session, const std::string& msg,
 {
     if (session && session->GetPlayer() && HasRankRight(session->GetPlayer()->GetRank(), GR_RIGHT_GCHATSPEAK))
     {
+        Player* player = session->GetPlayer();
         WorldPacket data;
-        ChatHandler::BuildChatPacket(data, CHAT_MSG_GUILD, msg.c_str(), LANG_ADDON, CHAT_TAG_NONE, ObjectGuid(), NULL, ObjectGuid(), NULL, NULL, 0, prefix.c_str());
+        ChatHandler::BuildChatPacket(data, CHAT_MSG_GUILD, msg.c_str(), LANG_ADDON, CHAT_TAG_NONE,
+            player->GetObjectGuid(), player->GetName(), ObjectGuid(), NULL, NULL, 0, prefix.c_str());
 
         for (MemberList::const_iterator itr = members.begin(); itr != members.end(); ++itr)
         {
@@ -862,10 +864,12 @@ void Guild::BroadcastAddonToOfficers(WorldSession* session, const std::string& m
 {
     if (session && session->GetPlayer() && HasRankRight(session->GetPlayer()->GetRank(), GR_RIGHT_OFFCHATSPEAK))
     {
+        Player* player = session->GetPlayer();
         for (MemberList::const_iterator itr = members.begin(); itr != members.end(); ++itr)
         {
             WorldPacket data;
-            ChatHandler::BuildChatPacket(data, CHAT_MSG_OFFICER, msg.c_str(), LANG_ADDON, CHAT_TAG_NONE, ObjectGuid(), NULL, ObjectGuid(), NULL, NULL, 0, prefix.c_str());
+            ChatHandler::BuildChatPacket(data, CHAT_MSG_OFFICER, msg.c_str(), LANG_ADDON, CHAT_TAG_NONE,
+                player->GetObjectGuid(), player->GetName(), ObjectGuid(), NULL, NULL, 0, prefix.c_str());
 
             Player* pl = sObjectAccessor.FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
 

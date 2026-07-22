@@ -346,7 +346,6 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
             {
                 if (GetPlayer()->GetTeam() != player->GetTeam())
                 {
-                    SendWrongFactionNotice();
                     return;
                 }
             }
@@ -896,7 +895,8 @@ void WorldSession::HandleAddonMessagechatOpcode(WorldPacket& recv_data)
             }
 
             WorldPacket data;
-            ChatHandler::BuildChatPacket(data, type, msg.c_str(), LANG_ADDON);
+            ChatHandler::BuildChatPacket(data, type, msg.c_str(), LANG_ADDON, CHAT_TAG_NONE,
+                _player->GetObjectGuid(), _player->GetName(), ObjectGuid(), NULL, NULL, 0, prefix.c_str());
             group->BroadcastPacket(&data, false);
             break;
         }
@@ -950,8 +950,9 @@ void WorldSession::HandleAddonMessagechatOpcode(WorldPacket& recv_data)
             }
 
             WorldPacket data;
-            ChatHandler::BuildChatPacket(data, type, msg.c_str(), LANG_UNIVERSAL, CHAT_TAG_NONE, ObjectGuid(), NULL, receiver->GetObjectGuid(), targetName.c_str(), NULL, 0, prefix.c_str());
-            _player->GetSession()->SendPacket(&data);
+            ChatHandler::BuildChatPacket(data, type, msg.c_str(), LANG_ADDON, CHAT_TAG_NONE,
+                _player->GetObjectGuid(), _player->GetName(), _player->GetObjectGuid(), _player->GetName(), NULL, 0, prefix.c_str());
+            receiver->GetSession()->SendPacket(&data);
             break;
         }
         // Messages sent to "RAID" while in a party will get delivered to "PARTY"
@@ -970,7 +971,8 @@ void WorldSession::HandleAddonMessagechatOpcode(WorldPacket& recv_data)
             }
 
             WorldPacket data;
-            ChatHandler::BuildChatPacket(data, type, msg.c_str(), LANG_ADDON, CHAT_TAG_NONE, ObjectGuid(), NULL, ObjectGuid(), NULL, NULL, 0, prefix.c_str());
+            ChatHandler::BuildChatPacket(data, type, msg.c_str(), LANG_ADDON, CHAT_TAG_NONE,
+                _player->GetObjectGuid(), _player->GetName(), ObjectGuid(), NULL, NULL, 0, prefix.c_str());
             group->BroadcastPacket(&data, false, group->GetMemberGroup(_player->GetObjectGuid()));
             break;
         }
@@ -1149,7 +1151,8 @@ void WorldSession::HandleChatIgnoredOpcode(WorldPacket& recv_data)
     }
 
     WorldPacket data;
-    ChatHandler::BuildChatPacket(data, CHAT_MSG_IGNORED, _player->GetName(), LANG_UNIVERSAL, CHAT_TAG_NONE, _player->GetObjectGuid());
+    ChatHandler::BuildChatPacket(data, CHAT_MSG_IGNORED, _player->GetName(), LANG_UNIVERSAL, CHAT_TAG_NONE,
+        _player->GetObjectGuid(), _player->GetName(), _player->GetObjectGuid(), _player->GetName());
     player->GetSession()->SendPacket(&data);
 }
 
@@ -1169,15 +1172,6 @@ void WorldSession::SendPlayerAmbiguousNotice(const std::string& name)
 {
     WorldPacket data(SMSG_CHAT_PLAYER_AMBIGUOUS, name.size() + 1);
     data << name;
-    SendPacket(&data);
-}
-
-/**
- * @brief Sends the standard wrong-faction chat error.
- */
-void WorldSession::SendWrongFactionNotice()
-{
-    WorldPacket data(SMSG_CHAT_WRONG_FACTION, 0);
     SendPacket(&data);
 }
 

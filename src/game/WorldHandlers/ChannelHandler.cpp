@@ -482,30 +482,6 @@ void WorldSession::HandleChannelDisplayListQueryOpcode(WorldPacket& recvPacket)
 }
 
 /**
- * @brief Sends the current member count for a channel.
- *
- * @param recvPacket The received opcode packet.
- */
-void WorldSession::HandleGetChannelMemberCountOpcode(WorldPacket& recvPacket)
-{
-    DEBUG_LOG("WORLD: Received opcode %s (%u, 0x%X)", LookupOpcodeName(DIR_CLIENT, recvPacket.GetOpcode()), recvPacket.GetOpcode(), recvPacket.GetOpcode());
-    // recvPacket.hexlike();
-    std::string channelname;
-    recvPacket >> channelname;
-    if (ChannelMgr* cMgr = channelMgr(_player->GetTeam()))
-    {
-        if (Channel* chn = cMgr->GetChannel(channelname, _player))
-        {
-            WorldPacket data(SMSG_CHANNEL_MEMBER_COUNT, chn->GetName().size() + 1 + 1 + 4);
-            data << chn->GetName();
-            data << uint8(chn->GetFlags());
-            data << uint32(chn->GetNumPlayers());
-            SendPacket(&data);
-        }
-    }
-}
-
-/**
  * @brief Handles a channel watch request from the client.
  *
  * @param recvPacket The received opcode packet.

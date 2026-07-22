@@ -299,6 +299,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_SETUP_CURRENCY:                  // MopCurrencyPackets::BuildSetupCurrency
         case SMSG_SPELL_EXECUTE_LOG:               // MopCombatLogPackets::BuildSpellExecuteLog
         case SMSG_SPELL_PERIODIC_AURA_LOG:         // MopCombatLogPackets::BuildPeriodicAuraLog
+        case SMSG_MESSAGECHAT:                     // MopChatPackets::BuildMessage
             return true;
 
         // In-world query replies. The core already emits genuine 18414 bodies for these
