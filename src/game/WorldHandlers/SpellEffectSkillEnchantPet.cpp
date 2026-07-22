@@ -225,21 +225,29 @@ void Spell::EffectDispel(SpellEffectEntry const* effect)
         // Send success log and really remove auras
         if (!success_list.empty())
         {
-            int32 count = success_list.size();
-            WorldPacket data(SMSG_SPELLDISPELLOG, 8 + 8 + 4 + 1 + 4 + count * 5);
-            data << unitTarget->GetPackGUID();              // Victim GUID
-            data << m_caster->GetPackGUID();                // Caster GUID
-            data << uint32(m_spellInfo->ID);                // Dispel spell id
-            data << uint8(0);                               // not used
-            data << uint32(count);                          // count
+            std::vector<MopCombatLogPackets::DispelRecord> records;
+            records.reserve(success_list.size());
+            for (std::list<std::pair<SpellAuraHolder* , uint32> >::const_iterator j = success_list.begin(); j != success_list.end(); ++j)
+                records.push_back(MopCombatLogPackets::DispelRecord{ j->first->GetId(), false });
+
+            WorldPacket data(SMSG_SPELLDISPELLOG, 32 + records.size() * 4);
+            MopCombatLogPackets::DispelLog log = {};
+            log.casterGuid = m_caster->GetObjectGuid().GetRawValue();
+            log.targetGuid = unitTarget->GetObjectGuid().GetRawValue();
+            log.castSpellId = m_spellInfo->ID;
+            log.records = records.data();
+            log.recordCount = records.size();
+            log.isSteal = false;
+            log.isBreak = false;
+            bool const builtLog = MopCombatLogPackets::BuildDispelLog(data, log);
+
             for (std::list<std::pair<SpellAuraHolder* , uint32> >::iterator j = success_list.begin(); j != success_list.end(); ++j)
             {
                 SpellAuraHolder* dispelledHolder = j->first;
-                data << uint32(dispelledHolder->GetId());   // Spell Id
-                data << uint8(0);                           // 0 - dispelled !=0 cleansed
                 unitTarget->RemoveAuraHolderDueToSpellByDispel(dispelledHolder->GetId(), j->second, dispelledHolder->GetCasterGuid(), m_caster);
             }
-            m_caster->SendMessageToSet(&data, true);
+            if (builtLog)
+                m_caster->SendMessageToSet(&data, true);
 
             // On success dispel
             // Devour Magic
@@ -1392,4 +1400,3 @@ void Spell::EffectWeaponDmg(SpellEffectEntry const* effect)
         }
     }
 }
-

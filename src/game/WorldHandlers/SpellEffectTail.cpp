@@ -609,21 +609,26 @@ void Spell::EffectStealBeneficialBuff(SpellEffectEntry const* effect)
         // Really try steal and send log
         if (!success_list.empty())
         {
-            int32 count = success_list.size();
-            WorldPacket data(SMSG_SPELLSTEALLOG, 8 + 8 + 4 + 1 + 4 + count * 5);
-            data << unitTarget->GetPackGUID();       // Victim GUID
-            data << m_caster->GetPackGUID();         // Caster GUID
-            data << uint32(m_spellInfo->ID);         // Dispell spell id
-            data << uint8(0);                        // not used
-            data << uint32(count);                   // count
+            std::vector<MopCombatLogPackets::DispelRecord> records;
+            records.reserve(success_list.size());
+            for (SuccessList::const_iterator j = success_list.begin(); j != success_list.end(); ++j)
+                records.push_back(MopCombatLogPackets::DispelRecord{ j->first, false });
+
+            WorldPacket data(SMSG_SPELLDISPELLOG, 32 + records.size() * 4);
+            MopCombatLogPackets::DispelLog log = {};
+            log.casterGuid = m_caster->GetObjectGuid().GetRawValue();
+            log.targetGuid = unitTarget->GetObjectGuid().GetRawValue();
+            log.castSpellId = m_spellInfo->ID;
+            log.records = records.data();
+            log.recordCount = records.size();
+            log.isSteal = true;
+            log.isBreak = false;
+            bool const builtLog = MopCombatLogPackets::BuildDispelLog(data, log);
+
             for (SuccessList::iterator j = success_list.begin(); j != success_list.end(); ++j)
-            {
-                SpellEntry const* spellInfo = sSpellStore.LookupEntry(j->first);
-                data << uint32(spellInfo->ID);       // Spell Id
-                data << uint8(0);                    // 0 - steals !=0 transfers
-                unitTarget->RemoveAurasDueToSpellBySteal(spellInfo->ID, j->second, m_caster);
-            }
-            m_caster->SendMessageToSet(&data, true);
+                unitTarget->RemoveAurasDueToSpellBySteal(j->first, j->second, m_caster);
+            if (builtLog)
+                m_caster->SendMessageToSet(&data, true);
         }
     }
 }

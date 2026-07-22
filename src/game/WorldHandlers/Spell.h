@@ -1117,6 +1117,23 @@ namespace MopCombatLogPackets
         PeriodicKind kind;
     };
 
+    struct DispelRecord
+    {
+        uint32 auraSpellId;
+        bool harmful;
+    };
+
+    struct DispelLog
+    {
+        uint64 casterGuid;
+        uint64 targetGuid;
+        uint32 castSpellId;
+        DispelRecord const* records;
+        size_t recordCount;
+        bool isSteal;
+        bool isBreak;
+    };
+
     inline bool BuildSpellExecuteLog(WorldPacket& out, SpellExecuteLog const& log)
     {
         bool const extraAttacks = log.kind == ExecuteKind::ExtraAttacks;
@@ -1263,6 +1280,64 @@ namespace MopCombatLogPackets
         WriteGuidBytes(out, log.casterGuid, bytesCasterE);
         WriteGuidBytes(out, log.targetGuid, bytesTargetF);
         WriteGuidBytes(out, log.casterGuid, bytesCasterF);
+    }
+
+    inline bool BuildDispelLog(WorldPacket& out, DispelLog const& log)
+    {
+        if (log.recordCount >= (size_t(1) << 22) || (log.recordCount && !log.records))
+            return false;
+
+        out.WriteBit(GuidByte(log.targetGuid, 2) != 0);
+        out.WriteBit(GuidByte(log.casterGuid, 4) != 0);
+        out.WriteBit(GuidByte(log.targetGuid, 6) != 0);
+        out.WriteBit(GuidByte(log.casterGuid, 5) != 0);
+        out.WriteBit(log.isBreak);
+        out.WriteBit(log.isSteal);
+        out.WriteBit(GuidByte(log.targetGuid, 5) != 0);
+        out.WriteBit(GuidByte(log.targetGuid, 7) != 0);
+        out.WriteBit(GuidByte(log.targetGuid, 4) != 0);
+        out.WriteBit(GuidByte(log.targetGuid, 0) != 0);
+        out.WriteBit(GuidByte(log.targetGuid, 1) != 0);
+        out.WriteBits(uint32(log.recordCount), 22);
+        out.WriteBit(GuidByte(log.casterGuid, 0) != 0);
+        for (size_t i = 0; i < log.recordCount; ++i)
+        {
+            out.WriteBit(false); // no optional uint32 at decoded record +16
+            out.WriteBit(false); // no optional uint32 at decoded record +8
+            out.WriteBit(log.records[i].harmful);
+        }
+        out.WriteBit(GuidByte(log.casterGuid, 3) != 0);
+        out.WriteBit(GuidByte(log.casterGuid, 2) != 0);
+        out.WriteBit(GuidByte(log.targetGuid, 3) != 0);
+        out.WriteBit(GuidByte(log.casterGuid, 1) != 0);
+        out.WriteBit(GuidByte(log.casterGuid, 7) != 0);
+        out.WriteBit(GuidByte(log.casterGuid, 6) != 0);
+        out.FlushBits();
+
+        for (size_t i = 0; i < log.recordCount; ++i)
+            out << uint32(log.records[i].auraSpellId);
+
+        uint8 const casterBytesA[] = { 4 };
+        uint8 const targetBytesA[] = { 3 };
+        uint8 const casterBytesB[] = { 6, 0 };
+        uint8 const targetBytesB[] = { 5, 1 };
+        uint8 const casterBytesC[] = { 3, 2, 1, 5 };
+        uint8 const targetBytesC[] = { 0 };
+        uint8 const targetBytesD[] = { 7, 6, 2 };
+        uint8 const casterBytesD[] = { 7 };
+        uint8 const targetBytesE[] = { 4 };
+
+        WriteGuidBytes(out, log.casterGuid, casterBytesA);
+        WriteGuidBytes(out, log.targetGuid, targetBytesA);
+        WriteGuidBytes(out, log.casterGuid, casterBytesB);
+        WriteGuidBytes(out, log.targetGuid, targetBytesB);
+        WriteGuidBytes(out, log.casterGuid, casterBytesC);
+        WriteGuidBytes(out, log.targetGuid, targetBytesC);
+        out << uint32(log.castSpellId);
+        WriteGuidBytes(out, log.targetGuid, targetBytesD);
+        WriteGuidBytes(out, log.casterGuid, casterBytesD);
+        WriteGuidBytes(out, log.targetGuid, targetBytesE);
+        return true;
     }
 }
 

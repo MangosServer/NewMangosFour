@@ -221,6 +221,49 @@ static std::vector<uint8> ExpectedPeriodic(MopCombatLogPackets::PeriodicAuraLog 
     return writer.Bytes();
 }
 
+static std::vector<uint8> ExpectedDispel(MopCombatLogPackets::DispelLog const& log)
+{
+    RefWriter writer;
+    writer.GuidBit(log.targetGuid, 2);
+    writer.GuidBit(log.casterGuid, 4);
+    writer.GuidBit(log.targetGuid, 6);
+    writer.GuidBit(log.casterGuid, 5);
+    writer.Bit(log.isBreak);
+    writer.Bit(log.isSteal);
+    writer.GuidBit(log.targetGuid, 5);
+    writer.GuidBit(log.targetGuid, 7);
+    writer.GuidBit(log.targetGuid, 4);
+    writer.GuidBit(log.targetGuid, 0);
+    writer.GuidBit(log.targetGuid, 1);
+    writer.Bits(uint32(log.recordCount), 22);
+    writer.GuidBit(log.casterGuid, 0);
+    for (size_t i = 0; i < log.recordCount; ++i)
+    {
+        writer.Bit(false); // no optional uint32 at record +16
+        writer.Bit(false); // no optional uint32 at record +8
+        writer.Bit(log.records[i].harmful);
+    }
+    writer.GuidBit(log.casterGuid, 3);
+    writer.GuidBit(log.casterGuid, 2);
+    writer.GuidBit(log.targetGuid, 3);
+    writer.GuidBit(log.casterGuid, 1);
+    writer.GuidBit(log.casterGuid, 7);
+    writer.GuidBit(log.casterGuid, 6);
+
+    writer.Align();
+    for (size_t i = 0; i < log.recordCount; ++i)
+        writer.U32(log.records[i].auraSpellId);
+
+    static uint8 const bytesA[][2] = { { 4, 0 }, { 3, 1 }, { 6, 0 }, { 0, 0 }, { 5, 1 }, { 1, 1 }, { 3, 0 }, { 2, 0 }, { 1, 0 }, { 5, 0 }, { 0, 1 } };
+    for (auto const& byte : bytesA)
+        writer.GuidByte(byte[1] ? log.targetGuid : log.casterGuid, byte[0]);
+    writer.U32(log.castSpellId);
+    static uint8 const bytesB[][2] = { { 7, 1 }, { 6, 1 }, { 2, 1 }, { 7, 0 }, { 4, 1 } };
+    for (auto const& byte : bytesB)
+        writer.GuidByte(byte[1] ? log.targetGuid : log.casterGuid, byte[0]);
+    return writer.Bytes();
+}
+
 static bool Equal(WorldPacket const& packet, std::vector<uint8> const& expected)
 {
     if (packet.size() != expected.size())
@@ -300,10 +343,55 @@ static void test_periodic_variants()
     CheckPeriodic(log);
 }
 
+static void CheckDispel(MopCombatLogPackets::DispelLog const& log)
+{
+    WorldPacket packet(SMSG_SPELLDISPELLOG, 64);
+    CHECK(MopCombatLogPackets::BuildDispelLog(packet, log));
+    CHECK(packet.GetOpcode() == SMSG_SPELLDISPELLOG);
+    CHECK(Equal(packet, ExpectedDispel(log)));
+}
+
+static void test_dispel_and_steal_variants()
+{
+    MopCombatLogPackets::DispelRecord records[] = {
+        { 0x11223344u, false },
+        { 0xA1A2A3A4u, true },
+        { 0x01020304u, false }
+    };
+    MopCombatLogPackets::DispelLog log = {};
+    log.casterGuid = 0x0002000400060008ull;
+    log.targetGuid = 0x0100030005000700ull;
+    log.castSpellId = 0x55667788u;
+    log.records = records;
+    log.recordCount = 1;
+    log.isSteal = false;
+    log.isBreak = false;
+    CheckDispel(log);
+
+    WorldPacket dispel(SMSG_SPELLDISPELLOG, 64);
+    CHECK(MopCombatLogPackets::BuildDispelLog(dispel, log));
+    log.isSteal = true;
+    WorldPacket steal(SMSG_SPELLDISPELLOG, 64);
+    CHECK(MopCombatLogPackets::BuildDispelLog(steal, log));
+    CheckDispel(log);
+    CHECK(dispel.size() == steal.size());
+    CHECK(std::memcmp(dispel.contents(), steal.contents(), dispel.size()) != 0);
+
+    log.recordCount = 3;
+    CheckDispel(log); // crosses byte boundaries in the 22-bit count plus record flags
+
+    WorldPacket invalid(SMSG_SPELLDISPELLOG, 1);
+    invalid << uint8(0xAA);
+    log.recordCount = size_t(1) << 22;
+    CHECK(!MopCombatLogPackets::BuildDispelLog(invalid, log));
+    CHECK(invalid.size() == 1 && invalid.contents()[0] == 0xAA);
+}
+
 static void test_successor_opcodes_are_framable()
 {
     CHECK(uint32(SMSG_SPELL_EXECUTE_LOG) == 0x00D8u);
     CHECK(uint32(SMSG_SPELL_PERIODIC_AURA_LOG) == 0x0CF2u);
+    CHECK(uint32(SMSG_SPELLDISPELLOG) == 0x0DF9u);
 
     MopCombatLogPackets::SpellExecuteLog execute = {};
     execute.kind = MopCombatLogPackets::ExecuteKind::Target;
@@ -322,12 +410,22 @@ static void test_successor_opcodes_are_framable()
     CHECK(periodicPacket.size() == 22);
     CHECK(MopWire::BuildServerHeader(true, periodicPacket.size(), periodicPacket.GetOpcode(), header));
     CHECK(header[0] == 0xF2 && header[1] == 0xCC && header[2] == 0x02 && header[3] == 0x00);
+
+    MopCombatLogPackets::DispelRecord record = { 1, false };
+    MopCombatLogPackets::DispelLog dispel = {};
+    dispel.records = &record;
+    dispel.recordCount = 1;
+    WorldPacket dispelPacket(SMSG_SPELLDISPELLOG, 32);
+    CHECK(MopCombatLogPackets::BuildDispelLog(dispelPacket, dispel));
+    CHECK(MopWire::BuildServerHeader(true, dispelPacket.size(), dispelPacket.GetOpcode(), header));
+    CHECK(header[0] == 0xF9 && (header[1] & 0x1F) == 0x0D);
 }
 
 int main(int, char**)
 {
     test_execute_variants();
     test_periodic_variants();
+    test_dispel_and_steal_variants();
     test_successor_opcodes_are_framable();
     if (g_fail) return 1;
     std::printf("mop_combat_log_packets: all checks passed\n");

@@ -799,7 +799,6 @@ enum OpcodesList
     SMSG_SPELL_UPDATE_CHAIN_TARGETS              = 0x0D52,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     CMSG_CHAT_FILTERED                           = 0x0946, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     SMSG_EXPECTED_SPAM_RECORDS                   = 0x18C0,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
-    SMSG_SPELLSTEALLOG                           = 0x4E26,    // 4.3.4 15595 (unverified; no client leaf; unframable >0x1FFF)
     SMSG_LOTTERY_QUERY_RESULT_OBSOLETE           = 0x1336,    // (legacy; no client leaf)
     SMSG_LOTTERY_RESULT_OBSOLETE                 = 0x1338,    // (legacy; no client leaf)
     SMSG_CHARACTER_PROFILE                       = 0x1339,    // (legacy; no client leaf)

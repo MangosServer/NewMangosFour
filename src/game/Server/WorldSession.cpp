@@ -299,6 +299,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_SETUP_CURRENCY:                  // MopCurrencyPackets::BuildSetupCurrency
         case SMSG_SPELL_EXECUTE_LOG:               // MopCombatLogPackets::BuildSpellExecuteLog
         case SMSG_SPELL_PERIODIC_AURA_LOG:         // MopCombatLogPackets::BuildPeriodicAuraLog
+        case SMSG_SPELLDISPELLOG:                  // MopCombatLogPackets::BuildDispelLog
         case SMSG_MESSAGECHAT:                     // MopChatPackets::BuildMessage
         case SMSG_NOTIFICATION:                    // 12-bit byte length followed by raw notification text
             return true;

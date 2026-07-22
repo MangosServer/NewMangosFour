@@ -754,7 +754,7 @@ typedef uint16_t uint16;
  *   SMSG_UNKNOWN_0x0C8E                            0x0C8E  DOC     
  *   SMSG_UNKNOWN_0x0D51                            0x0D51  DOC      [medium-conf]
  *   SMSG_SPELLENERGIZELOG                          0x0D79  DORMANT  [medium-conf]
- *   SMSG_SPELLDISPELLOG                            0x0DF9  DORMANT 
+ *   SMSG_SPELLDISPELLOG                            0x0DF9  ACTIVE
  *   SMSG_MOUNTRESULT                               0x0E0F  DORMANT  [medium-conf]
  *   SMSG_ITEM_EXPIRE_PURCHASE_REFUND               0x0E33  DOC     
  *   SMSG_BINDPOINTUPDATE                           0x0E3B  DORMANT  [medium-conf]
