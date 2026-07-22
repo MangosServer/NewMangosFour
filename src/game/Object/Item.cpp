@@ -987,8 +987,8 @@ void Item::SendTimeUpdate(Player* owner)
     }
 
     WorldPacket data(SMSG_ITEM_TIME_UPDATE, (8 + 4));
-    data << ObjectGuid(GetObjectGuid());
-    data << uint32(duration);
+    MopItemPackets::BuildItemTimeUpdate(data, GetObjectGuid().GetRawValue(),
+        duration);
     owner->GetSession()->SendPacket(&data);
 }
 
@@ -1412,4 +1412,3 @@ int32 Item::GetReforgableStat(ItemModType statType) const
     }
     return 0;
 }
-

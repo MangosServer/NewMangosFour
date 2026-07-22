@@ -57,6 +57,92 @@
 #include "Object.h"
 #include "LootMgr.h"
 #include "ItemPrototype.h"
+#include "WorldPacket.h"
+
+namespace MopItemPackets
+{
+    inline uint8 GuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (8 * index));
+    }
+
+    template <size_t N>
+    inline void WriteGuidMask(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteBit(GuidByte(guid, index) != 0);
+    }
+
+    template <size_t N>
+    inline void WriteGuidBytes(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteByteSeq(GuidByte(guid, index));
+    }
+
+    inline void BuildItemTimeUpdate(WorldPacket& out, uint64 itemGuid,
+        uint32 duration)
+    {
+        uint8 const maskOrder[] = { 5, 3, 4, 1, 2, 6, 0, 7 };
+        uint8 const byteOrder[] = { 2, 6, 7, 4, 0, 3, 5, 1 };
+        WriteGuidMask(out, itemGuid, maskOrder);
+        out.FlushBits();
+        WriteGuidBytes(out, itemGuid, byteOrder);
+        out << duration;
+    }
+
+    inline void BuildItemEnchantTimeUpdate(WorldPacket& out,
+        uint64 playerGuid, uint64 itemGuid, uint32 slot, uint32 duration)
+    {
+        uint8 const itemMaskA[] = { 4, 0 };
+        uint8 const playerMaskA[] = { 3 };
+        uint8 const itemMaskB[] = { 3 };
+        uint8 const playerMaskB[] = { 2, 6, 7 };
+        uint8 const itemMaskC[] = { 1 };
+        uint8 const playerMaskC[] = { 4 };
+        uint8 const itemMaskD[] = { 6, 5 };
+        uint8 const playerMaskD[] = { 0 };
+        uint8 const itemMaskE[] = { 2 };
+        uint8 const playerMaskE[] = { 5, 1 };
+        uint8 const itemMaskF[] = { 7 };
+
+        WriteGuidMask(out, itemGuid, itemMaskA);
+        WriteGuidMask(out, playerGuid, playerMaskA);
+        WriteGuidMask(out, itemGuid, itemMaskB);
+        WriteGuidMask(out, playerGuid, playerMaskB);
+        WriteGuidMask(out, itemGuid, itemMaskC);
+        WriteGuidMask(out, playerGuid, playerMaskC);
+        WriteGuidMask(out, itemGuid, itemMaskD);
+        WriteGuidMask(out, playerGuid, playerMaskD);
+        WriteGuidMask(out, itemGuid, itemMaskE);
+        WriteGuidMask(out, playerGuid, playerMaskE);
+        WriteGuidMask(out, itemGuid, itemMaskF);
+        out.FlushBits();
+
+        out << slot;
+        uint8 const playerBytesA[] = { 4, 2 };
+        uint8 const itemBytesA[] = { 5, 4 };
+        uint8 const playerBytesB[] = { 6 };
+        uint8 const itemBytesB[] = { 1 };
+        uint8 const playerBytesC[] = { 0, 1 };
+        uint8 const itemBytesC[] = { 6, 2 };
+        uint8 const playerBytesD[] = { 7 };
+        uint8 const itemBytesD[] = { 0, 3, 7 };
+        uint8 const playerBytesE[] = { 3, 5 };
+        WriteGuidBytes(out, playerGuid, playerBytesA);
+        WriteGuidBytes(out, itemGuid, itemBytesA);
+        WriteGuidBytes(out, playerGuid, playerBytesB);
+        WriteGuidBytes(out, itemGuid, itemBytesB);
+        WriteGuidBytes(out, playerGuid, playerBytesC);
+        WriteGuidBytes(out, itemGuid, itemBytesC);
+        WriteGuidBytes(out, playerGuid, playerBytesD);
+        WriteGuidBytes(out, itemGuid, itemBytesD);
+        WriteGuidBytes(out, playerGuid, playerBytesE);
+        out << duration;
+    }
+}
 
 struct SpellEntry;
 class Bag;

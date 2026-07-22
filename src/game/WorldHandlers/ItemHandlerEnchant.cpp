@@ -67,11 +67,9 @@ void WorldSession::SendEnchantmentLog(ObjectGuid targetGuid, ObjectGuid casterGu
 void WorldSession::SendItemEnchantTimeUpdate(ObjectGuid playerGuid, ObjectGuid itemGuid, uint32 slot, uint32 duration)
 {
     // last check 2.0.10
-    WorldPacket data(SMSG_ITEM_ENCHANT_TIME_UPDATE, (8 + 4 + 4 + 8));
-    data << ObjectGuid(itemGuid);
-    data << uint32(slot);
-    data << uint32(duration);
-    data << ObjectGuid(playerGuid);
+    WorldPacket data(SMSG_ITEM_ENCHANT_TIME_UPDATE, 26);
+    MopItemPackets::BuildItemEnchantTimeUpdate(data, playerGuid.GetRawValue(),
+        itemGuid.GetRawValue(), slot, duration);
     SendPacket(&data);
 }
 
@@ -478,4 +476,3 @@ void WorldSession::HandleCancelTempEnchantmentOpcode(WorldPacket& recv_data)
     GetPlayer()->ApplyEnchantment(item, TEMP_ENCHANTMENT_SLOT, false);
     item->ClearEnchantment(TEMP_ENCHANTMENT_SLOT);
 }
-

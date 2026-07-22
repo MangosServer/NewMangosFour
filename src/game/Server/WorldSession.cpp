@@ -286,6 +286,8 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_CORPSE_RECLAIM_DELAY:            // no-delay bit plus optional uint32 milliseconds; sub_6D7781
         case SMSG_SET_FORCED_REACTIONS:            // 2-bit count plus uint32 pairs; sub_72C708
         case SMSG_INIT_WORLD_STATES:                // map, area, zone, 21-bit count, uint32 pairs; sub_732740
+        case SMSG_ITEM_TIME_UPDATE:                  // packed item GUID then uint32 duration; sub_6F06A8
+        case SMSG_ITEM_ENCHANT_TIME_UPDATE:          // interleaved item/player GUIDs, slot, duration; sub_6C8203
         case SMSG_CLIENT_CONTROL_UPDATE:           // MopControlPackets::BuildClientControlUpdate
         case SMSG_MOVE_SET_ACTIVE_MOVER:           // MopControlPackets::BuildSetActiveMover
         case SMSG_PLAYER_MOVE:                     // MovementInfo relay serializer

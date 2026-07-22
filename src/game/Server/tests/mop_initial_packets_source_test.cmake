@@ -5,6 +5,9 @@ file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" world_session)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CharacterHandler.cpp" character_handler)
 file(READ "${SOURCE_ROOT}/src/game/Object/ReputationMgr.cpp" reputation)
 file(READ "${SOURCE_ROOT}/src/game/Object/PlayerDeath.cpp" player_death)
+file(READ "${SOURCE_ROOT}/src/game/Object/Item.h" item_header)
+file(READ "${SOURCE_ROOT}/src/game/Object/Item.cpp" item)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/ItemHandlerEnchant.cpp" item_enchant)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/Weather.cpp" weather)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/SpellEffectTail.cpp" spell_effect)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/NPCHandler.cpp" npc_handler)
@@ -90,6 +93,9 @@ strip_cpp_comments(world_session "${world_session}")
 strip_cpp_comments(character_handler "${character_handler}")
 strip_cpp_comments(reputation "${reputation}")
 strip_cpp_comments(player_death "${player_death}")
+strip_cpp_comments(item_header "${item_header}")
+strip_cpp_comments(item "${item}")
+strip_cpp_comments(item_enchant "${item_enchant}")
 strip_cpp_comments(weather "${weather}")
 strip_cpp_comments(spell_effect "${spell_effect}")
 strip_cpp_comments(npc_handler "${npc_handler}")
@@ -206,6 +212,12 @@ endif()
 if(NOT forced_reactions MATCHES "MopReputationPackets::BuildForcedReactions")
     message(FATAL_ERROR "BuildForcedReactions is not used by the reputation sender")
 endif()
+if(NOT item MATCHES "MopItemPackets::BuildItemTimeUpdate")
+    message(FATAL_ERROR "BuildItemTimeUpdate is not used by the item sender")
+endif()
+if(NOT item_enchant MATCHES "MopItemPackets::BuildItemEnchantTimeUpdate")
+    message(FATAL_ERROR "BuildItemEnchantTimeUpdate is not used by the enchant sender")
+endif()
 
 require_ordered("${initial_spells}" "INITIAL_SPELLS writer"
     "WorldPacket data(SMSG_INITIAL_SPELLS"
@@ -301,7 +313,9 @@ foreach(server_name IN ITEMS
         SMSG_WEATHER
         SMSG_MOTD
         SMSG_CORPSE_RECLAIM_DELAY
-        SMSG_SET_FORCED_REACTIONS)
+        SMSG_SET_FORCED_REACTIONS
+        SMSG_ITEM_TIME_UPDATE
+        SMSG_ITEM_ENCHANT_TIME_UPDATE)
     if(NOT opcode_registry MATCHES "DefS\\(${server_name},[ \t]*\"${server_name}\"\\)")
         message(FATAL_ERROR "${server_name} is missing outbound opcode metadata")
     endif()
@@ -310,7 +324,9 @@ endforeach()
 foreach(server_name IN ITEMS
         SMSG_MOTD
         SMSG_CORPSE_RECLAIM_DELAY
-        SMSG_SET_FORCED_REACTIONS)
+        SMSG_SET_FORCED_REACTIONS
+        SMSG_ITEM_TIME_UPDATE
+        SMSG_ITEM_ENCHANT_TIME_UPDATE)
     if(NOT world_session MATCHES "case[ \t]+${server_name}:")
         message(FATAL_ERROR "${server_name} is missing from central enter-world admission")
     endif()

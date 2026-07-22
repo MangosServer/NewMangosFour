@@ -3,6 +3,7 @@
  */
 
 #include "Player.h"
+#include "Item.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 
@@ -354,6 +355,57 @@ static void test_forced_reactions()
     }
 }
 
+static void test_item_time_update()
+{
+    {
+        WorldPacket packet(SMSG_ITEM_TIME_UPDATE, 13);
+        MopItemPackets::BuildItemTimeUpdate(packet, 0x0807060504030201ull,
+            0x11223344u);
+        CHECK(ExpectBytes(packet, {
+            0xFF,
+            0x02, 0x06, 0x09, 0x04, 0x00, 0x05, 0x07, 0x03,
+            0x44, 0x33, 0x22, 0x11
+        }));
+    }
+    {
+        WorldPacket packet(SMSG_ITEM_TIME_UPDATE, 7);
+        MopItemPackets::BuildItemTimeUpdate(packet, 0x0000060000000001ull,
+            0x11223344u);
+        CHECK(ExpectBytes(packet, {
+            0x82, 0x00, 0x07, 0x44, 0x33, 0x22, 0x11
+        }));
+    }
+}
+
+static void test_item_enchant_time_update()
+{
+    {
+        WorldPacket packet(SMSG_ITEM_ENCHANT_TIME_UPDATE, 26);
+        MopItemPackets::BuildItemEnchantTimeUpdate(packet,
+            0x1817161514131211ull, 0x0807060504030201ull,
+            0xA1B2C3D4u, 0x11223344u);
+        CHECK(ExpectBytes(packet, {
+            0xFF, 0xFF,
+            0xD4, 0xC3, 0xB2, 0xA1,
+            0x14, 0x12, 0x07, 0x04, 0x16, 0x03, 0x10, 0x13,
+            0x06, 0x02, 0x19, 0x00, 0x05, 0x09, 0x15, 0x17,
+            0x44, 0x33, 0x22, 0x11
+        }));
+    }
+    {
+        WorldPacket packet(SMSG_ITEM_ENCHANT_TIME_UPDATE, 14);
+        MopItemPackets::BuildItemEnchantTimeUpdate(packet,
+            0x0000000014001200ull, 0x0800000500000000ull,
+            0xA1B2C3D4u, 0x11223344u);
+        CHECK(ExpectBytes(packet, {
+            0xA0, 0x03,
+            0xD4, 0xC3, 0xB2, 0xA1,
+            0x04, 0x13, 0x09, 0x15,
+            0x44, 0x33, 0x22, 0x11
+        }));
+    }
+}
+
 static void test_opcode_values_are_framable()
 {
     struct ExpectedOpcode { uint32_t actual; uint32_t expected; };
@@ -373,7 +425,9 @@ static void test_opcode_values_are_framable()
         { uint32_t(SMSG_WEATHER), 0x06ABu },
         { uint32_t(SMSG_MOTD), 0x183Bu },
         { uint32_t(SMSG_CORPSE_RECLAIM_DELAY), 0x022Au },
-        { uint32_t(SMSG_SET_FORCED_REACTIONS), 0x068Fu }
+        { uint32_t(SMSG_SET_FORCED_REACTIONS), 0x068Fu },
+        { uint32_t(SMSG_ITEM_TIME_UPDATE), 0x18C1u },
+        { uint32_t(SMSG_ITEM_ENCHANT_TIME_UPDATE), 0x10A2u }
     };
 
     for (ExpectedOpcode const& value : values)
@@ -401,6 +455,8 @@ int main(int /*argc*/, char** /*argv*/)
     test_motd();
     test_corpse_reclaim_delay();
     test_forced_reactions();
+    test_item_time_update();
+    test_item_enchant_time_update();
     test_opcode_values_are_framable();
 
     if (g_fail)
