@@ -345,6 +345,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_GUILD_RANKS_UPDATE:         // MopGuildPackets::BuildGuildMemberRankUpdate
         case SMSG_GUILD_EVENT_NEW_LEADER:     // MopGuildPackets::BuildGuildNewLeader
         case SMSG_GUILD_EVENT_DISBANDED:      // MopGuildPackets::BuildGuildDisbanded
+        case SMSG_GUILD_BANK_MONEY_WITHDRAWN: // one uint64 remaining allowance; sub_660A2A -> sub_40F370
         case SMSG_TABARD_VENDOR_ACTIVATE:     // MopGuildPackets::BuildTabardVendorActivate
         case SMSG_SAVE_GUILD_EMBLEM:          // MopGuildPackets::BuildSaveGuildEmblemResult
         case SMSG_BINDER_CONFIRM:              // MopBindPackets::BuildBinderConfirm

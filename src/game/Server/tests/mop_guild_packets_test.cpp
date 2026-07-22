@@ -293,6 +293,17 @@ static void test_guild_event_opcodes()
     CHECK(uint32(SMSG_GUILD_EVENT_DISBANDED) == 0x1E68u);
 }
 
+static void test_guild_bank_money_withdrawn()
+{
+    WorldPacket packet(SMSG_GUILD_BANK_MONEY_WITHDRAWN, 8);
+    packet << uint64(UI64LIT(0x0807060504030201));
+    CHECK(Equal(packet, { 0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08 }));
+    CHECK(uint32(CMSG_GUILD_BANK_MONEY_WITHDRAWN) == 0x14DBu);
+    CHECK(uint32(SMSG_GUILD_BANK_MONEY_WITHDRAWN) == 0x0B78u);
+    CHECK(uint32(CMSG_GUILD_BANK_MONEY_WITHDRAWN) < uint32(OPCODE_TABLE_SIZE));
+    CHECK(uint32(SMSG_GUILD_BANK_MONEY_WITHDRAWN) < uint32(OPCODE_TABLE_SIZE));
+}
+
 int main(int /*argc*/, char** /*argv*/)
 {
     test_empty_motd();
@@ -312,6 +323,7 @@ int main(int /*argc*/, char** /*argv*/)
     test_guild_player_left();
     test_guild_event_name_bounds();
     test_guild_event_opcodes();
+    test_guild_bank_money_withdrawn();
 
     if (g_fail)
     {

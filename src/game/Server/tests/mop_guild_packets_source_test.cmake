@@ -1,6 +1,7 @@
 file(READ "${SOURCE_ROOT}/src/game/Object/Guild.h" packet_builder)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CharacterHandler.cpp" login_sender)
 file(READ "${SOURCE_ROOT}/src/game/Object/Guild.cpp" guild_sender)
+file(READ "${SOURCE_ROOT}/src/game/Object/GuildBank.cpp" guild_bank_sender)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.h" opcode_header)
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" world_session)
@@ -126,6 +127,21 @@ elseif(MUTATION STREQUAL "legacy_info")
     string(APPEND opcode_header "\nWorldPacket legacy(SMSG_GUILD_INFO);\n")
 elseif(MUTATION STREQUAL "legacy_event")
     string(APPEND guild_sender "\nWorldPacket legacy(SMSG_GUILD_EVENT);\n")
+elseif(MUTATION STREQUAL "money_client_registration")
+    string(REPLACE
+        "DefC(CMSG_GUILD_BANK_MONEY_WITHDRAWN, \"CMSG_GUILD_BANK_MONEY_WITHDRAWN\""
+        "/* removed guild-bank money client registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "money_server_registration")
+    string(REPLACE
+        "DefS(SMSG_GUILD_BANK_MONEY_WITHDRAWN, \"SMSG_GUILD_BANK_MONEY_WITHDRAWN\");"
+        "/* removed guild-bank money server registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "money_gate")
+    string(REPLACE
+        "case SMSG_GUILD_BANK_MONEY_WITHDRAWN:"
+        "/* removed guild-bank money framing gate */"
+        world_session "${world_session}")
 endif()
 
 function(require_once source token context)
@@ -188,6 +204,18 @@ require_once("${world_session}"
 require_once("${world_session}"
     "case SMSG_SAVE_GUILD_EMBLEM:"
     "guild-emblem result allowlist")
+require_once("${opcode_registry}"
+    "DefC(CMSG_GUILD_BANK_MONEY_WITHDRAWN, \"CMSG_GUILD_BANK_MONEY_WITHDRAWN\""
+    "guild-bank money client registration")
+require_once("${opcode_registry}"
+    "DefS(SMSG_GUILD_BANK_MONEY_WITHDRAWN, \"SMSG_GUILD_BANK_MONEY_WITHDRAWN\");"
+    "guild-bank money server registration")
+require_once("${guild_bank_sender}"
+    "data << uint64(GetMemberMoneyWithdrawRem(LowGuid));"
+    "guild-bank money uint64 body")
+require_once("${world_session}"
+    "case SMSG_GUILD_BANK_MONEY_WITHDRAWN:"
+    "guild-bank money framing gate")
 
 foreach(token IN ITEMS
         "CMSG_TABARD_VENDOR_ACTIVATE                 = 0x11C3"

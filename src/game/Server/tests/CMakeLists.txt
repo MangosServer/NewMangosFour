@@ -635,7 +635,8 @@ foreach(mutation IN ITEMS login_builder broadcast_builder outbound_registration 
         tabard_reader tabard_builder save_reader save_builder tabard_registration
         save_registration tabard_allowlist design_bounds joined_builder presence_builder
         rank_builder leader_builder left_builder disband_builder event_registration
-        event_allowlist event_opcode presence_calls removed_member_copy legacy_info legacy_event)
+        event_allowlist event_opcode presence_calls removed_member_copy legacy_info legacy_event
+        money_client_registration money_server_registration money_gate)
     add_test(NAME mop_guild_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

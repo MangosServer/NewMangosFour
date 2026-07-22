@@ -338,6 +338,11 @@ void InitializeOpcodes()
     DefS(SMSG_GUILD_EVENT_NEW_LEADER, "SMSG_GUILD_EVENT_NEW_LEADER");
     DefS(SMSG_GUILD_EVENT_DISBANDED, "SMSG_GUILD_EVENT_DISBANDED");
 
+    // Live-log guild-bank withdrawal allowance query. The 18414 request is
+    // empty and its response contains one uint64 remaining allowance.
+    DefC(CMSG_GUILD_BANK_MONEY_WITHDRAWN, "CMSG_GUILD_BANK_MONEY_WITHDRAWN", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGuildBankMoneyWithdrawn);
+    DefS(SMSG_GUILD_BANK_MONEY_WITHDRAWN, "SMSG_GUILD_BANK_MONEY_WITHDRAWN");
+
     // Wave 32 tabard-vendor interaction and guild-emblem save.
     DefC(CMSG_TABARD_VENDOR_ACTIVATE, "CMSG_TABARD_VENDOR_ACTIVATE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTabardVendorActivateOpcode);
     DefS(SMSG_TABARD_VENDOR_ACTIVATE, "SMSG_TABARD_VENDOR_ACTIVATE");
