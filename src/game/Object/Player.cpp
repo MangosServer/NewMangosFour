@@ -2998,6 +2998,7 @@ void Player::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
 
             m_items[i]->BuildCreateUpdateBlockForPlayer(data, target);
         }
+        return;
     }
 
     Unit::BuildCreateUpdateBlockForPlayer(data, target);

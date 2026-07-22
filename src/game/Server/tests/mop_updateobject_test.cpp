@@ -56,6 +56,60 @@ int main(int /*argc*/, char** /*argv*/)
     CHECK(MopUpdateObject::TranslateSelfInventoryIndex(960) == 965);
     CHECK(MopUpdateObject::TranslateSelfInventoryIndex(1131) == 1136);
 
+    // Observer-visible Player fields use a deliberately narrow 18414
+    // projection. Unit fields are individually admitted; visible-item pairs
+    // move by +5. Private Player fields must not acquire a target index.
+    {
+        uint16 targetIndex = 0;
+        const uint16 sparseMappings[][2] =
+        {
+            { 7, 7 }, { 26, 30 }, { 28, 33 }, { 34, 39 },
+            { 50, 55 }, { 51, 57 }, { 52, 58 }, { 53, 59 },
+            { 54, 60 }, { 63, 69 }, { 64, 70 }, { 65, 71 },
+        };
+        for (const auto& mapping : sparseMappings)
+        {
+            CHECK(MopUpdateObject::TranslateObserverPlayerIndex(mapping[0], targetIndex));
+            CHECK(targetIndex == mapping[1]);
+        }
+        CHECK(MopUpdateObject::TranslateObserverPlayerIndex(916, targetIndex));
+        CHECK(targetIndex == 921);
+        CHECK(MopUpdateObject::TranslateObserverPlayerIndex(953, targetIndex));
+        CHECK(targetIndex == 958);
+        CHECK(!MopUpdateObject::TranslateObserverPlayerIndex(66, targetIndex));
+        CHECK(!MopUpdateObject::TranslateObserverPlayerIndex(954, targetIndex));
+        CHECK(!MopUpdateObject::TranslateObserverPlayerIndex(960, targetIndex));
+
+        const MopUpdateObject::StaticField translated[] =
+        {
+            { 7, 0 },
+            { 30, 0x11223344u },
+            { 921, 0x55667788u },
+            { 958, 0 },
+        };
+        ByteBuffer values;
+        MopUpdateObject::AppendValuesBlock(values, 0x10, translated,
+            sizeof(translated) / sizeof(translated[0]));
+        values.rpos(3); // VALUES + packed GUID
+        uint8 blockCount;
+        values >> blockCount;
+        CHECK(blockCount == 30);
+        uint32 masks[30];
+        for (uint32& mask : masks) values >> mask;
+        CHECK(masks[0] == ((uint32(1) << 7) | (uint32(1) << 30)));
+        CHECK(masks[921 / 32] == (uint32(1) << (921 % 32)));
+        CHECK(masks[958 / 32] == (uint32(1) << (958 % 32)));
+        uint32 scale, bytes0, visibleFirst, visibleLast;
+        uint8 dynamicCount;
+        values >> scale >> bytes0 >> visibleFirst >> visibleLast >> dynamicCount;
+        CHECK(scale == 0);
+        CHECK(bytes0 == 0x11223344u);
+        CHECK(visibleFirst == 0x55667788u);
+        CHECK(visibleLast == 0);
+        CHECK(dynamicCount == 0);
+        CHECK(values.rpos() == values.size());
+    }
+
     MopUpdateObject::InventoryObjectEligibility inventoryEligibility{};
     CHECK(!MopUpdateObject::CanUseInventoryObject(inventoryEligibility));
     inventoryEligibility.hasTarget = true;

@@ -461,14 +461,7 @@ bool Object::PrintEntryError(char const* descr) const
  */
 void Object::BuildUpdateDataForPlayer(Player* pl, UpdateDataMapType& update_players)
 {
-    if (GetTypeId() == TYPEID_PLAYER)
-    {
-        if (pl != static_cast<Player*>(this))
-        {
-            return;
-        }
-    }
-    else if ((GetTypeId() != TYPEID_UNIT && GetTypeId() != TYPEID_GAMEOBJECT &&
+    if ((GetTypeId() != TYPEID_PLAYER && GetTypeId() != TYPEID_UNIT && GetTypeId() != TYPEID_GAMEOBJECT &&
               GetTypeId() != TYPEID_ITEM && GetTypeId() != TYPEID_CONTAINER &&
               GetTypeId() != TYPEID_DYNAMICOBJECT && GetTypeId() != TYPEID_CORPSE) ||
              ((GetTypeId() == TYPEID_GAMEOBJECT || GetTypeId() == TYPEID_DYNAMICOBJECT ||

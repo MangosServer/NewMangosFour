@@ -81,6 +81,17 @@ namespace
     static_assert(PLAYER_FIELD_VENDORBUYBACK_SLOT_1 + 24 ==
         MopUpdateObject::SelfInventorySourceStart + MopUpdateObject::SelfInventoryFieldCount,
         "self inventory translation must end before local field 1132");
+    static_assert(OBJECT_FIELD_SCALE_X == 7 && UNIT_FIELD_BYTES_0 == 26 &&
+        UNIT_FIELD_HEALTH == 28 && UNIT_FIELD_MAXHEALTH == 34 &&
+        UNIT_FIELD_LEVEL == 50 && UNIT_FIELD_FACTIONTEMPLATE == 51 &&
+        UNIT_VIRTUAL_ITEM_SLOT_ID == 52 && UNIT_FIELD_DISPLAYID == 63 &&
+        UNIT_FIELD_NATIVEDISPLAYID == 64 && UNIT_FIELD_MOUNTDISPLAYID == 65,
+        "observer Player Unit-field projection assumes the legacy 17538 indices");
+    static_assert(PLAYER_VISIBLE_ITEM_1_ENTRYID == MopUpdateObject::ObserverVisibleItemSourceStart &&
+        PLAYER_CHOSEN_TITLE == MopUpdateObject::ObserverVisibleItemSourceStart +
+            MopUpdateObject::ObserverVisibleItemFieldCount &&
+        MopUpdateObject::ObserverVisibleItemTargetStart == 921,
+        "observer Player visible-item projection must remain local 916..953 to target 921..958");
 
     bool CanBuildMopInventoryObject(Object const& object, Player* target)
     {
@@ -235,6 +246,50 @@ namespace
         add(16, object.GetUInt32Value(GAMEOBJECT_FACTION));
         add(17, object.GetUInt32Value(GAMEOBJECT_LEVEL));
     }
+
+    void BuildMopObserverPlayerStaticFields(Object const& object,
+        std::vector<MopUpdateObject::StaticField>& fields)
+    {
+        auto add = [&fields](uint16 index, uint32 value)
+        {
+            fields.push_back({ index, value });
+        };
+        auto addTranslated = [&object, &fields](uint16 sourceIndex, bool omitZero = false)
+        {
+            uint16 targetIndex = 0;
+            MANGOS_ASSERT(MopUpdateObject::TranslateObserverPlayerIndex(sourceIndex, targetIndex));
+            uint32 value = object.GetUInt32Value(sourceIndex);
+            if (sourceIndex == UNIT_FIELD_BYTES_0)
+            {
+                value = MopUpdateObject::RepackUnitBytes0(value);
+            }
+            if (!omitZero || value != 0)
+            {
+                fields.push_back({ targetIndex, value });
+            }
+        };
+
+        add(0, object.GetUInt32Value(OBJECT_FIELD_GUID));
+        add(1, object.GetUInt32Value(OBJECT_FIELD_GUID + 1));
+        add(4, 0x19u); // OBJECT | UNIT | PLAYER
+        addTranslated(OBJECT_FIELD_SCALE_X);
+        addTranslated(UNIT_FIELD_BYTES_0);
+        addTranslated(UNIT_FIELD_HEALTH);
+        addTranslated(UNIT_FIELD_MAXHEALTH);
+        addTranslated(UNIT_FIELD_LEVEL);
+        addTranslated(UNIT_FIELD_FACTIONTEMPLATE);
+        for (uint16 i = 0; i < 3; ++i)
+        {
+            addTranslated(uint16(UNIT_VIRTUAL_ITEM_SLOT_ID + i), true);
+        }
+        addTranslated(UNIT_FIELD_DISPLAYID);
+        addTranslated(UNIT_FIELD_NATIVEDISPLAYID);
+        addTranslated(UNIT_FIELD_MOUNTDISPLAYID, true);
+        for (uint16 i = 0; i < MopUpdateObject::ObserverVisibleItemFieldCount; ++i)
+        {
+            addTranslated(uint16(MopUpdateObject::ObserverVisibleItemSourceStart + i), true);
+        }
+    }
 }
 
 /**
@@ -314,7 +369,7 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
         MopUpdateObject::AppendPositionOnlyCreateBlock(data->GetBuffer(), updateType, guid,
             m_objectTypeId, movement, m_uint32Values, valueCount);
     }
-    else if (GetTypeId() == TYPEID_UNIT)
+    else if (GetTypeId() == TYPEID_UNIT || GetTypeId() == TYPEID_PLAYER)
     {
         Unit const* unit = static_cast<Unit const*>(this);
         MopUpdateObject::SimpleLivingMovement movement{};
@@ -335,8 +390,16 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
         movement.speedPitch = unit->GetSpeed(MOVE_PITCH_RATE);
         movement.self = false;
 
-        fields.reserve(47);
-        BuildMopUnitStaticFields(*this, target, fields);
+        if (GetTypeId() == TYPEID_PLAYER)
+        {
+            fields.reserve(53);
+            BuildMopObserverPlayerStaticFields(*this, fields);
+        }
+        else
+        {
+            fields.reserve(47);
+            BuildMopUnitStaticFields(*this, target, fields);
+        }
         MopUpdateObject::AppendSimpleLivingCreateBlock(data->GetBuffer(), updateType, guid,
             m_objectTypeId, movement, fields.data(), uint32(fields.size()));
     }
@@ -387,12 +450,16 @@ bool Object::CanBuildMopCreateUpdate() const
         return MopUpdateObject::CanUseStationaryGameObjectMovement(eligibility);
     }
 
-    if (GetTypeId() != TYPEID_UNIT)
+    if (GetTypeId() != TYPEID_UNIT && GetTypeId() != TYPEID_PLAYER)
     {
         return false;
     }
 
     Unit const* unit = static_cast<Unit const*>(this);
+    if (GetTypeId() == TYPEID_PLAYER && static_cast<Player const*>(this)->GetTransport() != NULL)
+    {
+        return false;
+    }
     MovementInfo const& movement = unit->m_movementInfo;
     MovementInfo::StatusInfo const& status = movement.GetStatusInfo();
     MopUpdateObject::SimpleUnitEligibility eligibility{};
@@ -478,25 +545,51 @@ void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player* target) c
 
     if (GetTypeId() == TYPEID_PLAYER)
     {
-        if (target != static_cast<Player const*>(this))
+        if (!target)
         {
             return;
         }
 
         std::vector<MopUpdateObject::StaticField> fields;
-        fields.reserve(MopUpdateObject::SelfInventoryFieldCount);
-        for (uint16 i = MopUpdateObject::SelfInventorySourceStart;
-             i < MopUpdateObject::SelfInventorySourceStart + MopUpdateObject::SelfInventoryFieldCount; ++i)
+        if (target == static_cast<Player const*>(this))
         {
-            if (m_changedValues[i])
+            fields.reserve(MopUpdateObject::SelfInventoryFieldCount);
+            for (uint16 i = MopUpdateObject::SelfInventorySourceStart;
+                 i < MopUpdateObject::SelfInventorySourceStart + MopUpdateObject::SelfInventoryFieldCount; ++i)
             {
-                fields.push_back({ i, m_uint32Values[i] });
+                if (m_changedValues[i])
+                {
+                    fields.push_back({ i, m_uint32Values[i] });
+                }
             }
+            if (!fields.empty())
+            {
+                MopUpdateObject::AppendSelfInventoryValuesBlock(data->GetBuffer(),
+                    GetObjectGuid().GetRawValue(), fields.data(), uint32(fields.size()));
+                data->AddUpdateBlock();
+            }
+            return;
+        }
+
+        fields.reserve(50);
+        for (uint16 i = 0; i < PLAYER_END_NOT_SELF; ++i)
+        {
+            uint16 targetIndex;
+            if (!m_changedValues[i] || !MopUpdateObject::TranslateObserverPlayerIndex(i, targetIndex))
+            {
+                continue;
+            }
+            uint32 value = m_uint32Values[i];
+            if (i == UNIT_FIELD_BYTES_0)
+            {
+                value = MopUpdateObject::RepackUnitBytes0(value);
+            }
+            fields.push_back({ targetIndex, value });
         }
         if (!fields.empty())
         {
-            MopUpdateObject::AppendSelfInventoryValuesBlock(data->GetBuffer(),
-                GetObjectGuid().GetRawValue(), fields.data(), uint32(fields.size()));
+            MopUpdateObject::AppendValuesBlock(data->GetBuffer(), GetObjectGuid().GetRawValue(),
+                fields.data(), uint32(fields.size()));
             data->AddUpdateBlock();
         }
         return;

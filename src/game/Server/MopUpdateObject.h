@@ -24,12 +24,20 @@ namespace MopUpdateObject
 {
     static constexpr uint16 SelfInventorySourceStart = 960;
     static constexpr uint16 SelfInventoryFieldCount = 172;
+    static constexpr uint16 ObserverVisibleItemSourceStart = 916;
+    static constexpr uint16 ObserverVisibleItemTargetStart = 921;
+    static constexpr uint16 ObserverVisibleItemFieldCount = 38;
     static constexpr uint16 ItemFieldCount = 69;
     static constexpr uint16 ContainerFieldCount = 142;
     static constexpr uint16 DynamicObjectFieldCount = 14;
     static constexpr uint16 CorpseFieldCount = 36;
 
     uint16 TranslateSelfInventoryIndex(uint16 legacyIndex);
+
+    /// Translate one field from Four's legacy Player storage to the narrow
+    /// public observer projection proved for 18414. Returns false for every
+    /// private or otherwise unsupported Player field.
+    bool TranslateObserverPlayerIndex(uint16 legacyIndex, uint16& targetIndex);
 
     struct StaticField
     {

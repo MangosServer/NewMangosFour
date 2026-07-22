@@ -46,6 +46,34 @@ uint16 MopUpdateObject::TranslateSelfInventoryIndex(uint16 legacyIndex)
     return uint16(legacyIndex + 5);
 }
 
+bool MopUpdateObject::TranslateObserverPlayerIndex(uint16 legacyIndex, uint16& targetIndex)
+{
+    if (legacyIndex >= ObserverVisibleItemSourceStart &&
+        legacyIndex < ObserverVisibleItemSourceStart + ObserverVisibleItemFieldCount)
+    {
+        targetIndex = uint16(ObserverVisibleItemTargetStart +
+            (legacyIndex - ObserverVisibleItemSourceStart));
+        return true;
+    }
+
+    switch (legacyIndex)
+    {
+        case 7:  targetIndex = 7;  return true; // scale
+        case 26: targetIndex = 30; return true; // packed race/class/gender/power
+        case 28: targetIndex = 33; return true; // health
+        case 34: targetIndex = 39; return true; // max health
+        case 50: targetIndex = 55; return true; // level
+        case 51: targetIndex = 57; return true; // faction template
+        case 52: targetIndex = 58; return true; // virtual item 1
+        case 53: targetIndex = 59; return true; // virtual item 2
+        case 54: targetIndex = 60; return true; // virtual item 3
+        case 63: targetIndex = 69; return true; // display ID
+        case 64: targetIndex = 70; return true; // native display ID
+        case 65: targetIndex = 71; return true; // mount display ID
+        default: return false;
+    }
+}
+
 uint32 MopUpdateObject::RepackUnitBytes0(uint32 legacyBytes0)
 {
     return (legacyBytes0 & 0x0000FFFFu) |
