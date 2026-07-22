@@ -77,6 +77,11 @@ bool MopUpdateObject::CanUseStationaryGameObjectMovement(StationaryGameObjectEli
         !eligibility.hasUnsupportedMovement;
 }
 
+bool MopUpdateObject::CanUsePositionOnlyMovement(PositionOnlyEligibility const& eligibility)
+{
+    return !eligibility.isBoarded && eligibility.hasPosition && !eligibility.hasUnsupportedMovement;
+}
+
 bool MopUpdateObject::CanUseInventoryObject(InventoryObjectEligibility const& eligibility)
 {
     return eligibility.hasTarget && eligibility.hasOwner && eligibility.ownerMatchesTarget;
@@ -174,6 +179,68 @@ void MopUpdateObject::AppendSelfInventoryValuesBlock(ByteBuffer& out, uint64 gui
     }
 
     AppendValuesBlock(out, guid, fields.data(), uint32(fields.size()));
+}
+
+void MopUpdateObject::AppendPositionOnlyMovement(ByteBuffer& out, PositionOnlyMovement const& movement)
+{
+    out.WriteBit(0);                 // game-object data
+    out.WriteBit(0);                 // animation kits
+    out.WriteBit(0);                 // living
+    out.WriteBit(0);                 // scene-local script
+    out.WriteBit(0);
+    out.WriteBits(0, 22);            // transport frame count
+    out.WriteBit(0);                 // vehicle
+    out.WriteBit(0);
+    out.WriteBit(0);
+    out.WriteBit(0);                 // transport time
+    out.WriteBit(0);                 // rotation
+    out.WriteBit(0);
+    out.WriteBit(0);                 // self
+    out.WriteBit(0);                 // attacking target
+    out.WriteBit(0);                 // scene object
+    out.WriteBit(0);                 // scene pending instances
+    out.WriteBit(0);
+    out.WriteBit(0);                 // area trigger
+    out.WriteBit(0);                 // game-object transport position
+    out.WriteBit(0);                 // replace you
+    out.WriteBit(1);                 // stationary position follows
+    out.FlushBits();
+
+    out << movement.y << movement.z << movement.o << movement.x;
+}
+
+void MopUpdateObject::AppendPositionOnlyCreateBlock(ByteBuffer& out, uint8 updateType, uint64 guid, uint8 typeId,
+    PositionOnlyMovement const& movement, uint32 const* values, uint32 valueCount)
+{
+    MANGOS_ASSERT(values);
+    MANGOS_ASSERT((typeId == 6 && valueCount == DynamicObjectFieldCount) ||
+        (typeId == 7 && valueCount == CorpseFieldCount));
+
+    std::vector<StaticField> fields;
+    fields.reserve(valueCount);
+    for (uint16 i = 0; i < valueCount; ++i)
+    {
+        fields.push_back({ i, values[i] });
+    }
+
+    out << updateType;
+    AppendPackedGuid(out, guid);
+    out << typeId;
+    AppendPositionOnlyMovement(out, movement);
+    AppendStaticValuesNoDynamic(out, fields.data(), uint32(fields.size()));
+}
+
+void MopUpdateObject::AppendPositionOnlyValuesBlock(ByteBuffer& out, uint64 guid, uint8 typeId,
+    StaticField const* fields, uint32 fieldCount)
+{
+    MANGOS_ASSERT(fields || fieldCount == 0);
+    MANGOS_ASSERT(typeId == 6 || typeId == 7);
+    const uint16 valueCount = typeId == 7 ? CorpseFieldCount : DynamicObjectFieldCount;
+    for (uint32 i = 0; i < fieldCount; ++i)
+    {
+        MANGOS_ASSERT(fields[i].index < valueCount);
+    }
+    AppendValuesBlock(out, guid, fields, fieldCount);
 }
 
 void MopUpdateObject::AppendStationaryGameObjectMovement(ByteBuffer& out, StationaryGameObjectMovement const& movement)

@@ -469,8 +469,10 @@ void Object::BuildUpdateDataForPlayer(Player* pl, UpdateDataMapType& update_play
         }
     }
     else if ((GetTypeId() != TYPEID_UNIT && GetTypeId() != TYPEID_GAMEOBJECT &&
-              GetTypeId() != TYPEID_ITEM && GetTypeId() != TYPEID_CONTAINER) ||
-             (GetTypeId() == TYPEID_GAMEOBJECT && !CanBuildMopCreateUpdate()))
+              GetTypeId() != TYPEID_ITEM && GetTypeId() != TYPEID_CONTAINER &&
+              GetTypeId() != TYPEID_DYNAMICOBJECT && GetTypeId() != TYPEID_CORPSE) ||
+             ((GetTypeId() == TYPEID_GAMEOBJECT || GetTypeId() == TYPEID_DYNAMICOBJECT ||
+               GetTypeId() == TYPEID_CORPSE) && !CanBuildMopCreateUpdate()))
     {
         return;
     }

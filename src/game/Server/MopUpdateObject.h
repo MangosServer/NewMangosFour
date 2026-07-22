@@ -26,6 +26,8 @@ namespace MopUpdateObject
     static constexpr uint16 SelfInventoryFieldCount = 172;
     static constexpr uint16 ItemFieldCount = 69;
     static constexpr uint16 ContainerFieldCount = 142;
+    static constexpr uint16 DynamicObjectFieldCount = 14;
+    static constexpr uint16 CorpseFieldCount = 36;
 
     uint16 TranslateSelfInventoryIndex(uint16 legacyIndex);
 
@@ -109,6 +111,36 @@ namespace MopUpdateObject
     };
 
     bool CanUseStationaryGameObjectMovement(StationaryGameObjectEligibility const& eligibility);
+
+    struct PositionOnlyEligibility
+    {
+        bool isBoarded;
+        bool hasPosition;
+        bool hasUnsupportedMovement;
+    };
+
+    /// True only for the proved stationary-position-only movement subset.
+    bool CanUsePositionOnlyMovement(PositionOnlyEligibility const& eligibility);
+
+    struct PositionOnlyMovement
+    {
+        float x;
+        float y;
+        float z;
+        float o;
+    };
+
+    /// Append the DynamicObject/Corpse position-only movement subset.
+    void AppendPositionOnlyMovement(ByteBuffer& out, PositionOnlyMovement const& movement);
+
+    /// Append a DynamicObject or Corpse CREATE block with a direct-copy full
+    /// static-field snapshot and no dynamic fields.
+    void AppendPositionOnlyCreateBlock(ByteBuffer& out, uint8 updateType, uint64 guid, uint8 typeId,
+        PositionOnlyMovement const& movement, uint32 const* values, uint32 valueCount);
+
+    /// Append changed DynamicObject or Corpse VALUES using direct field indices.
+    void AppendPositionOnlyValuesBlock(ByteBuffer& out, uint64 guid, uint8 typeId,
+        StaticField const* fields, uint32 fieldCount);
 
     struct StationaryGameObjectMovement
     {

@@ -72,6 +72,10 @@ namespace
         "18414 Item direct-copy range must remain fields 0..68");
     static_assert(CONTAINER_END == MopUpdateObject::ContainerFieldCount,
         "18414 Container direct-copy range must remain fields 0..141");
+    static_assert(DYNAMICOBJECT_END == 14 && DYNAMICOBJECT_END == MopUpdateObject::DynamicObjectFieldCount,
+        "18414 DynamicObject direct-copy range must remain fields 0..13");
+    static_assert(CORPSE_END == 36 && CORPSE_END == MopUpdateObject::CorpseFieldCount,
+        "18414 Corpse direct-copy range must remain fields 0..35");
     static_assert(PLAYER_FIELD_INV_SLOT_HEAD == MopUpdateObject::SelfInventorySourceStart,
         "self inventory translation must start at local field 960");
     static_assert(PLAYER_FIELD_VENDORBUYBACK_SLOT_1 + 24 ==
@@ -295,7 +299,22 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
     uint64 guid = GetObjectGuid().GetRawValue();
     std::vector<MopUpdateObject::StaticField> fields;
 
-    if (GetTypeId() == TYPEID_UNIT)
+    if (GetTypeId() == TYPEID_DYNAMICOBJECT || GetTypeId() == TYPEID_CORPSE)
+    {
+        WorldObject const* worldObject = static_cast<WorldObject const*>(this);
+        MopUpdateObject::PositionOnlyMovement movement{};
+        movement.x = worldObject->GetPositionX();
+        movement.y = worldObject->GetPositionY();
+        movement.z = worldObject->GetPositionZ();
+        movement.o = worldObject->GetOrientation();
+
+        const uint32 valueCount = GetTypeId() == TYPEID_CORPSE ?
+            MopUpdateObject::CorpseFieldCount : MopUpdateObject::DynamicObjectFieldCount;
+        MANGOS_ASSERT(m_valuesCount == valueCount);
+        MopUpdateObject::AppendPositionOnlyCreateBlock(data->GetBuffer(), updateType, guid,
+            m_objectTypeId, movement, m_uint32Values, valueCount);
+    }
+    else if (GetTypeId() == TYPEID_UNIT)
     {
         Unit const* unit = static_cast<Unit const*>(this);
         MopUpdateObject::SimpleLivingMovement movement{};
@@ -341,6 +360,17 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
 
 bool Object::CanBuildMopCreateUpdate() const
 {
+    if (GetTypeId() == TYPEID_DYNAMICOBJECT || GetTypeId() == TYPEID_CORPSE)
+    {
+        uint16 const supportedFlags = UPDATEFLAG_HAS_POSITION;
+        WorldObject const* worldObject = static_cast<WorldObject const*>(this);
+        MopUpdateObject::PositionOnlyEligibility eligibility{};
+        eligibility.isBoarded = worldObject->IsBoarded();
+        eligibility.hasPosition = (m_updateFlag & UPDATEFLAG_HAS_POSITION) != 0;
+        eligibility.hasUnsupportedMovement = (m_updateFlag & ~supportedFlags) != 0;
+        return MopUpdateObject::CanUsePositionOnlyMovement(eligibility);
+    }
+
     if (GetTypeId() == TYPEID_GAMEOBJECT)
     {
         GameObject const* gameObject = static_cast<GameObject const*>(this);
@@ -467,6 +497,34 @@ void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player* target) c
         {
             MopUpdateObject::AppendSelfInventoryValuesBlock(data->GetBuffer(),
                 GetObjectGuid().GetRawValue(), fields.data(), uint32(fields.size()));
+            data->AddUpdateBlock();
+        }
+        return;
+    }
+
+    if (GetTypeId() == TYPEID_DYNAMICOBJECT || GetTypeId() == TYPEID_CORPSE)
+    {
+        if (!target || !CanBuildMopCreateUpdate())
+        {
+            return;
+        }
+
+        const uint16 valueCount = GetTypeId() == TYPEID_CORPSE ?
+            MopUpdateObject::CorpseFieldCount : MopUpdateObject::DynamicObjectFieldCount;
+        MANGOS_ASSERT(m_valuesCount == valueCount);
+        std::vector<MopUpdateObject::StaticField> fields;
+        fields.reserve(valueCount);
+        for (uint16 i = 0; i < valueCount; ++i)
+        {
+            if (m_changedValues[i])
+            {
+                fields.push_back({ i, m_uint32Values[i] });
+            }
+        }
+        if (!fields.empty())
+        {
+            MopUpdateObject::AppendPositionOnlyValuesBlock(data->GetBuffer(),
+                GetObjectGuid().GetRawValue(), m_objectTypeId, fields.data(), uint32(fields.size()));
             data->AddUpdateBlock();
         }
         return;

@@ -243,6 +243,18 @@ int main(int /*argc*/, char** /*argv*/)
     gameObjectEligibility.hasTemplate = true; gameObjectEligibility.isDestructibleBuilding = true;
     CHECK(!MopUpdateObject::CanUseStationaryGameObjectMovement(gameObjectEligibility));
 
+    MopUpdateObject::PositionOnlyEligibility positionOnlyEligibility{};
+    positionOnlyEligibility.hasPosition = true;
+    CHECK(MopUpdateObject::CanUsePositionOnlyMovement(positionOnlyEligibility));
+    positionOnlyEligibility.isBoarded = true;
+    CHECK(!MopUpdateObject::CanUsePositionOnlyMovement(positionOnlyEligibility));
+    positionOnlyEligibility.isBoarded = false;
+    positionOnlyEligibility.hasUnsupportedMovement = true;
+    CHECK(!MopUpdateObject::CanUsePositionOnlyMovement(positionOnlyEligibility));
+    positionOnlyEligibility.hasUnsupportedMovement = false;
+    positionOnlyEligibility.hasPosition = false;
+    CHECK(!MopUpdateObject::CanUsePositionOnlyMovement(positionOnlyEligibility));
+
     {
         WorldPacket destroy;
         MopUpdateObject::BuildDestroyObject(destroy, 0x0807060504030201ULL, false);
@@ -330,6 +342,104 @@ int main(int /*argc*/, char** /*argv*/)
         MopUpdateObject::AppendStaticValuesNoDynamic(expected, fields, sizeof(fields) / sizeof(fields[0]));
         CHECK(create.size() == expected.size());
         CHECK(create.size() == expected.size() && std::memcmp(create.contents(), expected.contents(), expected.size()) == 0);
+    }
+
+    // Binary-proved DynamicObject/Corpse movement subset: stationary position
+    // only, with the four floats emitted in Y, Z, orientation, X order.
+    {
+        MopUpdateObject::PositionOnlyMovement movement{};
+        movement.x = 1.0f;
+        movement.y = 2.0f;
+        movement.z = 3.0f;
+        movement.o = 4.0f;
+
+        ByteBuffer bytes;
+        MopUpdateObject::AppendPositionOnlyMovement(bytes, movement);
+        const uint8 expected[] =
+        {
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x40,
+            0x00, 0x00, 0x00, 0x40,
+            0x00, 0x00, 0x40, 0x40,
+            0x00, 0x00, 0x80, 0x40,
+            0x00, 0x00, 0x80, 0x3F,
+        };
+        CHECK(bytes.size() == sizeof(expected));
+        CHECK(bytes.size() == sizeof(expected) &&
+            std::memcmp(bytes.contents(), expected, sizeof(expected)) == 0);
+
+        uint32 dynamicValues[14];
+        for (uint32 i = 0; i < 14; ++i) dynamicValues[i] = 0x10000000u + i;
+        ByteBuffer dynamicCreate;
+        MopUpdateObject::AppendPositionOnlyCreateBlock(dynamicCreate, 2, 0x10, 6, movement,
+            dynamicValues, 14);
+        dynamicCreate.rpos(4 + sizeof(expected));
+        uint8 blockCount;
+        uint32 mask;
+        dynamicCreate >> blockCount >> mask;
+        CHECK(blockCount == 1);
+        CHECK(mask == 0x00003FFFu);
+        for (uint32 i = 0; i < 14; ++i)
+        {
+            uint32 value;
+            dynamicCreate >> value;
+            CHECK(value == dynamicValues[i]);
+        }
+        uint8 dynamicCount;
+        dynamicCreate >> dynamicCount;
+        CHECK(dynamicCount == 0);
+        CHECK(dynamicCreate.rpos() == dynamicCreate.size());
+
+        uint32 corpseValues[36];
+        for (uint32 i = 0; i < 36; ++i) corpseValues[i] = 0x20000000u + i;
+        ByteBuffer corpseCreate;
+        MopUpdateObject::AppendPositionOnlyCreateBlock(corpseCreate, 1, 0x10, 7, movement,
+            corpseValues, 36);
+        corpseCreate.rpos(4 + sizeof(expected));
+        uint32 masks[2];
+        corpseCreate >> blockCount >> masks[0] >> masks[1];
+        CHECK(blockCount == 2);
+        CHECK(masks[0] == 0xFFFFFFFFu);
+        CHECK(masks[1] == 0x0000000Fu);
+        for (uint32 i = 0; i < 36; ++i)
+        {
+            uint32 value;
+            corpseCreate >> value;
+            CHECK(value == corpseValues[i]);
+        }
+        corpseCreate >> dynamicCount;
+        CHECK(dynamicCount == 0);
+        CHECK(corpseCreate.rpos() == corpseCreate.size());
+
+        const MopUpdateObject::StaticField changes[] =
+        {
+            { 0, 0 },
+            { 13, 0x55667788u },
+        };
+        ByteBuffer values;
+        MopUpdateObject::AppendPositionOnlyValuesBlock(values, 0x10, 6, changes,
+            sizeof(changes) / sizeof(changes[0]));
+        values.rpos(3);
+        values >> blockCount >> mask;
+        CHECK(blockCount == 1);
+        CHECK(mask == 0x00002001u);
+        uint32 clearedValue, endpointValue;
+        values >> clearedValue >> endpointValue >> dynamicCount;
+        CHECK(clearedValue == 0);
+        CHECK(endpointValue == 0x55667788u);
+        CHECK(dynamicCount == 0);
+        CHECK(values.rpos() == values.size());
+
+        const MopUpdateObject::StaticField corpseChange[] = { { 35, 0 } };
+        ByteBuffer corpseUpdate;
+        MopUpdateObject::AppendPositionOnlyValuesBlock(corpseUpdate, 0x10, 7, corpseChange, 1);
+        corpseUpdate.rpos(3);
+        corpseUpdate >> blockCount >> masks[0] >> masks[1] >> clearedValue >> dynamicCount;
+        CHECK(blockCount == 2);
+        CHECK(masks[0] == 0);
+        CHECK(masks[1] == 0x00000008u);
+        CHECK(clearedValue == 0);
+        CHECK(dynamicCount == 0);
+        CHECK(corpseUpdate.rpos() == corpseUpdate.size());
     }
 
     MopUpdateObject::SelfPlayer e = MakeSelf();
