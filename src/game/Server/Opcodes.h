@@ -960,7 +960,6 @@ enum OpcodesList
     CMSG_GUILD_EVENT_LOG_QUERY                   = 0x15D9, // 5.4.8 18414 (Wow.exe binary)
     SMSG_GUILD_EVENT_LOG                         = 0x1AF1,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus; fuzzy via SMSG_GUILD_EVENT_LOG_QUERY_RESULT)
     CMSG_GET_MIRRORIMAGE_DATA                    = 0x02A3, // 5.4.8 18414 (Wow.exe binary, via CMSG_GET_MIRROR_IMAGE_DATA)
-    SMSG_MIRRORIMAGE_DATA                        = 0x2634,    // (legacy; no client leaf; unframable >0x1FFF)
     SMSG_FORCE_DISPLAY_UPDATE                    = 0x1404,    // (legacy; no client leaf)
     SMSG_SPELL_CHANCE_RESIST_PUSHBACK            = 0x1405,    // (legacy; no client leaf)
     SMSG_IGNORE_DIMINISHING_RETURNS_CHEAT        = 0x0125,    // (legacy; no client leaf)

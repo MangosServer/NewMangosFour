@@ -284,7 +284,7 @@ void Aura::HandleAuraMirrorImage(bool apply, bool Real)
         // Caster can be player or creature, the unit who pCreature will become an clone of.
         Unit* caster = GetCaster();
 
-        if (caster->GetTypeId() == TYPEID_PLAYER)           // TODO - Verify! Does it take a 'pseudo-race' (from display-id) for creature-mirroring, and what is sent in SMSG_MIRRORIMAGE_DATA
+        if (caster->GetTypeId() == TYPEID_PLAYER)           // TODO - Verify whether creature mirroring uses a pseudo-race derived from display ID.
         {
             pCreature->SetByteValue(UNIT_FIELD_BYTES_0, 0, caster->getRace());
         }
