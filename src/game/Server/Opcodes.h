@@ -795,6 +795,7 @@ enum OpcodesList
     SMSG_PET_DISMISS_SOUND                       = 0x1ABB,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     SMSG_GHOSTEE_GONE                            = 0x1327,    // (legacy; no client leaf)
     CMSG_GM_UPDATE_TICKET_STATUS                 = 0x15A8, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_TICKET_CASE_STATUS)
+    SMSG_GM_TICKET_CASE_STATUS                   = 0x148E, // 5.4.8 18414 (Wow.exe binary reader; name reference-consensus)
     SMSG_GM_TICKET_STATUS_UPDATE                 = 0x000B,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     CMSG_GMSURVEY_SUBMIT                         = 0x073C, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_SURVEY_SUBMIT)
     SMSG_UPDATE_INSTANCE_OWNERSHIP               = 0x10E0,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)

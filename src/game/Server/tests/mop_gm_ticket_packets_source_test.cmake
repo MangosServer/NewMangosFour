@@ -45,6 +45,15 @@ elseif(MUTATION STREQUAL "get_whitelist")
 elseif(MUTATION STREQUAL "system_whitelist")
     string(REPLACE "case SMSG_GMTICKET_SYSTEMSTATUS:"
         "/* removed system-status whitelist */" session_source "${session_source}")
+elseif(MUTATION STREQUAL "case_client_registration")
+    string(REPLACE "DefC(CMSG_GM_UPDATE_TICKET_STATUS, \"CMSG_GM_UPDATE_TICKET_STATUS\""
+        "/* removed case-status client registration */" opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "case_server_registration")
+    string(REPLACE "DefS(SMSG_GM_TICKET_CASE_STATUS, \"SMSG_GM_TICKET_CASE_STATUS\");"
+        "/* removed case-status server registration */" opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "case_whitelist")
+    string(REPLACE "case SMSG_GM_TICKET_CASE_STATUS:"
+        "/* removed case-status whitelist */" session_source "${session_source}")
 endif()
 
 function(require_once source token context)
@@ -88,7 +97,8 @@ require_once("${opcode_header}"
 
 foreach(required IN ITEMS
         "BuildGetTicket"
-        "BuildSystemStatus")
+        "BuildSystemStatus"
+        "BuildCaseStatus")
     string(FIND "${ticket_header}" "${required}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "GM-ticket response builder missing: ${required}")
@@ -98,7 +108,9 @@ foreach(required IN ITEMS
         "DefC(CMSG_GMTICKET_GETTICKET, \"CMSG_GMTICKET_GETTICKET\""
         "DefS(SMSG_GMTICKET_GETTICKET, \"SMSG_GMTICKET_GETTICKET\");"
         "DefC(CMSG_GMTICKET_SYSTEMSTATUS, \"CMSG_GMTICKET_SYSTEMSTATUS\""
-        "DefS(SMSG_GMTICKET_SYSTEMSTATUS, \"SMSG_GMTICKET_SYSTEMSTATUS\");")
+        "DefS(SMSG_GMTICKET_SYSTEMSTATUS, \"SMSG_GMTICKET_SYSTEMSTATUS\");"
+        "DefC(CMSG_GM_UPDATE_TICKET_STATUS, \"CMSG_GM_UPDATE_TICKET_STATUS\""
+        "DefS(SMSG_GM_TICKET_CASE_STATUS, \"SMSG_GM_TICKET_CASE_STATUS\");")
     string(FIND "${opcode_registry}" "${required}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "GM-ticket request/response registration missing: ${required}")
@@ -106,7 +118,8 @@ foreach(required IN ITEMS
 endforeach()
 foreach(required IN ITEMS
         "MopGMTicketPackets::BuildGetTicket(data"
-        "MopGMTicketPackets::BuildSystemStatus(data")
+        "MopGMTicketPackets::BuildSystemStatus(data"
+        "MopGMTicketPackets::BuildCaseStatus(data")
     string(FIND "${ticket_handler}" "${required}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "GM-ticket handler integration missing: ${required}")
@@ -114,7 +127,8 @@ foreach(required IN ITEMS
 endforeach()
 foreach(required IN ITEMS
         "case SMSG_GMTICKET_GETTICKET:"
-        "case SMSG_GMTICKET_SYSTEMSTATUS:")
+        "case SMSG_GMTICKET_SYSTEMSTATUS:"
+        "case SMSG_GM_TICKET_CASE_STATUS:")
     string(FIND "${session_source}" "${required}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "GM-ticket response whitelist missing: ${required}")

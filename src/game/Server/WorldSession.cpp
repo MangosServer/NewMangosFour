@@ -310,6 +310,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_GM_TICKET_UPDATE:                 // MopGMTicketPackets::BuildUpdate
         case SMSG_GMTICKET_GETTICKET:               // MopGMTicketPackets::BuildGetTicket
         case SMSG_GMTICKET_SYSTEMSTATUS:            // MopGMTicketPackets::BuildSystemStatus
+        case SMSG_GM_TICKET_CASE_STATUS:            // MopGMTicketPackets::BuildCaseStatus
         case SMSG_UPDATE_CURRENCY:                 // MopCurrencyPackets::BuildUpdateCurrency
         case SMSG_SETUP_CURRENCY:                  // MopCurrencyPackets::BuildSetupCurrency
         case SMSG_SPELL_EXECUTE_LOG:               // MopCombatLogPackets::BuildSpellExecuteLog

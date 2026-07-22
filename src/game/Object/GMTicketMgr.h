@@ -100,6 +100,15 @@ namespace MopGMTicketPackets
         out.Initialize(SMSG_GMTICKET_SYSTEMSTATUS, 4);
         out << uint32(enabled ? 1 : 0);
     }
+
+    inline void BuildCaseStatus(WorldPacket& out, uint32 updateTime,
+        uint32 oldestTicketTime)
+    {
+        out.Initialize(SMSG_GM_TICKET_CASE_STATUS, 11);
+        out.WriteBits(0, 20);
+        out.FlushBits();
+        out << updateTime << oldestTicketTime;
+    }
 }
 
 /**

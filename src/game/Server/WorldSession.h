@@ -1443,6 +1443,7 @@ class WorldSession
         void HandleGMTicketGetTicketOpcode(WorldPacket& recvPacket);
         void HandleGMTicketCreateOpcode(WorldPacket& recvPacket);
         void HandleGMTicketSystemStatusOpcode(WorldPacket& recvPacket);
+        void HandleGMUpdateTicketStatusOpcode(WorldPacket& recvPacket);
         void SendGMTicketStatusUpdate(GMTicketStatus statusCode);
         void HandleGMTicketDeleteTicketOpcode(WorldPacket& recvPacket);
         void HandleGMTicketUpdateTextOpcode(WorldPacket& recvPacket);

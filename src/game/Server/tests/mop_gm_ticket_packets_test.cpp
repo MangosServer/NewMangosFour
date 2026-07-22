@@ -117,11 +117,28 @@ static void test_system_status_response()
     CHECK(uint32(SMSG_GMTICKET_SYSTEMSTATUS) == 0x163Bu);
 }
 
+static void test_case_status_response()
+{
+    WorldPacket packet;
+    MopGMTicketPackets::BuildCaseStatus(packet, 0x11223344u, 0x55667788u);
+    uint8 const expected[] = {
+        0x00,0x00,0x00,
+        0x44,0x33,0x22,0x11,
+        0x88,0x77,0x66,0x55
+    };
+    CHECK(packet.GetOpcode() == SMSG_GM_TICKET_CASE_STATUS);
+    CHECK(packet.size() == sizeof(expected));
+    CHECK(std::memcmp(packet.contents(), expected, sizeof(expected)) == 0);
+    CHECK(uint32(CMSG_GM_UPDATE_TICKET_STATUS) == 0x15A8u);
+    CHECK(uint32(SMSG_GM_TICKET_CASE_STATUS) == 0x148Eu);
+}
+
 int main(int /*argc*/, char** /*argv*/)
 {
     test_response_values();
     test_opcode_is_framable();
     test_get_ticket_response();
     test_system_status_response();
+    test_case_status_response();
     return g_fail ? 1 : 0;
 }

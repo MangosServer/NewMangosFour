@@ -271,6 +271,14 @@ void WorldSession::HandleGMTicketSystemStatusOpcode(WorldPacket& /*recv_data*/)
     SendPacket(&data);
 }
 
+void WorldSession::HandleGMUpdateTicketStatusOpcode(WorldPacket& /*recv_data*/)
+{
+    WorldPacket data;
+    MopGMTicketPackets::BuildCaseStatus(data, 0,
+        secsToTimeBitFields(time(NULL)));
+    SendPacket(&data);
+}
+
 /**
  * @brief Handle ticket survey submission (CMSG_GMTICKET_SURVEY)
  * @param recv_data World packet containing survey responses
