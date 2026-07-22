@@ -4,6 +4,7 @@ file(READ "${SOURCE_ROOT}/src/game/Object/PlayerActionButton.cpp" action_buttons
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" world_session)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CharacterHandler.cpp" character_handler)
 file(READ "${SOURCE_ROOT}/src/game/Object/ReputationMgr.cpp" reputation)
+file(READ "${SOURCE_ROOT}/src/game/Object/PlayerDeath.cpp" player_death)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/Weather.cpp" weather)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/SpellEffectTail.cpp" spell_effect)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/NPCHandler.cpp" npc_handler)
@@ -88,6 +89,7 @@ strip_cpp_comments(action_buttons "${action_buttons}")
 strip_cpp_comments(world_session "${world_session}")
 strip_cpp_comments(character_handler "${character_handler}")
 strip_cpp_comments(reputation "${reputation}")
+strip_cpp_comments(player_death "${player_death}")
 strip_cpp_comments(weather "${weather}")
 strip_cpp_comments(spell_effect "${spell_effect}")
 strip_cpp_comments(npc_handler "${npc_handler}")
@@ -114,6 +116,7 @@ extract_body(account_times "${world_session}" "void WorldSession::SendAccountDat
 extract_body(tutorials "${world_session}" "void WorldSession::SendTutorialsData()" "void WorldSession::SaveTutorialsData")
 extract_body(player_login "${character_handler}" "void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)" "void WorldSession::HandleSetFactionAtWarOpcode")
 extract_body(initial_reputation "${reputation}" "void ReputationMgr::SendInitialReputations()" "void ReputationMgr::SendVisible")
+extract_body(forced_reactions "${reputation}" "void ReputationMgr::SendForceReactions()" "void ReputationMgr::SendState")
 extract_body(single_weather "${weather}" "void Weather::SendWeatherUpdateToPlayer(" "bool Weather::SendWeatherForPlayersInZone")
 extract_body(zone_weather "${weather}" "bool Weather::SendWeatherForPlayersInZone(" "void Weather::SetWeather")
 extract_body(bind_spell "${spell_effect}" "void Spell::EffectBind(" "void Spell::EffectRestoreItemCharges")
@@ -193,6 +196,15 @@ endif()
 if(NOT single_weather MATCHES "MopInitialPackets::BuildWeather" OR
    NOT zone_weather MATCHES "MopInitialPackets::BuildWeather")
     message(FATAL_ERROR "BuildWeather is not used by both production senders")
+endif()
+if(NOT player_login MATCHES "MopInitialPackets::BuildMotd")
+    message(FATAL_ERROR "BuildMotd is not used by the login sender")
+endif()
+if(NOT player_death MATCHES "MopDeathPackets::BuildCorpseReclaimDelay")
+    message(FATAL_ERROR "BuildCorpseReclaimDelay is not used by the death sender")
+endif()
+if(NOT forced_reactions MATCHES "MopReputationPackets::BuildForcedReactions")
+    message(FATAL_ERROR "BuildForcedReactions is not used by the reputation sender")
 endif()
 
 require_ordered("${initial_spells}" "INITIAL_SPELLS writer"
@@ -286,9 +298,21 @@ foreach(server_name IN ITEMS
         SMSG_INITIALIZE_FACTIONS
         SMSG_BINDPOINTUPDATE
         SMSG_SET_PROFICIENCY
-        SMSG_WEATHER)
+        SMSG_WEATHER
+        SMSG_MOTD
+        SMSG_CORPSE_RECLAIM_DELAY
+        SMSG_SET_FORCED_REACTIONS)
     if(NOT opcode_registry MATCHES "DefS\\(${server_name},[ \t]*\"${server_name}\"\\)")
         message(FATAL_ERROR "${server_name} is missing outbound opcode metadata")
+    endif()
+endforeach()
+
+foreach(server_name IN ITEMS
+        SMSG_MOTD
+        SMSG_CORPSE_RECLAIM_DELAY
+        SMSG_SET_FORCED_REACTIONS)
+    if(NOT world_session MATCHES "case[ \t]+${server_name}:")
+        message(FATAL_ERROR "${server_name} is missing from central enter-world admission")
     endif()
 endforeach()
 

@@ -24,6 +24,7 @@
 
 #include "ReputationMgr.h"
 #include "DBCStores.h"
+#include "Log.h"
 #include "Player.h"
 #include "WorldPacket.h"
 #include "ObjectMgr.h"
@@ -184,13 +185,17 @@ uint32 ReputationMgr::GetDefaultStateFlags(FactionEntry const* factionEntry) con
  */
 void ReputationMgr::SendForceReactions()
 {
-    WorldPacket data;
-    data.Initialize(SMSG_SET_FORCED_REACTIONS, 4 + m_forcedReactions.size() * (4 + 4));
-    data << uint32(m_forcedReactions.size());
+    std::vector<MopReputationPackets::ForcedReaction> reactions;
+    reactions.reserve(m_forcedReactions.size());
     for (ForcedReactions::const_iterator itr = m_forcedReactions.begin(); itr != m_forcedReactions.end(); ++itr)
+        reactions.push_back({ itr->first, uint32(itr->second) });
+
+    WorldPacket data(SMSG_SET_FORCED_REACTIONS, 1 + reactions.size() * 8);
+    if (!MopReputationPackets::BuildForcedReactions(data, reactions))
     {
-        data << uint32(itr->first);                         // faction_id (Faction.dbc)
-        data << uint32(itr->second);                        // reputation rank
+        sLog.outError("SMSG_SET_FORCED_REACTIONS cannot encode %u entries; 5.4.8 supports at most 3",
+            uint32(reactions.size()));
+        return;
     }
     m_player->SendDirectMessage(&data);
 }

@@ -518,7 +518,7 @@ void Player::SendCorpseReclaimDelay(bool load)
     }
 
     //! corpse reclaim delay 30 * 1000ms or longer at often deaths
-    WorldPacket data(SMSG_CORPSE_RECLAIM_DELAY, 4);
-    data << uint32(delay * IN_MILLISECONDS);
+    WorldPacket data(SMSG_CORPSE_RECLAIM_DELAY, 5);
+    MopDeathPackets::BuildCorpseReclaimDelay(data, delay * IN_MILLISECONDS);
     GetSession()->SendPacket(&data);
 }

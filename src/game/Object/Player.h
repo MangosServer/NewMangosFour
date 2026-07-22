@@ -423,6 +423,25 @@ namespace MopInitialPackets
         out.WriteBit(abrupt);
         out.FlushBits();
     }
+
+    inline void BuildMotd(WorldPacket& out,
+        std::vector<std::string> const& lines)
+    {
+        size_t const count = lines.size() > 15 ? 15 : lines.size();
+        out.WriteBits(uint32(count), 4);
+        for (size_t i = 0; i < count; ++i)
+        {
+            size_t const length = lines[i].size() > 127 ? 127 : lines[i].size();
+            out.WriteBits(uint32(length), 7);
+        }
+        out.FlushBits();
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            size_t const length = lines[i].size() > 127 ? 127 : lines[i].size();
+            out.append(lines[i].c_str(), length);
+        }
+    }
 }
 
 namespace MopDeathPackets
@@ -432,6 +451,37 @@ namespace MopDeathPackets
     {
         out.Initialize(SMSG_DEATH_RELEASE_LOC, 16);
         out << mapId << y << x << z;
+    }
+
+    inline void BuildCorpseReclaimDelay(WorldPacket& out, uint32 delayMs)
+    {
+        bool const hasNoDelay = delayMs == 0;
+        out.WriteBit(hasNoDelay);
+        out.FlushBits();
+        if (!hasNoDelay)
+            out << delayMs;
+    }
+}
+
+namespace MopReputationPackets
+{
+    struct ForcedReaction
+    {
+        uint32 faction;
+        uint32 rank;
+    };
+
+    inline bool BuildForcedReactions(WorldPacket& out,
+        std::vector<ForcedReaction> const& reactions)
+    {
+        if (reactions.size() > 3)
+            return false;
+
+        out.WriteBits(uint32(reactions.size()), 2);
+        out.FlushBits();
+        for (ForcedReaction const& reaction : reactions)
+            out << reaction.faction << reaction.rank;
+        return true;
     }
 }
 

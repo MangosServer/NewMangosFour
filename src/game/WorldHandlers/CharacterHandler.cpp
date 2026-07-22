@@ -858,10 +858,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     // Send MOTD
     {
-        data.Initialize(SMSG_MOTD, 50);                     // new in 2.0.1
-        data << (uint32)0;
-
-        uint32 linecount = 0;
+        std::vector<std::string> lines;
         /* The MOTD itself */
         std::string str_motd = sWorld.GetMotd();
         /* Used for tracking our position within the MOTD while iterating through it */
@@ -869,28 +866,21 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
         /* Find the next occurance of @ in the string
          * This is how newlines are represented */
-        while ((nextpos = str_motd.find('@', pos)) != std::string::npos)
+        while (lines.size() < 15 && (nextpos = str_motd.find('@', pos)) != std::string::npos)
         {
             /* If these are not equal, it means a '@' was found
              * These are used to represent newlines in the string
              * It is set by the code above here */
             if (nextpos != pos)
-            {
-                /* Send the player a system message containing the substring from pos to nextpos - pos */
-                data << str_motd.substr(pos, nextpos - pos);
-                ++linecount;
-            }
+                lines.push_back(str_motd.substr(pos, nextpos - pos));
             pos = nextpos + 1;
         }
         /* There are no more newlines in our MOTD, so we send whatever is left */
-        if (pos < str_motd.length())
-        {
-            data << str_motd.substr(pos);
-            ++linecount;
-        }
+        if (lines.size() < 15 && pos < str_motd.length())
+            lines.push_back(str_motd.substr(pos));
 
-        data.put(0, linecount);
-
+        data.Initialize(SMSG_MOTD, str_motd.size() + 3);
+        MopInitialPackets::BuildMotd(data, lines);
         SendPacket(&data);
         DEBUG_LOG("WORLD: Sent motd (SMSG_MOTD)");
     }

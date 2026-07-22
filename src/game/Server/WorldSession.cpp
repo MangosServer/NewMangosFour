@@ -282,6 +282,9 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_TIME_SYNC_REQ:                   // one uint32 counter; client reader sub_6D9F28
         case SMSG_TRIGGER_CINEMATIC:               // one uint32 sequence; dynamic handler sub_7AD161
         case SMSG_WORLD_SERVER_INFO:               // four presence bits + minimal fixed fields; sub_6F470B
+        case SMSG_MOTD:                            // 4-bit count, 7-bit lengths, raw strings; sub_75B75A
+        case SMSG_CORPSE_RECLAIM_DELAY:            // no-delay bit plus optional uint32 milliseconds; sub_6D7781
+        case SMSG_SET_FORCED_REACTIONS:            // 2-bit count plus uint32 pairs; sub_72C708
         case SMSG_CLIENT_CONTROL_UPDATE:           // MopControlPackets::BuildClientControlUpdate
         case SMSG_MOVE_SET_ACTIVE_MOVER:           // MopControlPackets::BuildSetActiveMover
         case SMSG_PLAYER_MOVE:                     // MovementInfo relay serializer

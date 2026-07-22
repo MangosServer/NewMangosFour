@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdio>
+#include <string>
 #include <vector>
 
 static int g_fail = 0;
@@ -309,6 +310,50 @@ static void test_weather()
     }
 }
 
+static void test_motd()
+{
+    WorldPacket packet(SMSG_MOTD, 6);
+    MopInitialPackets::BuildMotd(packet, { "Hi", "A" });
+    CHECK(ExpectBytes(packet, { 0x20, 0x40, 0x40, 0x48, 0x69, 0x41 }));
+}
+
+static void test_corpse_reclaim_delay()
+{
+    {
+        WorldPacket packet(SMSG_CORPSE_RECLAIM_DELAY, 5);
+        MopDeathPackets::BuildCorpseReclaimDelay(packet, 0x11223344u);
+        CHECK(ExpectBytes(packet, { 0x00, 0x44, 0x33, 0x22, 0x11 }));
+    }
+    {
+        WorldPacket packet(SMSG_CORPSE_RECLAIM_DELAY, 1);
+        MopDeathPackets::BuildCorpseReclaimDelay(packet, 0);
+        CHECK(ExpectBytes(packet, { 0x80 }));
+    }
+}
+
+static void test_forced_reactions()
+{
+    {
+        WorldPacket packet(SMSG_SET_FORCED_REACTIONS, 17);
+        std::vector<MopReputationPackets::ForcedReaction> reactions = {
+            { 0x11223344u, 0x55667788u },
+            { 0xA1B2C3D4u, 0x10203040u }
+        };
+        CHECK(MopReputationPackets::BuildForcedReactions(packet, reactions));
+        CHECK(ExpectBytes(packet, {
+            0x80,
+            0x44, 0x33, 0x22, 0x11, 0x88, 0x77, 0x66, 0x55,
+            0xD4, 0xC3, 0xB2, 0xA1, 0x40, 0x30, 0x20, 0x10
+        }));
+    }
+    {
+        WorldPacket packet(SMSG_SET_FORCED_REACTIONS, 1);
+        std::vector<MopReputationPackets::ForcedReaction> reactions(4);
+        CHECK(!MopReputationPackets::BuildForcedReactions(packet, reactions));
+        CHECK(packet.empty());
+    }
+}
+
 static void test_opcode_values_are_framable()
 {
     struct ExpectedOpcode { uint32_t actual; uint32_t expected; };
@@ -325,7 +370,10 @@ static void test_opcode_values_are_framable()
         { uint32_t(SMSG_BINDER_CONFIRM), 0x1287u },
         { uint32_t(SMSG_PLAYERBOUND), 0x088Eu },
         { uint32_t(SMSG_SET_PROFICIENCY), 0x1440u },
-        { uint32_t(SMSG_WEATHER), 0x06ABu }
+        { uint32_t(SMSG_WEATHER), 0x06ABu },
+        { uint32_t(SMSG_MOTD), 0x183Bu },
+        { uint32_t(SMSG_CORPSE_RECLAIM_DELAY), 0x022Au },
+        { uint32_t(SMSG_SET_FORCED_REACTIONS), 0x068Fu }
     };
 
     for (ExpectedOpcode const& value : values)
@@ -350,6 +398,9 @@ int main(int /*argc*/, char** /*argv*/)
     test_player_bound();
     test_set_proficiency();
     test_weather();
+    test_motd();
+    test_corpse_reclaim_delay();
+    test_forced_reactions();
     test_opcode_values_are_framable();
 
     if (g_fail)
