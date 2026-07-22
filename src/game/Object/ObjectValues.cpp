@@ -461,6 +461,11 @@ bool Object::PrintEntryError(char const* descr) const
  */
 void Object::BuildUpdateDataForPlayer(Player* pl, UpdateDataMapType& update_players)
 {
+    if (GetTypeId() != TYPEID_UNIT)
+    {
+        return;
+    }
+
     UpdateDataMapType::iterator iter = update_players.find(pl);
 
     if (iter == update_players.end())

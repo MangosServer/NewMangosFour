@@ -105,7 +105,7 @@ void VisibleNotifier::Notify()
         // send create/outofrange packet to player (except player create updates that already sent using SendUpdateToPlayer)
         WorldPacket packet;
         i_data.BuildPacket(&packet);
-        player.GetSession()->SendPacket(&packet);
+        player.GetSession()->SendPacket(&packet, true);
 
         // send out of range to other players if need
         GuidSet const& oor = i_data.GetOutOfRangeGUIDs();

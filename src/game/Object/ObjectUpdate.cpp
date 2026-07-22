@@ -51,6 +51,8 @@
 #include "CreatureLinkingMgr.h"
 #include "Chat.h"
 #include "GameTime.h"
+#include "MopUpdateObject.h"
+#include <vector>
 
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
@@ -62,6 +64,101 @@
  * @file ObjectUpdate.cpp
  * @brief Cohesion split of Object.cpp -- Object update-data serialization: create/values update-block building, movement-block packing, update masks and value (de)serialization. Same Object class; no behaviour change. CMake file(GLOB Object/*.cpp) picks this file up automatically; Object.h is unchanged.
  */
+
+namespace
+{
+    void BuildMopUnitStaticFields(Object const& object, Player* target,
+        std::vector<MopUpdateObject::StaticField>& fields)
+    {
+        Unit const* unit = static_cast<Unit const*>(&object);
+        Creature* creature = const_cast<Creature*>(static_cast<Creature const*>(&object));
+        auto add = [&fields](uint16 index, uint32 value)
+        {
+            fields.push_back({ index, value });
+        };
+
+        uint32 dynamicFlags = object.GetUInt32Value(UNIT_DYNAMIC_FLAGS);
+        if (!creature->loot.isLooted() && !(dynamicFlags & UNIT_DYNFLAG_LOOTABLE))
+        {
+            creature->SetFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE);
+            dynamicFlags |= UNIT_DYNFLAG_LOOTABLE;
+        }
+        if (!target->isAllowedToLoot(creature))
+        {
+            dynamicFlags &= ~UNIT_DYNFLAG_LOOTABLE;
+        }
+        if ((dynamicFlags & UNIT_DYNFLAG_TAPPED) && target->IsTappedByMeOrMyGroup(creature))
+        {
+            dynamicFlags &= ~UNIT_DYNFLAG_TAPPED;
+        }
+
+        uint32 bytes0 = object.GetUInt32Value(UNIT_FIELD_BYTES_0);
+        uint32 unitFlags = object.GetUInt32Value(UNIT_FIELD_FLAGS);
+        if (target->isGameMaster())
+        {
+            unitFlags &= ~UNIT_FLAG_NOT_SELECTABLE;
+        }
+
+        uint32 auraState = object.GetUInt32Value(UNIT_FIELD_AURASTATE);
+        if (unit->HasAuraState(AURA_STATE_CONFLAGRATE) &&
+            !unit->HasAuraStateForCaster(AURA_STATE_CONFLAGRATE, target->GetObjectGuid()))
+        {
+            auraState &= ~(uint32(1) << (AURA_STATE_CONFLAGRATE - 1));
+        }
+
+        uint32 npcFlags = object.GetUInt32Value(UNIT_NPC_FLAGS);
+        if (!target->canSeeSpellClickOn(creature))
+        {
+            npcFlags &= ~UNIT_NPC_FLAG_SPELLCLICK;
+        }
+        if ((npcFlags & UNIT_NPC_FLAG_TRAINER) && !creature->IsTrainerOf(target, false))
+        {
+            npcFlags &= ~(UNIT_NPC_FLAG_TRAINER | UNIT_NPC_FLAG_TRAINER_CLASS | UNIT_NPC_FLAG_TRAINER_PROFESSION);
+        }
+        if ((npcFlags & UNIT_NPC_FLAG_STABLEMASTER) && target->getClass() != CLASS_HUNTER)
+        {
+            npcFlags &= ~UNIT_NPC_FLAG_STABLEMASTER;
+        }
+
+        add(0, object.GetUInt32Value(OBJECT_FIELD_GUID));
+        add(1, object.GetUInt32Value(OBJECT_FIELD_GUID + 1));
+        add(2, object.GetUInt32Value(OBJECT_FIELD_DATA));
+        add(3, object.GetUInt32Value(OBJECT_FIELD_DATA + 1));
+        add(4, object.GetUInt32Value(OBJECT_FIELD_TYPE));
+        add(5, object.GetUInt32Value(OBJECT_FIELD_ENTRY));
+        add(6, MopUpdateObject::TranslateUnitDynamicFlags(dynamicFlags));
+        add(7, object.GetUInt32Value(OBJECT_FIELD_SCALE_X));
+        add(30, MopUpdateObject::RepackUnitBytes0(bytes0));
+        add(31, (bytes0 >> 24) & 0xFFu);
+        add(32, object.GetUInt32Value(UNIT_OVERRIDE_DISPLAY_POWER_ID));
+        add(33, object.GetUInt32Value(UNIT_FIELD_HEALTH));
+        for (uint16 i = 0; i < 5; ++i) add(uint16(34 + i), object.GetUInt32Value(UNIT_FIELD_POWER1 + i));
+        add(39, object.GetUInt32Value(UNIT_FIELD_MAXHEALTH));
+        for (uint16 i = 0; i < 5; ++i) add(uint16(40 + i), object.GetUInt32Value(UNIT_FIELD_MAXPOWER1 + i));
+        add(55, object.GetUInt32Value(UNIT_FIELD_LEVEL));
+        add(57, object.GetUInt32Value(UNIT_FIELD_FACTIONTEMPLATE));
+        for (uint16 i = 0; i < 3; ++i) add(uint16(58 + i), object.GetUInt32Value(UNIT_VIRTUAL_ITEM_SLOT_ID + i));
+        add(61, unitFlags);
+        add(62, object.GetUInt32Value(UNIT_FIELD_FLAGS_2));
+        add(63, auraState);
+        add(64, uint32(std::max(0.0f, object.GetFloatValue(UNIT_FIELD_BASEATTACKTIME))));
+        add(65, uint32(std::max(0.0f, object.GetFloatValue(UNIT_FIELD_BASEATTACKTIME + 1))));
+        add(66, uint32(std::max(0.0f, object.GetFloatValue(UNIT_FIELD_RANGEDATTACKTIME))));
+        add(67, object.GetUInt32Value(UNIT_FIELD_BOUNDINGRADIUS));
+        add(68, object.GetUInt32Value(UNIT_FIELD_COMBATREACH));
+        add(69, object.GetUInt32Value(UNIT_FIELD_DISPLAYID));
+        add(70, object.GetUInt32Value(UNIT_FIELD_NATIVEDISPLAYID));
+        add(71, object.GetUInt32Value(UNIT_FIELD_MOUNTDISPLAYID));
+        add(76, object.GetUInt32Value(UNIT_FIELD_BYTES_1));
+        add(86, object.GetUInt32Value(UNIT_CREATED_BY_SPELL));
+        add(87, npcFlags);
+        add(88, object.GetUInt32Value(UNIT_NPC_FLAGS + 1));
+        add(89, object.GetUInt32Value(UNIT_NPC_EMOTESTATE));
+        add(154, object.GetUInt32Value(UNIT_FIELD_HOVERHEIGHT));
+        add(155, object.GetUInt32Value(UNIT_FIELD_MIN_ITEM_LEVEL));
+        add(156, object.GetUInt32Value(UNIT_FIELD_MAXITEMLEVEL));
+    }
+}
 
 /**
  * @brief Force immediate update transmission to all viewers
@@ -89,7 +186,7 @@ void Object::SendForcedObjectUpdate()
     for (UpdateDataMapType::iterator iter = update_players.begin(); iter != update_players.end(); ++iter)
     {
         iter->second.BuildPacket(&packet);
-        iter->first->GetSession()->SendPacket(&packet);
+        iter->first->GetSession()->SendPacket(&packet, true);
         packet.clear();                                     // clean the string
     }
 }
@@ -105,60 +202,63 @@ void Object::SendForcedObjectUpdate()
  */
 void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) const
 {
-    if (!target)
+    if (!target || !CanBuildMopCreateUpdate())
     {
         return;
     }
 
-    uint8  updatetype   = UPDATETYPE_CREATE_OBJECT;
-    uint16 updateFlags  = m_updateFlag;
+    Unit const* unit = static_cast<Unit const*>(this);
+    MopUpdateObject::SimpleLivingMovement movement{};
+    movement.guid = GetObjectGuid().GetRawValue();
+    movement.x = unit->GetPositionX();
+    movement.y = unit->GetPositionY();
+    movement.z = unit->GetPositionZ();
+    movement.o = unit->GetOrientation();
+    movement.moveTime = GameTime::GetGameTimeMS();
+    movement.speedWalk = unit->GetSpeed(MOVE_WALK);
+    movement.speedRun = unit->GetSpeed(MOVE_RUN);
+    movement.speedRunBack = unit->GetSpeed(MOVE_RUN_BACK);
+    movement.speedSwim = unit->GetSpeed(MOVE_SWIM);
+    movement.speedSwimBack = unit->GetSpeed(MOVE_SWIM_BACK);
+    movement.speedFlight = unit->GetSpeed(MOVE_FLIGHT);
+    movement.speedFlightBack = unit->GetSpeed(MOVE_FLIGHT_BACK);
+    movement.speedTurn = unit->GetSpeed(MOVE_TURN_RATE);
+    movement.speedPitch = unit->GetSpeed(MOVE_PITCH_RATE);
+    movement.self = false;
 
-    /** lower flag1 **/
-    if (target == this)                                     // building packet for yourself
-    {
-        updateFlags |= UPDATEFLAG_SELF;
-    }
-
-    if (m_itsNewObject)
-    {
-        switch (GetObjectGuid().GetHigh())
-        {
-            case HighGuid::HIGHGUID_DYNAMICOBJECT:
-            case HighGuid::HIGHGUID_CORPSE:
-            case HighGuid::HIGHGUID_PLAYER:
-            case HighGuid::HIGHGUID_UNIT:
-            case HighGuid::HIGHGUID_VEHICLE:
-            case HighGuid::HIGHGUID_GAMEOBJECT:
-                updatetype = UPDATETYPE_CREATE_OBJECT2;
-                break;
-
-            default:
-                break;
-        }
-    }
-
-    if (isType(TYPEMASK_UNIT))
-    {
-        if (((Unit*)this)->getVictim())
-        {
-            updateFlags |= UPDATEFLAG_HAS_ATTACKING_TARGET;
-        }
-    }
-
-    // DEBUG_LOG("BuildCreateUpdate: update-type: %u, object-type: %u got updateFlags: %X", updatetype, m_objectTypeId, updateFlags);
-
-    ByteBuffer& buf = data->GetBuffer();
-    buf << uint8(updatetype);
-    buf << GetPackGUID();
-    buf << uint8(m_objectTypeId);
-
-    BuildMovementUpdate(&buf, updateFlags);
-
-    UpdateMask updateMask;
-    updateMask.SetCount(m_valuesCount);
-    _SetCreateBits(&updateMask, target);
-    BuildValuesUpdate(updatetype, &buf, &updateMask, target);
+    std::vector<MopUpdateObject::StaticField> fields;
+    fields.reserve(47);
+    BuildMopUnitStaticFields(*this, target, fields);
+    MopUpdateObject::AppendSimpleLivingCreateBlock(data->GetBuffer(),
+        m_itsNewObject ? UPDATETYPE_CREATE_OBJECT2 : UPDATETYPE_CREATE_OBJECT,
+        movement.guid, m_objectTypeId, movement, fields.data(), uint32(fields.size()));
     data->AddUpdateBlock();
+}
+
+bool Object::CanBuildMopCreateUpdate() const
+{
+    if (GetTypeId() != TYPEID_UNIT)
+    {
+        return false;
+    }
+
+    Unit const* unit = static_cast<Unit const*>(this);
+    MovementInfo const& movement = unit->m_movementInfo;
+    MovementInfo::StatusInfo const& status = movement.GetStatusInfo();
+    MopUpdateObject::SimpleUnitEligibility eligibility{};
+    eligibility.isVehicle = unit->IsVehicle();
+    eligibility.isBoarded = unit->IsBoarded();
+    eligibility.hasTransport = !movement.GetTransportGuid().IsEmpty();
+    eligibility.hasSpline = unit->IsSplineEnabled();
+    eligibility.movementFlags = uint32(movement.GetMovementFlags());
+    eligibility.movementFlags2 = uint32(movement.GetMovementFlags2());
+    eligibility.hasOptionalMovement = status.hasFallData || status.hasFallDirection || status.hasOrientation ||
+        status.hasPitch || status.hasSpline || status.hasSplineElevation || status.hasTimeStamp ||
+        status.hasTransportTime2 || status.hasTransportTime3 || movement.GetUnknownBit148() ||
+        movement.GetUnknownBit149() || movement.GetUnknownBit172() || !movement.GetMovementForceIds().empty() ||
+        movement.HasUnknownUInt32();
+    eligibility.hasAttackingTarget = unit->getVictim() != NULL;
+    return MopUpdateObject::CanUseSimpleUnitMovement(eligibility);
 }
 
 /**
@@ -168,15 +268,25 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
  * Sends the create update packet to the specified player,
  * causing the object to appear in their game world.
  */
-void Object::SendCreateUpdateToPlayer(Player* player)
+bool Object::SendCreateUpdateToPlayer(Player* player)
 {
+    if (!player || !CanBuildMopCreateUpdate())
+    {
+        return false;
+    }
+
     // send create update to player
     UpdateData upd(player->GetMapId());
     WorldPacket packet;
 
     BuildCreateUpdateBlockForPlayer(&upd, player);
+    if (!upd.HasData())
+    {
+        return false;
+    }
     upd.BuildPacket(&packet);
-    player->GetSession()->SendPacket(&packet);
+    player->GetSession()->SendPacket(&packet, true);
+    return true;
 }
 
 /**
@@ -189,17 +299,16 @@ void Object::SendCreateUpdateToPlayer(Player* player)
  */
 void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player* target) const
 {
-    ByteBuffer& buf = data->GetBuffer();
+    if (!target || GetTypeId() != TYPEID_UNIT)
+    {
+        return;
+    }
 
-    buf << uint8(UPDATETYPE_VALUES);
-    buf << GetPackGUID();
-
-    UpdateMask updateMask;
-    updateMask.SetCount(m_valuesCount);
-
-    _SetUpdateBits(&updateMask, target);
-    BuildValuesUpdate(UPDATETYPE_VALUES, &buf, &updateMask, target);
-
+    std::vector<MopUpdateObject::StaticField> fields;
+    fields.reserve(47);
+    BuildMopUnitStaticFields(*this, target, fields);
+    MopUpdateObject::AppendValuesBlock(data->GetBuffer(), GetObjectGuid().GetRawValue(),
+        fields.data(), uint32(fields.size()));
     data->AddUpdateBlock();
 }
 
@@ -226,10 +335,9 @@ void Object::DestroyForPlayer(Player* target, bool anim) const
 {
     MANGOS_ASSERT(target);
 
-    WorldPacket data(SMSG_DESTROY_OBJECT, 9);
-    data << GetObjectGuid();
-    data << uint8(anim ? 1 : 0);                            // WotLK (bool), may be despawn animation
-    target->GetSession()->SendPacket(&data);
+    WorldPacket data;
+    MopUpdateObject::BuildDestroyObject(data, GetObjectGuid().GetRawValue(), anim);
+    target->GetSession()->SendPacket(&data, true);
 }
 
 /**

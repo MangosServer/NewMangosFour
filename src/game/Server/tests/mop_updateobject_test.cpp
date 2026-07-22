@@ -40,7 +40,7 @@ namespace
         e.speedWalk = 1.0f; e.speedRun = 7.0f; e.speedRunBack = 4.5f;
         e.speedSwim = 4.7222f; e.speedSwimBack = 2.5f; e.speedFlight = 7.0f;
         e.speedFlightBack = 4.5f; e.speedTurn = 3.1415f; e.speedPitch = 3.1415f;
-        e.race = 1; e.class_ = 2; e.gender = 0; e.powerType = 0;
+        e.race = 1; e.class_ = 2; e.gender = 0; e.powerType = 3;
         e.health = 100; e.maxHealth = 120;
         for (uint32 i = 0; i < MAX_STORED_POWERS; ++i) { e.power[i] = 50 + i; e.maxPower[i] = 60 + i; }
         e.level = 1; e.faction = 1; e.unitFlags = 0x00000008u;   // exercise a real unit flag through the serializer
@@ -53,6 +53,39 @@ namespace
 // ACE (dragged in via 'game') rewrites main() and requires (int, char**).
 int main(int /*argc*/, char** /*argv*/)
 {
+    CHECK(MopUpdateObject::RepackUnitBytes0(0x04030201u) == 0x03040201u);
+    CHECK(MopUpdateObject::TranslateUnitDynamicFlags(0x000000A5u) == 0x0000014Au);
+    CHECK(MopUpdateObject::TranslateUnitDynamicFlags(0xFFFF01A5u) == 0x0000014Au);
+
+    MopUpdateObject::SimpleUnitEligibility eligibility{};
+    CHECK(MopUpdateObject::CanUseSimpleUnitMovement(eligibility));
+    eligibility.isVehicle = true; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.isVehicle = false;
+    eligibility.isBoarded = true; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.isBoarded = false;
+    eligibility.hasTransport = true; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.hasTransport = false;
+    eligibility.hasSpline = true; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.hasSpline = false;
+    eligibility.movementFlags = 1; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.movementFlags = 0;
+    eligibility.movementFlags2 = 1; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.movementFlags2 = 0;
+    eligibility.hasOptionalMovement = true; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.hasOptionalMovement = false;
+    eligibility.hasAttackingTarget = true; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility));
+
+    {
+        WorldPacket destroy;
+        MopUpdateObject::BuildDestroyObject(destroy, 0x0807060504030201ULL, false);
+        const uint8 expected[] = { 0xF7, 0x80, 0x00, 0x04, 0x09, 0x02, 0x06, 0x05, 0x03, 0x07 };
+        CHECK(destroy.GetOpcode() == SMSG_DESTROY_OBJECT);
+        CHECK(destroy.size() == sizeof(expected));
+        CHECK(destroy.size() == sizeof(expected) && std::memcmp(destroy.contents(), expected, sizeof(expected)) == 0);
+
+        WorldPacket animatedDestroy;
+        MopUpdateObject::BuildDestroyObject(animatedDestroy, 0x0807060504030201ULL, true);
+        uint8 animatedExpected[sizeof(expected)];
+        std::memcpy(animatedExpected, expected, sizeof(expected));
+        animatedExpected[0] = 0xFF;
+        CHECK(animatedDestroy.size() == sizeof(animatedExpected));
+        CHECK(animatedDestroy.size() == sizeof(animatedExpected) &&
+            std::memcmp(animatedDestroy.contents(), animatedExpected, sizeof(animatedExpected)) == 0);
+    }
+
     // Binary-proved 18414 static-values grammar: minimal word count, mask words,
     // values in ascending field order, then the zero dynamic-field terminator.
     {
@@ -84,7 +117,7 @@ int main(int /*argc*/, char** /*argv*/)
     }
 
     // Binary-proved stationary game-object movement subset: only the top-level
-    // rotation and stationary-position bits, followed by XYZO and rotation64.
+    // rotation and stationary-position bits, followed by YZOX and rotation64.
     {
         MopUpdateObject::StationaryGameObjectMovement movement{};
         movement.x = 1.0f;
@@ -101,10 +134,10 @@ int main(int /*argc*/, char** /*argv*/)
         CHECK(bytes.size() >= sizeof(expectedBits) && std::memcmp(bytes.contents(), expectedBits, sizeof(expectedBits)) == 0);
 
         bytes.rpos(sizeof(expectedBits));
-        float x, y, z, o;
+        float y, z, o, x;
         uint64 rotation;
-        bytes >> x >> y >> z >> o >> rotation;
-        CHECK(x == movement.x); CHECK(y == movement.y); CHECK(z == movement.z); CHECK(o == movement.o);
+        bytes >> y >> z >> o >> x >> rotation;
+        CHECK(y == movement.y); CHECK(z == movement.z); CHECK(o == movement.o); CHECK(x == movement.x);
         CHECK(rotation == movement.rotation);
         CHECK(bytes.rpos() == bytes.size());
     }
@@ -135,6 +168,33 @@ int main(int /*argc*/, char** /*argv*/)
     {
         const uint8 delta = selfMovement.contents()[i] ^ creatureMovement.contents()[i];
         CHECK(delta == (i == 4 ? 0x40 : 0x00));
+    }
+
+    {
+        const MopUpdateObject::StaticField fields[] =
+        {
+            { 0, 0xAABBCCDDu },
+            { 7, 0x3F800000u },
+        };
+
+        ByteBuffer create;
+        MopUpdateObject::AppendSimpleLivingCreateBlock(create, 2, e.guid, 3, living,
+            fields, sizeof(fields) / sizeof(fields[0]));
+
+        ByteBuffer expected;
+        expected << uint8(2) << uint8(0x01) << uint8(0x10) << uint8(3);
+        expected.append(creatureMovement);
+        MopUpdateObject::AppendStaticValuesNoDynamic(expected, fields, sizeof(fields) / sizeof(fields[0]));
+        CHECK(create.size() == expected.size());
+        CHECK(create.size() == expected.size() && std::memcmp(create.contents(), expected.contents(), expected.size()) == 0);
+
+        ByteBuffer values;
+        MopUpdateObject::AppendValuesBlock(values, e.guid, fields, sizeof(fields) / sizeof(fields[0]));
+        expected.clear();
+        expected << uint8(0) << uint8(0x01) << uint8(0x10);
+        MopUpdateObject::AppendStaticValuesNoDynamic(expected, fields, sizeof(fields) / sizeof(fields[0]));
+        CHECK(values.size() == expected.size());
+        CHECK(values.size() == expected.size() && std::memcmp(values.contents(), expected.contents(), expected.size()) == 0);
     }
 
     WorldPacket p;
@@ -193,7 +253,7 @@ int main(int /*argc*/, char** /*argv*/)
     CHECK(f[0] == 16u);                                        // OBJECT_FIELD_GUID low
     CHECK(f[1] == 0u);                                         // OBJECT_FIELD_GUID high
     CHECK(f[2] == 25u);                                        // OBJECT_FIELD_TYPE
-    CHECK(f[4] == (1u | (2u << 8) | (0u << 24)));              // SEX: race|class|gender
+    CHECK(f[4] == (1u | (2u << 8) | (uint32(e.powerType) << 16) | (0u << 24))); // SEX: race|class|power|gender
     CHECK(f[6] == 100u);                                       // HEALTH (idx 33)
     CHECK(f[7] == 50u);                                        // POWER1 (idx 34)
     CHECK(f[11] == 54u);                                       // POWER5 (idx 38)

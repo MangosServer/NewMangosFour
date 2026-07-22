@@ -3258,7 +3258,7 @@ void Map::SendObjectUpdates()
     for (UpdateDataMapType::iterator iter = update_players.begin(); iter != update_players.end(); ++iter)
     {
         iter->second.BuildPacket(&packet);
-        iter->first->GetSession()->SendPacket(&packet);
+        iter->first->GetSession()->SendPacket(&packet, true);
         packet.clear();                                     // clean the string
     }
 }

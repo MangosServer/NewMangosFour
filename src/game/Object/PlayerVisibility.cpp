@@ -220,11 +220,11 @@ void Player::UpdateVisibilityOf(WorldObject const* viewPoint, WorldObject* targe
     {
         if (target->IsVisibleForInState(this, viewPoint, false))
         {
-            target->SendCreateUpdateToPlayer(this);
-            if (target->GetTypeId() != TYPEID_GAMEOBJECT || !((GameObject*)target)->IsTransport())
+            if (!target->SendCreateUpdateToPlayer(this))
             {
-                m_clientGUIDs.insert(target->GetObjectGuid());
+                return;
             }
+            m_clientGUIDs.insert(target->GetObjectGuid());
 
             DEBUG_FILTER_LOG(LOG_FILTER_VISIBILITY_CHANGES, "UpdateVisibilityOf: %s is visible now for player %u. Distance = %f", target->GetGuidStr().c_str(), GetGUIDLow(), GetDistance(target));
 
@@ -274,8 +274,19 @@ void Player::UpdateVisibilityOf(WorldObject const* viewPoint, T* target, UpdateD
     {
         if (target->IsVisibleForInState(this, viewPoint, false))
         {
-            visibleNow.insert(target);
+            if (!target->CanBuildMopCreateUpdate())
+            {
+                return;
+            }
+
+            uint32 const previousBlockCount = data.GetBlockCount();
             target->BuildCreateUpdateBlockForPlayer(&data, this);
+            if (data.GetBlockCount() == previousBlockCount)
+            {
+                return;
+            }
+
+            visibleNow.insert(target);
             UpdateVisibilityOf_helper(m_clientGUIDs, target);
 
             DEBUG_FILTER_LOG(LOG_FILTER_VISIBILITY_CHANGES, "UpdateVisibilityOf(TemplateV): %s is visible now for %s. Distance = %f", target->GetGuidStr().c_str(), GetGuidStr().c_str(), GetDistance(target));

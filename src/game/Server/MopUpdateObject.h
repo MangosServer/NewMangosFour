@@ -1,18 +1,15 @@
 /*
- * MaNGOS Four — MoP 5.4.8.18414 SMSG_UPDATE_OBJECT self-player CREATE block.
+ * MaNGOS Four — MoP 5.4.8.18414 object-update protocol primitives.
  *
- * Dedicated 18414 serializer for the login self-create (Phase 6b). The inherited
- * ObjectUpdate.cpp writer is a pre-18414 layout and cannot be read by an
- * 18414 client; this builds the confirmed 18414 create-block instead. Scope for
- * this pass is the "essential-field bootstrap" — the minimal field set for the
- * client to leave the loading screen and stand in the world; the full field set
- * follows once the machinery is live-verified.
+ * The inherited ObjectUpdate.cpp writer is a pre-18414 layout and cannot be
+ * read by an 18414 client. This module owns the shared, binary-proved wire
+ * grammar; gameplay code selects eligible objects and supplies semantic fields.
  *
  * The common header, block dispatch, classic packed GUID, static-values tail,
- * simple living movement and stationary game-object movement were recovered
- * from the 32-bit 18414 client reader. The self-player subset is additionally
- * live-client validated. Optional movement and dynamic-field branches remain
- * outside this serializer until recovered and tested separately.
+ * simple living movement, stationary game-object movement, values tail and
+ * destroy body were recovered from the 32-bit 18414 client reader. The
+ * self-player subset is additionally live-client validated. Optional movement
+ * and dynamic-field branches remain outside this serializer until recovered.
  */
 #ifndef MANGOS_MOP_UPDATE_OBJECT_H
 #define MANGOS_MOP_UPDATE_OBJECT_H
@@ -34,6 +31,29 @@ namespace MopUpdateObject
     /// Append the byte-aligned 18414 static-field mask and values followed by
     /// the zero dynamic-field terminator. Fields must be ordered by index.
     void AppendStaticValuesNoDynamic(ByteBuffer& out, StaticField const* fields, uint32 fieldCount);
+
+    /// Convert the legacy [race,class,gender,power] packed value to the 18414
+    /// [race,class,power,gender] layout.
+    uint32 RepackUnitBytes0(uint32 legacyBytes0);
+
+    /// Translate the eight defined legacy Unit dynamic flags past the 18414
+    /// DISABLE_CLIENT_SIDE bit. Unknown legacy bits are deliberately dropped.
+    uint32 TranslateUnitDynamicFlags(uint32 legacyFlags);
+
+    struct SimpleUnitEligibility
+    {
+        bool isVehicle;
+        bool isBoarded;
+        bool hasTransport;
+        bool hasSpline;
+        uint32 movementFlags;
+        uint32 movementFlags2;
+        bool hasOptionalMovement;
+        bool hasAttackingTarget;
+    };
+
+    /// True only when the proved narrow LIVING layout can represent the Unit.
+    bool CanUseSimpleUnitMovement(SimpleUnitEligibility const& eligibility);
 
     struct StationaryGameObjectMovement
     {
@@ -70,6 +90,16 @@ namespace MopUpdateObject
 
     /// Append the proved no-flags/no-transport/no-fall/no-spline living subset.
     void AppendSimpleLivingMovement(ByteBuffer& out, SimpleLivingMovement const& movement);
+
+    /// Append one complete simple-living CREATE block to an UpdateData buffer.
+    void AppendSimpleLivingCreateBlock(ByteBuffer& out, uint8 updateType, uint64 guid, uint8 typeId,
+        SimpleLivingMovement const& movement, StaticField const* fields, uint32 fieldCount);
+
+    /// Append one complete VALUES block to an UpdateData buffer.
+    void AppendValuesBlock(ByteBuffer& out, uint64 guid, StaticField const* fields, uint32 fieldCount);
+
+    /// Build the complete 18414 SMSG_DESTROY_OBJECT body.
+    void BuildDestroyObject(WorldPacket& out, uint64 guid, bool animation);
 
     /// Everything the essential self-create block needs, pulled from the Player
     /// via semantic accessors at the call site (so this stays decoupled from

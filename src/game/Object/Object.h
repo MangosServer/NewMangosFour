@@ -314,7 +314,8 @@ class Object
         bool isType(TypeMask mask) const { return (mask & m_objectType); }
 
         virtual void BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) const;
-        void SendCreateUpdateToPlayer(Player* player);
+        bool CanBuildMopCreateUpdate() const;
+        bool SendCreateUpdateToPlayer(Player* player);
 
         // must be overwrite in appropriate subclasses (WorldObject, Item currently), or will crash
         virtual void AddToClientUpdateList();

@@ -1,5 +1,5 @@
 /*
- * MaNGOS Four — MoP 5.4.8.18414 SMSG_UPDATE_OBJECT self-player CREATE block.
+ * MaNGOS Four — MoP 5.4.8.18414 object-update protocol primitives.
  * See MopUpdateObject.h. Layout transcribed (MaNGOS idiom, no code lift) from the
  * confirmed 18414 movement/values structure.
  */
@@ -16,7 +16,7 @@ namespace
     inline uint32 FloatBits(float f) { uint32 u; std::memcpy(&u, &f, 4); return u; }
 
     // Classic pack-guid (mask byte + present bytes), as used in the CREATE preamble.
-    void AppendPackedGuid(WorldPacket& out, uint64 guid)
+    void AppendPackedGuid(ByteBuffer& out, uint64 guid)
     {
         uint8 mask = 0;
         uint8 bytes[8];
@@ -36,6 +36,25 @@ namespace
             out.append(bytes, n);
         }
     }
+}
+
+uint32 MopUpdateObject::RepackUnitBytes0(uint32 legacyBytes0)
+{
+    return (legacyBytes0 & 0x0000FFFFu) |
+        ((legacyBytes0 & 0xFF000000u) >> 8) |
+        ((legacyBytes0 & 0x00FF0000u) << 8);
+}
+
+uint32 MopUpdateObject::TranslateUnitDynamicFlags(uint32 legacyFlags)
+{
+    return (legacyFlags & 0x000000FFu) << 1;
+}
+
+bool MopUpdateObject::CanUseSimpleUnitMovement(SimpleUnitEligibility const& eligibility)
+{
+    return !eligibility.isVehicle && !eligibility.isBoarded && !eligibility.hasTransport &&
+        !eligibility.hasSpline && eligibility.movementFlags == 0 && eligibility.movementFlags2 == 0 &&
+        !eligibility.hasOptionalMovement && !eligibility.hasAttackingTarget;
 }
 
 void MopUpdateObject::AppendStaticValuesNoDynamic(ByteBuffer& out, StaticField const* fields, uint32 fieldCount)
@@ -95,7 +114,7 @@ void MopUpdateObject::AppendStationaryGameObjectMovement(ByteBuffer& out, Statio
     out.WriteBit(1);                 // stationary position follows
     out.FlushBits();
 
-    out << movement.x << movement.y << movement.z << movement.o;
+    out << movement.y << movement.z << movement.o << movement.x;
     out << movement.rotation;
 }
 
@@ -174,6 +193,53 @@ void MopUpdateObject::AppendSimpleLivingMovement(ByteBuffer& out, SimpleLivingMo
     out << movement.z;
 }
 
+void MopUpdateObject::AppendSimpleLivingCreateBlock(ByteBuffer& out, uint8 updateType, uint64 guid, uint8 typeId,
+    SimpleLivingMovement const& movement, StaticField const* fields, uint32 fieldCount)
+{
+    MANGOS_ASSERT(movement.guid == guid);
+    out << updateType;
+    AppendPackedGuid(out, guid);
+    out << typeId;
+    AppendSimpleLivingMovement(out, movement);
+    AppendStaticValuesNoDynamic(out, fields, fieldCount);
+}
+
+void MopUpdateObject::AppendValuesBlock(ByteBuffer& out, uint64 guid, StaticField const* fields, uint32 fieldCount)
+{
+    out << uint8(0);
+    AppendPackedGuid(out, guid);
+    AppendStaticValuesNoDynamic(out, fields, fieldCount);
+}
+
+void MopUpdateObject::BuildDestroyObject(WorldPacket& out, uint64 guid, bool animation)
+{
+    const uint8 bytes[8] =
+    {
+        GuidByte(guid, 0), GuidByte(guid, 1), GuidByte(guid, 2), GuidByte(guid, 3),
+        GuidByte(guid, 4), GuidByte(guid, 5), GuidByte(guid, 6), GuidByte(guid, 7),
+    };
+
+    out.Initialize(SMSG_DESTROY_OBJECT, 10);
+    out.WriteBit(bytes[3] != 0);
+    out.WriteBit(bytes[2] != 0);
+    out.WriteBit(bytes[4] != 0);
+    out.WriteBit(bytes[1] != 0);
+    out.WriteBit(animation);
+    out.WriteBit(bytes[7] != 0);
+    out.WriteBit(bytes[0] != 0);
+    out.WriteBit(bytes[6] != 0);
+    out.WriteBit(bytes[5] != 0);
+    out.FlushBits();
+    out.WriteByteSeq(bytes[0]);
+    out.WriteByteSeq(bytes[4]);
+    out.WriteByteSeq(bytes[7]);
+    out.WriteByteSeq(bytes[2]);
+    out.WriteByteSeq(bytes[6]);
+    out.WriteByteSeq(bytes[3]);
+    out.WriteByteSeq(bytes[1]);
+    out.WriteByteSeq(bytes[5]);
+}
+
 void MopUpdateObject::BuildSelfCreate(WorldPacket& out, const SelfPlayer& e)
 {
     out.Initialize(SMSG_UPDATE_OBJECT);
@@ -181,11 +247,6 @@ void MopUpdateObject::BuildSelfCreate(WorldPacket& out, const SelfPlayer& e)
     // ---- packet header ----
     out << uint16(e.mapId);
     out << uint32(1);                    // one update block, no out-of-range section
-
-    // ---- CREATE block preamble ----
-    out << uint8(2);                     // UPDATETYPE_CREATE_OBJECT2
-    AppendPackedGuid(out, e.guid);
-    out << uint8(4);                     // TYPEID_PLAYER
 
     SimpleLivingMovement movement{};
     movement.guid = e.guid;
@@ -204,11 +265,10 @@ void MopUpdateObject::BuildSelfCreate(WorldPacket& out, const SelfPlayer& e)
     movement.speedTurn = e.speedTurn;
     movement.speedPitch = e.speedPitch;
     movement.self = true;
-    AppendSimpleLivingMovement(out, movement);
-
     // ---- values block (essential 18414 fields, ascending index order) ----
-    // UNIT_FIELD_SEX (renamed BYTES_0): byte0 race, byte1 class, byte3 gender.
-    const uint32 sex = uint32(e.race) | (uint32(e.class_) << 8) | (uint32(e.gender) << 24);
+    // UNIT_FIELD_SEX (renamed BYTES_0): race, class, power type, gender.
+    const uint32 sex = uint32(e.race) | (uint32(e.class_) << 8) |
+        (uint32(e.powerType) << 16) | (uint32(e.gender) << 24);
 
     const StaticField fields[] =
     {
@@ -238,5 +298,6 @@ void MopUpdateObject::BuildSelfCreate(WorldPacket& out, const SelfPlayer& e)
         { 69, e.displayId },                    // UNIT_FIELD_DISPLAY_ID (+0x3D)
         { 70, e.nativeDisplayId },              // UNIT_FIELD_NATIVE_DISPLAY_ID (+0x3E)
     };
-    AppendStaticValuesNoDynamic(out, fields, uint32(sizeof(fields) / sizeof(fields[0])));
+    AppendSimpleLivingCreateBlock(out, 2, e.guid, 4, movement, fields,
+        uint32(sizeof(fields) / sizeof(fields[0])));
 }
