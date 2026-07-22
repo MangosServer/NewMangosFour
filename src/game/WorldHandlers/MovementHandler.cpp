@@ -524,12 +524,13 @@ void WorldSession::HandleForceSpeedChangeAckOpcodes(WorldPacket& recv_data)
 void WorldSession::HandleSetActiveMoverOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: Received opcode CMSG_SET_ACTIVE_MOVER");
-    recv_data.hexlike();
-
-    ObjectGuid guid;
-
-    recv_data.WriteGuidMask<7, 2, 1, 0, 4, 5, 6, 3>(guid);
-    recv_data.WriteGuidBytes<3, 2, 4, 0, 5, 1, 6, 7>(guid);
+    MopControlPackets::ActiveMoverRequest request;
+    if (!MopControlPackets::ReadSetActiveMover(recv_data, request))
+    {
+        sLog.outError("HandleSetActiveMoverOpcode: malformed mover guid");
+        return;
+    }
+    ObjectGuid guid(request.moverGuid);
 
     if (_player->GetMover()->GetObjectGuid() != guid)
     {

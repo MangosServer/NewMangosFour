@@ -88,18 +88,60 @@ static void test_set_active_mover()
     }
 }
 
+static void test_client_move_time_skipped()
+{
+    ObjectGuid guid(0x8070605040302010ull);
+    WorldPacket packet(CMSG_MOVE_TIME_SKIPPED, 13);
+    packet << uint32(0x11223344u);
+    packet.WriteGuidMask<5, 0, 7, 4, 1, 2, 6, 3>(guid);
+    packet.FlushBits();
+    packet.WriteGuidBytes<7, 2, 0, 6, 1, 5, 3, 4>(guid);
+
+    MopControlPackets::MoveTimeSkippedRequest request =
+        MopControlPackets::ReadMoveTimeSkipped(packet);
+    CHECK(request.timeSkipped == 0x11223344u);
+    CHECK(request.moverGuid == guid.GetRawValue());
+    CHECK(packet.rpos() == packet.size());
+}
+
+static void test_client_set_active_mover()
+{
+    ObjectGuid guid(0x8070605040302010ull);
+    WorldPacket packet(CMSG_SET_ACTIVE_MOVER, 10);
+    packet.WriteBit(false); // GUID is not zero
+    packet.WriteGuidMask<3, 0, 2, 1, 5, 4, 7, 6>(guid);
+    packet.FlushBits();
+    packet.WriteGuidBytes<3, 4, 5, 2, 7, 0, 1, 6>(guid);
+
+    MopControlPackets::ActiveMoverRequest request;
+    CHECK(MopControlPackets::ReadSetActiveMover(packet, request));
+    CHECK(request.moverGuid == guid.GetRawValue());
+    CHECK(packet.rpos() == packet.size());
+
+    WorldPacket malformed(CMSG_SET_ACTIVE_MOVER, 2);
+    malformed.WriteBit(false); // says nonzero, but all GUID mask bits are clear
+    for (uint8 i = 0; i < 8; ++i)
+        malformed.WriteBit(false);
+    malformed.FlushBits();
+    CHECK(!MopControlPackets::ReadSetActiveMover(malformed, request));
+}
+
 static void test_opcode_values_are_framable()
 {
     CHECK(uint32_t(SMSG_CLIENT_CONTROL_UPDATE) == 0x1043u);
     CHECK(uint32_t(SMSG_MOVE_SET_ACTIVE_MOVER) == 0x0C6Du);
     CHECK(uint32_t(SMSG_CLIENT_CONTROL_UPDATE) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_MOVE_SET_ACTIVE_MOVER) <= 0x1FFFu);
+    CHECK(uint32_t(CMSG_MOVE_TIME_SKIPPED) == 0x0150u);
+    CHECK(uint32_t(CMSG_SET_ACTIVE_MOVER) == 0x09F0u);
 }
 
 int main(int /*argc*/, char** /*argv*/)
 {
     test_client_control_update();
     test_set_active_mover();
+    test_client_move_time_skipped();
+    test_client_set_active_mover();
     test_opcode_values_are_framable();
 
     if (g_fail)

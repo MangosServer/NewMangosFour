@@ -1169,11 +1169,9 @@ void WorldSession::HandleMoveTimeSkippedOpcode(WorldPacket& recv_data)
     /*  WorldSession::Update( WorldTimer::getMSTime() );*/
     DEBUG_LOG("WORLD: Received opcode CMSG_MOVE_TIME_SKIPPED");
 
-    ObjectGuid guid;
-
-    recv_data >> Unused<uint32>();
-    recv_data.ReadGuidMask<5, 1, 3, 7, 6, 0, 4, 2>(guid);
-    recv_data.ReadGuidBytes<7, 1, 2, 4, 3, 6, 0, 5>(guid);
+    MopControlPackets::MoveTimeSkippedRequest const request =
+        MopControlPackets::ReadMoveTimeSkipped(recv_data);
+    (void)request;
 
     /*
         ObjectGuid guid;

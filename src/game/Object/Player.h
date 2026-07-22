@@ -237,6 +237,17 @@ namespace MopCharEnum
 
 namespace MopControlPackets
 {
+    struct MoveTimeSkippedRequest
+    {
+        uint32 timeSkipped = 0;
+        uint64 moverGuid = 0;
+    };
+
+    struct ActiveMoverRequest
+    {
+        uint64 moverGuid = 0;
+    };
+
     inline uint8 GuidByte(uint64 guid, uint8 index)
     {
         return uint8(guid >> (8 * index));
@@ -280,6 +291,31 @@ namespace MopControlPackets
         WriteGuidMask(out, guid, mask);
         out.FlushBits();
         WriteGuidBytes(out, guid, bytes);
+    }
+
+    inline MoveTimeSkippedRequest ReadMoveTimeSkipped(WorldPacket& in)
+    {
+        MoveTimeSkippedRequest request;
+        ObjectGuid guid;
+        in >> request.timeSkipped;
+        in.ReadGuidMask<5, 0, 7, 4, 1, 2, 6, 3>(guid);
+        in.ReadGuidBytes<7, 2, 0, 6, 1, 5, 3, 4>(guid);
+        request.moverGuid = guid.GetRawValue();
+        return request;
+    }
+
+    inline bool ReadSetActiveMover(WorldPacket& in, ActiveMoverRequest& request)
+    {
+        request.moverGuid = 0;
+        bool const guidIsZero = in.ReadBit();
+        ObjectGuid guid;
+        in.ReadGuidMask<3, 0, 2, 1, 5, 4, 7, 6>(guid);
+        in.ReadGuidBytes<3, 4, 5, 2, 7, 0, 1, 6>(guid);
+        if (guidIsZero != guid.IsEmpty())
+            return false;
+
+        request.moverGuid = guid.GetRawValue();
+        return true;
     }
 }
 

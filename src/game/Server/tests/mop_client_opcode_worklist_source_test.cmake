@@ -3,6 +3,7 @@ file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/MiscHandler.cpp" misc)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/ChannelHandler.cpp" channel)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CharacterHandlerCustomize.cpp" character)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/ItemHandler.cpp" item)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/MovementHandler.cpp" movement)
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" session)
 
 foreach(route IN ITEMS
@@ -11,6 +12,16 @@ foreach(route IN ITEMS
         "CMSG_CANCEL_TRADE;HandleCancelTradeOpcode"
         "CMSG_UI_TIME_REQUEST;HandleUITimeRequestOpcode"
         "CMSG_LOAD_SCREEN;HandleLoadScreenOpcode")
+    list(GET route 0 opcode)
+    list(GET route 1 handler)
+    if(NOT opcodes MATCHES "DefC\\(${opcode},[^\n]*&WorldSession::${handler}\\)")
+        message(FATAL_ERROR "${opcode} is not registered to ${handler}")
+    endif()
+endforeach()
+
+foreach(route IN ITEMS
+        "CMSG_MOVE_TIME_SKIPPED;HandleMoveTimeSkippedOpcode"
+        "CMSG_SET_ACTIVE_MOVER;HandleSetActiveMoverOpcode")
     list(GET route 0 opcode)
     list(GET route 1 handler)
     if(NOT opcodes MATCHES "DefC\\(${opcode},[^\n]*&WorldSession::${handler}\\)")
@@ -46,4 +57,13 @@ endif()
 string(FIND "${character}" "MopClientRequestPackets::ReadLoadScreenRequest(recvPacket)" load_screen_parser)
 if(load_screen_parser EQUAL -1)
     message(FATAL_ERROR "load-screen handler does not use the 18414 parser")
+endif()
+
+string(FIND "${misc}" "MopControlPackets::ReadMoveTimeSkipped(recv_data)" time_skipped_parser)
+if(time_skipped_parser EQUAL -1)
+    message(FATAL_ERROR "move-time-skipped handler does not use the 18414 parser")
+endif()
+string(FIND "${movement}" "MopControlPackets::ReadSetActiveMover(recv_data, request)" active_mover_parser)
+if(active_mover_parser EQUAL -1)
+    message(FATAL_ERROR "active-mover handler does not use the 18414 parser")
 endif()
