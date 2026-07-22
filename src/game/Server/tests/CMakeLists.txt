@@ -716,8 +716,8 @@ add_test(NAME mop_movement_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_movement_source_test.cmake)
 
-foreach(mutation IN ITEMS inbound_sequence player_move_sequence allocation_bound
-        flags2_width inbound_registration output_metadata heartbeat_framing mover_guid_validation
+foreach(mutation IN ITEMS inbound_sequence movement_gap_sequence player_move_sequence allocation_bound
+        flags2_width inbound_registration movement_gap_registration output_metadata heartbeat_framing mover_guid_validation
         spline_state_builder spline_state_registration monster_move_writer monster_move_registration
         monster_move_integration monster_move_gate)
     add_test(NAME mop_movement_source_mutation_${mutation}
