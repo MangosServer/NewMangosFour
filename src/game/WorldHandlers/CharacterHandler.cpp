@@ -951,7 +951,7 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
             guild->DisplayGuildBankTabsInfo(this);
             /* Let everyone in the guild know you've just signed in */
-            guild->BroadcastEvent(GE_SIGNED_ON, pCurrChar->GetObjectGuid(), pCurrChar->GetName());
+            guild->BroadcastMemberPresence(pCurrChar->GetObjectGuid(), pCurrChar->GetName(), true);
         }
         /* If the player is not in a guild */
         else

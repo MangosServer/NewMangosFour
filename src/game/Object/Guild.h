@@ -122,6 +122,242 @@ namespace MopGuildPackets
         out.append(motd.data(), motd.size());
         return true;
     }
+
+    template <size_t N>
+    inline void WriteGuidMask(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteBit(GuidByte(guid, index) != 0);
+    }
+
+    template <size_t N>
+    inline void WriteGuidBytes(WorldPacket& out, uint64 guid,
+        uint8 const (&order)[N])
+    {
+        for (uint8 index : order)
+            out.WriteByteSeq(GuidByte(guid, index));
+    }
+
+    inline bool FitsGuildEventName(std::string const& name)
+    {
+        return name.size() < (size_t(1) << 6);
+    }
+
+    inline bool BuildGuildMemberJoined(WorldPacket& out, uint64 memberGuid,
+        std::string const& memberName, uint32 virtualRealm)
+    {
+        if (!FitsGuildEventName(memberName))
+            return false;
+
+        uint8 const firstMask[] = { 6, 1, 3 };
+        uint8 const secondMask[] = { 7, 4, 2, 5, 0 };
+        uint8 const firstBytes[] = { 2, 4, 1, 6, 5 };
+        uint8 const secondBytes[] = { 3, 0 };
+        uint8 const lastByte[] = { 7 };
+
+        out.Initialize(SMSG_GUILD_EVENT_PLAYER_JOINED,
+            2 + 8 + 4 + memberName.size());
+        WriteGuidMask(out, memberGuid, firstMask);
+        out.WriteBits(memberName.size(), 6);
+        WriteGuidMask(out, memberGuid, secondMask);
+        out.FlushBits();
+        WriteGuidBytes(out, memberGuid, firstBytes);
+        out << virtualRealm;
+        WriteGuidBytes(out, memberGuid, secondBytes);
+        out.append(memberName.data(), memberName.size());
+        WriteGuidBytes(out, memberGuid, lastByte);
+        return true;
+    }
+
+    inline bool BuildGuildPresenceChange(WorldPacket& out, uint64 playerGuid,
+        std::string const& playerName, uint32 virtualRealm, bool loggedOn,
+        bool mobile)
+    {
+        if (!FitsGuildEventName(playerName))
+            return false;
+
+        uint8 const firstMask[] = { 0, 6 };
+        uint8 const secondMask[] = { 2, 5, 3 };
+        uint8 const thirdMask[] = { 1, 7, 4 };
+        uint8 const firstBytes[] = { 3, 2, 0 };
+        uint8 const secondBytes[] = { 6 };
+        uint8 const thirdBytes[] = { 4, 5, 7, 1 };
+
+        out.Initialize(SMSG_GUILD_EVENT_PRESENCE_CHANGE,
+            2 + 8 + 4 + playerName.size());
+        WriteGuidMask(out, playerGuid, firstMask);
+        out.WriteBit(mobile);
+        WriteGuidMask(out, playerGuid, secondMask);
+        out.WriteBits(playerName.size(), 6);
+        WriteGuidMask(out, playerGuid, thirdMask);
+        out.WriteBit(loggedOn);
+        out.FlushBits();
+        WriteGuidBytes(out, playerGuid, firstBytes);
+        out << virtualRealm;
+        WriteGuidBytes(out, playerGuid, secondBytes);
+        out.append(playerName.data(), playerName.size());
+        WriteGuidBytes(out, playerGuid, thirdBytes);
+        return true;
+    }
+
+    inline void BuildGuildMemberRankUpdate(WorldPacket& out,
+        uint64 issuerGuid, uint64 targetGuid, uint32 newRankId, bool promoted)
+    {
+        uint8 const targetMask1[] = { 5, 6 };
+        uint8 const issuerMask1[] = { 0, 1 };
+        uint8 const targetMask2[] = { 3 };
+        uint8 const issuerMask2[] = { 4 };
+        uint8 const targetMask3[] = { 2 };
+        uint8 const issuerMask3[] = { 6, 3, 7 };
+        uint8 const targetMask4[] = { 4, 0, 1 };
+        uint8 const issuerMask4[] = { 2 };
+        uint8 const targetMask5[] = { 7 };
+        uint8 const issuerMask5[] = { 5 };
+
+        out.Initialize(SMSG_GUILD_RANKS_UPDATE, 3 + 8 + 8 + 4);
+        WriteGuidMask(out, targetGuid, targetMask1);
+        WriteGuidMask(out, issuerGuid, issuerMask1);
+        WriteGuidMask(out, targetGuid, targetMask2);
+        WriteGuidMask(out, issuerGuid, issuerMask2);
+        WriteGuidMask(out, targetGuid, targetMask3);
+        WriteGuidMask(out, issuerGuid, issuerMask3);
+        WriteGuidMask(out, targetGuid, targetMask4);
+        WriteGuidMask(out, issuerGuid, issuerMask4);
+        WriteGuidMask(out, targetGuid, targetMask5);
+        out.WriteBit(promoted);
+        WriteGuidMask(out, issuerGuid, issuerMask5);
+        out.FlushBits();
+
+        out.WriteByteSeq(GuidByte(targetGuid, 2));
+        out.WriteByteSeq(GuidByte(issuerGuid, 1));
+        out.WriteByteSeq(GuidByte(targetGuid, 6));
+        out.WriteByteSeq(GuidByte(targetGuid, 1));
+        out.WriteByteSeq(GuidByte(targetGuid, 5));
+        out.WriteByteSeq(GuidByte(issuerGuid, 0));
+        out << newRankId;
+        out.WriteByteSeq(GuidByte(issuerGuid, 3));
+        out.WriteByteSeq(GuidByte(issuerGuid, 7));
+        out.WriteByteSeq(GuidByte(targetGuid, 7));
+        out.WriteByteSeq(GuidByte(issuerGuid, 2));
+        out.WriteByteSeq(GuidByte(targetGuid, 3));
+        out.WriteByteSeq(GuidByte(targetGuid, 4));
+        out.WriteByteSeq(GuidByte(issuerGuid, 6));
+        out.WriteByteSeq(GuidByte(issuerGuid, 5));
+        out.WriteByteSeq(GuidByte(targetGuid, 0));
+        out.WriteByteSeq(GuidByte(issuerGuid, 4));
+    }
+
+    inline bool BuildGuildNewLeader(WorldPacket& out, uint64 oldLeaderGuid,
+        std::string const& oldLeaderName, uint32 oldLeaderRealm,
+        uint64 newLeaderGuid, std::string const& newLeaderName,
+        uint32 newLeaderRealm, bool selfPromoted)
+    {
+        if (!FitsGuildEventName(oldLeaderName) ||
+                !FitsGuildEventName(newLeaderName))
+            return false;
+
+        out.Initialize(SMSG_GUILD_EVENT_NEW_LEADER,
+            4 + 16 + 8 + oldLeaderName.size() + newLeaderName.size());
+        uint8 const newMask1[] = { 4, 2, 7 };
+        uint8 const oldMask1[] = { 4 };
+        uint8 const oldMask2[] = { 0 };
+        uint8 const newMask2[] = { 6, 3 };
+        uint8 const newMask3[] = { 1, 0 };
+        uint8 const oldMask3[] = { 1, 7, 3, 6, 2 };
+        uint8 const oldMask4[] = { 5 };
+        uint8 const newMask4[] = { 5 };
+
+        WriteGuidMask(out, newLeaderGuid, newMask1);
+        WriteGuidMask(out, oldLeaderGuid, oldMask1);
+        out.WriteBits(oldLeaderName.size(), 6);
+        WriteGuidMask(out, oldLeaderGuid, oldMask2);
+        WriteGuidMask(out, newLeaderGuid, newMask2);
+        out.WriteBit(selfPromoted);
+        WriteGuidMask(out, newLeaderGuid, newMask3);
+        WriteGuidMask(out, oldLeaderGuid, oldMask3);
+        out.WriteBits(newLeaderName.size(), 6);
+        WriteGuidMask(out, oldLeaderGuid, oldMask4);
+        WriteGuidMask(out, newLeaderGuid, newMask4);
+        out.FlushBits();
+
+        out.WriteByteSeq(GuidByte(newLeaderGuid, 5));
+        out.WriteByteSeq(GuidByte(newLeaderGuid, 6));
+        out.append(oldLeaderName.data(), oldLeaderName.size());
+        out.append(newLeaderName.data(), newLeaderName.size());
+        out.WriteByteSeq(GuidByte(newLeaderGuid, 3));
+        out.WriteByteSeq(GuidByte(newLeaderGuid, 4));
+        out << newLeaderRealm;
+        out.WriteByteSeq(GuidByte(oldLeaderGuid, 6));
+        out.WriteByteSeq(GuidByte(newLeaderGuid, 0));
+        out.WriteByteSeq(GuidByte(oldLeaderGuid, 5));
+        out.WriteByteSeq(GuidByte(newLeaderGuid, 2));
+        out.WriteByteSeq(GuidByte(newLeaderGuid, 7));
+        out.WriteByteSeq(GuidByte(oldLeaderGuid, 7));
+        out.WriteByteSeq(GuidByte(oldLeaderGuid, 4));
+        out << oldLeaderRealm;
+        out.WriteByteSeq(GuidByte(newLeaderGuid, 1));
+        out.WriteByteSeq(GuidByte(oldLeaderGuid, 2));
+        out.WriteByteSeq(GuidByte(oldLeaderGuid, 1));
+        out.WriteByteSeq(GuidByte(oldLeaderGuid, 3));
+        out.WriteByteSeq(GuidByte(oldLeaderGuid, 0));
+        return true;
+    }
+
+    inline void BuildGuildDisbanded(WorldPacket& out)
+    {
+        out.Initialize(SMSG_GUILD_EVENT_DISBANDED, 0);
+    }
+
+    inline bool BuildGuildPlayerLeft(WorldPacket& out, uint64 leaverGuid,
+        std::string const& leaverName, uint32 leaverRealm,
+        bool removedByMember, uint64 removerGuid,
+        std::string const& removerName, uint32 removerRealm)
+    {
+        if (!FitsGuildEventName(leaverName) ||
+                (removedByMember &&
+                    (!removerGuid || !FitsGuildEventName(removerName))) ||
+                (!removedByMember &&
+                    (removerGuid || !removerName.empty() || removerRealm)))
+            return false;
+
+        bool const hasRemover = removedByMember;
+        out.Initialize(SMSG_GUILD_EVENT_PLAYER_LEFT,
+            4 + 8 + 4 + leaverName.size() +
+            (hasRemover ? 8 + 4 + removerName.size() : 0));
+
+        out.WriteBit(GuidByte(leaverGuid, 2) != 0);
+        out.WriteBits(leaverName.size(), 6);
+        uint8 const leaverMask1[] = { 6, 5 };
+        WriteGuidMask(out, leaverGuid, leaverMask1);
+        out.WriteBit(hasRemover);
+        if (hasRemover)
+        {
+            out.WriteBit(false);                           // remover name present
+            out.WriteBit(false);                           // removed, not self-leave
+            out.WriteBits(removerName.size(), 6);
+            uint8 const removerMask[] = { 1, 3, 4, 2, 5, 7, 6, 0 };
+            WriteGuidMask(out, removerGuid, removerMask);
+            out.WriteBit(false);                           // remover realm present
+        }
+        uint8 const leaverMask2[] = { 1, 0, 3, 4, 7 };
+        WriteGuidMask(out, leaverGuid, leaverMask2);
+        out.FlushBits();
+
+        if (hasRemover)
+        {
+            uint8 const removerBytes[] = { 1, 3, 5, 2, 0, 4, 6, 7 };
+            WriteGuidBytes(out, removerGuid, removerBytes);
+            out.append(removerName.data(), removerName.size());
+            out << removerRealm;
+        }
+        out.append(leaverName.data(), leaverName.size());
+        out.WriteByteSeq(GuidByte(leaverGuid, 1));
+        out << leaverRealm;
+        uint8 const leaverBytes[] = { 0, 4, 2, 3, 6, 5, 7 };
+        WriteGuidBytes(out, leaverGuid, leaverBytes);
+        return true;
+    }
 }
 
 class Item;
@@ -211,33 +447,6 @@ enum CommandErrors
     ERR_GUILD_UNDELETABLE_DUE_TO_LEVEL  = 0x25,
     ERR_GUILD_MOVE_STARTING             = 0x26,
     ERR_GUILD_REP_TOO_LOW               = 0x27,
-};
-
-enum GuildEvents
-{
-    GE_PROMOTION                    = 0x01,
-    GE_DEMOTION                     = 0x02,
-    GE_MOTD                         = 0x03,
-    GE_JOINED                       = 0x04,
-    GE_LEFT                         = 0x05,
-    GE_REMOVED                      = 0x06,
-    GE_LEADER_IS                    = 0x07,
-    GE_LEADER_CHANGED               = 0x08,
-    GE_DISBANDED                    = 0x09,
-    //GE_TABARDCHANGE               = 0x0A,                 // not exists in 4.3.4
-    GE_UPDATE_RANK                  = 0x0B,                 // string, string EVENT_GUILD_ROSTER_UPDATE tab content change?
-    GE_CREATE_RANK                  = 0x0C,                 // EVENT_GUILD_ROSTER_UPDATE
-    GE_DELETE_RANK                  = 0x0D,
-    GE_RANK_ORDER_CHANGE            = 0x0E,
-    GE_UNK                          = 0x0F,
-    GE_SIGNED_ON                    = 0x10,                 // ERR_FRIEND_ONLINE_SS
-    GE_SIGNED_OFF                   = 0x11,                 // ERR_FRIEND_OFFLINE_S
-    GE_GUILDBANKBAGSLOTS_CHANGED    = 0x12,                 // EVENT_GUILDBANKBAGSLOTS_CHANGED
-    GE_BANKTAB_PURCHASED            = 0x13,                 // EVENT_GUILDBANK_UPDATE_TABS
-    GE_BANKTAB_UPDATED              = 0x14,                 // EVENT_GUILDBANK_UPDATE_TABS
-    GE_GUILDBANK_UPDATE_MONEY       = 0x15,                 // EVENT_GUILDBANK_UPDATE_MONEY, string 0000000000002710 is 1 gold
-    //GE_GUILD_BANK_MONEY_WITHDRAWN = 0x16,                 // not exists in 4.3.4
-    GE_GUILDBANK_TEXT_CHANGED       = 0x17                  // EVENT_GUILDBANK_TEXT_CHANGED
 };
 
 enum PetitionTurns
@@ -480,11 +689,17 @@ class Guild
         // for calendar
         void MassInviteToEvent(WorldSession* session, uint32 minLevel, uint32 maxLevel, uint32 minRank);
 
-        void BroadcastEvent(GuildEvents event, ObjectGuid guid, char const* str1 = NULL, char const* str2 = NULL, char const* str3 = NULL);
-        void BroadcastEvent(GuildEvents event, char const* str1 = NULL, char const* str2 = NULL, char const* str3 = NULL)
-        {
-            BroadcastEvent(event, ObjectGuid(), str1, str2, str3);
-        }
+        void BroadcastMotd(std::string const& motd);
+        void BroadcastMemberJoined(ObjectGuid guid, std::string const& name);
+        void BroadcastMemberPresence(ObjectGuid guid, std::string const& name, bool loggedOn);
+        void BroadcastMemberRankUpdate(ObjectGuid issuerGuid, ObjectGuid targetGuid,
+            uint32 newRankId, bool promoted);
+        void BroadcastNewLeader(ObjectGuid oldLeaderGuid, std::string const& oldLeaderName,
+            ObjectGuid newLeaderGuid, std::string const& newLeaderName, bool selfPromoted = false);
+        void BroadcastMemberLeft(ObjectGuid guid, std::string const& name);
+        void BroadcastMemberRemoved(ObjectGuid guid, std::string const& name,
+            ObjectGuid removerGuid, std::string const& removerName);
+        void BroadcastDisbanded();
 
         template<class Do>
         void BroadcastWorker(Do& _do, Player* except = NULL)

@@ -129,6 +129,145 @@ static void test_tabard_opcodes()
     CHECK(uint32(SMSG_SAVE_GUILD_EMBLEM) == 0x089Fu);
 }
 
+static void test_guild_member_joined()
+{
+    WorldPacket packet;
+    CHECK(MopGuildPackets::BuildGuildMemberJoined(packet,
+        UI64LIT(0x0807060504030201), "J", 0x11223344u));
+    CHECK(packet.GetOpcode() == SMSG_GUILD_EVENT_PLAYER_JOINED);
+    CHECK(Equal(packet, {
+        0xE0, 0xFC,
+        0x02, 0x04, 0x03, 0x06, 0x07,
+        0x44, 0x33, 0x22, 0x11,
+        0x05, 0x00, 0x4A, 0x09
+    }));
+}
+
+static void test_guild_presence_change()
+{
+    WorldPacket packet;
+    CHECK(MopGuildPackets::BuildGuildPresenceChange(packet,
+        UI64LIT(0x00C30000B20000A1), "P", 0x11223344u, true, false));
+    CHECK(packet.GetOpcode() == SMSG_GUILD_EVENT_PRESENCE_CHANGE);
+    CHECK(Equal(packet, {
+        0xC4, 0x11,
+        0xB3, 0xA0,
+        0x44, 0x33, 0x22, 0x11,
+        0xC2, 0x50
+    }));
+}
+
+static void test_guild_member_rank_update()
+{
+    WorldPacket packet;
+    MopGuildPackets::BuildGuildMemberRankUpdate(packet,
+        UI64LIT(0x1817161514131211), UI64LIT(0x0807060504030201),
+        3, true);
+    CHECK(packet.GetOpcode() == SMSG_GUILD_RANKS_UPDATE);
+    CHECK(Equal(packet, {
+        0xFF, 0xFF, 0x80,
+        0x02, 0x13, 0x06, 0x03, 0x07, 0x10,
+        0x03, 0x00, 0x00, 0x00,
+        0x15, 0x19, 0x09, 0x12, 0x05, 0x04,
+        0x16, 0x17, 0x00, 0x14
+    }));
+}
+
+static void test_guild_new_leader()
+{
+    WorldPacket packet;
+    CHECK(MopGuildPackets::BuildGuildNewLeader(packet,
+        UI64LIT(0x0807060504030201), "O", 0x11223344u,
+        UI64LIT(0x1817161514131211), "N", 0x55667788u, false));
+    CHECK(packet.GetOpcode() == SMSG_GUILD_EVENT_NEW_LEADER);
+    CHECK(Equal(packet, {
+        0xF0, 0x7B, 0xF8, 0x38,
+        0x17, 0x16, 0x4F, 0x4E, 0x15, 0x14,
+        0x88, 0x77, 0x66, 0x55,
+        0x06, 0x10, 0x07, 0x12, 0x19, 0x09, 0x04,
+        0x44, 0x33, 0x22, 0x11,
+        0x13, 0x02, 0x03, 0x05, 0x00
+    }));
+}
+
+static void test_guild_disbanded()
+{
+    WorldPacket packet;
+    MopGuildPackets::BuildGuildDisbanded(packet);
+    CHECK(packet.GetOpcode() == SMSG_GUILD_EVENT_DISBANDED);
+    CHECK(packet.empty());
+}
+
+static void test_guild_player_left()
+{
+    WorldPacket selfLeave;
+    CHECK(MopGuildPackets::BuildGuildPlayerLeft(selfLeave,
+        UI64LIT(0x0807060504030201), "L", 0x11223344u,
+        false, 0, "", 0));
+    CHECK(selfLeave.GetOpcode() == SMSG_GUILD_EVENT_PLAYER_LEFT);
+    CHECK(Equal(selfLeave, {
+        0x83, 0xBE, 0x4C, 0x03,
+        0x44, 0x33, 0x22, 0x11,
+        0x00, 0x04, 0x02, 0x05, 0x06, 0x07, 0x09
+    }));
+
+    WorldPacket removed;
+    CHECK(MopGuildPackets::BuildGuildPlayerLeft(removed,
+        UI64LIT(0x0807060504030201), "L", 0x11223344u,
+        true, UI64LIT(0x1817161514131211), "R", 0x55667788u));
+    CHECK(Equal(removed, {
+        0x83, 0xC0, 0x7F, 0xDF,
+        0x13, 0x15, 0x17, 0x12, 0x10, 0x14, 0x16, 0x19,
+        0x52, 0x88, 0x77, 0x66, 0x55,
+        0x4C, 0x03, 0x44, 0x33, 0x22, 0x11,
+        0x00, 0x04, 0x02, 0x05, 0x06, 0x07, 0x09
+    }));
+}
+
+static void test_guild_event_name_bounds()
+{
+    std::string const maximum(63, 'x');
+    std::string const oversized(64, 'x');
+
+    WorldPacket joined;
+    CHECK(MopGuildPackets::BuildGuildMemberJoined(joined, 1, maximum, 1));
+    WorldPacket joinedRejected;
+    CHECK(!MopGuildPackets::BuildGuildMemberJoined(joinedRejected, 1, oversized, 1));
+    CHECK(joinedRejected.empty());
+
+    WorldPacket presence;
+    CHECK(MopGuildPackets::BuildGuildPresenceChange(presence, 1, maximum, 1, true, false));
+    WorldPacket presenceRejected;
+    CHECK(!MopGuildPackets::BuildGuildPresenceChange(presenceRejected, 1, oversized, 1, true, false));
+    CHECK(presenceRejected.empty());
+
+    WorldPacket leader;
+    CHECK(MopGuildPackets::BuildGuildNewLeader(leader, 1, maximum, 1,
+        2, maximum, 1, false));
+    WorldPacket leaderRejected;
+    CHECK(!MopGuildPackets::BuildGuildNewLeader(leaderRejected, 1, oversized, 1,
+        2, "n", 1, false));
+    CHECK(leaderRejected.empty());
+
+    WorldPacket left;
+    CHECK(MopGuildPackets::BuildGuildPlayerLeft(left, 1, maximum, 1,
+        true, 2, maximum, 1));
+    WorldPacket leftRejected;
+    CHECK(!MopGuildPackets::BuildGuildPlayerLeft(leftRejected, 1, "l", 1,
+        true, 2, oversized, 1));
+    CHECK(leftRejected.empty());
+}
+
+static void test_guild_event_opcodes()
+{
+    CHECK(uint32(SMSG_GUILD_RANKS_UPDATE) == 0x0A60u);
+    CHECK(uint32(SMSG_GUILD_EVENT_PLAYER_JOINED) == 0x0B69u);
+    CHECK(uint32(SMSG_GUILD_EVENT_PRESENCE_CHANGE) == 0x0B70u);
+    CHECK(uint32(SMSG_GUILD_EVENT_PLAYER_LEFT) == 0x0BF8u);
+    CHECK(uint32(SMSG_GUILD_EVENT_NEW_LEADER) == 0x0E69u);
+    CHECK(uint32(SMSG_GUILD_EVENT_DISBANDED) == 0x1E68u);
+}
+
 int main(int /*argc*/, char** /*argv*/)
 {
     test_empty_motd();
@@ -140,6 +279,14 @@ int main(int /*argc*/, char** /*argv*/)
     test_save_guild_emblem_request();
     test_save_guild_emblem_result();
     test_tabard_opcodes();
+    test_guild_member_joined();
+    test_guild_presence_change();
+    test_guild_member_rank_update();
+    test_guild_new_leader();
+    test_guild_disbanded();
+    test_guild_player_left();
+    test_guild_event_name_bounds();
+    test_guild_event_opcodes();
 
     if (g_fail)
     {

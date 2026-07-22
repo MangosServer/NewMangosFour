@@ -67,6 +67,65 @@ elseif(MUTATION STREQUAL "design_bounds")
         "design.emblemStyle >= 196"
         "false /* removed emblem design bounds */"
         guild_handler "${guild_handler}")
+elseif(MUTATION STREQUAL "joined_builder")
+    string(REPLACE
+        "MopGuildPackets::BuildGuildMemberJoined(data"
+        "MopGuildPackets::RemovedGuildMemberJoined(data"
+        guild_sender "${guild_sender}")
+elseif(MUTATION STREQUAL "presence_builder")
+    string(REPLACE
+        "MopGuildPackets::BuildGuildPresenceChange(data"
+        "MopGuildPackets::RemovedGuildPresenceChange(data"
+        guild_sender "${guild_sender}")
+elseif(MUTATION STREQUAL "rank_builder")
+    string(REPLACE
+        "MopGuildPackets::BuildGuildMemberRankUpdate(data"
+        "MopGuildPackets::RemovedGuildMemberRankUpdate(data"
+        guild_sender "${guild_sender}")
+elseif(MUTATION STREQUAL "leader_builder")
+    string(REPLACE
+        "MopGuildPackets::BuildGuildNewLeader(data"
+        "MopGuildPackets::RemovedGuildNewLeader(data"
+        guild_sender "${guild_sender}")
+elseif(MUTATION STREQUAL "left_builder")
+    string(REPLACE
+        "MopGuildPackets::BuildGuildPlayerLeft(data"
+        "MopGuildPackets::RemovedGuildPlayerLeft(data"
+        guild_sender "${guild_sender}")
+elseif(MUTATION STREQUAL "disband_builder")
+    string(REPLACE
+        "MopGuildPackets::BuildGuildDisbanded(data)"
+        "MopGuildPackets::RemovedGuildDisbanded(data)"
+        guild_sender "${guild_sender}")
+elseif(MUTATION STREQUAL "event_registration")
+    string(REPLACE
+        "DefS(SMSG_GUILD_EVENT_PLAYER_JOINED, \"SMSG_GUILD_EVENT_PLAYER_JOINED\");"
+        "/* removed joined-event registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "event_allowlist")
+    string(REPLACE
+        "case SMSG_GUILD_EVENT_PLAYER_JOINED:"
+        "case 0xFFFF: /* removed joined-event allowlist */"
+        world_session "${world_session}")
+elseif(MUTATION STREQUAL "event_opcode")
+    string(REPLACE
+        "SMSG_GUILD_EVENT_PLAYER_JOINED               = 0x0B69"
+        "SMSG_GUILD_EVENT_PLAYER_JOINED               = 0x0B6A"
+        opcode_header "${opcode_header}")
+elseif(MUTATION STREQUAL "presence_calls")
+    string(REPLACE
+        "guild->BroadcastMemberPresence(pCurrChar->GetObjectGuid(), pCurrChar->GetName(), true);"
+        "/* removed login presence broadcast */"
+        login_sender "${login_sender}")
+elseif(MUTATION STREQUAL "removed_member_copy")
+    string(REPLACE
+        "ObjectGuid const removedGuid = slot->guid;"
+        "ObjectGuid const removedGuid; /* removed pre-erase copy */"
+        guild_handler "${guild_handler}")
+elseif(MUTATION STREQUAL "legacy_info")
+    string(APPEND opcode_header "\nWorldPacket legacy(SMSG_GUILD_INFO);\n")
+elseif(MUTATION STREQUAL "legacy_event")
+    string(APPEND guild_sender "\nWorldPacket legacy(SMSG_GUILD_EVENT);\n")
 endif()
 
 function(require_once source token context)
@@ -198,3 +257,109 @@ string(FIND "${guild_handler}" "WorldPacket data(MSG_SAVE_GUILD_EMBLEM" legacy_e
 if(NOT legacy_emblem EQUAL -1)
     message(FATAL_ERROR "guild handler still uses legacy emblem opcode")
 endif()
+
+foreach(token IN ITEMS
+        "MopGuildPackets::BuildGuildMemberJoined(data"
+        "MopGuildPackets::BuildGuildPresenceChange(data"
+        "MopGuildPackets::BuildGuildMemberRankUpdate(data"
+        "MopGuildPackets::BuildGuildNewLeader(data"
+        "MopGuildPackets::BuildGuildPlayerLeft(data"
+        "MopGuildPackets::BuildGuildDisbanded(data)")
+    string(FIND "${guild_sender}" "${token}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "typed guild-event sender missing: ${token}")
+    endif()
+endforeach()
+
+foreach(token IN ITEMS
+        "DefS(SMSG_GUILD_EVENT_PLAYER_JOINED, \"SMSG_GUILD_EVENT_PLAYER_JOINED\");"
+        "DefS(SMSG_GUILD_EVENT_PRESENCE_CHANGE, \"SMSG_GUILD_EVENT_PRESENCE_CHANGE\");"
+        "DefS(SMSG_GUILD_EVENT_PLAYER_LEFT, \"SMSG_GUILD_EVENT_PLAYER_LEFT\");"
+        "DefS(SMSG_GUILD_RANKS_UPDATE, \"SMSG_GUILD_RANKS_UPDATE\");"
+        "DefS(SMSG_GUILD_EVENT_NEW_LEADER, \"SMSG_GUILD_EVENT_NEW_LEADER\");"
+        "DefS(SMSG_GUILD_EVENT_DISBANDED, \"SMSG_GUILD_EVENT_DISBANDED\");")
+    string(FIND "${opcode_registry}" "${token}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "typed guild-event registration missing: ${token}")
+    endif()
+endforeach()
+
+foreach(token IN ITEMS
+        "case SMSG_GUILD_EVENT_PLAYER_JOINED:"
+        "case SMSG_GUILD_EVENT_PRESENCE_CHANGE:"
+        "case SMSG_GUILD_EVENT_PLAYER_LEFT:"
+        "case SMSG_GUILD_RANKS_UPDATE:"
+        "case SMSG_GUILD_EVENT_NEW_LEADER:"
+        "case SMSG_GUILD_EVENT_DISBANDED:")
+    string(FIND "${world_session}" "${token}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "typed guild-event allowlist entry missing: ${token}")
+    endif()
+endforeach()
+
+foreach(token IN ITEMS
+        "SMSG_GUILD_RANKS_UPDATE                      = 0x0A60"
+        "SMSG_GUILD_EVENT_PLAYER_JOINED               = 0x0B69"
+        "SMSG_GUILD_EVENT_PRESENCE_CHANGE             = 0x0B70"
+        "SMSG_GUILD_EVENT_PLAYER_LEFT                 = 0x0BF8"
+        "SMSG_GUILD_EVENT_NEW_LEADER                  = 0x0E69"
+        "SMSG_GUILD_EVENT_DISBANDED                   = 0x1E68")
+    string(FIND "${opcode_header}" "${token}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "typed guild-event opcode missing: ${token}")
+    endif()
+endforeach()
+
+foreach(token IN ITEMS
+        "guild->BroadcastMemberPresence(pCurrChar->GetObjectGuid(), pCurrChar->GetName(), true);"
+        "guild->BroadcastMemberPresence(_player->GetObjectGuid(), _player->GetName(), false);")
+    string(FIND "${login_sender}${world_session}" "${token}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "guild presence call missing: ${token}")
+    endif()
+endforeach()
+
+foreach(token IN ITEMS
+        "ObjectGuid const removedGuid = slot->guid;"
+        "std::string const removedName = slot->Name;"
+        "guild->DelMember(removedGuid)"
+        "guild->BroadcastMemberRemoved(removedGuid, removedName")
+    string(FIND "${guild_handler}" "${token}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "safe typed guild removal missing: ${token}")
+    endif()
+endforeach()
+
+file(GLOB_RECURSE guild_production_sources
+    "${SOURCE_ROOT}/src/game/*.cpp"
+    "${SOURCE_ROOT}/src/game/*.h")
+list(FILTER guild_production_sources EXCLUDE REGEX "/tests/")
+
+set(legacy_patterns
+    "(^|[^A-Z0-9_])CMSG_GUILD_INFO([^A-Z0-9_]|$)"
+    "(^|[^A-Z0-9_])SMSG_GUILD_INFO([^A-Z0-9_]|$)"
+    "(^|[^A-Z0-9_])SMSG_GUILD_EVENT([^A-Z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])HandleGuildInfoOpcode([^A-Za-z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])BroadcastEvent([^A-Za-z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])GuildEvents([^A-Za-z0-9_]|$)")
+
+foreach(path IN LISTS guild_production_sources)
+    if(path MATCHES "Opcodes_reference\\.h$")
+        continue()
+    endif()
+    file(READ "${path}" source)
+    foreach(pattern IN LISTS legacy_patterns)
+        string(REGEX MATCH "${pattern}" found "${source}")
+        if(found)
+            message(FATAL_ERROR "legacy generic guild packet remains in ${path}: ${pattern}")
+        endif()
+    endforeach()
+endforeach()
+
+set(mutation_source "${opcode_header}\n${guild_sender}")
+foreach(pattern IN LISTS legacy_patterns)
+    string(REGEX MATCH "${pattern}" found "${mutation_source}")
+    if(found)
+        message(FATAL_ERROR "legacy guild mutation escaped: ${pattern}")
+    endif()
+endforeach()

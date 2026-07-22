@@ -718,8 +718,9 @@ bool Guild::DelMember(ObjectGuid guid, bool isDisbanding)
         // when leader non-exist (at guild load with deleted leader only) not send broadcasts
         if (oldLeader)
         {
-            BroadcastEvent(GE_LEADER_CHANGED, oldLeader->Name.c_str(), best->Name.c_str());
-            BroadcastEvent(GE_LEFT, guid, oldLeader->Name.c_str());
+            BroadcastNewLeader(oldLeader->guid, oldLeader->Name,
+                best->guid, best->Name);
+            BroadcastMemberLeft(guid, oldLeader->Name);
         }
     }
 
@@ -957,7 +958,7 @@ void Guild::MassInviteToEvent(WorldSession* session, uint32 minLevel, uint32 max
  */
 void Guild::Disband()
 {
-    BroadcastEvent(GE_DISBANDED);
+    BroadcastDisbanded();
 
     while (!members.empty())
     {
@@ -1327,61 +1328,100 @@ void Guild::LogGuildEvent(uint8 EventType, ObjectGuid playerGuid1, ObjectGuid pl
 }
 
 
-/**
- * @brief Broadcasts a guild event packet to members.
- *
- * @param event The guild event type.
- * @param guid An optional player GUID associated with the event.
- * @param str1 Optional event string.
- * @param str2 Optional event string.
- * @param str3 Optional event string.
- */
-void Guild::BroadcastEvent(GuildEvents event, ObjectGuid guid, char const* str1 /*=NULL*/, char const* str2 /*=NULL*/, char const* str3 /*=NULL*/)
+void Guild::BroadcastMotd(std::string const& motd)
 {
-    if (event == GE_MOTD)
+    WorldPacket data(SMSG_GUILD_EVENT_MOTD, motd.size() + 2);
+    if (!MopGuildPackets::BuildGuildMotd(data, motd))
     {
-        std::string const motd = str1 ? str1 : "";
-        WorldPacket data(SMSG_GUILD_EVENT_MOTD, motd.size() + 2);
-        if (MopGuildPackets::BuildGuildMotd(data, motd))
-        {
-            BroadcastPacket(&data);
-            DEBUG_LOG("WORLD: Sent SMSG_GUILD_EVENT_MOTD");
-        }
-        else
-            sLog.outError("WORLD: Guild %u MOTD is too long for SMSG_GUILD_EVENT_MOTD", GetId());
+        sLog.outError("WORLD: Guild %u MOTD is too long for SMSG_GUILD_EVENT_MOTD", GetId());
         return;
     }
 
-    uint8 strCount = !str1 ? 0 : (!str2 ? 1 : (!str3 ? 2 : 3));
+    BroadcastPacket(&data);
+    DEBUG_LOG("WORLD: Sent SMSG_GUILD_EVENT_MOTD");
+}
 
-    WorldPacket data(SMSG_GUILD_EVENT, 1 + 1 + 1 * strCount + (!guid ? 0 : 8));
-    data << uint8(event);
-    data << uint8(strCount);
-
-    if (str3)
+void Guild::BroadcastMemberJoined(ObjectGuid guid, std::string const& name)
+{
+    WorldPacket data;
+    if (!MopGuildPackets::BuildGuildMemberJoined(data, guid.GetRawValue(), name, realmID))
     {
-        data << str1;
-        data << str2;
-        data << str3;
-    }
-    else if (str2)
-    {
-        data << str1;
-        data << str2;
-    }
-    else if (str1)
-    {
-        data << str1;
-    }
-
-    if (guid)
-    {
-        data << ObjectGuid(guid);
+        sLog.outError("WORLD: Guild %u member name is too long for SMSG_GUILD_EVENT_PLAYER_JOINED", GetId());
+        return;
     }
 
     BroadcastPacket(&data);
+}
 
-    DEBUG_LOG("WORLD: Sent SMSG_GUILD_EVENT");
+void Guild::BroadcastMemberPresence(ObjectGuid guid, std::string const& name, bool loggedOn)
+{
+    WorldPacket data;
+    if (!MopGuildPackets::BuildGuildPresenceChange(data, guid.GetRawValue(), name,
+            realmID, loggedOn, false))
+    {
+        sLog.outError("WORLD: Guild %u member name is too long for SMSG_GUILD_EVENT_PRESENCE_CHANGE", GetId());
+        return;
+    }
+
+    BroadcastPacket(&data);
+}
+
+void Guild::BroadcastMemberRankUpdate(ObjectGuid issuerGuid, ObjectGuid targetGuid,
+    uint32 newRankId, bool promoted)
+{
+    WorldPacket data;
+    MopGuildPackets::BuildGuildMemberRankUpdate(data, issuerGuid.GetRawValue(),
+        targetGuid.GetRawValue(), newRankId, promoted);
+    BroadcastPacket(&data);
+}
+
+void Guild::BroadcastNewLeader(ObjectGuid oldLeaderGuid, std::string const& oldLeaderName,
+    ObjectGuid newLeaderGuid, std::string const& newLeaderName, bool selfPromoted)
+{
+    WorldPacket data;
+    if (!MopGuildPackets::BuildGuildNewLeader(data, oldLeaderGuid.GetRawValue(),
+            oldLeaderName, realmID, newLeaderGuid.GetRawValue(), newLeaderName,
+            realmID, selfPromoted))
+    {
+        sLog.outError("WORLD: Guild %u leader name is too long for SMSG_GUILD_EVENT_NEW_LEADER", GetId());
+        return;
+    }
+
+    BroadcastPacket(&data);
+}
+
+void Guild::BroadcastMemberLeft(ObjectGuid guid, std::string const& name)
+{
+    WorldPacket data;
+    if (!MopGuildPackets::BuildGuildPlayerLeft(data, guid.GetRawValue(), name,
+            realmID, false, 0, "", 0))
+    {
+        sLog.outError("WORLD: Guild %u member name is too long for SMSG_GUILD_EVENT_PLAYER_LEFT", GetId());
+        return;
+    }
+
+    BroadcastPacket(&data);
+}
+
+void Guild::BroadcastMemberRemoved(ObjectGuid guid, std::string const& name,
+    ObjectGuid removerGuid, std::string const& removerName)
+{
+    WorldPacket data;
+    if (!MopGuildPackets::BuildGuildPlayerLeft(data, guid.GetRawValue(), name,
+            realmID, true, removerGuid.GetRawValue(), removerName, realmID))
+    {
+        sLog.outError("WORLD: Guild %u member name is too long for SMSG_GUILD_EVENT_PLAYER_LEFT", GetId());
+        return;
+    }
+
+    BroadcastPacket(&data);
+}
+
+void Guild::BroadcastDisbanded()
+{
+    WorldPacket data;
+    MopGuildPackets::BuildGuildDisbanded(data);
+    BroadcastPacket(&data);
 }
 
 void Guild::DeleteGuildBankItems(bool alsoInDB /*= false*/)

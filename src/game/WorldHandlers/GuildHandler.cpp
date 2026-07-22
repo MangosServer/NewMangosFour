@@ -32,7 +32,6 @@
  * - CMSG_GUILD_INVITE: Invite player to guild
  * - CMSG_GUILD_ACCEPT: Accept guild invitation
  * - CMSG_GUILD_DECLINE: Decline guild invitation
- * - CMSG_GUILD_INFO: Query guild roster
  * - CMSG_GUILD_ROSTER: Request guild roster
  * - CMSG_GUILD_LEAVE: Leave guild
  * - CMSG_GUILD_DISBAND: Disband guild
@@ -311,8 +310,11 @@ void WorldSession::HandleGuildRemoveOpcode(WorldPacket& recvPacket)
         return;
     }
 
+    ObjectGuid const removedGuid = slot->guid;
+    std::string const removedName = slot->Name;
+
     // possible last member removed, do cleanup, and no need events
-    if (guild->DelMember(slot->guid))
+    if (guild->DelMember(removedGuid))
     {
         guild->Disband();
         delete guild;
@@ -320,9 +322,11 @@ void WorldSession::HandleGuildRemoveOpcode(WorldPacket& recvPacket)
     }
 
     // Put record into guild log
-    guild->LogGuildEvent(GUILD_EVENT_LOG_UNINVITE_PLAYER, GetPlayer()->GetObjectGuid(), slot->guid);
+    guild->LogGuildEvent(GUILD_EVENT_LOG_UNINVITE_PLAYER,
+        GetPlayer()->GetObjectGuid(), removedGuid);
 
-    guild->BroadcastEvent(GE_REMOVED, plName.c_str(), _player->GetName());
+    guild->BroadcastMemberRemoved(removedGuid, removedName,
+        _player->GetObjectGuid(), _player->GetName());
 }
 
 /**
@@ -356,7 +360,7 @@ void WorldSession::HandleGuildAcceptOpcode(WorldPacket& /*recvPacket*/)
     // Put record into guild log
     guild->LogGuildEvent(GUILD_EVENT_LOG_JOIN_GUILD, GetPlayer()->GetObjectGuid());
 
-    guild->BroadcastEvent(GE_JOINED, player->GetObjectGuid(), player->GetName());
+    guild->BroadcastMemberJoined(player->GetObjectGuid(), player->GetName());
 }
 
 /**
@@ -379,30 +383,6 @@ void WorldSession::HandleGuildDeclineOpcode(WorldPacket& recvPacket)
 
     GetPlayer()->SetGuildIdInvited(0);
     GetPlayer()->SetGuildLevel(0);
-}
-
-/**
- * @brief Sends general information about the current guild.
- *
- * @param recvPacket The received opcode packet.
- */
-void WorldSession::HandleGuildInfoOpcode(WorldPacket& /*recvPacket*/)
-{
-    DEBUG_LOG("WORLD: Received opcode CMSG_GUILD_INFO");
-
-    Guild* guild = sGuildMgr.GetGuildById(GetPlayer()->GetGuildId());
-    if (!guild)
-    {
-        SendGuildCommandResult(GUILD_CREATE_S, "", ERR_GUILD_PLAYER_NOT_IN_GUILD);
-        return;
-    }
-
-    WorldPacket data(SMSG_GUILD_INFO, (guild->GetName().size() + 4 + 4 + 4));
-    data << guild->GetName();
-    data << uint32(secsToTimeBitFields(guild->GetCreatedDate())); // 3.x (prev. day + month + year)
-    data << uint32(guild->GetMemberSize());                 // amount of chars
-    data << uint32(guild->GetAccountsNumber());             // amount of accounts
-    SendPacket(&data);
 }
 
 /**
@@ -506,7 +486,8 @@ void WorldSession::HandleGuildPromoteOpcode(WorldPacket& recvPacket)
     // Put record into guild log
     guild->LogGuildEvent(GUILD_EVENT_LOG_PROMOTE_PLAYER, GetPlayer()->GetObjectGuid(), slot->guid, newRankId);
 
-    guild->BroadcastEvent(GE_PROMOTION, _player->GetName(), plName.c_str(), guild->GetRankName(newRankId).c_str());
+    guild->BroadcastMemberRankUpdate(_player->GetObjectGuid(), slot->guid,
+        newRankId, true);
 }
 
 /**
@@ -575,7 +556,8 @@ void WorldSession::HandleGuildDemoteOpcode(WorldPacket& recvPacket)
     // Put record into guild log
     guild->LogGuildEvent(GUILD_EVENT_LOG_DEMOTE_PLAYER, GetPlayer()->GetObjectGuid(), slot->guid, newRankId);
 
-    guild->BroadcastEvent(GE_DEMOTION, _player->GetName(), plName.c_str(), guild->GetRankName(slot->RankId).c_str());
+    guild->BroadcastMemberRankUpdate(_player->GetObjectGuid(), slot->guid,
+        newRankId, false);
 }
 
 void WorldSession::HandleGuildSetRankOpcode(WorldPacket& recvPacket)
@@ -667,7 +649,8 @@ void WorldSession::HandleGuildSetRankOpcode(WorldPacket& recvPacket)
     // Put record into guild log
     guild->LogGuildEvent(promote ? GUILD_EVENT_LOG_PROMOTE_PLAYER : GUILD_EVENT_LOG_DEMOTE_PLAYER, GetPlayer()->GetObjectGuid(), slot->guid, newRankId);
 
-    guild->BroadcastEvent(promote ? GE_PROMOTION : GE_DEMOTION, _player->GetName(), plName.c_str(), guild->GetRankName(newRankId).c_str());
+    guild->BroadcastMemberRankUpdate(_player->GetObjectGuid(), slot->guid,
+        newRankId, promote);
 }
 
 void WorldSession::HandleGuildSwitchRankOpcode(WorldPacket& recvPacket)
@@ -750,7 +733,7 @@ void WorldSession::HandleGuildLeaveOpcode(WorldPacket& /*recvPacket*/)
     // Put record into guild log
     guild->LogGuildEvent(GUILD_EVENT_LOG_LEAVE_GUILD, _player->GetObjectGuid());
 
-    guild->BroadcastEvent(GE_LEFT, _player->GetObjectGuid(), _player->GetName());
+    guild->BroadcastMemberLeft(_player->GetObjectGuid(), _player->GetName());
 }
 
 /**
@@ -843,7 +826,8 @@ void WorldSession::HandleGuildLeaderOpcode(WorldPacket& recvPacket)
     // NOTE: GR_OFFICER might not actually be officer rank
     oldSlot->ChangeRank(GR_OFFICER);
 
-    guild->BroadcastEvent(GE_LEADER_CHANGED, oldLeader->GetName(), name.c_str());
+    guild->BroadcastNewLeader(oldLeader->GetObjectGuid(), oldLeader->GetName(),
+        slot->guid, slot->Name);
 }
 
 /**
@@ -871,7 +855,7 @@ void WorldSession::HandleGuildMOTDOpcode(WorldPacket& recvPacket)
 
     guild->SetMOTD(MOTD);
 
-    guild->BroadcastEvent(GE_MOTD, MOTD.c_str());
+    guild->BroadcastMotd(MOTD);
 }
 
 /**
