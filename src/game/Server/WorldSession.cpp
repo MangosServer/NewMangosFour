@@ -300,6 +300,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_SPELL_EXECUTE_LOG:               // MopCombatLogPackets::BuildSpellExecuteLog
         case SMSG_SPELL_PERIODIC_AURA_LOG:         // MopCombatLogPackets::BuildPeriodicAuraLog
         case SMSG_MESSAGECHAT:                     // MopChatPackets::BuildMessage
+        case SMSG_NOTIFICATION:                    // 12-bit byte length followed by raw notification text
             return true;
 
         // In-world query replies. The core already emits genuine 18414 bodies for these
@@ -967,25 +968,6 @@ void WorldSession::KickPlayer()
     }
 }
 
-/// Cancel channeling handler
-
-void WorldSession::SendAreaTriggerMessage(const char* Text, ...)
-{
-    va_list ap;
-    char szStr [1024];
-    szStr[0] = '\0';
-
-    va_start(ap, Text);
-    vsnprintf(szStr, 1024, Text, ap);
-    va_end(ap);
-
-    uint32 length = strlen(szStr) + 1;
-    WorldPacket data(SMSG_AREA_TRIGGER_MESSAGE, 4 + length);
-    data << length;
-    data << szStr;
-    SendPacket(&data);
-}
-
 /**
  * @brief Sends a formatted notification message to the client.
  *
@@ -1003,7 +985,7 @@ void WorldSession::SendNotification(const char* format, ...)
         va_end(ap);
 
         WorldPacket data(SMSG_NOTIFICATION, (strlen(szStr) + 1));
-        data.WriteBits(strlen(szStr), 13);
+        data.WriteBits(strlen(szStr), 12);
         data.FlushBits();
         data.append(szStr, strlen(szStr));
         SendPacket(&data);
@@ -1028,7 +1010,7 @@ void WorldSession::SendNotification(int32 string_id, ...)
         va_end(ap);
 
         WorldPacket data(SMSG_NOTIFICATION, (strlen(szStr) + 1));
-        data.WriteBits(strlen(szStr), 13);
+        data.WriteBits(strlen(szStr), 12);
         data.FlushBits();
         data.append(szStr, strlen(szStr));
         SendPacket(&data);

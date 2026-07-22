@@ -687,7 +687,6 @@ enum OpcodesList
     SMSG_FEIGN_DEATH_RESISTED                    = 0x029E,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_SCRIPT_MESSAGE                          = 0x12B7,    // (legacy; no client leaf)
     SMSG_DUEL_COUNTDOWN                          = 0x129F,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
-    SMSG_AREA_TRIGGER_MESSAGE                    = 0x4505,    // (legacy; no client leaf; unframable >0x1FFF)
     CMSG_SHOWING_HELM                            = 0x126B, // 5.4.8 18414 (Wow.exe binary)
     CMSG_SHOWING_CLOAK                           = 0x02F2, // 5.4.8 18414 (Wow.exe binary)
     SMSG_ROLE_CHOSEN                             = 0x1A1F,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus; fuzzy via SMSG_LFG_ROLE_CHOSEN)

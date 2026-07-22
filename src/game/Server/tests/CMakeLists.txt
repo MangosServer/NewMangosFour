@@ -547,6 +547,27 @@ foreach(mutation IN ITEMS legacy_handler legacy_opcode quest_backend)
     set_tests_properties(mop_all_quests_completed_legacy_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_executable(mop_notification_packets_test mop_notification_packets_test.cpp)
+target_include_directories(mop_notification_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_notification_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_notification_packets_test PRIVATE game)
+add_test(NAME mop_notification_packets COMMAND mop_notification_packets_test)
+
+add_test(NAME mop_notification_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_notification_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS length_width registration allowlist area_trigger_route admin_route
+        compatibility_forward legacy_backend legacy_opcode opcode_value)
+    add_test(NAME mop_notification_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_notification_packets_source_test.cmake)
+    set_tests_properties(mop_notification_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_lfg_packets_test mop_lfg_packets_test.cpp)
 target_include_directories(mop_lfg_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..

@@ -1085,6 +1085,13 @@ class WorldSession
         void SendPacket(WorldPacket const* packet, bool bypassSuppress = false);
         void SendNotification(const char* format, ...) ATTR_PRINTF(2, 3);
         void SendNotification(int32 string_id, ...);
+        // Eluna exposes this historical API name. Keep only a source-compatible
+        // forwarding facade; the legacy opcode and packet backend no longer exist.
+        template <typename... Args>
+        void SendAreaTriggerMessage(char const* format, Args... args)
+        {
+            SendNotification(format, args...);
+        }
         void SendPetNameInvalid(uint32 error, const std::string& name, DeclinedName* declinedName);
         void SendLfgJoinResult(LfgJoinResult result, LFGState state, partyForbidden const& lockedDungeons);
         void SendLfgUpdate(bool isGroup, LFGPlayerStatus status);
@@ -1098,7 +1105,6 @@ class WorldSession
         void SendPartyResult(PartyOperation operation, const std::string& member, PartyResult res);
         void SendGroupInvite(Player* player, bool alreadyInGroup = false);
         void SendGuildInvite(Player* player, bool alreadyInGuild = false);
-        void SendAreaTriggerMessage(const char* Text, ...) ATTR_PRINTF(2, 3);
         void SendTransferAborted(uint32 mapid, uint8 reason, uint8 arg = 0);
         void SendSetPhaseShift(uint32 phaseMask, uint16 mapId = 0);
         void SendQueryTimeResponse();

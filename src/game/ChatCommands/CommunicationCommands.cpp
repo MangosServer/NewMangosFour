@@ -429,9 +429,8 @@ bool ChatHandler::HandleSendMessageCommand(char* args)
     }
 
     ///- Send the message
-    // Use SendAreaTriggerMessage for fastest delivery.
-    rPlayerSession->SendAreaTriggerMessage("%s", args);
-    rPlayerSession->SendAreaTriggerMessage("|cffff0000[Message from administrator]:|r");
+    rPlayerSession->SendNotification("%s", args);
+    rPlayerSession->SendNotification("|cffff0000[Message from administrator]:|r");
 
     // Confirmation message
     std::string nameLink = GetNameLink(rPlayer);

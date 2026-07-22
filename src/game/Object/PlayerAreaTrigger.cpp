@@ -95,7 +95,7 @@ void Player::SendTransferAbortedByLockStatus(MapEntry const* mapEntry, AreaLockS
     switch (lockStatus)
     {
         case AREA_LOCKSTATUS_TOO_LOW_LEVEL:
-            GetSession()->SendAreaTriggerMessage(GetSession()->GetMangosString(LANG_LEVEL_MINREQUIRED), miscRequirement);
+            GetSession()->SendNotification(GetSession()->GetMangosString(LANG_LEVEL_MINREQUIRED), miscRequirement);
             break;
         case AREA_LOCKSTATUS_ZONE_IN_COMBAT:
             GetSession()->SendTransferAborted(mapEntry->ID, TRANSFER_ABORT_ZONE_IN_COMBAT);
@@ -106,7 +106,7 @@ void Player::SendTransferAbortedByLockStatus(MapEntry const* mapEntry, AreaLockS
         case AREA_LOCKSTATUS_QUEST_NOT_COMPLETED:
             if (mapEntry->ID == 269)                     // Exception for Black Morass
             {
-                GetSession()->SendAreaTriggerMessage("%s", GetSession()->GetMangosString(LANG_TELEREQ_QUEST_BLACK_MORASS));
+                GetSession()->SendNotification("%s", GetSession()->GetMangosString(LANG_TELEREQ_QUEST_BLACK_MORASS));
                 break;
             }
             else if (mapEntry->IsContinent())               // do not report anything for quest areatrigge
