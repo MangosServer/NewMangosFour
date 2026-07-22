@@ -76,6 +76,8 @@ namespace
         "18414 DynamicObject direct-copy range must remain fields 0..13");
     static_assert(CORPSE_END == 36 && CORPSE_END == MopUpdateObject::CorpseFieldCount,
         "18414 Corpse direct-copy range must remain fields 0..35");
+    static_assert(MOVEFLAG_WALK_MODE == MopUpdateObject::SimpleLivingWalkModeFlag,
+        "18414 simple LIVING walk-mode flag must match the gameplay movement flag");
     static_assert(PLAYER_FIELD_INV_SLOT_HEAD == MopUpdateObject::SelfInventorySourceStart,
         "self inventory translation must start at local field 960");
     static_assert(PLAYER_FIELD_VENDORBUYBACK_SLOT_1 + 24 ==

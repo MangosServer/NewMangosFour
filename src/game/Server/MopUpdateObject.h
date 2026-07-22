@@ -31,6 +31,7 @@ namespace MopUpdateObject
     static constexpr uint16 ContainerFieldCount = 142;
     static constexpr uint16 DynamicObjectFieldCount = 14;
     static constexpr uint16 CorpseFieldCount = 36;
+    static constexpr uint32 SimpleLivingWalkModeFlag = 0x00000100u;
 
     uint16 TranslateSelfInventoryIndex(uint16 legacyIndex);
 
@@ -105,6 +106,8 @@ namespace MopUpdateObject
     };
 
     /// True only when the proved narrow LIVING layout can represent the Unit.
+    /// WALK_MODE is accepted for stationary objects because the 18414 CREATE
+    /// apply path does not consume the decoded raw movement-flags field.
     bool CanUseSimpleUnitMovement(SimpleUnitEligibility const& eligibility);
 
     struct StationaryGameObjectEligibility

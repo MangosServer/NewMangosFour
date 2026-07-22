@@ -272,7 +272,13 @@ int main(int /*argc*/, char** /*argv*/)
     eligibility.isBoarded = true; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.isBoarded = false;
     eligibility.hasTransport = true; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.hasTransport = false;
     eligibility.hasSpline = true; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.hasSpline = false;
-    eligibility.movementFlags = 1; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.movementFlags = 0;
+    eligibility.movementFlags = MopUpdateObject::SimpleLivingWalkModeFlag;
+    CHECK(MopUpdateObject::CanUseSimpleUnitMovement(eligibility));
+    eligibility.movementFlags = 1;
+    CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility));
+    eligibility.movementFlags = MopUpdateObject::SimpleLivingWalkModeFlag | 1;
+    CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility));
+    eligibility.movementFlags = 0;
     eligibility.movementFlags2 = 1; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.movementFlags2 = 0;
     eligibility.hasOptionalMovement = true; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility)); eligibility.hasOptionalMovement = false;
     eligibility.hasAttackingTarget = true; CHECK(!MopUpdateObject::CanUseSimpleUnitMovement(eligibility));

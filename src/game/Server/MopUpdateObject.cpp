@@ -94,7 +94,8 @@ uint32 MopUpdateObject::TranslateGameObjectDynamic(uint32 legacyDynamic)
 bool MopUpdateObject::CanUseSimpleUnitMovement(SimpleUnitEligibility const& eligibility)
 {
     return !eligibility.isVehicle && !eligibility.isBoarded && !eligibility.hasTransport &&
-        !eligibility.hasSpline && eligibility.movementFlags == 0 && eligibility.movementFlags2 == 0 &&
+        !eligibility.hasSpline && (eligibility.movementFlags & ~SimpleLivingWalkModeFlag) == 0 &&
+        eligibility.movementFlags2 == 0 &&
         !eligibility.hasOptionalMovement && !eligibility.hasAttackingTarget;
 }
 
