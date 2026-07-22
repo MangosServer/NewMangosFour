@@ -830,6 +830,11 @@ void Object::BuildValuesUpdate(uint8 updatetype, ByteBuffer* data, UpdateMask* u
             }
         }
     }
+
+    // 18414 always follows the static update-field values with the dynamic-
+    // field presence-mask word count. Four does not model dynamic update fields
+    // yet, so terminate the section explicitly with a zero count.
+    *data << uint8(0);
 }
 
 /**

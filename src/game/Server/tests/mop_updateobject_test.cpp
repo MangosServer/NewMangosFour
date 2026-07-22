@@ -53,10 +53,97 @@ namespace
 // ACE (dragged in via 'game') rewrites main() and requires (int, char**).
 int main(int /*argc*/, char** /*argv*/)
 {
+    // Binary-proved 18414 static-values grammar: minimal word count, mask words,
+    // values in ascending field order, then the zero dynamic-field terminator.
+    {
+        const MopUpdateObject::StaticField fields[] =
+        {
+            { 0, 0x11223344u },
+            { 31, 0x55667788u },
+            { 32, 0x99AABBCCu },
+            { 70, 0xDDEEFF00u },
+        };
+
+        ByteBuffer values;
+        MopUpdateObject::AppendStaticValuesNoDynamic(values, fields, sizeof(fields) / sizeof(fields[0]));
+
+        const uint8 expected[] =
+        {
+            0x03,
+            0x01, 0x00, 0x00, 0x80,
+            0x01, 0x00, 0x00, 0x00,
+            0x40, 0x00, 0x00, 0x00,
+            0x44, 0x33, 0x22, 0x11,
+            0x88, 0x77, 0x66, 0x55,
+            0xCC, 0xBB, 0xAA, 0x99,
+            0x00, 0xFF, 0xEE, 0xDD,
+            0x00,
+        };
+        CHECK(values.size() == sizeof(expected));
+        CHECK(values.size() == sizeof(expected) && std::memcmp(values.contents(), expected, sizeof(expected)) == 0);
+    }
+
+    // Binary-proved stationary game-object movement subset: only the top-level
+    // rotation and stationary-position bits, followed by XYZO and rotation64.
+    {
+        MopUpdateObject::StationaryGameObjectMovement movement{};
+        movement.x = 1.0f;
+        movement.y = 2.0f;
+        movement.z = 3.0f;
+        movement.o = 4.0f;
+        movement.rotation = 0x1122334455667788ULL;
+
+        ByteBuffer bytes;
+        MopUpdateObject::AppendStationaryGameObjectMovement(bytes, movement);
+
+        const uint8 expectedBits[] = { 0x00, 0x00, 0x00, 0x01, 0x00, 0x40 };
+        CHECK(bytes.size() == sizeof(expectedBits) + 4 * sizeof(float) + sizeof(uint64));
+        CHECK(bytes.size() >= sizeof(expectedBits) && std::memcmp(bytes.contents(), expectedBits, sizeof(expectedBits)) == 0);
+
+        bytes.rpos(sizeof(expectedBits));
+        float x, y, z, o;
+        uint64 rotation;
+        bytes >> x >> y >> z >> o >> rotation;
+        CHECK(x == movement.x); CHECK(y == movement.y); CHECK(z == movement.z); CHECK(o == movement.o);
+        CHECK(rotation == movement.rotation);
+        CHECK(bytes.rpos() == bytes.size());
+    }
+
     MopUpdateObject::SelfPlayer e = MakeSelf();
+
+    // The binary-proved simple LIVING subset is reusable for ordinary units;
+    // SELF is the sole top-level distinction for the receiving player.
+    MopUpdateObject::SimpleLivingMovement living{};
+    living.guid = e.guid;
+    living.x = e.x; living.y = e.y; living.z = e.z; living.o = e.o;
+    living.moveTime = e.moveTime;
+    living.speedWalk = e.speedWalk; living.speedRun = e.speedRun; living.speedRunBack = e.speedRunBack;
+    living.speedSwim = e.speedSwim; living.speedSwimBack = e.speedSwimBack;
+    living.speedFlight = e.speedFlight; living.speedFlightBack = e.speedFlightBack;
+    living.speedTurn = e.speedTurn; living.speedPitch = e.speedPitch;
+    living.self = true;
+
+    ByteBuffer selfMovement;
+    MopUpdateObject::AppendSimpleLivingMovement(selfMovement, living);
+
+    living.self = false;
+    ByteBuffer creatureMovement;
+    MopUpdateObject::AppendSimpleLivingMovement(creatureMovement, living);
+    CHECK(selfMovement.size() == creatureMovement.size());
+    CHECK(selfMovement.size() > 4);
+    for (size_t i = 0; i < selfMovement.size() && i < creatureMovement.size(); ++i)
+    {
+        const uint8 delta = selfMovement.contents()[i] ^ creatureMovement.contents()[i];
+        CHECK(delta == (i == 4 ? 0x40 : 0x00));
+    }
 
     WorldPacket p;
     MopUpdateObject::BuildSelfCreate(p, e);
+
+    const size_t movementOffset = 6 + (3 + NonZeroGuidBytes(e.guid));
+    CHECK(p.size() >= movementOffset + selfMovement.size());
+    CHECK(p.size() >= movementOffset + selfMovement.size() &&
+        std::memcmp(p.contents() + movementOffset, selfMovement.contents(), selfMovement.size()) == 0);
 
     CHECK(p.GetOpcode() == SMSG_UPDATE_OBJECT);
 

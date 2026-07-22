@@ -38,6 +38,142 @@ namespace
     }
 }
 
+void MopUpdateObject::AppendStaticValuesNoDynamic(ByteBuffer& out, StaticField const* fields, uint32 fieldCount)
+{
+    MANGOS_ASSERT(fields || fieldCount == 0);
+
+    uint32 masks[63] = { 0 };
+    uint8 blockCount = 0;
+    uint16 previousIndex = 0;
+
+    for (uint32 i = 0; i < fieldCount; ++i)
+    {
+        MANGOS_ASSERT(fields[i].index < 63 * 32);
+        MANGOS_ASSERT(i == 0 || fields[i].index > previousIndex);
+
+        previousIndex = fields[i].index;
+        masks[fields[i].index / 32] |= uint32(1) << (fields[i].index % 32);
+        blockCount = std::max<uint8>(blockCount, uint8(fields[i].index / 32 + 1));
+    }
+
+    out << blockCount;
+    for (uint8 i = 0; i < blockCount; ++i)
+    {
+        out << masks[i];
+    }
+
+    for (uint32 i = 0; i < fieldCount; ++i)
+    {
+        out << fields[i].value;
+    }
+
+    out << uint8(0);
+}
+
+void MopUpdateObject::AppendStationaryGameObjectMovement(ByteBuffer& out, StationaryGameObjectMovement const& movement)
+{
+    out.WriteBit(0);                 // game-object data
+    out.WriteBit(0);                 // animation kits
+    out.WriteBit(0);                 // living
+    out.WriteBit(0);                 // scene-local script
+    out.WriteBit(0);
+    out.WriteBits(0, 22);            // transport frame count
+    out.WriteBit(0);                 // vehicle
+    out.WriteBit(0);
+    out.WriteBit(0);
+    out.WriteBit(0);                 // transport time
+    out.WriteBit(1);                 // packed world rotation follows
+    out.WriteBit(0);
+    out.WriteBit(0);                 // self
+    out.WriteBit(0);                 // attacking target
+    out.WriteBit(0);                 // scene object
+    out.WriteBit(0);                 // scene pending instances
+    out.WriteBit(0);
+    out.WriteBit(0);                 // area trigger
+    out.WriteBit(0);                 // game-object transport position
+    out.WriteBit(0);                 // replace you
+    out.WriteBit(1);                 // stationary position follows
+    out.FlushBits();
+
+    out << movement.x << movement.y << movement.z << movement.o;
+    out << movement.rotation;
+}
+
+void MopUpdateObject::AppendSimpleLivingMovement(ByteBuffer& out, SimpleLivingMovement const& movement)
+{
+    const uint64 g = movement.guid;
+
+    out.WriteBit(0);                     // game-object data
+    out.WriteBit(0);                     // animation kits
+    out.WriteBit(1);                     // living
+    out.WriteBit(0);                     // scene-local script
+    out.WriteBit(0);
+    out.WriteBits(0, 22);                // transport frame count
+    out.WriteBit(0);                     // vehicle
+    out.WriteBit(0);
+    out.WriteBit(0);
+    out.WriteBit(0);                     // transport time
+    out.WriteBit(0);                     // rotation
+    out.WriteBit(0);
+    out.WriteBit(movement.self);         // self
+    out.WriteBit(0);                     // attacking target
+    out.WriteBit(0);                     // scene object
+    out.WriteBit(0);                     // scene pending instances
+    out.WriteBit(0);
+    out.WriteBit(0);                     // area trigger
+    out.WriteBit(0);                     // game-object transport position
+    out.WriteBit(0);                     // replace you
+    out.WriteBit(0);                     // living carries its own position
+
+    out.WriteBit(GuidByte(g, 2) != 0);
+    out.WriteBit(0);
+    out.WriteBit(1);                     // pitch omitted
+    out.WriteBit(0);                     // unit transport
+    out.WriteBit(0);
+    out.WriteBit(0);                     // movement time present
+    out.WriteBit(GuidByte(g, 6) != 0);
+    out.WriteBit(GuidByte(g, 4) != 0);
+    out.WriteBit(GuidByte(g, 3) != 0);
+    out.WriteBit(0);                     // orientation present
+    out.WriteBit(1);                     // movement counter omitted
+    out.WriteBit(GuidByte(g, 5) != 0);
+    out.WriteBits(0, 22);                // forces
+    out.WriteBit(1);                     // movement flags omitted
+    out.WriteBits(0, 19);
+    out.WriteBit(0);                     // fall data
+    out.WriteBit(1);                     // spline elevation omitted
+    out.WriteBit(0);                     // spline
+    out.WriteBit(0);
+    out.WriteBit(GuidByte(g, 0) != 0);
+    out.WriteBit(GuidByte(g, 7) != 0);
+    out.WriteBit(GuidByte(g, 1) != 0);
+    out.WriteBit(1);                     // extra movement flags omitted
+    out.FlushBits();
+
+    out.WriteByteSeq(GuidByte(g, 4));
+    out << movement.speedFlight;
+    out.WriteByteSeq(GuidByte(g, 2));
+    out.WriteByteSeq(GuidByte(g, 1));
+    out << movement.speedTurn;
+    out << movement.moveTime;
+    out << movement.speedRunBack;
+    out.WriteByteSeq(GuidByte(g, 7));
+    out << movement.speedPitch;
+    out << movement.x;
+    out << movement.o;
+    out << movement.speedWalk;
+    out << movement.y;
+    out << movement.speedFlightBack;
+    out.WriteByteSeq(GuidByte(g, 3));
+    out.WriteByteSeq(GuidByte(g, 5));
+    out.WriteByteSeq(GuidByte(g, 6));
+    out.WriteByteSeq(GuidByte(g, 0));
+    out << movement.speedSwimBack;
+    out << movement.speedRun;
+    out << movement.speedSwim;
+    out << movement.z;
+}
+
 void MopUpdateObject::BuildSelfCreate(WorldPacket& out, const SelfPlayer& e)
 {
     out.Initialize(SMSG_UPDATE_OBJECT);
@@ -51,96 +187,30 @@ void MopUpdateObject::BuildSelfCreate(WorldPacket& out, const SelfPlayer& e)
     AppendPackedGuid(out, e.guid);
     out << uint8(4);                     // TYPEID_PLAYER
 
-    const uint64 g = e.guid;
-
-    // ---- movement block: top-level 21-slot updateflags ladder ----
-    // Stationary living self-player: LIVING + SELF set, everything else clear.
-    out.WriteBit(0);                     // has gameobject
-    out.WriteBit(0);                     // anim kits
-    out.WriteBit(1);                     // LIVING
-    out.WriteBit(0);                     // scene local script data
-    out.WriteBit(0);
-    out.WriteBits(0, 22);                // transport frame count
-    out.WriteBit(0);                     // vehicle
-    out.WriteBit(0);                     // unk 1044
-    out.WriteBit(0);
-    out.WriteBit(0);                     // transport
-    out.WriteBit(0);                     // rotation
-    out.WriteBit(0);
-    out.WriteBit(1);                     // SELF (this object is the receiving player)
-    out.WriteBit(0);                     // has target
-    out.WriteBit(0);                     // scene object
-    out.WriteBit(0);                     // scene pending instances
-    out.WriteBit(0);
-    out.WriteBit(0);                     // areatrigger
-    out.WriteBit(0);                     // go transport position
-    out.WriteBit(0);                     // replace you
-    out.WriteBit(0);                     // stationary position (living carries its own)
-
-    // ---- LIVING sub-ladder (movementFlags=0, no transport/spline/fall/pitch) ----
-    out.WriteBit(GuidByte(g, 2) != 0);
-    out.WriteBit(0);
-    out.WriteBit(1);                     // !hasPitch
-    out.WriteBit(0);                     // hasUnitTransport
-    out.WriteBit(0);
-    out.WriteBit(0);                     // !movementInfo.time (time is present)
-    out.WriteBit(GuidByte(g, 6) != 0);
-    out.WriteBit(GuidByte(g, 4) != 0);
-    out.WriteBit(GuidByte(g, 3) != 0);
-    out.WriteBit(0);                     // fuzzyEq(o, 0) -> false (o != 0)
-    out.WriteBit(1);                     // !movementCounter (counter == 0)
-    out.WriteBit(GuidByte(g, 5) != 0);
-    out.WriteBits(0, 22);                // Forces
-    out.WriteBit(1);                     // !movementFlags (flags == 0)
-    out.WriteBits(0, 19);
-    out.WriteBit(0);                     // hasFallData
-    // movementFlags == 0 -> no 30-bit flags
-    out.WriteBit(1);                     // !hasSplineElevation
-    out.WriteBit(0);                     // hasSpline
-    out.WriteBit(0);
-    out.WriteBit(GuidByte(g, 0) != 0);
-    out.WriteBit(GuidByte(g, 7) != 0);
-    out.WriteBit(GuidByte(g, 1) != 0);
-    // no spline
-    out.WriteBit(1);                     // !movementFlagsExtra (extra == 0)
-    // no fall data, no extra flags
-
-    out.FlushBits();
-
-    // ---- LIVING byte tail (order per 18414 layout) ----
-    out.WriteByteSeq(GuidByte(g, 4));
-    out << float(e.speedFlight);
-    // movementCounter == 0 -> skip
-    out.WriteByteSeq(GuidByte(g, 2));
-    // no fall data
-    out.WriteByteSeq(GuidByte(g, 1));
-    out << float(e.speedTurn);
-    out << uint32(e.moveTime);           // movementInfo.time
-    out << float(e.speedRunBack);
-    // no spline elevation
-    out.WriteByteSeq(GuidByte(g, 7));
-    out << float(e.speedPitch);
-    out << float(e.x);
-    // no pitch
-    out << float(e.o);                   // o != 0 -> orientation present
-    out << float(e.speedWalk);
-    out << float(e.y);
-    out << float(e.speedFlightBack);
-    out.WriteByteSeq(GuidByte(g, 3));
-    out.WriteByteSeq(GuidByte(g, 5));
-    out.WriteByteSeq(GuidByte(g, 6));
-    out.WriteByteSeq(GuidByte(g, 0));
-    out << float(e.speedSwimBack);
-    out << float(e.speedRun);
-    out << float(e.speedSwim);
-    out << float(e.z);                   // positionZMinusOffset
+    SimpleLivingMovement movement{};
+    movement.guid = e.guid;
+    movement.x = e.x;
+    movement.y = e.y;
+    movement.z = e.z;
+    movement.o = e.o;
+    movement.moveTime = e.moveTime;
+    movement.speedWalk = e.speedWalk;
+    movement.speedRun = e.speedRun;
+    movement.speedRunBack = e.speedRunBack;
+    movement.speedSwim = e.speedSwim;
+    movement.speedSwimBack = e.speedSwimBack;
+    movement.speedFlight = e.speedFlight;
+    movement.speedFlightBack = e.speedFlightBack;
+    movement.speedTurn = e.speedTurn;
+    movement.speedPitch = e.speedPitch;
+    movement.self = true;
+    AppendSimpleLivingMovement(out, movement);
 
     // ---- values block (essential 18414 fields, ascending index order) ----
     // UNIT_FIELD_SEX (renamed BYTES_0): byte0 race, byte1 class, byte3 gender.
     const uint32 sex = uint32(e.race) | (uint32(e.class_) << 8) | (uint32(e.gender) << 24);
 
-    struct FV { uint16 idx; uint32 val; };
-    const FV fields[] =
+    const StaticField fields[] =
     {
         {  0, uint32(e.guid & 0xFFFFFFFFu) },   // OBJECT_FIELD_GUID low
         {  1, uint32(e.guid >> 32) },           // OBJECT_FIELD_GUID high
@@ -168,25 +238,5 @@ void MopUpdateObject::BuildSelfCreate(WorldPacket& out, const SelfPlayer& e)
         { 69, e.displayId },                    // UNIT_FIELD_DISPLAY_ID (+0x3D)
         { 70, e.nativeDisplayId },              // UNIT_FIELD_NATIVE_DISPLAY_ID (+0x3E)
     };
-    const int nf = int(sizeof(fields) / sizeof(fields[0]));
-
-    const uint8 blockCount = uint8(fields[nf - 1].idx / 32 + 1);   // 3
-    uint32 mask[8] = { 0 };
-    for (int i = 0; i < nf; ++i)
-    {
-        mask[fields[i].idx / 32] |= (1u << (fields[i].idx % 32));
-    }
-
-    out << uint8(blockCount);
-    for (int i = 0; i < blockCount; ++i)
-    {
-        out << uint32(mask[i]);
-    }
-    for (int i = 0; i < nf; ++i)
-    {
-        out << uint32(fields[i].val);
-    }
-
-    // ---- dynamic-fields block (none for a player) ----
-    out << uint8(0);
+    AppendStaticValuesNoDynamic(out, fields, uint32(sizeof(fields) / sizeof(fields[0])));
 }
