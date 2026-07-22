@@ -176,6 +176,14 @@ static void test_update_status_opcode()
 {
     CHECK(uint32(SMSG_LFG_UPDATE_STATUS) == 0x0C2Eu);
     CHECK(uint32(SMSG_LFG_UPDATE_STATUS) < uint32(OPCODE_TABLE_SIZE));
+    CHECK(uint32(CMSG_LFG_GET_STATUS) == 0x032Du);
+}
+
+static void test_default_player_status()
+{
+    LFGPlayerStatus status;
+    CHECK(status.state == LFG_STATE_NONE);
+    CHECK(status.updateType == LFG_UPDATE_DEFAULT);
 }
 
 int main(int /*argc*/, char** /*argv*/)
@@ -188,6 +196,7 @@ int main(int /*argc*/, char** /*argv*/)
     test_update_status_empty_optional_fields();
     test_update_status_bounds();
     test_update_status_opcode();
+    test_default_player_status();
 
     if (g_fail)
     {

@@ -87,9 +87,18 @@ require_once("${lfg_sender}"
 require_once("${opcode_registry}"
     "DefS(SMSG_LFG_UPDATE_STATUS, \"SMSG_LFG_UPDATE_STATUS\");"
     "LFG status registration")
+require_once("${opcode_registry}"
+    "DefC(CMSG_LFG_GET_STATUS, \"CMSG_LFG_GET_STATUS\""
+    "LFG get-status registration")
 require_once("${opcode_header}"
     "SMSG_LFG_UPDATE_STATUS                       = 0x0C2E,"
     "LFG status opcode value")
+require_once("${lfg_sender}"
+    "void WorldSession::HandleLfgGetStatusOpcode"
+    "LFG get-status handler")
+require_once("${lfg_sender}"
+    "status.updateType = LFG_UPDATE_STATUS;"
+    "LFG get-status update reason")
 
 foreach(token IN ITEMS
         "out.WriteBit(update.reason.empty())"

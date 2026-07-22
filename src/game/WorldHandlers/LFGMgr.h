@@ -481,7 +481,7 @@ struct LFGPlayerStatus
     std::set<uint32> dungeonList;
     std::string comment;
 
-    LFGPlayerStatus() { }
+    LFGPlayerStatus() : state(LFG_STATE_NONE), updateType(LFG_UPDATE_DEFAULT) { }
     LFGPlayerStatus(LFGState State, LfgUpdateType UpdateType, std::set<uint32> DungeonList, std::string Comment)
         : state(State), updateType(UpdateType), dungeonList(DungeonList), comment(Comment) { }
 };

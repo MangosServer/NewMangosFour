@@ -90,6 +90,22 @@ void WorldSession::HandleLfgLeaveOpcode(WorldPacket& /*recv_data*/)
     // SendLfgUpdate(false, LFG_UPDATE_LEAVE, 0);
 }
 
+void WorldSession::HandleLfgGetStatusOpcode(WorldPacket& /*recv_data*/)
+{
+    DEBUG_LOG("CMSG_LFG_GET_STATUS");
+
+    LFGPlayerStatus status = sLFGMgr.GetPlayerStatus(GetPlayer()->GetObjectGuid());
+    if (status.state == LFG_STATE_NONE)
+        return;
+
+    status.updateType = LFG_UPDATE_STATUS;
+    bool const groupFirst = GetPlayer()->GetGroup() != nullptr;
+    SendLfgUpdate(groupFirst, status);
+
+    status.dungeonList.clear();
+    SendLfgUpdate(!groupFirst, status);
+}
+
 void WorldSession::HandleSetLfgCommentOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("CMSG_SET_LFG_COMMENT");
