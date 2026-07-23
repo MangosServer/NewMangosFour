@@ -59,8 +59,7 @@
  */
 void WorldSession::HandleAttackSwingOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid guid;
-    recv_data >> guid;
+    ObjectGuid const guid = MopCompactPackets::ReadAttackSwingTarget(recv_data);
 
     DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "WORLD: Received opcode CMSG_ATTACKSWING %s", guid.GetString().c_str());
 
@@ -160,9 +159,9 @@ void WorldSession::HandleSetSheathedOpcode(WorldPacket& recv_data)
  */
 void WorldSession::SendAttackStop(Unit const* enemy)
 {
-    WorldPacket data(SMSG_ATTACKSTOP, (4 + 20));            // we guess size
-    data << GetPlayer()->GetPackGUID();
-    data << (enemy ? enemy->GetPackGUID() : PackedGuid());  // must be packed guid
-    data << uint32(0);                                      // unk, can be 1 also
+    WorldPacket data;
+    MopCompactPackets::BuildAttackStop(data,
+        GetPlayer()->GetObjectGuid().GetRawValue(),
+        enemy ? enemy->GetObjectGuid().GetRawValue() : 0, false);
     SendPacket(&data);
 }

@@ -87,6 +87,43 @@ static void test_attack_swing_reasons()
     }
 }
 
+static void test_attack_packets()
+{
+    uint64_t const attacker = UINT64_C(0x0002030005060008);
+    uint64_t const victim = UINT64_C(0x1100334400667700);
+
+    WorldPacket start;
+    MopCompactPackets::BuildAttackStart(start, attacker, victim);
+    CHECK(start.GetOpcode() == SMSG_ATTACKSTART);
+    CHECK(BytesEqual(start, {
+        0xA9, 0xBE,
+        0x02, 0x09, 0x32, 0x03, 0x76,
+        0x45, 0x07, 0x10, 0x67, 0x04
+    }));
+
+    WorldPacket stop;
+    MopCompactPackets::BuildAttackStop(stop, attacker, victim, true);
+    CHECK(stop.GetOpcode() == SMSG_ATTACKSTOP);
+    CHECK(BytesEqual(stop, {
+        0xCE, 0xF6, 0x00,
+        0x09, 0x04, 0x02, 0x07, 0x76,
+        0x45, 0x03, 0x32, 0x10, 0x67
+    }));
+
+    WorldPacket rejected;
+    MopCompactPackets::BuildAttackStop(rejected, attacker, victim, false);
+    CHECK(BytesEqual(rejected, {
+        0xCE, 0x76, 0x00,
+        0x09, 0x04, 0x02, 0x07, 0x76,
+        0x45, 0x03, 0x32, 0x10, 0x67
+    }));
+
+    uint8_t const swingBody[] = { 0x67, 0x10, 0x76, 0x67, 0x45, 0x32 };
+    WorldPacket swing(CMSG_ATTACKSWING, sizeof(swingBody));
+    swing.append(swingBody, sizeof(swingBody));
+    CHECK(MopCompactPackets::ReadAttackSwingTarget(swing).GetRawValue() == victim);
+}
+
 static void test_swim_speed_guid_layouts()
 {
     {
@@ -231,6 +268,8 @@ static void test_opcode_values_are_framable()
     CHECK(uint32_t(SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT) == 0x0332u);
     CHECK(uint32_t(SMSG_SET_RAID_DIFFICULTY) == 0x0591u);
     CHECK(uint32_t(SMSG_SET_DUNGEON_DIFFICULTY) == 0x1283u);
+    CHECK(uint32_t(SMSG_ATTACKSTART) == 0x1A9Eu);
+    CHECK(uint32_t(SMSG_ATTACKSTOP) == 0x12AFu);
 
     CHECK(uint32_t(SMSG_ATTACKSWING_ERROR) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_MOVE_SET_SWIM_SPEED) <= 0x1FFFu);
@@ -238,11 +277,14 @@ static void test_opcode_values_are_framable()
     CHECK(uint32_t(SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_SET_RAID_DIFFICULTY) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_SET_DUNGEON_DIFFICULTY) <= 0x1FFFu);
+    CHECK(uint32_t(SMSG_ATTACKSTART) <= 0x1FFFu);
+    CHECK(uint32_t(SMSG_ATTACKSTOP) <= 0x1FFFu);
 }
 
 int main(int /*argc*/, char** /*argv*/)
 {
     test_attack_swing_reasons();
+    test_attack_packets();
     test_swim_speed_guid_layouts();
     test_random_roll_guid_layouts();
     test_instance_encounter_variants();

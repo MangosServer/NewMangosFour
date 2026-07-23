@@ -77,6 +77,100 @@
 
 namespace MopCompactPackets
 {
+    inline uint8 AttackGuidByte(uint64 guid, uint8 index)
+    {
+        return uint8(guid >> (8 * index));
+    }
+
+    inline ObjectGuid ReadAttackSwingTarget(WorldPacket& in)
+    {
+        ObjectGuid target;
+        in.ReadGuidMask<6, 5, 7, 0, 3, 1, 4, 2>(target);
+        in.ReadGuidBytes<6, 7, 1, 3, 2, 0, 4, 5>(target);
+        return target;
+    }
+
+    inline void BuildAttackStart(WorldPacket& out, uint64 attackerGuid,
+        uint64 victimGuid)
+    {
+        out.Initialize(SMSG_ATTACKSTART, 18);
+        out.WriteBit(AttackGuidByte(victimGuid, 7) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 7) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 3) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 3) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 5) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 4) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 1) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 4) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 0) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 6) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 5) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 2) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 6) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 1) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 2) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 0) != 0);
+        out.FlushBits();
+
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 5));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 0));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 5));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 4));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 6));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 6));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 1));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 0));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 7));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 4));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 2));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 3));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 7));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 2));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 3));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 1));
+    }
+
+    inline void BuildAttackStop(WorldPacket& out, uint64 attackerGuid,
+        uint64 victimGuid, bool hasVictimContext)
+    {
+        out.Initialize(SMSG_ATTACKSTOP, 19);
+        out.WriteBit(AttackGuidByte(attackerGuid, 5) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 6) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 3) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 6) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 7) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 2) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 5) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 4) != 0);
+        out.WriteBit(hasVictimContext);
+        out.WriteBit(AttackGuidByte(attackerGuid, 3) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 0) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 2) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 7) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 4) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 1) != 0);
+        out.WriteBit(AttackGuidByte(victimGuid, 0) != 0);
+        out.WriteBit(AttackGuidByte(attackerGuid, 1) != 0);
+        out.FlushBits();
+
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 0));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 3));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 5));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 2));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 0));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 6));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 3));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 4));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 1));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 4));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 6));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 5));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 7));
+        out.WriteByteSeq(AttackGuidByte(victimGuid, 2));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 1));
+        out.WriteByteSeq(AttackGuidByte(attackerGuid, 7));
+    }
+
     inline uint8 SwimSpeedGuidByte(uint64 guid, uint8 index)
     {
         return uint8(guid >> (8 * index));

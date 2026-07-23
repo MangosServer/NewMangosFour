@@ -11,6 +11,8 @@ file(READ "${SOURCE_ROOT}/src/game/Object/Player.h" player_header)
 file(READ "${SOURCE_ROOT}/src/game/Object/PlayerLoad.cpp" player_load)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/GroupHandler.cpp" group)
 file(READ "${SOURCE_ROOT}/src/game/Object/Unit.cpp" unit)
+file(READ "${SOURCE_ROOT}/src/game/Object/UnitCombat.cpp" unit_combat)
+file(READ "${SOURCE_ROOT}/src/game/Object/Unit.h" unit_header)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/QuestHandler.cpp" quest)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/GossipDef.cpp" gossip)
 
@@ -77,7 +79,9 @@ endforeach()
 foreach(route IN ITEMS
         "CMSG_SETSHEATHED;HandleSetSheathedOpcode"
         "CMSG_SET_SELECTION;HandleSetSelectionOpcode"
-        "CMSG_STANDSTATECHANGE;HandleStandStateChangeOpcode")
+        "CMSG_STANDSTATECHANGE;HandleStandStateChangeOpcode"
+        "CMSG_ATTACKSWING;HandleAttackSwingOpcode"
+        "CMSG_ATTACKSTOP;HandleAttackStopOpcode")
     list(GET route 0 opcode)
     list(GET route 1 handler)
     if(NOT opcodes MATCHES "DefC\\(${opcode},[^\n]*&WorldSession::${handler}\\)")
@@ -87,6 +91,40 @@ endforeach()
 if(NOT opcodes MATCHES "DefS\\(SMSG_STANDSTATE_UPDATE,")
     message(FATAL_ERROR "SMSG_STANDSTATE_UPDATE is not registered")
 endif()
+
+foreach(response IN ITEMS SMSG_ATTACKSTART SMSG_ATTACKSTOP)
+    if(NOT opcodes MATCHES "DefS\\(${response},")
+        message(FATAL_ERROR "${response} is not registered")
+    endif()
+    if(NOT session MATCHES "case ${response}:")
+        message(FATAL_ERROR "${response} is not admitted through world-send suppression")
+    endif()
+endforeach()
+foreach(token IN ITEMS
+        "MopCompactPackets::ReadAttackSwingTarget(recv_data)"
+        "MopCompactPackets::BuildAttackStop(data,")
+    string(FIND "${combat}" "${token}" found)
+    if(found EQUAL -1)
+        message(FATAL_ERROR "combat-handler 18414 attack wiring missing: ${token}")
+    endif()
+endforeach()
+foreach(token IN ITEMS
+        "MopCompactPackets::BuildAttackStart(data,"
+        "MopCompactPackets::BuildAttackStop(data,")
+    string(FIND "${unit_combat}" "${token}" found)
+    if(found EQUAL -1)
+        message(FATAL_ERROR "unit-combat 18414 attack wiring missing: ${token}")
+    endif()
+endforeach()
+foreach(token IN ITEMS
+        "ReadAttackSwingTarget"
+        "BuildAttackStart"
+        "BuildAttackStop")
+    string(FIND "${unit_header}" "${token}" found)
+    if(found EQUAL -1)
+        message(FATAL_ERROR "18414 attack codec missing: ${token}")
+    endif()
+endforeach()
 
 if(NOT opcodes MATCHES "DefC\\(CMSG_QUESTGIVER_STATUS_QUERY,[^\n]*&WorldSession::HandleQuestgiverStatusQueryOpcode\\)")
     message(FATAL_ERROR "CMSG_QUESTGIVER_STATUS_QUERY is not registered to its handler")

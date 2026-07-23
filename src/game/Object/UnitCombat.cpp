@@ -487,9 +487,9 @@ float Unit::CalculateLevelPenalty(SpellEntry const* spellProto) const
  */
 void Unit::SendMeleeAttackStart(Unit* pVictim)
 {
-    WorldPacket data(SMSG_ATTACKSTART, 8 + 8);
-    data << GetObjectGuid();
-    data << pVictim->GetObjectGuid();
+    WorldPacket data;
+    MopCompactPackets::BuildAttackStart(data,
+        GetObjectGuid().GetRawValue(), pVictim->GetObjectGuid().GetRawValue());
 
     SendMessageToSet(&data, true);
     DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "WORLD: Sent SMSG_ATTACKSTART: %s -> %s", GetGuidStr().c_str(), pVictim->GetGuidStr().c_str());
@@ -507,10 +507,9 @@ void Unit::SendMeleeAttackStop(Unit* victim)
         return;
     }
 
-    WorldPacket data(SMSG_ATTACKSTOP, (4 + 16));            // we guess size
-    data << GetPackGUID();
-    data << victim->GetPackGUID();                          // can be 0x00...
-    data << uint32(0);                                      // can be 0x1
+    WorldPacket data;
+    MopCompactPackets::BuildAttackStop(data,
+        GetObjectGuid().GetRawValue(), victim->GetObjectGuid().GetRawValue(), true);
     SendMessageToSet(&data, true);
     DETAIL_FILTER_LOG(LOG_FILTER_COMBAT, "%s %u stopped attacking %s %u", (GetTypeId() == TYPEID_PLAYER ? "player" : "creature"), GetGUIDLow(), (victim->GetTypeId() == TYPEID_PLAYER ? "player" : "creature"), victim->GetGUIDLow());
 

@@ -7,6 +7,8 @@ file(READ "${SOURCE_ROOT}/src/game/Object/PlayerInstance.cpp" player_instance)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CharacterHandler.cpp" character_handler)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.h" opcode_header)
+file(READ "${SOURCE_ROOT}/src/game/Object/UnitCombat.cpp" unit_combat)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CombatHandler.cpp" combat_handler)
 
 if(player_combat MATCHES "WorldPacket[ \t]+data\\(SMSG_ATTACKSWING_NOTINRANGE")
     message(FATAL_ERROR "legacy construction SMSG_ATTACKSWING_NOTINRANGE remains in its sender")
@@ -57,8 +59,16 @@ foreach(server_name IN ITEMS
         SMSG_RANDOM_ROLL
         SMSG_UPDATE_INSTANCE_ENCOUNTER_UNIT
         SMSG_SET_RAID_DIFFICULTY
-        SMSG_SET_DUNGEON_DIFFICULTY)
+        SMSG_SET_DUNGEON_DIFFICULTY
+        SMSG_ATTACKSTART
+        SMSG_ATTACKSTOP)
     if(NOT opcode_registry MATCHES "DefS\\(${server_name},[ \t]*\"${server_name}\"\\)")
         message(FATAL_ERROR "${server_name} is missing outbound opcode metadata")
+    endif()
+endforeach()
+
+foreach(source_text IN ITEMS "${unit_combat}" "${combat_handler}")
+    if(source_text MATCHES "GetPackGUID\\(\\)")
+        message(FATAL_ERROR "legacy attack packet pack-GUID writer remains")
     endif()
 endforeach()
