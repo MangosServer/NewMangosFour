@@ -403,6 +403,9 @@ void InitializeOpcodes()
     DefS(SMSG_SPLINE_MOVE_SET_FEATHER_FALL, "SMSG_SPLINE_MOVE_SET_FEATHER_FALL");
     DefS(SMSG_SPLINE_MOVE_SET_LAND_WALK, "SMSG_SPLINE_MOVE_SET_LAND_WALK");
 
+    // Binary-proven 18414 integrated spell-cast request.
+    DefC(CMSG_CAST_SPELL, "CMSG_CAST_SPELL", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleCastSpellOpcode);
+
     // Guild event packets split from the pre-MoP generic guild-event packet.
     DefS(SMSG_GUILD_EVENT_MOTD, "SMSG_GUILD_EVENT_MOTD");
     DefS(SMSG_GUILD_EVENT_PLAYER_JOINED, "SMSG_GUILD_EVENT_PLAYER_JOINED");

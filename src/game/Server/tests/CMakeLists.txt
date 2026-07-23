@@ -908,3 +908,29 @@ foreach(mutation IN ITEMS legacy_sender legacy_handler)
             -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_petition_legacy_source_test.cmake)
     set_tests_properties(mop_petition_legacy_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
+
+add_executable(mop_spell_cast_packets_test mop_spell_cast_packets_test.cpp)
+target_include_directories(mop_spell_cast_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_spell_cast_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_spell_cast_packets_test PRIVATE game)
+add_test(NAME mop_spell_cast_packets COMMAND mop_spell_cast_packets_test)
+if(WIN32)
+    get_filename_component(MOP_SPELL_CAST_MYSQL_RUNTIME_DIR "${MySQL_LIBRARY}" DIRECTORY)
+    set_tests_properties(mop_spell_cast_packets PROPERTIES
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${MOP_SPELL_CAST_MYSQL_RUNTIME_DIR}")
+endif()
+
+add_test(NAME mop_spell_cast_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_spell_cast_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS reader registration target_initializer target_mapping movement_count_width
+        movement_count_bound movement_flag_order missile_guard elevation_guard full_consumption string_bound legacy_prefix)
+    add_test(NAME mop_spell_cast_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_spell_cast_packets_source_test.cmake)
+    set_tests_properties(mop_spell_cast_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()

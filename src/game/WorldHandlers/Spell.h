@@ -139,6 +139,10 @@ namespace MaNGOS
 }
 
 class SpellCastTargets;
+namespace MopSpellPackets
+{
+    struct CastSpellRequest;
+}
 
 /// @brief Reader helper for deserializing spell cast targets.
 ///
@@ -251,6 +255,7 @@ class SpellCastTargets
         bool IsEmpty() const { return !m_GOTargetGUID && !m_unitTargetGUID && !m_itemTarget && !m_CorpseTargetGUID; }
 
         void Update(Unit* caster);
+        bool InitializeForCastRequest(Unit* caster, MopSpellPackets::CastSpellRequest const& request);
 
         float m_srcX, m_srcY, m_srcZ;
         float m_destX, m_destY, m_destZ;
@@ -279,6 +284,33 @@ class SpellCastTargets
         float m_elevation;
         float m_speed;
 };
+
+namespace MopSpellPackets
+{
+    struct CastSpellRequest
+    {
+        uint8 castCount = 0;
+        uint8 castFlags = 0;
+        uint32 spellId = 0;
+        uint32 glyphIndex = 0;
+        uint32 targetMask = 0;
+        ObjectGuid targetGuid;
+        ObjectGuid itemTargetGuid;
+        ObjectGuid sourceTransportGuid;
+        ObjectGuid destinationTransportGuid;
+        float sourceX = 0.0f;
+        float sourceY = 0.0f;
+        float sourceZ = 0.0f;
+        float destinationX = 0.0f;
+        float destinationY = 0.0f;
+        float destinationZ = 0.0f;
+        std::string targetString;
+        float missileSpeed = 0.0f;
+        float elevation = 0.0f;
+    };
+
+    bool ReadCastSpellRequest(WorldPacket& in, CastSpellRequest& request);
+}
 
 inline ByteBuffer& operator<< (ByteBuffer& buf, SpellCastTargets const& targets)
 {

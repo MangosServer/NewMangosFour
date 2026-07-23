@@ -402,12 +402,6 @@ void WorldSession::HandleGameobjectReportUse(WorldPacket& recvPacket)
  */
 void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
 {
-    uint32 spellId, glyphIndex;
-    uint8  cast_count, cast_flags;
-    recvPacket >> cast_count;
-    recvPacket >> spellId >> glyphIndex;
-    recvPacket >> cast_flags;                           // flags (if 0x02 - some additional data are received)
-
     // ignore for remote control state (for player case)
     Unit* mover = _player->GetMover();
     if (mover != _player && mover->GetTypeId() == TYPEID_PLAYER)
@@ -416,8 +410,13 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
         return;
     }
 
+    MopSpellPackets::CastSpellRequest request;
+    if (!MopSpellPackets::ReadCastSpellRequest(recvPacket, request))
+        return;
+
+    uint32 spellId = request.spellId;
     DEBUG_LOG("WORLD: got cast spell packet, spellId - %u, cast_count: %u, cast_flags %u, data length = %zu",
-              spellId, cast_count, cast_flags, recvPacket.size());
+              spellId, request.castCount, request.castFlags, recvPacket.size());
 
     SpellEntry const* spellInfo = sSpellStore.LookupEntry(spellId);
     if (!spellInfo)
@@ -472,12 +471,9 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
         }
     }
 
-    // client provided targets
     SpellCastTargets targets;
-
-    recvPacket >> targets.ReadForCaster(mover);
-
-    targets.ReadAdditionalData(recvPacket, cast_flags);
+    if (!targets.InitializeForCastRequest(mover, request))
+        return;
 
     // auto-selection buff level base at target level (in spellInfo)
     if (Unit* target = targets.getUnitTarget())
@@ -490,8 +486,8 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
     }
 
     Spell* spell = new Spell(mover, spellInfo, triggeredByAura ? true : false, mover->GetObjectGuid(), triggeredByAura ? triggeredByAura->GetSpellProto() : NULL);
-    spell->m_cast_count = cast_count;                       // set count of casts
-    spell->m_glyphIndex = glyphIndex;
+    spell->m_cast_count = request.castCount;               // set count of casts
+    spell->m_glyphIndex = request.glyphIndex;
     spell->SpellStart(&targets, triggeredByAura);
 }
 
