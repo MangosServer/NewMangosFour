@@ -45,6 +45,12 @@ class WorldPacket;
 
 namespace MopLfgPackets
 {
+    struct LfrSearchRequest
+    {
+        uint32 lfgId = 0;
+        uint8 typeId = 0;
+    };
+
     struct BootUpdate
     {
         uint64 victimGuid = 0;
@@ -81,6 +87,8 @@ namespace MopLfgPackets
 
     bool BuildBootPlayer(WorldPacket& out, BootUpdate const& update);
     bool BuildUpdateStatus(WorldPacket& out, StatusUpdate const& update);
+    bool ParseLfrSearchRequest(WorldPacket& in, LfrSearchRequest& request);
+    void BuildEmptyLfrSearchResponse(WorldPacket& out, LfrSearchRequest const& request);
     bool ParseLockInfoRequest(WorldPacket& in, bool& forPlayer);
     void BuildEmptyPlayerInfo(WorldPacket& out);
     void BuildEmptyPartyInfo(WorldPacket& out);
@@ -106,6 +114,55 @@ namespace MopLfgPacketDetail
         for (size_t index : order)
             out.WriteByteSeq(GuidByte(guid, index));
     }
+}
+
+inline bool MopLfgPackets::ParseLfrSearchRequest(WorldPacket& in,
+    LfrSearchRequest& request)
+{
+    if (in.size() - in.rpos() != 4)
+        return false;
+
+    uint8 const* body = in.contents() + in.rpos();
+    uint32 const key = uint32(body[0]) |
+        (uint32(body[1]) << 8) |
+        (uint32(body[2]) << 16) |
+        (uint32(body[3]) << 24);
+    uint8 const typeId = uint8(key >> 24);
+    if ((key & 0x00F00000u) != 0 || typeId >= 7)
+        return false;
+
+    request.lfgId = key & 0x000FFFFFu;
+    request.typeId = typeId;
+    in.read_skip<uint32>();
+    return in.rpos() == in.size();
+}
+
+inline void MopLfgPackets::BuildEmptyLfrSearchResponse(WorldPacket& out,
+    LfrSearchRequest const& request)
+{
+    // Direct 18414 reader layout. The top-level GUID mask is split around the
+    // two result collections; every field below is zero and flushes to 9 bytes.
+    out.WriteBits(0, 24); // removed result count
+    out.WriteBit(false);  // top GUID[6]
+    out.WriteBit(false);  // top GUID[2]
+    out.WriteBit(false);  // top GUID[0]
+    out.WriteBit(false);  // replacement mode: false clears current result caches
+    out.WriteBits(0, 17); // player count
+    out.WriteBit(false);  // top GUID[4]
+    out.WriteBit(false);  // top GUID[1]
+    out.WriteBits(0, 20); // group count
+    out.WriteBit(false);  // top GUID[5]
+    out.WriteBit(false);  // top GUID[7]
+    out.WriteBit(false);  // top GUID[3]
+    out.FlushBits();
+
+    out << uint32(0);
+    out << uint32(0);
+    out << request.lfgId;
+    out << uint32(request.typeId);
+    out << uint32(0);
+    out << uint32(0);
+    out << uint32(0);
 }
 
 inline bool MopLfgPackets::BuildBootPlayer(WorldPacket& out,

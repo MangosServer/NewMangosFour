@@ -837,6 +837,10 @@ enum OpcodesList
     CMSG_MOVE_STOP_ASCEND                        = 0x115A, // 5.4.8 18414
     CMSG_LFG_JOIN                                = 0x046B, // 5.4.8 18414 (Wow.exe binary)
     CMSG_LFG_LEAVE                               = 0x01E0, // 5.4.8 18414 (Wow.exe binary)
+    // Values and four-byte layouts are direct Wow.exe binary evidence; the
+    // semantic LFR names come from the shipped UI/native call chain.
+    CMSG_LFG_LFR_JOIN                           = 0x1AA2,
+    CMSG_LFG_LFR_LEAVE                          = 0x00E3,
     SMSG_LFG_PROPOSAL_UPDATE                     = 0x1E3B,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     CMSG_LFG_PROPOSAL_RESPONSE                   = 0x1D9D, // 5.4.8 18414 (Wow.exe binary, via CMSG_LFG_PROPOSAL_RESULT)
     SMSG_LFG_ROLE_CHECK_UPDATE                   = 0x12BB,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)

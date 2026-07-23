@@ -2,6 +2,8 @@ file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/LFGMgr.h" packet_builder)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/LFGHandler.cpp" lfg_sender)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.h" opcode_header)
+file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.h" session_header)
+file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" session_source)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/LFGMgr.h" lfg_manager_header)
 
 if(MUTATION STREQUAL "builder_call")
@@ -49,6 +51,86 @@ elseif(MUTATION STREQUAL "status_reason_value")
         "LFG_UPDATE_JOIN                 = 6,"
         "LFG_UPDATE_JOIN                 = 5,"
         lfg_manager_header "${lfg_manager_header}")
+elseif(MUTATION STREQUAL "lfr_join_registration")
+    string(REPLACE
+        "DefC(CMSG_LFG_LFR_JOIN, \"CMSG_LFG_LFR_JOIN\""
+        "DefC(REMOVED_LFR_JOIN, \"CMSG_LFG_LFR_JOIN\""
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "lfr_leave_registration")
+    string(REPLACE
+        "DefC(CMSG_LFG_LFR_LEAVE, \"CMSG_LFG_LFR_LEAVE\""
+        "DefC(REMOVED_LFR_LEAVE, \"CMSG_LFG_LFR_LEAVE\""
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "lfr_search_registration")
+    string(REPLACE
+        "DefS(SMSG_LFG_UPDATE_SEARCH, \"SMSG_LFG_UPDATE_SEARCH\");"
+        "/* removed LFR search response registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "lfr_join_declaration")
+    string(REPLACE
+        "void HandleLfrJoinOpcode(WorldPacket& recv_data);"
+        "void RemovedLfrJoinOpcode(WorldPacket& recv_data);"
+        session_header "${session_header}")
+elseif(MUTATION STREQUAL "lfr_leave_declaration")
+    string(REPLACE
+        "void HandleLfrLeaveOpcode(WorldPacket& recv_data);"
+        "void RemovedLfrLeaveOpcode(WorldPacket& recv_data);"
+        session_header "${session_header}")
+elseif(MUTATION STREQUAL "lfr_join_definition")
+    string(REPLACE
+        "void WorldSession::HandleLfrJoinOpcode(WorldPacket& recv_data)"
+        "void WorldSession::RemovedLfrJoinOpcode(WorldPacket& recv_data)"
+        lfg_sender "${lfg_sender}")
+elseif(MUTATION STREQUAL "lfr_leave_definition")
+    string(REPLACE
+        "void WorldSession::HandleLfrLeaveOpcode(WorldPacket& recv_data)"
+        "void WorldSession::RemovedLfrLeaveOpcode(WorldPacket& recv_data)"
+        lfg_sender "${lfg_sender}")
+elseif(MUTATION STREQUAL "lfr_parser_calls")
+    string(REPLACE
+        "MopLfgPackets::ParseLfrSearchRequest(recv_data, request)"
+        "false /* removed LFR request parser */"
+        lfg_sender "${lfg_sender}")
+elseif(MUTATION STREQUAL "lfr_builder_call")
+    string(REPLACE
+        "MopLfgPackets::BuildEmptyLfrSearchResponse(data, request)"
+        "/* removed LFR empty-response builder */"
+        lfg_sender "${lfg_sender}")
+elseif(MUTATION STREQUAL "lfr_dbc_lookup")
+    string(REPLACE
+        "sLfgDungeonsStore.LookupEntry(request.lfgId)"
+        "nullptr /* removed LFR DBC lookup */"
+        lfg_sender "${lfg_sender}")
+elseif(MUTATION STREQUAL "lfr_type_validation")
+    string(REPLACE
+        "dungeon->TypeID != request.typeId"
+        "false /* removed LFR TypeID validation */"
+        lfg_sender "${lfg_sender}")
+elseif(MUTATION STREQUAL "lfr_converted_packet")
+    string(REPLACE
+        "case SMSG_LFG_UPDATE_SEARCH:"
+        "case REMOVED_LFG_UPDATE_SEARCH:"
+        session_source "${session_source}")
+elseif(MUTATION STREQUAL "lfr_join_opcode")
+    string(REPLACE
+        "CMSG_LFG_LFR_JOIN                           = 0x1AA2,"
+        "CMSG_LFG_LFR_JOIN                           = 0x1AA3,"
+        opcode_header "${opcode_header}")
+elseif(MUTATION STREQUAL "lfr_leave_opcode")
+    string(REPLACE
+        "CMSG_LFG_LFR_LEAVE                          = 0x00E3,"
+        "CMSG_LFG_LFR_LEAVE                          = 0x00E4,"
+        opcode_header "${opcode_header}")
+elseif(MUTATION STREQUAL "lfr_search_opcode")
+    string(REPLACE
+        "SMSG_LFG_UPDATE_SEARCH                       = 0x1161,"
+        "SMSG_LFG_UPDATE_SEARCH                       = 0x1162,"
+        opcode_header "${opcode_header}")
+elseif(MUTATION STREQUAL "lfr_bit_order")
+    string(REPLACE
+        "out.WriteBit(false);  // top GUID[4]"
+        "out.WriteBit(false);  // top GUID[0]"
+        packet_builder "${packet_builder}")
 endif()
 
 function(require_once source token context)
@@ -66,6 +148,24 @@ function(require_once source token context)
     endwhile()
     if(NOT count EQUAL 1)
         message(FATAL_ERROR "${context}: expected one active occurrence, found ${count}")
+    endif()
+endfunction()
+
+function(require_count source token expected context)
+    set(remaining "${source}")
+    set(count 0)
+    while(TRUE)
+        string(FIND "${remaining}" "${token}" position)
+        if(position EQUAL -1)
+            break()
+        endif()
+        math(EXPR count "${count} + 1")
+        string(LENGTH "${token}" token_length)
+        math(EXPR next_position "${position} + ${token_length}")
+        string(SUBSTRING "${remaining}" ${next_position} -1 remaining)
+    endwhile()
+    if(NOT count EQUAL expected)
+        message(FATAL_ERROR "${context}: expected ${expected} active occurrences, found ${count}")
     endif()
 endfunction()
 
@@ -117,6 +217,73 @@ require_once("${lfg_sender}"
 require_once("${lfg_sender}"
     "status.updateType = LFG_UPDATE_STATUS;"
     "LFG get-status update reason")
+require_once("${opcode_registry}"
+    "DefC(CMSG_LFG_LFR_JOIN, \"CMSG_LFG_LFR_JOIN\""
+    "LFR join registration")
+require_once("${opcode_registry}"
+    "DefC(CMSG_LFG_LFR_LEAVE, \"CMSG_LFG_LFR_LEAVE\""
+    "LFR leave registration")
+require_once("${opcode_registry}"
+    "DefS(SMSG_LFG_UPDATE_SEARCH, \"SMSG_LFG_UPDATE_SEARCH\");"
+    "LFR search response registration")
+require_once("${session_header}"
+    "void HandleLfrJoinOpcode(WorldPacket& recv_data);"
+    "LFR join handler declaration")
+require_once("${session_header}"
+    "void HandleLfrLeaveOpcode(WorldPacket& recv_data);"
+    "LFR leave handler declaration")
+require_once("${lfg_sender}"
+    "void WorldSession::HandleLfrJoinOpcode(WorldPacket& recv_data)"
+    "LFR join handler definition")
+require_once("${lfg_sender}"
+    "void WorldSession::HandleLfrLeaveOpcode(WorldPacket& recv_data)"
+    "LFR leave handler definition")
+require_count("${lfg_sender}"
+    "MopLfgPackets::ParseLfrSearchRequest(recv_data, request)"
+    2
+    "LFR request parser calls")
+require_once("${lfg_sender}"
+    "MopLfgPackets::BuildEmptyLfrSearchResponse(data, request)"
+    "LFR empty-response builder call")
+require_count("${lfg_sender}"
+    "sLfgDungeonsStore.LookupEntry(request.lfgId)"
+    2
+    "LFR DBC row validation")
+require_count("${lfg_sender}"
+    "dungeon->TypeID != request.typeId"
+    2
+    "LFR DBC TypeID validation")
+require_once("${session_source}"
+    "case SMSG_LFG_UPDATE_SEARCH:"
+    "LFR converted-packet allowlist")
+
+foreach(token IN ITEMS
+        "CMSG_LFG_LFR_JOIN                           = 0x1AA2,"
+        "CMSG_LFG_LFR_LEAVE                          = 0x00E3,"
+        "SMSG_LFG_UPDATE_SEARCH                       = 0x1161,")
+    string(FIND "${opcode_header}" "${token}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "5.4.8 LFR search opcode missing: ${token}")
+    endif()
+endforeach()
+
+set(lfr_empty_bit_grammar [=[
+    out.WriteBits(0, 24); // removed result count
+    out.WriteBit(false);  // top GUID[6]
+    out.WriteBit(false);  // top GUID[2]
+    out.WriteBit(false);  // top GUID[0]
+    out.WriteBit(false);  // replacement mode: false clears current result caches
+    out.WriteBits(0, 17); // player count
+    out.WriteBit(false);  // top GUID[4]
+    out.WriteBit(false);  // top GUID[1]
+    out.WriteBits(0, 20); // group count
+    out.WriteBit(false);  // top GUID[5]
+    out.WriteBit(false);  // top GUID[7]
+    out.WriteBit(false);  // top GUID[3]
+]=])
+require_once("${packet_builder}"
+    "${lfr_empty_bit_grammar}"
+    "binary-proven LFR empty-response bit grammar")
 
 foreach(token IN ITEMS
         "out.WriteBit(update.reason.empty())"

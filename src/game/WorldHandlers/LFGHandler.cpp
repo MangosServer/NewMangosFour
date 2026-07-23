@@ -41,6 +41,7 @@
  */
 
 #include "WorldSession.h"
+#include "DBCStores.h"
 #include "Group.h"
 #include "LFGMgr.h"
 #include "Log.h"
@@ -49,6 +50,53 @@
 #include "ObjectMgr.h"
 #include "World.h"
 
+
+void WorldSession::HandleLfrJoinOpcode(WorldPacket& recv_data)
+{
+    MopLfgPackets::LfrSearchRequest request;
+    if (!MopLfgPackets::ParseLfrSearchRequest(recv_data, request))
+    {
+        sLog.outError("WORLD: malformed CMSG_LFG_LFR_JOIN from %s",
+            GetPlayerName());
+        return;
+    }
+
+    LfgDungeonsEntry const* dungeon =
+        sLfgDungeonsStore.LookupEntry(request.lfgId);
+    if (!dungeon || dungeon->TypeID != request.typeId)
+    {
+        sLog.outError("WORLD: invalid CMSG_LFG_LFR_JOIN key %u:%u from %s",
+            uint32(request.typeId), request.lfgId, GetPlayerName());
+        return;
+    }
+
+    WorldPacket data(SMSG_LFG_UPDATE_SEARCH, 37);
+    MopLfgPackets::BuildEmptyLfrSearchResponse(data, request);
+    SendPacket(&data);
+}
+
+void WorldSession::HandleLfrLeaveOpcode(WorldPacket& recv_data)
+{
+    MopLfgPackets::LfrSearchRequest request;
+    if (!MopLfgPackets::ParseLfrSearchRequest(recv_data, request))
+    {
+        sLog.outError("WORLD: malformed CMSG_LFG_LFR_LEAVE from %s",
+            GetPlayerName());
+        return;
+    }
+
+    LfgDungeonsEntry const* dungeon =
+        sLfgDungeonsStore.LookupEntry(request.lfgId);
+    if (!dungeon || dungeon->TypeID != request.typeId)
+    {
+        sLog.outError("WORLD: invalid CMSG_LFG_LFR_LEAVE key %u:%u from %s",
+            uint32(request.typeId), request.lfgId, GetPlayerName());
+        return;
+    }
+
+    DEBUG_LOG("WORLD: recognized CMSG_LFG_LFR_LEAVE key %u:%u from %s",
+        uint32(request.typeId), request.lfgId, GetPlayerName());
+}
 
 void WorldSession::HandleLfgJoinOpcode(WorldPacket& recv_data)
 {

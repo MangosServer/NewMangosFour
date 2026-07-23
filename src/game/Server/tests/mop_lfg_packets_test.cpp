@@ -271,6 +271,71 @@ static void test_lock_info_opcodes()
     CHECK(uint32(SMSG_LFG_PARTY_INFO) == 0x168Eu);
 }
 
+static WorldPacket LfrRequestPacket(std::initializer_list<uint8> bytes)
+{
+    WorldPacket packet(CMSG_LFG_LFR_JOIN, bytes.size());
+    for (uint8 byte : bytes)
+        packet << byte;
+    return packet;
+}
+
+static void test_lfr_search_request()
+{
+    WorldPacket packet = LfrRequestPacket({ 0x45, 0x23, 0x01, 0x03 });
+    MopLfgPackets::LfrSearchRequest request;
+    CHECK(MopLfgPackets::ParseLfrSearchRequest(packet, request));
+    CHECK(request.lfgId == 0x12345u);
+    CHECK(request.typeId == 3u);
+    CHECK(packet.rpos() == packet.size());
+}
+
+static void test_lfr_search_request_rejects_invalid_body()
+{
+    MopLfgPackets::LfrSearchRequest request;
+
+    WorldPacket truncated = LfrRequestPacket({ 0x45, 0x23, 0x01 });
+    CHECK(!MopLfgPackets::ParseLfrSearchRequest(truncated, request));
+
+    WorldPacket trailing = LfrRequestPacket({ 0x45, 0x23, 0x01, 0x03, 0x00 });
+    CHECK(!MopLfgPackets::ParseLfrSearchRequest(trailing, request));
+
+    WorldPacket reservedBit = LfrRequestPacket({ 0x45, 0x23, 0x11, 0x03 });
+    CHECK(!MopLfgPackets::ParseLfrSearchRequest(reservedBit, request));
+
+    WorldPacket highReservedBit = LfrRequestPacket({ 0x45, 0x23, 0x81, 0x03 });
+    CHECK(!MopLfgPackets::ParseLfrSearchRequest(highReservedBit, request));
+
+    WorldPacket invalidType = LfrRequestPacket({ 0x45, 0x23, 0x01, 0x07 });
+    CHECK(!MopLfgPackets::ParseLfrSearchRequest(invalidType, request));
+}
+
+static void test_empty_lfr_search_response()
+{
+    MopLfgPackets::LfrSearchRequest request;
+    request.lfgId = 0x12345u;
+    request.typeId = 3u;
+
+    WorldPacket packet(SMSG_LFG_UPDATE_SEARCH, 37);
+    MopLfgPackets::BuildEmptyLfrSearchResponse(packet, request);
+    CHECK(Equal(packet, {
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,
+        0x45,0x23,0x01,0x00,
+        0x03,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00
+    }));
+}
+
+static void test_lfr_search_opcodes()
+{
+    CHECK(uint32(CMSG_LFG_LFR_JOIN) == 0x1AA2u);
+    CHECK(uint32(CMSG_LFG_LFR_LEAVE) == 0x00E3u);
+    CHECK(uint32(SMSG_LFG_UPDATE_SEARCH) == 0x1161u);
+}
+
 int main(int /*argc*/, char** /*argv*/)
 {
     test_reason_present();
@@ -286,6 +351,10 @@ int main(int /*argc*/, char** /*argv*/)
     test_lock_info_request_rejects_invalid_body();
     test_empty_lock_info_responses();
     test_lock_info_opcodes();
+    test_lfr_search_request();
+    test_lfr_search_request_rejects_invalid_body();
+    test_empty_lfr_search_response();
+    test_lfr_search_opcodes();
 
     if (g_fail)
     {

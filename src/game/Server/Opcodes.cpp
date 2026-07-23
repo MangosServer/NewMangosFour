@@ -323,6 +323,11 @@ void InitializeOpcodes()
     // already-converted unified SMSG_LFG_UPDATE_STATUS body.
     DefC(CMSG_LFG_GET_STATUS, "CMSG_LFG_GET_STATUS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgGetStatusOpcode);
 
+    // Direct 18414 LFR-browser request and empty full-replacement response.
+    DefC(CMSG_LFG_LFR_JOIN, "CMSG_LFG_LFR_JOIN", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfrJoinOpcode);
+    DefC(CMSG_LFG_LFR_LEAVE, "CMSG_LFG_LFR_LEAVE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfrLeaveOpcode);
+    DefS(SMSG_LFG_UPDATE_SEARCH, "SMSG_LFG_UPDATE_SEARCH");
+
     // Unified 18414 lock-info request: 0x7F byte then one player/party bit.
     DefC(CMSG_LFG_LOCK_INFO_REQUEST, "CMSG_LFG_LOCK_INFO_REQUEST", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgLockInfoRequestOpcode);
     DefS(SMSG_LFG_PLAYER_INFO, "SMSG_LFG_PLAYER_INFO");

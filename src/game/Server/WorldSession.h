@@ -1788,6 +1788,8 @@ class WorldSession
         void HandleSetDungeonDifficultyOpcode(WorldPacket& recv_data);
         void HandleSetRaidDifficultyOpcode(WorldPacket& recv_data);
         void HandleMoveSetCanFlyAckOpcode(WorldPacket& recv_data);
+        void HandleLfrJoinOpcode(WorldPacket& recv_data);
+        void HandleLfrLeaveOpcode(WorldPacket& recv_data);
         void HandleLfgJoinOpcode(WorldPacket& recv_data);
         void HandleLfgLeaveOpcode(WorldPacket& recv_data);
         void HandleLfgGetStatusOpcode(WorldPacket& recv_data);
