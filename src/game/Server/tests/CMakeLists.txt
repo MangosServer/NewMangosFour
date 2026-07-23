@@ -784,6 +784,18 @@ foreach(mutation IN ITEMS reason_mapping argument_bit reason_width registration 
     set_tests_properties(mop_transfer_abort_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_test(NAME mop_account_data_lifecycle_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_account_data_lifecycle_source_test.cmake)
+
+foreach(mutation IN ITEMS gate exact_frame clear_body inflate_size ack_retirement sender_bypass)
+    add_test(NAME mop_account_data_lifecycle_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_account_data_lifecycle_source_test.cmake)
+    set_tests_properties(mop_account_data_lifecycle_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_gm_ticket_packets_test mop_gm_ticket_packets_test.cpp)
 target_include_directories(mop_gm_ticket_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..

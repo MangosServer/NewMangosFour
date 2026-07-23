@@ -1050,7 +1050,6 @@ enum OpcodesList
     SMSG_CALENDAR_EVENT_INVITE_NOTES             = 0x11C0,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     SMSG_CALENDAR_EVENT_INVITE_NOTES_ALERT       = 0x1286,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     CMSG_UPDATE_MISSILE_TRAJECTORY               = 0x781E, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
-    SMSG_UPDATE_ACCOUNT_DATA_COMPLETE            = 0x2015,    // 4.3.4 15595 (unverified; no client leaf; unframable >0x1FFF)
     SMSG_TRIGGER_MOVIE                           = 0x1C2E,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_COMPLETE_MOVIE                          = 0x1362, // 5.4.8 18414 (Wow.exe binary)
     SMSG_ACHIEVEMENT_EARNED                      = 0x080B,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)

@@ -106,6 +106,7 @@ set(converted_packets
     SMSG_CALENDAR_EVENT_INITIAL_INVITE
     SMSG_CALENDAR_EVENT_INVITE_STATUS
     SMSG_CALENDAR_EVENT_MODERATOR_STATUS
+    SMSG_UPDATE_ACCOUNT_DATA
     SMSG_UPDATE_OBJECT
     SMSG_DESTROY_OBJECT)
 
@@ -129,13 +130,3 @@ list(LENGTH update_bypass_matches update_bypass_count)
 if(NOT update_bypass_count EQUAL 0)
     message(FATAL_ERROR "UPDATE_OBJECT/DESTROY_OBJECT routes must not bypass the central suppression gate")
 endif()
-
-# This tempting high-impact sender still uses a stale or only partly verified body.
-# Keeping it absent is deliberate until its complete 18414 reader is recovered.
-foreach(opcode IN ITEMS SMSG_UPDATE_ACCOUNT_DATA)
-    string(REGEX MATCHALL "case[ \\t]+${opcode}:" unsafe_matches "${session_source}")
-    list(LENGTH unsafe_matches unsafe_count)
-    if(NOT unsafe_count EQUAL 0)
-        message(FATAL_ERROR "${opcode} must remain suppressed until its 18414 body is verified")
-    endif()
-endforeach()

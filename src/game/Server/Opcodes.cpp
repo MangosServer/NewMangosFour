@@ -168,22 +168,17 @@ void InitializeOpcodes()
     DefC(CMSG_CHAR_CUSTOMIZE, "CMSG_CHAR_CUSTOMIZE", STATUS_AUTHED, PROCESS_THREADUNSAFE, &WorldSession::HandleCharCustomizeOpcode);
     DefS(SMSG_CHAR_CUSTOMIZE, "SMSG_CHAR_CUSTOMIZE");
 
-    // CMSG_UPDATE_ACCOUNT_DATA (0x0068): the client uploads its account-level saved config (tutorial
-    // flags, macros, etc.). Its 18414 value differs from the enum's stale 0x0800 and it was never
-    // registered, so it only showed as "not handled opcode UNKNOWN (0x0068)". Registered by literal
-    // value; the handler parses the captured MoP layout.
-    DefC(0x0068, "CMSG_UPDATE_ACCOUNT_DATA", STATUS_AUTHED, PROCESS_THREADUNSAFE, &WorldSession::HandleUpdateAccountData);
+    // The direct 18414 writers prove the upload's three-u32/blob/3-bit-type body (0x0068) and the
+    // download request's 3-bit type body (0x1D8A).
+    DefC(CMSG_UPDATE_ACCOUNT_DATA, "CMSG_UPDATE_ACCOUNT_DATA", STATUS_AUTHED, PROCESS_THREADUNSAFE, &WorldSession::HandleUpdateAccountData);
 
     // CMSG_REQUEST_ACCOUNT_DATA (0x1D8A): the DOWNLOAD counterpart of the upload above. The client
     // sends it when its local cache is older than the server's stored account data (as reported by
     // SMSG_ACCOUNT_DATA_TIMES); without this it dispatched as UNKNOWN and saved macros/config were
-    // never served back (Codex PR #15 finding). The enum value is already correct for 18414 (matches
-    // SkyFire) so it is registered by name. The reply's exact MoP wire format is being confirmed by
-    // live capture -- see FACTS_mop548_codex_pr15_followup.md.
+    // never served back (Codex PR #15 finding).
     DefC(CMSG_REQUEST_ACCOUNT_DATA, "CMSG_REQUEST_ACCOUNT_DATA", STATUS_AUTHED, PROCESS_THREADUNSAFE, &WorldSession::HandleRequestAccountData);
-    // SMSG_UPDATE_ACCOUNT_DATA (0x0AAE): the download reply the handler above sends. Not in
-    // opcode_register.inc, so register it by name here -- otherwise the outbound packet logs as
-    // UNKNOWN (0x0AAE) and muddies the RAD live-capture.
+    // The direct 18414 reader sub_6F1A32 proves the complete 0x0AAE reply body, including the
+    // non-empty per-character GUID permutation.
     DefS(SMSG_UPDATE_ACCOUNT_DATA, "SMSG_UPDATE_ACCOUNT_DATA");
 
     // Shipped UI C_PurchaseAPI.GetPurchaseList maps through the retained API

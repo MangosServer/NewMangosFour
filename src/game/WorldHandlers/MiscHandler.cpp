@@ -940,9 +940,9 @@ void WorldSession::HandleUpdateAccountData(WorldPacket& recv_data)
 {
     DETAIL_LOG("WORLD: Received opcode CMSG_UPDATE_ACCOUNT_DATA");
 
-    // MoP 5.4.8.18414 layout, captured from the live client (FACTS_mop548_account_data):
+    // MoP 5.4.8.18414 layout, proved by the direct client writer sub_669815:
     //   u32 decompressedSize, u32 timestamp, u32 compressedSize, then <compressedSize> zlib bytes,
-    //   then the account-data type in the low 3 bits of the FINAL byte. The pre-MoP handler read the
+    //   then the account-data type in the high 3 bits of the FINAL byte. The pre-MoP handler read the
     //   type FIRST as a full u32 (wrong order), and the opcode carried a stale value and was never
     //   registered -- so the client's upload only showed up as "not handled opcode UNKNOWN (0x0068)".
     if (recv_data.size() < 13)                              // 3x u32 header + at least the trailing type byte
@@ -969,6 +969,19 @@ void WorldSession::HandleUpdateAccountData(WorldPacket& recv_data)
         return;
     }
 
+    if (compressedSize != available - 1)
+    {
+        sLog.outError("UAD: compressed size %u does not leave exactly one trailing type byte (available %u)",
+            compressedSize, available);
+        return;
+    }
+
+    if (decompressedSize == 0 && compressedSize != 0)
+    {
+        sLog.outError("UAD: clear for account-data type %u carried a compressed body", type);
+        return;
+    }
+
     if (decompressedSize == 0)                              // client cleared this slot
     {
         SetAccountData(AccountDataType(type), 0, "");
@@ -976,7 +989,7 @@ void WorldSession::HandleUpdateAccountData(WorldPacket& recv_data)
         return;
     }
 
-    if (decompressedSize > 0xFFFF || compressedSize > available)
+    if (decompressedSize > 0xFFFF)
     {
         sLog.outError("UAD: bad account-data sizes (decompressed %u, compressed %u)", decompressedSize, compressedSize);
         return;
@@ -986,10 +999,12 @@ void WorldSession::HandleUpdateAccountData(WorldPacket& recv_data)
     dest.resize(decompressedSize);
 
     uLongf realSize = decompressedSize;
-    if (uncompress(const_cast<uint8*>(dest.contents()), &realSize,
-                   const_cast<uint8*>(compressed), compressedSize) != Z_OK)
+    int const zResult = uncompress(const_cast<uint8*>(dest.contents()), &realSize,
+                                  const_cast<uint8*>(compressed), compressedSize);
+    if (zResult != Z_OK || realSize != decompressedSize)
     {
-        sLog.outError("UAD: failed to decompress account data (type %u)", type);
+        sLog.outError("UAD: failed to decompress account data exactly (type %u, zlib %d, expected %u, actual %lu)",
+            type, zResult, decompressedSize, static_cast<unsigned long>(realSize));
         return;
     }
 
@@ -998,9 +1013,8 @@ void WorldSession::HandleUpdateAccountData(WorldPacket& recv_data)
 
     DETAIL_LOG("Account data updated by client: type %u, %u bytes (ts %u)", type, decompressedSize, timestamp);
 
-    // The SMSG_UPDATE_ACCOUNT_DATA_COMPLETE ack still carries a stale (>0x1FFF, un-framable) value and
-    // the client does not block on it, so it is intentionally not sent yet (Phase 1b opcode remap
-    // restores it with the correct 5.4.8 value).
+    // The 18414 client completes account-data uploads locally immediately after sending 0x0068.
+    // It installs no pending reply, so this protocol has no server completion ACK.
 }
 
 /**
@@ -1054,8 +1068,7 @@ void WorldSession::HandleRequestAccountData(WorldPacket& recv_data)
     // FlushBits, the low guid bytes, u32 decompressed size, u32 compressed size, the zlib blob, the
     // high guid bytes, u32 unix time. For an empty guid the mask is 8 zero bits and no guid bytes are
     // written -- reproducing the 45-byte reply confirmed accepted by the live 18414 client 2026-07-17.
-    // The non-empty (per-character) guid byte order is SkyFire-referenced and awaits a Phase-6 in-world
-    // capture. [capture-confirm: per-character guid order]
+    // The direct 18414 reader sub_6F1A32 proves the non-empty per-character GUID mask and byte order.
     uint64 guid = _player ? _player->GetObjectGuid().GetRawValue() : uint64(0);
     static uint8 guidMaskOrder[8]  = { 5, 1, 3, 7, 0, 4, 2, 6 };
     static uint8 guidBytesPre[3]   = { 3, 1, 5 };

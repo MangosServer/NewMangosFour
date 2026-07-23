@@ -253,6 +253,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_ACTION_BUTTONS:
         case SMSG_INITIALIZE_FACTIONS:
         case SMSG_ACCOUNT_DATA_TIMES:
+        case SMSG_UPDATE_ACCOUNT_DATA:  // 0x0AAE -- direct reader sub_6F1A32 proves type/GUID/size/blob/time body
         case SMSG_FEATURE_SYSTEM_STATUS:
         case SMSG_TUTORIAL_FLAGS:
         case SMSG_BINDPOINTUPDATE:
