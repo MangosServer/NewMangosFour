@@ -72,6 +72,87 @@ class BattleGroundMap;
 
 namespace MopBattleGroundPackets
 {
+    struct BattlefieldStatusNone
+    {
+        ObjectGuid playerGuid;
+        uint32 unusedTime = 0;
+        uint32 id = 0;
+        uint32 queueSlot = 0;
+    };
+
+    struct BattlefieldStatusQueued
+    {
+        ObjectGuid playerGuid;
+        ObjectGuid battlefieldGuid;
+        bool rated = false;
+        bool asGroup = false;
+        bool eligible = true;
+        bool suspended = false;
+        uint32 id = 0;
+        uint32 estimatedWaitTime = 0;
+        uint32 unusedTime = 0;
+        uint32 timeWaited = 0;
+        uint32 queueSlot = 0;
+        uint32 clientInstanceId = 0;
+        uint8 minLevel = 0;
+        uint8 premadeSize = 1;
+        uint8 maxLevel = 0;
+    };
+
+    struct BattlefieldStatusConfirmation
+    {
+        ObjectGuid playerGuid;
+        ObjectGuid battlefieldGuid;
+        bool rated = false;
+        bool hasRole = false;
+        uint8 role = 0;
+        uint8 premadeSize = 1;
+        uint32 queueSlot = 0;
+        uint32 clientInstanceId = 0;
+        uint32 unusedTime = 0;
+        uint8 maxLevel = 0;
+        uint32 expirationTime = 0;
+        uint8 minLevel = 0;
+        uint32 id = 0;
+        uint32 mapId = 0;
+    };
+
+    struct BattlefieldStatusActive
+    {
+        ObjectGuid playerGuid;
+        ObjectGuid battlefieldGuid;
+        bool locked = false;
+        bool alliance = false;
+        bool rated = false;
+        uint32 unusedTime = 0;
+        uint32 remainingTime = 0;
+        uint32 elapsedTime = 0;
+        uint8 maxLevel = 0;
+        uint32 queueSlot = 0;
+        uint8 minLevel = 0;
+        uint32 mapId = 0;
+        uint32 clientInstanceId = 0;
+        uint8 premadeSize = 1;
+        uint32 id = 0;
+    };
+
+    struct BattlefieldStatusFailed
+    {
+        ObjectGuid playerGuid;
+        ObjectGuid battlefieldGuid;
+        ObjectGuid clientLookupGuid;
+        uint32 joinTime = 0;
+        uint32 id = 0;
+        uint32 queueSlot = 0;
+        uint32 result = 0;
+    };
+
+    void BuildBattlefieldStatusNone(WorldPacket& out, BattlefieldStatusNone const& status);
+    void BuildBattlefieldStatusQueued(WorldPacket& out, BattlefieldStatusQueued const& status);
+    void BuildBattlefieldStatusConfirmation(WorldPacket& out, BattlefieldStatusConfirmation const& status);
+    void BuildBattlefieldStatusActive(WorldPacket& out, BattlefieldStatusActive const& status);
+    void BuildBattlefieldStatusFailed(WorldPacket& out, BattlefieldStatusFailed const& status);
+
     inline void BuildStartTimer(WorldPacket& out, uint32 maxTime,
         uint32 timeRemaining, uint32 timerType)
     {

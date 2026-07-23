@@ -184,6 +184,180 @@ void BattleGroundMgr::Update(uint32 diff)
     }
 }
 
+namespace MopBattleGroundPackets
+{
+    void BuildBattlefieldStatusNone(WorldPacket& out, BattlefieldStatusNone const& status)
+    {
+        out.Initialize(SMSG_BATTLEFIELD_STATUS);
+        out << status.unusedTime << status.id << status.queueSlot;
+        out.WriteGuidMask<2, 0, 4, 5, 3, 7, 1, 6>(status.playerGuid);
+        out.WriteGuidBytes<3, 5, 6, 4, 2, 0, 1, 7>(status.playerGuid);
+    }
+
+    void BuildBattlefieldStatusQueued(WorldPacket& out, BattlefieldStatusQueued const& status)
+    {
+        out.Initialize(SMSG_BATTLEFIELD_STATUS_QUEUED);
+        out.WriteGuidMask<1, 5>(status.battlefieldGuid);
+        out.WriteGuidMask<0>(status.playerGuid);
+        out.WriteGuidMask<7>(status.battlefieldGuid);
+        out.WriteBit(status.rated);
+        out.WriteBit(status.asGroup);
+        out.WriteBit(status.eligible);
+        out.WriteGuidMask<6, 4, 1, 3, 7, 5>(status.playerGuid);
+        out.WriteBit(status.suspended);
+        out.WriteGuidMask<3, 0, 2>(status.battlefieldGuid);
+        out.WriteGuidMask<2>(status.playerGuid);
+        out.WriteGuidMask<6, 4>(status.battlefieldGuid);
+        out.FlushBits();
+
+        out.WriteGuidBytes<4>(status.battlefieldGuid);
+        out.WriteGuidBytes<6>(status.playerGuid);
+        out << status.id;
+        out.WriteGuidBytes<5>(status.battlefieldGuid);
+        out << status.estimatedWaitTime;
+        out.WriteGuidBytes<3>(status.battlefieldGuid);
+        out.WriteGuidBytes<3, 4, 0>(status.playerGuid);
+        out << status.minLevel;
+        out.WriteGuidBytes<0>(status.battlefieldGuid);
+        out << status.unusedTime << status.premadeSize;
+        out.WriteGuidBytes<1>(status.battlefieldGuid);
+        out << status.timeWaited;
+        out.WriteGuidBytes<7>(status.battlefieldGuid);
+        out << status.queueSlot;
+        out.WriteGuidBytes<2>(status.playerGuid);
+        out.WriteGuidBytes<6>(status.battlefieldGuid);
+        out << status.maxLevel;
+        out.WriteGuidBytes<2>(status.battlefieldGuid);
+        out.WriteGuidBytes<5, 1>(status.playerGuid);
+        out << status.clientInstanceId;
+        out.WriteGuidBytes<7>(status.playerGuid);
+    }
+
+    void BuildBattlefieldStatusConfirmation(WorldPacket& out, BattlefieldStatusConfirmation const& status)
+    {
+        out.Initialize(SMSG_BATTLEFIELD_STATUS_NEEDCONFIRMATION);
+        out.WriteGuidMask<7, 5, 4, 1>(status.playerGuid);
+        out.WriteGuidMask<3, 2>(status.battlefieldGuid);
+        out.WriteBit(!status.hasRole);
+        out.WriteGuidMask<0>(status.battlefieldGuid);
+        out.WriteGuidMask<0, 6>(status.playerGuid);
+        out.WriteGuidMask<7, 4, 1>(status.battlefieldGuid);
+        out.WriteBit(status.rated);
+        out.WriteGuidMask<2>(status.playerGuid);
+        out.WriteGuidMask<6>(status.battlefieldGuid);
+        out.WriteGuidMask<3>(status.playerGuid);
+        out.WriteGuidMask<5>(status.battlefieldGuid);
+        out.FlushBits();
+
+        out.WriteGuidBytes<1>(status.playerGuid);
+        out.WriteGuidBytes<1>(status.battlefieldGuid);
+        out.WriteGuidBytes<2>(status.playerGuid);
+        out << status.premadeSize << status.queueSlot;
+        if (status.hasRole)
+            out << status.role;
+        out << status.clientInstanceId;
+        out.WriteGuidBytes<6, 7>(status.battlefieldGuid);
+        out << status.unusedTime;
+        out.WriteGuidBytes<7>(status.playerGuid);
+        out << status.maxLevel;
+        out.WriteGuidBytes<4>(status.playerGuid);
+        out.WriteGuidBytes<2, 4>(status.battlefieldGuid);
+        out << status.expirationTime << status.minLevel;
+        out.WriteGuidBytes<3>(status.playerGuid);
+        out.WriteGuidBytes<0>(status.battlefieldGuid);
+        out.WriteGuidBytes<5, 6>(status.playerGuid);
+        out << status.id;
+        out.WriteGuidBytes<3>(status.battlefieldGuid);
+        out.WriteGuidBytes<0>(status.playerGuid);
+        out.WriteGuidBytes<5>(status.battlefieldGuid);
+        out << status.mapId;
+    }
+
+    void BuildBattlefieldStatusActive(WorldPacket& out, BattlefieldStatusActive const& status)
+    {
+        out.Initialize(SMSG_BATTLEFIELD_STATUS_ACTIVE);
+        out.WriteGuidMask<0>(status.playerGuid);
+        out.WriteGuidMask<3>(status.battlefieldGuid);
+        out.WriteGuidMask<3>(status.playerGuid);
+        out.WriteGuidMask<2>(status.battlefieldGuid);
+        out.WriteGuidMask<2>(status.playerGuid);
+        out.WriteGuidMask<5, 1>(status.battlefieldGuid);
+        out.WriteGuidMask<7>(status.playerGuid);
+        out.WriteBit(status.locked);
+        out.WriteGuidMask<6>(status.playerGuid);
+        out.WriteGuidMask<0>(status.battlefieldGuid);
+        out.WriteBit(status.alliance);
+        out.WriteGuidMask<6, 7, 4>(status.battlefieldGuid);
+        out.WriteGuidMask<1, 4, 5>(status.playerGuid);
+        out.WriteBit(status.rated);
+        out.FlushBits();
+
+        out.WriteGuidBytes<3>(status.playerGuid);
+        out << status.unusedTime << status.remainingTime;
+        out.WriteGuidBytes<7, 5>(status.battlefieldGuid);
+        out.WriteGuidBytes<1>(status.playerGuid);
+        out.WriteGuidBytes<6>(status.battlefieldGuid);
+        out << status.elapsedTime << status.maxLevel;
+        out.WriteGuidBytes<1, 2>(status.battlefieldGuid);
+        out << status.queueSlot;
+        out.WriteGuidBytes<4>(status.playerGuid);
+        out << status.minLevel;
+        out.WriteGuidBytes<6>(status.playerGuid);
+        out << status.mapId;
+        out.WriteGuidBytes<0, 5, 7>(status.playerGuid);
+        out.WriteGuidBytes<4>(status.battlefieldGuid);
+        out << status.clientInstanceId;
+        out.WriteGuidBytes<2>(status.playerGuid);
+        out << status.premadeSize << status.id;
+        out.WriteGuidBytes<3, 0>(status.battlefieldGuid);
+    }
+
+    void BuildBattlefieldStatusFailed(WorldPacket& out, BattlefieldStatusFailed const& status)
+    {
+        out.Initialize(SMSG_BATTLEFIELD_STATUS_FAILED);
+        out << status.joinTime << status.id << status.queueSlot << status.result;
+        out.WriteGuidMask<7>(status.clientLookupGuid);
+        out.WriteGuidMask<2, 7>(status.battlefieldGuid);
+        out.WriteGuidMask<5>(status.clientLookupGuid);
+        out.WriteGuidMask<2>(status.playerGuid);
+        out.WriteGuidMask<6>(status.battlefieldGuid);
+        out.WriteGuidMask<7, 3>(status.playerGuid);
+        out.WriteGuidMask<0, 3>(status.battlefieldGuid);
+        out.WriteGuidMask<4>(status.clientLookupGuid);
+        out.WriteGuidMask<1>(status.playerGuid);
+        out.WriteGuidMask<0>(status.clientLookupGuid);
+        out.WriteGuidMask<0>(status.playerGuid);
+        out.WriteGuidMask<2>(status.clientLookupGuid);
+        out.WriteGuidMask<4>(status.battlefieldGuid);
+        out.WriteGuidMask<4>(status.playerGuid);
+        out.WriteGuidMask<1>(status.battlefieldGuid);
+        out.WriteGuidMask<3>(status.clientLookupGuid);
+        out.WriteGuidMask<5>(status.battlefieldGuid);
+        out.WriteGuidMask<1>(status.clientLookupGuid);
+        out.WriteGuidMask<6, 5>(status.playerGuid);
+        out.WriteGuidMask<6>(status.clientLookupGuid);
+        out.FlushBits();
+
+        out.WriteGuidBytes<1, 2, 7>(status.clientLookupGuid);
+        out.WriteGuidBytes<6, 0>(status.battlefieldGuid);
+        out.WriteGuidBytes<5, 0>(status.playerGuid);
+        out.WriteGuidBytes<1, 7>(status.battlefieldGuid);
+        out.WriteGuidBytes<6>(status.playerGuid);
+        out.WriteGuidBytes<0>(status.clientLookupGuid);
+        out.WriteGuidBytes<5>(status.battlefieldGuid);
+        out.WriteGuidBytes<6>(status.clientLookupGuid);
+        out.WriteGuidBytes<1>(status.playerGuid);
+        out.WriteGuidBytes<2>(status.battlefieldGuid);
+        out.WriteGuidBytes<7, 2, 3>(status.playerGuid);
+        out.WriteGuidBytes<5>(status.clientLookupGuid);
+        out.WriteGuidBytes<4>(status.playerGuid);
+        out.WriteGuidBytes<3>(status.clientLookupGuid);
+        out.WriteGuidBytes<3>(status.battlefieldGuid);
+        out.WriteGuidBytes<4>(status.clientLookupGuid);
+        out.WriteGuidBytes<4>(status.battlefieldGuid);
+    }
+}
+
 /**
  * @brief Builds a battlefield status packet for sending to the player.
  *
@@ -219,198 +393,69 @@ void BattleGroundMgr::BuildBattleGroundStatusPacket(WorldPacket* data, BattleGro
     {
         case STATUS_NONE:
         {
-            data->Initialize(SMSG_BATTLEFIELD_STATUS);
-
-            data->WriteGuidMask<0, 4, 7, 1, 6, 3, 5, 2>(playerGuid);
-            data->WriteGuidBytes<5, 6, 7, 2>(playerGuid);
-            *data << uint32(QueueSlot);                 // not queue slot
-            data->WriteGuidBytes<3, 1>(playerGuid);
-            *data << uint32(QueueSlot);                 // Queue slot
-            *data << uint32(bg->GetStartTime());
-            data->WriteGuidBytes<0, 4>(playerGuid);
+            MopBattleGroundPackets::BattlefieldStatusNone status;
+            status.playerGuid = playerGuid;
+            status.queueSlot = QueueSlot;
+            MopBattleGroundPackets::BuildBattlefieldStatusNone(*data, status);
             break;
         }
         case STATUS_WAIT_QUEUE:                             // status_in_queue
         {
-            data->Initialize(SMSG_BATTLEFIELD_STATUS_QUEUED);
-
-            data->WriteGuidMask<3, 0>(playerGuid);
-            data->WriteGuidMask<3>(bgGuid);
-            data->WriteGuidMask<2>(playerGuid);
-            data->WriteBit(1);                          // eligible in queue
-            data->WriteBit(0);                          // Join Failed
-            data->WriteGuidMask<2>(bgGuid);
-            data->WriteGuidMask<1>(playerGuid);
-            data->WriteGuidMask<0, 6, 4>(bgGuid);
-            data->WriteGuidMask<6, 7>(playerGuid);
-            data->WriteGuidMask<7, 5>(bgGuid);
-            data->WriteGuidMask<4, 5>(playerGuid);
-            data->WriteBit(bg->isRated());              // is rated bg or arena. if israted => cant exit (wtf?)
-            data->WriteBit(0);                          // Waiting On Other Activity 4
-            data->WriteGuidMask<1>(bgGuid);
-
-            data->WriteGuidBytes<0>(playerGuid);
-            *data << uint32(QueueSlot);                 // unk 5 - received in battlefield port then
-            data->WriteGuidBytes<5>(bgGuid);
-            data->WriteGuidBytes<3>(playerGuid);
-            *data << uint32(Time1);                     // Estimated Wait Time 6 time1
-            data->WriteGuidBytes<7, 1, 2>(bgGuid);
-            *data << uint8(0);                          // unk param
-            data->WriteGuidBytes<4>(bgGuid);
-            data->WriteGuidBytes<2>(playerGuid);
-            //if (...)
-            //    *data << uint8(playerCount);          // player count (XvX) > 0 && rated: Rated XvX, !rated: Skirmish XvX. if ==0 >= Bg type
-            //else
-                *data << uint8(arenatype);
-            data->WriteGuidBytes<6>(bgGuid);
-            data->WriteGuidBytes<7>(playerGuid);
-            data->WriteGuidBytes<3>(bgGuid);
-            data->WriteGuidBytes<6>(playerGuid);
-            data->WriteGuidBytes<0>(bgGuid);
-            *data << uint32(0);                         // Time
-            *data << uint32(QueueSlot);                 // queueslot
-            *data << uint8(0);                          // maxlevel? seen 85 only in sniffs
-            *data << uint32(Time2);                     // unk 10 Time since started time2
-            data->WriteGuidBytes<1, 5>(playerGuid);
-            *data << uint32(bg->GetClientInstanceID()); // client instance id
-            data->WriteGuidBytes<4>(playerGuid);
+            MopBattleGroundPackets::BattlefieldStatusQueued status;
+            status.playerGuid = playerGuid;
+            status.battlefieldGuid = bgGuid;
+            status.rated = bg->isRated();
+            status.estimatedWaitTime = Time1;
+            status.timeWaited = Time2;
+            status.queueSlot = QueueSlot;
+            status.clientInstanceId = bg->GetClientInstanceID();
+            status.minLevel = bg->GetMinLevel();
+            status.premadeSize = bg->isArena() ? arenatype : 1;
+            status.maxLevel = bg->GetMaxLevel();
+            MopBattleGroundPackets::BuildBattlefieldStatusQueued(*data, status);
             break;
         }
         case STATUS_WAIT_JOIN:                              // status_invite
         {
-            data->Initialize(SMSG_BATTLEFIELD_STATUS_NEEDCONFIRMATION, 44);
-
-            *data << uint32(bg->GetClientInstanceID()); // Client Instance ID
-            *data << uint32(Time1);                     // Time until closed
-            //*data << uint8(bg->GetPlayersCountByTeam(bg->GetPlayerTeam(playerGuid)));
-            *data << uint8(0);                          // unk 0
-            *data << uint32(QueueSlot);                 // Queue slot
-            *data << uint32(0);                         // Time
-            *data << uint8(0);                          // Max Level
-            *data << uint32(QueueSlot);                 // not queueslot
-            *data << uint32(bg->GetMapId());            // Map Id
-            //if (...)
-            //    *data << uint8(playerCount);          // player count (XvX) > 0 && rated: Rated XvX, !rated: Skirmish XvX. if ==0 >= Bg type
-            //else
-                *data << uint8(arenatype);
-
-            data->WriteGuidMask<5, 2, 1>(playerGuid);
-            data->WriteGuidMask<2>(bgGuid);
-            data->WriteGuidMask<4>(playerGuid);
-            data->WriteGuidMask<6, 3>(bgGuid);
-            data->WriteBit(bg->isRated());              // Is Rated
-            data->WriteGuidMask<7, 3>(playerGuid);
-            data->WriteGuidMask<7, 0, 4>(bgGuid);
-            data->WriteGuidMask<6>(playerGuid);
-            data->WriteGuidMask<5, 1>(bgGuid);
-            data->WriteGuidMask<0>(playerGuid);
-
-            data->WriteGuidBytes<6, 5, 7, 2>(bgGuid);
-            data->WriteGuidBytes<0, 7>(playerGuid);
-            data->WriteGuidBytes<4>(bgGuid);
-            data->WriteGuidBytes<1>(playerGuid);
-            data->WriteGuidBytes<0>(bgGuid);
-            data->WriteGuidBytes<4>(playerGuid);
-            data->WriteGuidBytes<1>(bgGuid);
-            data->WriteGuidBytes<5>(playerGuid);
-            data->WriteGuidBytes<3>(bgGuid);
-            data->WriteGuidBytes<6, 2, 3>(playerGuid);
+            MopBattleGroundPackets::BattlefieldStatusConfirmation status;
+            status.playerGuid = playerGuid;
+            status.battlefieldGuid = bgGuid;
+            status.rated = bg->isRated();
+            status.premadeSize = bg->isArena() ? arenatype : 1;
+            status.queueSlot = QueueSlot;
+            status.clientInstanceId = bg->GetClientInstanceID();
+            status.unusedTime = Time2;
+            status.maxLevel = bg->GetMaxLevel();
+            status.expirationTime = Time1;
+            status.minLevel = bg->GetMinLevel();
+            status.mapId = bg->GetMapId();
+            MopBattleGroundPackets::BuildBattlefieldStatusConfirmation(*data, status);
             break;
         }
         case STATUS_IN_PROGRESS:
         {
-            data->Initialize(SMSG_BATTLEFIELD_STATUS_ACTIVE, 49);
-
-            data->WriteGuidMask<2, 7>(playerGuid);
-            data->WriteGuidMask<7, 1>(bgGuid);
-            data->WriteGuidMask<5>(playerGuid);
-            data->WriteBit(bg->GetPlayerTeam(playerGuid) == ALLIANCE);  // Bg faction bit
-            data->WriteGuidMask<0>(bgGuid);
-            data->WriteGuidMask<1>(playerGuid);
-            data->WriteGuidMask<3>(bgGuid);
-            data->WriteGuidMask<6>(playerGuid);
-            data->WriteGuidMask<5>(bgGuid);
-            data->WriteBit(bg->isRated());              // Unk Bit 64
-            data->WriteGuidMask<4>(playerGuid);
-            data->WriteGuidMask<6, 4, 2>(bgGuid);
-            data->WriteGuidMask<3, 0>(playerGuid);
-
-            data->WriteGuidBytes<4, 5>(bgGuid);
-            data->WriteGuidBytes<5>(playerGuid);
-            data->WriteGuidBytes<1, 6, 3, 7>(bgGuid);
-            data->WriteGuidBytes<6>(playerGuid);
-
-            *data << uint32(0);                         // Time
-            *data << uint8(0);                          // unk
-
-            data->WriteGuidBytes<4, 1>(playerGuid);
-
-            *data << uint32(QueueSlot);                 // Queue slot
-            //if (...)
-            //    *data << uint8(playerCount);          // player count (XvX) > 0 && rated: Rated XvX, !rated: Skirmish XvX. if ==0 >= Bg type
-            //else
-                *data << uint8(arenatype);
-
-            *data << uint32(QueueSlot);                 // not queue slot
-            *data << uint32(bg->GetMapId());            // Map Id
-            *data << uint8(0);                          // Max Level? seen 85
-            *data << uint32(Time2);                     // Time since started
-
-            data->WriteGuidBytes<2>(playerGuid);
-
-            *data << uint32(Time1);                     // Time until closed
-
-            data->WriteGuidBytes<0, 3>(playerGuid);
-            data->WriteGuidBytes<2>(bgGuid);
-
-            *data << uint32(bg->GetClientInstanceID()); // Client Instance ID
-
-            data->WriteGuidBytes<0>(bgGuid);
-            data->WriteGuidBytes<7>(playerGuid);
+            MopBattleGroundPackets::BattlefieldStatusActive status;
+            status.playerGuid = playerGuid;
+            status.battlefieldGuid = bgGuid;
+            status.alliance = bg->GetPlayerTeam(playerGuid) == ALLIANCE;
+            status.rated = bg->isRated();
+            status.remainingTime = bg->GetEndTime();
+            status.elapsedTime = bg->GetStartTime();
+            status.maxLevel = bg->GetMaxLevel();
+            status.queueSlot = QueueSlot;
+            status.minLevel = bg->GetMinLevel();
+            status.mapId = bg->GetMapId();
+            status.clientInstanceId = bg->GetClientInstanceID();
+            status.premadeSize = bg->isArena() ? arenatype : 1;
+            MopBattleGroundPackets::BuildBattlefieldStatusActive(*data, status);
             break;
         }
         case STATUS_WAIT_LEAVE:
         {
-            // not used currently and not checked
-            data->Initialize(SMSG_BATTLEFIELD_STATUS_WAITFORGROUPS, 48);
-
-            *data << uint8(0);                          // unk
-            *data << uint32(QueueSlot);                 // not queueSlot
-            *data << uint32(QueueSlot);                 // Queue slot
-            *data << uint32(bg->GetEndTime());          // Time until closed
-            *data << uint32(0);                         // unk
-            *data << uint8(0);                          // unk
-            *data << uint8(0);                          // unk
-            *data << uint8(bg->GetMinLevel());          // Min Level
-            *data << uint8(0);                          // unk
-            *data << uint8(0);                          // unk
-            *data << uint32(bg->GetMapId());            // Map Id
-            *data << uint32(0);                         // Time
-            *data << uint8(0);                          // unk
-
-            data->WriteGuidMask<0, 1, 7>(bgGuid);
-            data->WriteGuidMask<7, 0>(playerGuid);
-            data->WriteGuidMask<4>(bgGuid);
-            data->WriteGuidMask<6, 2, 3>(playerGuid);
-            data->WriteGuidMask<3>(bgGuid);
-            data->WriteGuidMask<4>(playerGuid);
-            data->WriteGuidMask<5>(bgGuid);
-            data->WriteGuidMask<5>(playerGuid);
-            data->WriteGuidMask<2>(bgGuid);
-            data->WriteBit(bg->isRated());              // Is Rated
-            data->WriteGuidMask<1>(playerGuid);
-            data->WriteGuidMask<6>(bgGuid);
-
-            data->WriteGuidBytes<0>(playerGuid);
-            data->WriteGuidBytes<4>(bgGuid);
-            data->WriteGuidBytes<3>(playerGuid);
-            data->WriteGuidBytes<1, 0, 2>(bgGuid);
-            data->WriteGuidBytes<2>(playerGuid);
-            data->WriteGuidBytes<7>(bgGuid);
-            data->WriteGuidBytes<1, 6>(playerGuid);
-            data->WriteGuidBytes<6, 5>(bgGuid);
-            data->WriteGuidBytes<5, 4, 7>(playerGuid);
-            data->WriteGuidBytes<3>(bgGuid);
+            // The 0x10A6 client leaf stores generic state 3 ("error"). The
+            // historical WAITFORGROUPS name and its four subtype bytes are
+            // not directly established, and this branch has no callers.
+            sLog.outError("STATUS_WAIT_LEAVE has no binary-proved 18414 battlefield-status sender");
             break;
         }
         default:
@@ -583,61 +628,17 @@ void BattleGroundMgr::BuildPvpLogDataPacket(WorldPacket* data, BattleGround* bg)
 void BattleGroundMgr::BuildBattleGroundStatusFailedPacket(WorldPacket* data, BattleGround* bg, Player* player, uint8 QueueSlot, GroupJoinBattlegroundResult result)
 {
     ObjectGuid bgGuid = bg->GetObjectGuid();
-    ObjectGuid unkGuid2 = ObjectGuid();
-    ObjectGuid playerGuid = player ? player->GetObjectGuid() : ObjectGuid(); // player who caused the error
+    ObjectGuid playerGuid = player ? player->GetObjectGuid() : ObjectGuid();
 
     DEBUG_LOG("BattleGroundMgr::BuildBattleGroundStatusFailedPacket slot %u result %u bgstatus %u player %s bg %s",
         QueueSlot, result, bg->GetStatus(), playerGuid.GetString().c_str(), bgGuid.GetString().c_str());
 
-    data->Initialize(SMSG_BATTLEFIELD_STATUS_FAILED);
-
-    data->WriteGuidMask<3>(bgGuid);
-    data->WriteGuidMask<3>(playerGuid);
-    data->WriteGuidMask<3>(unkGuid2);
-    data->WriteGuidMask<0>(playerGuid);
-    data->WriteGuidMask<6>(bgGuid);
-    data->WriteGuidMask<5, 6, 4, 2>(unkGuid2);
-
-    data->WriteGuidMask<1>(playerGuid);
-    data->WriteGuidMask<1>(bgGuid);
-    data->WriteGuidMask<5, 6>(playerGuid);
-    data->WriteGuidMask<1>(unkGuid2);
-    data->WriteGuidMask<7>(bgGuid);
-    data->WriteGuidMask<4>(playerGuid);
-
-    data->WriteGuidMask<2, 5>(bgGuid);
-    data->WriteGuidMask<7>(playerGuid);
-    data->WriteGuidMask<4, 0>(bgGuid);
-    data->WriteGuidMask<0>(unkGuid2);
-    data->WriteGuidMask<2>(playerGuid);
-    data->WriteGuidMask<7>(unkGuid2);
-
-    data->WriteGuidBytes<1>(bgGuid);
-
-    *data << uint32(QueueSlot);         // not queue slot
-    *data << uint32(QueueSlot);         // Queue slot
-
-    data->WriteGuidBytes<6, 3, 7, 4>(unkGuid2);
-    data->WriteGuidBytes<0>(bgGuid);
-    data->WriteGuidBytes<5>(unkGuid2);
-    data->WriteGuidBytes<7, 6, 2>(bgGuid);
-    data->WriteGuidBytes<6, 3>(playerGuid);
-    data->WriteGuidBytes<1>(unkGuid2);
-    data->WriteGuidBytes<3>(bgGuid);
-    data->WriteGuidBytes<0, 1, 4>(playerGuid);
-    data->WriteGuidBytes<0>(unkGuid2);
-    data->WriteGuidBytes<5>(bgGuid);
-    data->WriteGuidBytes<7>(playerGuid);
-    data->WriteGuidBytes<4>(bgGuid);
-    data->WriteGuidBytes<2>(unkGuid2);
-
-    *data << uint32(result);            // Result
-
-    data->WriteGuidBytes<2>(playerGuid);
-
-    *data << uint32(0);                 // unk Time
-
-    data->WriteGuidBytes<5>(playerGuid);
+    MopBattleGroundPackets::BattlefieldStatusFailed status;
+    status.playerGuid = playerGuid;
+    status.battlefieldGuid = bgGuid;
+    status.queueSlot = QueueSlot;
+    status.result = uint32(result);
+    MopBattleGroundPackets::BuildBattlefieldStatusFailed(*data, status);
 }
 
 /**
