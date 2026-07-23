@@ -318,6 +318,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_SPELLDISPELLOG:                  // MopCombatLogPackets::BuildDispelLog
         case SMSG_MESSAGECHAT:                     // MopChatPackets::BuildMessage
         case SMSG_NOTIFICATION:                    // 12-bit byte length followed by raw notification text
+        case SMSG_STANDSTATE_UPDATE:               // one uint8 stand state; Unit_C.cpp leaf 0x810583
             return true;
 
         // In-world query replies. The core already emits genuine 18414 bodies for these

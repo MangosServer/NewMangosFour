@@ -156,6 +156,61 @@ static void test_opcode_values()
     CHECK(uint32(SMSG_DB_REPLY) == 0x103Bu);
     CHECK(uint32(CMSG_SET_ACTIONBAR_TOGGLES) == 0x0672u);
     CHECK(uint32(CMSG_VOICE_SESSION_ENABLE) == 0x15A9u);
+    CHECK(uint32(CMSG_SETSHEATHED) == 0x0249u);
+    CHECK(uint32(CMSG_SET_SELECTION) == 0x0740u);
+    CHECK(uint32(CMSG_STANDSTATECHANGE) == 0x03E6u);
+    CHECK(uint32(SMSG_STANDSTATE_UPDATE) == 0x1C12u);
+}
+
+static void test_player_state_requests()
+{
+    ObjectGuid const expected(UI64LIT(0x0807060504030201));
+    WorldPacket selection(CMSG_SET_SELECTION, 16);
+    selection.WriteGuidMask<7, 6, 5, 4, 3, 2, 1, 0>(expected);
+    selection.FlushBits();
+    selection.WriteGuidBytes<0, 7, 3, 5, 1, 4, 6, 2>(expected);
+
+    ObjectGuid decoded;
+    decoded[7] = selection.ReadBit();
+    decoded[6] = selection.ReadBit();
+    decoded[5] = selection.ReadBit();
+    decoded[4] = selection.ReadBit();
+    decoded[3] = selection.ReadBit();
+    decoded[2] = selection.ReadBit();
+    decoded[1] = selection.ReadBit();
+    decoded[0] = selection.ReadBit();
+    selection.ReadByteSeq(decoded[0]);
+    selection.ReadByteSeq(decoded[7]);
+    selection.ReadByteSeq(decoded[3]);
+    selection.ReadByteSeq(decoded[5]);
+    selection.ReadByteSeq(decoded[1]);
+    selection.ReadByteSeq(decoded[4]);
+    selection.ReadByteSeq(decoded[6]);
+    selection.ReadByteSeq(decoded[2]);
+    CHECK(decoded == expected);
+    CHECK(selection.rpos() == selection.size());
+
+    WorldPacket sheathed(CMSG_SETSHEATHED, 5);
+    sheathed << uint32(2);
+    sheathed.WriteBit(true);
+    sheathed.FlushBits();
+    uint32 sheathState = 0;
+    sheathed >> sheathState;
+    CHECK(sheathState == 2u);
+    CHECK(sheathed.ReadBit());
+    CHECK(sheathed.rpos() == sheathed.size());
+
+    WorldPacket stand(CMSG_STANDSTATECHANGE, 4);
+    stand << uint32(3);
+    uint32 standState = 0;
+    stand >> standState;
+    CHECK(standState == 3u);
+    CHECK(stand.rpos() == stand.size());
+
+    WorldPacket standUpdate(SMSG_STANDSTATE_UPDATE, 1);
+    standUpdate << uint8(4);
+    CHECK(standUpdate.read<uint8>() == 4u);
+    CHECK(standUpdate.rpos() == standUpdate.size());
 }
 
 static void test_raid_instance_info()
@@ -218,6 +273,7 @@ int main(int /*argc*/, char** /*argv*/)
     test_join_channel_request();
     test_load_screen_request();
     test_opcode_values();
+    test_player_state_requests();
     test_raid_instance_info();
 
     if (g_fail)

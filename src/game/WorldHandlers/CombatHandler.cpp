@@ -128,6 +128,12 @@ void WorldSession::HandleSetSheathedOpcode(WorldPacket& recv_data)
 {
     uint32 sheathed;
     recv_data >> sheathed;
+    bool const hasSheathState = recv_data.ReadBit();
+
+    if (!hasSheathState)
+    {
+        return;
+    }
 
     DEBUG_LOG("WORLD: Received opcode CMSG_SETSHEATHED for %s - value: %u", GetPlayer()->GetGuidStr().c_str(), sheathed);
 
