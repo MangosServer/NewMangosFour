@@ -407,6 +407,7 @@ void InitializeOpcodes()
     DefS(SMSG_CAST_FAILED, "SMSG_CAST_FAILED");
     DefS(SMSG_PET_CAST_FAILED, "SMSG_PET_CAST_FAILED");
     DefS(SMSG_SPELL_START, "SMSG_SPELL_START");
+    DefS(SMSG_SPELL_GO, "SMSG_SPELL_GO");
 
     // Guild event packets split from the pre-MoP generic guild-event packet.
     DefS(SMSG_GUILD_EVENT_MOTD, "SMSG_GUILD_EVENT_MOTD");

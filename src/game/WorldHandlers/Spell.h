@@ -352,6 +352,70 @@ namespace MopSpellPackets
         uint8 runeCooldowns[7] = {};
     };
 
+    struct SpellGoMiss
+    {
+        ObjectGuid guid;
+        uint8 reason = 0;
+        uint8 reflectResult = 0;
+    };
+
+    struct SpellGoPacket
+    {
+        ObjectGuid casterGuid;
+        ObjectGuid casterUnitGuid;
+        ObjectGuid targetGuid;
+        ObjectGuid itemTargetGuid;
+        std::vector<ObjectGuid> hitGuids;
+        std::vector<SpellGoMiss> misses;
+        bool hasSourceLocation = false;
+        ObjectGuid sourceTransportGuid;
+        float sourceX = 0.0f;
+        float sourceY = 0.0f;
+        float sourceZ = 0.0f;
+        bool hasDestinationLocation = false;
+        ObjectGuid destinationTransportGuid;
+        float destinationX = 0.0f;
+        float destinationY = 0.0f;
+        float destinationZ = 0.0f;
+        bool hasDestinationTrailingByte = false;
+        uint8 destinationTrailingByte = 0;
+        uint32 targetMask = 0;
+        bool hasTargetString = false;
+        std::string targetString;
+        bool hasDelay = false;
+        uint32 delay = 0;
+        uint32 timestamp = 0;
+        uint32 castFlags = 0;
+        uint8 castCount = 0;
+        uint32 spellId = 0;
+        bool hasPredictedPower = false;
+        uint8 predictedPowerType = 0;
+        int32 predictedPower = 0;
+        bool hasRuneStateBefore = false;
+        uint8 runeStateBefore = 0;
+        bool hasRuneStateAfter = false;
+        uint8 runeStateAfter = 0;
+        uint8 runeCooldownCount = 0;
+        uint8 runeCooldowns[7] = {};
+        bool hasPredictedType = false;
+        uint8 predictedType = 0;
+        bool hasPredictedHeal = false;
+        uint32 predictedHeal = 0;
+        bool hasCastSchoolImmunities = false;
+        uint32 castSchoolImmunities = 0;
+        bool hasCastImmunities = false;
+        uint32 castImmunities = 0;
+        bool hasVisualChain = false;
+        uint32 visualChainFirst = 0;
+        uint32 visualChainSecond = 0;
+        bool hasAmmoInventoryType = false;
+        uint8 ammoInventoryType = 0;
+        bool hasAmmoDisplayId = false;
+        uint32 ammoDisplayId = 0;
+        bool hasElevation = false;
+        float elevation = 0.0f;
+    };
+
     struct CastSpellRequest
     {
         uint8 castCount = 0;
@@ -378,6 +442,7 @@ namespace MopSpellPackets
     void BuildCastFailed(WorldPacket& out, uint32 spellId, SpellCastResult result,
         uint8 castCount, bool isPetCastResult, CastFailedArguments const& arguments);
     bool BuildSpellStart(WorldPacket& out, SpellStartPacket const& spell);
+    bool BuildSpellGo(WorldPacket& out, SpellGoPacket const& spell);
     bool ReadCastSpellRequest(WorldPacket& in, CastSpellRequest& request);
 }
 
@@ -590,7 +655,6 @@ class Spell
 
         void DoCreateItem(SpellEffectEntry const* effect, uint32 itemtype);
 
-        void WriteSpellGoTargets(WorldPacket* data);
         void WriteAmmoToPacket(WorldPacket* data);
 
         template<typename T> WorldObject* FindCorpseUsing();

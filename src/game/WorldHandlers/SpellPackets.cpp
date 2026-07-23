@@ -271,6 +271,164 @@ bool MopSpellPackets::BuildSpellStart(WorldPacket& out, SpellStartPacket const& 
     return true;
 }
 
+bool MopSpellPackets::BuildSpellGo(WorldPacket& out, SpellGoPacket const& spell)
+{
+    if ((spell.hasTargetString && spell.targetString.size() > 0x7F) ||
+        spell.targetMask > 0xFFFFF ||
+        spell.runeCooldownCount > 7 ||
+        spell.hitGuids.size() > 0xFFFFFF ||
+        spell.misses.size() > 0xFFFFFF)
+        return false;
+
+    for (SpellGoMiss const& miss : spell.misses)
+    {
+        if (miss.reason > 0xF ||
+            (miss.reason == SPELL_MISS_REFLECT && miss.reflectResult > 0xF))
+            return false;
+    }
+
+    ObjectGuid auxiliaryGuid;
+    out.Initialize(SMSG_SPELL_GO, 512);
+
+    out.WriteGuidMask<2>(spell.casterUnitGuid);
+    out.WriteBit(!spell.hasAmmoInventoryType);
+    out.WriteBit(spell.hasSourceLocation);
+    out.WriteGuidMask<2>(spell.casterGuid);
+    if (spell.hasSourceLocation)
+        out.WriteGuidMask<3, 7, 4, 2, 0, 6, 1, 5>(spell.sourceTransportGuid);
+    out.WriteGuidMask<6>(spell.casterGuid);
+    out.WriteBit(!spell.hasDestinationTrailingByte);
+    out.WriteGuidMask<7>(spell.casterUnitGuid);
+    out.WriteBits(0, 20);                                  // extra-target count
+    out.WriteBits(spell.misses.size(), 25);                 // miss-type count
+    out.WriteBits(spell.misses.size(), 24);                 // missed GUID count
+    out.WriteGuidMask<1>(spell.casterUnitGuid);
+    out.WriteGuidMask<0>(spell.casterGuid);
+    out.WriteBits(0, 13);
+    for (SpellGoMiss const& miss : spell.misses)
+        out.WriteGuidMask<1, 3, 6, 4, 5, 2, 0, 7>(miss.guid);
+    out.WriteGuidMask<5>(spell.casterUnitGuid);
+    out.WriteBit(false);
+    out.WriteBit(false);
+    out.WriteBit(!spell.hasTargetString);
+    out.WriteGuidMask<7, 2, 1, 3, 6, 0, 5, 4>(spell.itemTargetGuid);
+    out.WriteGuidMask<7>(spell.casterGuid);
+    out.WriteGuidMask<0, 6, 5, 7, 4, 2, 3, 1>(spell.targetGuid);
+    out.WriteBit(!spell.hasRuneStateBefore);
+    out.WriteBits(spell.hasPredictedPower ? 1 : 0, 21);
+    out.WriteGuidMask<1>(spell.casterGuid);
+    out.WriteBit(!spell.hasPredictedType);
+    out.WriteBit(spell.targetMask == 0);
+    out.WriteGuidMask<3>(spell.casterUnitGuid);
+    if (spell.hasTargetString)
+        out.WriteBits(spell.targetString.size(), 7);
+    out.WriteBit(!spell.hasPredictedHeal);
+    out.WriteBit(false);                                   // power-data array absent
+    out.WriteBit(!spell.hasCastImmunities);
+    out.WriteGuidMask<6>(spell.casterUnitGuid);
+    out.WriteBit(false);
+    out.WriteBit(spell.hasVisualChain);
+    out.WriteGuidMask<7, 6, 1, 2, 0, 5, 3, 4>(auxiliaryGuid);
+    out.WriteBit(!spell.hasDelay);
+    out.WriteBit(!spell.hasCastSchoolImmunities);
+    out.WriteBits(spell.runeCooldownCount, 3);
+    out.WriteGuidMask<0>(spell.casterUnitGuid);
+    for (SpellGoMiss const& miss : spell.misses)
+    {
+        out.WriteBits(miss.reason, 4);
+        if (miss.reason == SPELL_MISS_REFLECT)
+            out.WriteBits(miss.reflectResult, 4);
+    }
+    if (spell.targetMask)
+        out.WriteBits(spell.targetMask, 20);
+    out.WriteBit(!spell.hasElevation);
+    out.WriteBit(!spell.hasRuneStateAfter);
+    out.WriteGuidMask<4>(spell.casterGuid);
+    out.WriteBit(!spell.hasAmmoDisplayId);
+    out.WriteBit(spell.hasDestinationLocation);
+    out.WriteGuidMask<5>(spell.casterGuid);
+    out.WriteBits(spell.hitGuids.size(), 24);
+    if (spell.hasDestinationLocation)
+        out.WriteGuidMask<0, 3, 2, 1, 4, 5, 6, 7>(spell.destinationTransportGuid);
+    out.WriteGuidMask<4>(spell.casterUnitGuid);
+    for (ObjectGuid const& hit : spell.hitGuids)
+        out.WriteGuidMask<2, 7, 1, 6, 4, 5, 0, 3>(hit);
+    out.WriteGuidMask<3>(spell.casterGuid);
+    out.FlushBits();
+
+    out.WriteGuidBytes<5, 2, 1, 6, 0, 3, 4, 7>(spell.targetGuid);
+    out.WriteGuidBytes<5, 2, 0, 6, 7, 3, 1, 4>(spell.itemTargetGuid);
+    out.WriteGuidBytes<2>(spell.casterGuid);
+    for (ObjectGuid const& hit : spell.hitGuids)
+        out.WriteGuidBytes<0, 6, 2, 7, 5, 4, 3, 1>(hit);
+    out.WriteGuidBytes<6, 2, 7, 1, 4, 3, 5, 0>(auxiliaryGuid);
+    if (spell.hasDelay)
+        out << spell.delay;
+    out << spell.timestamp;
+    for (SpellGoMiss const& miss : spell.misses)
+        out.WriteGuidBytes<4, 2, 0, 6, 7, 5, 1, 3>(miss.guid);
+    if (spell.hasDestinationLocation)
+    {
+        out << spell.destinationZ << spell.destinationY;
+        out.WriteGuidBytes<4, 5, 7, 6, 1, 2>(spell.destinationTransportGuid);
+        out << spell.destinationX;
+        out.WriteGuidBytes<0, 3>(spell.destinationTransportGuid);
+    }
+    out.WriteGuidBytes<6>(spell.casterGuid);
+    out.WriteGuidBytes<7>(spell.casterUnitGuid);
+    out.WriteGuidBytes<1>(spell.casterGuid);
+    if (spell.hasVisualChain)
+        out << spell.visualChainFirst << spell.visualChainSecond;
+    out << spell.castFlags;
+    if (spell.hasSourceLocation)
+    {
+        out.WriteGuidBytes<2>(spell.sourceTransportGuid);
+        out << spell.sourceY << spell.sourceX;
+        out.WriteGuidBytes<6, 5, 1, 7>(spell.sourceTransportGuid);
+        out << spell.sourceZ;
+        out.WriteGuidBytes<3, 0, 4>(spell.sourceTransportGuid);
+    }
+    out.WriteGuidBytes<6>(spell.casterUnitGuid);
+    if (spell.hasPredictedType)
+        out << spell.predictedType;
+    out.WriteGuidBytes<4>(spell.casterGuid);
+    if (spell.hasCastSchoolImmunities)
+        out << spell.castSchoolImmunities;
+    if (spell.hasCastImmunities)
+        out << spell.castImmunities;
+    if (spell.hasAmmoDisplayId)
+        out << spell.ammoDisplayId;
+    out.WriteGuidBytes<1>(spell.casterUnitGuid);
+    if (spell.hasAmmoInventoryType)
+        out << spell.ammoInventoryType;
+    if (spell.hasPredictedPower)
+        out << spell.predictedPowerType << spell.predictedPower;
+    if (spell.hasRuneStateAfter)
+        out << spell.runeStateAfter;
+    for (uint8 i = 0; i < spell.runeCooldownCount; ++i)
+        out << spell.runeCooldowns[i];
+    if (spell.hasRuneStateBefore)
+        out << spell.runeStateBefore;
+    out.WriteGuidBytes<0>(spell.casterGuid);
+    if (spell.hasDestinationTrailingByte)
+        out << spell.destinationTrailingByte;
+    if (spell.hasPredictedHeal)
+        out << spell.predictedHeal;
+    out << spell.castCount;
+    out.WriteGuidBytes<5>(spell.casterGuid);
+    out.WriteGuidBytes<2>(spell.casterUnitGuid);
+    out.WriteGuidBytes<3>(spell.casterGuid);
+    out.WriteGuidBytes<5>(spell.casterUnitGuid);
+    if (spell.hasTargetString)
+        out.append(spell.targetString.data(), spell.targetString.size());
+    out << spell.spellId;
+    if (spell.hasElevation)
+        out << spell.elevation;
+    out.WriteGuidBytes<0, 3, 4>(spell.casterUnitGuid);
+    out.WriteGuidBytes<7>(spell.casterGuid);
+    return true;
+}
+
 /**
  * @brief Sends the cast result for this spell to the appropriate receiver.
  *
@@ -533,11 +691,8 @@ void Spell::SendSpellStart()
  */
 void Spell::SendSpellGo()
 {
-    // not send invisible spell casting
     if (!IsNeedSendToClient())
-    {
         return;
-    }
 
     DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Sending SMSG_SPELL_GO id=%u", m_spellInfo->ID);
 
@@ -554,90 +709,86 @@ void Spell::SendSpellGo()
         castFlags |= CAST_FLAG_PREDICTED_RUNES;             // rune cooldowns list
     }
 
-    WorldPacket data(SMSG_SPELL_GO, 50);                    // guess size
+    if (m_targets.GetSpeed() > 0.0f)
+        castFlags |= CAST_FLAG_ADJUST_MISSILE;
 
-    if (m_CastItem)
+    MopSpellPackets::SpellGoPacket spell;
+    spell.casterGuid = m_CastItem ? m_CastItem->GetObjectGuid() : m_caster->GetObjectGuid();
+    spell.casterUnitGuid = m_caster->GetObjectGuid();
+    spell.targetGuid = m_targets.getObjectTargetGuid();
+    spell.itemTargetGuid = m_targets.getItemTargetGuid();
+    spell.hasSourceLocation = (m_targets.m_targetMask & TARGET_FLAG_SOURCE_LOCATION) != 0;
+    spell.sourceTransportGuid = m_targets.getSourceTransportGuid();
+    m_targets.getSource(spell.sourceX, spell.sourceY, spell.sourceZ);
+    spell.hasDestinationLocation = (m_targets.m_targetMask & TARGET_FLAG_DEST_LOCATION) != 0;
+    spell.destinationTransportGuid = m_targets.getDestinationTransportGuid();
+    m_targets.getDestination(spell.destinationX, spell.destinationY, spell.destinationZ);
+    spell.hasDestinationTrailingByte = spell.hasDestinationLocation;
+    spell.targetMask = m_targets.m_targetMask;
+    if (m_targets.m_targetMask & TARGET_FLAG_STRING)
     {
-        data << m_CastItem->GetPackGUID();
+        spell.hasTargetString = true;
+        spell.targetString = m_targets.m_strTarget;
     }
-    else
+    spell.hasDelay = (castFlags & CAST_FLAG_ADJUST_MISSILE) != 0;
+    spell.delay = m_delayMoment;
+    spell.timestamp = GameTime::GetGameTimeMS();
+    spell.castFlags = castFlags;
+    spell.castCount = m_cast_count;
+    spell.spellId = m_spellInfo->ID;
+    spell.hasPredictedPower = (castFlags & CAST_FLAG_PREDICTED_POWER) != 0;
+    if (spell.hasPredictedPower)
     {
-        data << m_caster->GetPackGUID();
+        spell.predictedPowerType = uint8(m_spellInfo->GetPowerType());
+        spell.predictedPower = m_caster->GetPower(Powers(m_spellInfo->GetPowerType()));
+    }
+    spell.hasElevation = (castFlags & CAST_FLAG_ADJUST_MISSILE) != 0;
+    spell.elevation = m_targets.GetElevation();
+    spell.hasCastSchoolImmunities = (castFlags & CAST_FLAG_IMMUNITY) != 0;
+    spell.hasCastImmunities = (castFlags & CAST_FLAG_IMMUNITY) != 0;
+    spell.hasVisualChain = (castFlags & CAST_FLAG_VISUAL_CHAIN) != 0;
+
+    if ((castFlags & CAST_FLAG_PREDICTED_RUNES) && m_caster->GetTypeId() == TYPEID_PLAYER)
+    {
+        Player* player = static_cast<Player*>(m_caster);
+        spell.hasRuneStateBefore = true;
+        spell.runeStateBefore = m_runesState;
+        spell.hasRuneStateAfter = true;
+        spell.runeStateAfter = player->GetRunesState();
+        spell.runeCooldownCount = uint8(std::min<uint32>(MAX_RUNES, 7));
+        for (uint8 i = 0; i < spell.runeCooldownCount; ++i)
+            spell.runeCooldowns[i] = player->GetRuneCooldownFraction(i);
     }
 
-    data << m_caster->GetPackGUID();
-    data << uint8(m_cast_count);                            // pending spell cast?
-    data << uint32(m_spellInfo->ID);                        // spellId
-    data << uint32(castFlags);                              // cast flags
-    data << uint32(m_timer);
-    data << uint32(GameTime::GetGameTimeMS());              // timestamp
-
-    WriteSpellGoTargets(&data);
-
-    data << m_targets;
-
-    if (castFlags & CAST_FLAG_PREDICTED_POWER)              // predicted power
+    for (TargetInfo& target : m_UniqueTargetInfo)
     {
-        data << uint32(m_caster->GetPower(Powers(m_spellInfo->GetPowerType())));
-    }
+        if (target.effectMask == 0)
+            target.missCondition = SPELL_MISS_IMMUNE2;
 
-    if (castFlags & CAST_FLAG_PREDICTED_RUNES)              // predicted runes
-    {
-        if (m_caster->GetTypeId() == TYPEID_PLAYER)
+        if (target.missCondition == SPELL_MISS_NONE)
         {
-            Player* caster = (Player*)m_caster;
-
-            data << uint8(m_runesState);
-            data << uint8(caster->GetRunesState());
-            for (uint8 i = 0; i < MAX_RUNES; ++i)
-            {
-                data << uint8(255 - ((caster->GetRuneCooldown(i) / REGEN_TIME_FULL) * 51));
-            }
+            spell.hitGuids.push_back(target.targetGUID);
+            m_needAliveTargetMask |= target.effectMask;
         }
         else
         {
-            data << uint8(0);
-            data << uint8(0);
-            for (uint8 i = 0; i < MAX_RUNES; ++i)
-            {
-                data << uint8(0);
-            }
+            MopSpellPackets::SpellGoMiss miss;
+            miss.guid = target.targetGUID;
+            miss.reason = uint8(target.missCondition);
+            miss.reflectResult = uint8(target.reflectResult);
+            spell.misses.push_back(miss);
         }
     }
 
-    if (castFlags & CAST_FLAG_ADJUST_MISSILE)               // adjust missile trajectory duration
-    {
-        data << float(m_targets.GetElevation());
-        data << uint32(m_delayMoment);
-    }
+    for (GOTargetInfo const& target : m_UniqueGOTargetInfo)
+        spell.hitGuids.push_back(target.targetGUID);
 
-    if (castFlags & CAST_FLAG_AMMO)                         // projectile info
-    {
-        WriteAmmoToPacket(&data);
-    }
+    if (!IsChanneledSpell(m_spellInfo))
+        m_needAliveTargetMask = 0;
 
-    if (castFlags & CAST_FLAG_VISUAL_CHAIN)                 // spell visual chain effect
-    {
-        data << uint32(0);                                  // SpellVisual.dbc id?
-        data << uint32(0);                                  // overrides previous field if > 0 and violencelevel client cvar < 2
-    }
-
-    if (m_targets.m_targetMask & TARGET_FLAG_DEST_LOCATION)
-    {
-        data << uint8(0);                                   // The value increase for each time, can remind of a cast count for the spell
-    }
-
-    if (m_targets.m_targetMask & TARGET_FLAG_VISUAL_CHAIN)  // probably used (or can be used) with CAST_FLAG_VISUAL_CHAIN flag
-    {
-        data << uint32(0);                                  // count
-
-        // for(int = 0; i < count; ++i)
-        //{
-        //    // position and guid?
-        //    data << float(0) << float(0) << float(0) << uint64(0);
-        //}
-    }
-
+    WorldPacket data;
+    if (!MopSpellPackets::BuildSpellGo(data, spell))
+        return;
     m_caster->SendMessageToSet(&data, true);
 }
 
@@ -711,68 +862,6 @@ void Spell::WriteAmmoToPacket(WorldPacket* data)
 
     *data << uint32(ammoDisplayID);
     *data << uint32(ammoInventoryType);
-}
-
-/**
- * @brief Writes spell target guids into the spell-go packet and updates alive-target tracking.
- *
- * @param data The packet being populated.
- */
-void Spell::WriteSpellGoTargets(WorldPacket* data)
-{
-    size_t count_pos = data->wpos();
-    *data << uint8(0);                                      // placeholder
-
-    // This function also fill data for channeled spells:
-    // m_needAliveTargetMask req for stop channeling if one target die
-    uint32 hit  = m_UniqueGOTargetInfo.size();              // Always hits on GO
-    uint32 miss = 0;
-
-    for (TargetList::iterator ihit = m_UniqueTargetInfo.begin(); ihit != m_UniqueTargetInfo.end(); ++ihit)
-    {
-        if (ihit->effectMask == 0)                          // No effect apply - all immuned add state
-        {
-            // possibly SPELL_MISS_IMMUNE2 for this??
-            ihit->missCondition = SPELL_MISS_IMMUNE2;
-            ++miss;
-        }
-        else if (ihit->missCondition == SPELL_MISS_NONE)    // Add only hits
-        {
-            ++hit;
-            *data << ihit->targetGUID;
-            m_needAliveTargetMask |= ihit->effectMask;
-        }
-        else
-        {
-            ++miss;
-        }
-    }
-
-    for (GOTargetList::const_iterator ighit = m_UniqueGOTargetInfo.begin(); ighit != m_UniqueGOTargetInfo.end(); ++ighit)
-    {
-        *data << ighit->targetGUID;                          // Always hits
-    }
-
-    data->put<uint8>(count_pos, hit);
-
-    *data << (uint8)miss;
-    for (TargetList::const_iterator ihit = m_UniqueTargetInfo.begin(); ihit != m_UniqueTargetInfo.end(); ++ihit)
-    {
-        if (ihit->missCondition != SPELL_MISS_NONE)         // Add only miss
-        {
-            *data << ihit->targetGUID;
-            *data << uint8(ihit->missCondition);
-            if (ihit->missCondition == SPELL_MISS_REFLECT)
-            {
-                *data << uint8(ihit->reflectResult);
-            }
-        }
-    }
-    // Reset m_needAliveTargetMask for non channeled spell
-    if (!IsChanneledSpell(m_spellInfo))
-    {
-        m_needAliveTargetMask = 0;
-    }
 }
 
 /**

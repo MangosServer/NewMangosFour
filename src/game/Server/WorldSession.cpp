@@ -320,6 +320,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_CAST_FAILED:                     // MopSpellPackets::BuildCastFailed
         case SMSG_PET_CAST_FAILED:                 // MopSpellPackets::BuildCastFailed (pet bit order)
         case SMSG_SPELL_START:                     // MopSpellPackets::BuildSpellStart
+        case SMSG_SPELL_GO:                        // MopSpellPackets::BuildSpellGo
         case SMSG_MESSAGECHAT:                     // MopChatPackets::BuildMessage
         case SMSG_TEXT_EMOTE:                      // MopChatPackets::BuildTextEmote
         case SMSG_EMOTE:                           // Unit::HandleEmoteCommand; uint32 plus uint64
@@ -423,15 +424,11 @@ void WorldSession::SendPacket(WorldPacket const* packet, bool bypassSuppress)
         return;
     }
 
-    // SMSG_SPELL_GO still has a stale pre-18414 body and can stack-overflow the 18414 parser when a
-    // login-time stance/racial cast emits it. Aura updates now have a genuine 18414 serializer, but
-    // incremental updates produced while the Player object is still loading remain redundant: the
-    // full post-add snapshot replaces them once the target exists client-side.
+    // Incremental aura updates produced while the Player object is still loading are redundant:
+    // the full post-add snapshot replaces them once the target exists client-side.
     {
         const uint16 opc = uint16(packet->GetOpcode());
-        if (!bypassSuppress &&
-            (((m_playerLoading || m_suppressWorldSends) && opc == SMSG_SPELL_GO) ||
-             (m_playerLoading && opc == SMSG_AURA_UPDATE)))
+        if (!bypassSuppress && m_playerLoading && opc == SMSG_AURA_UPDATE)
         {
             return;
         }

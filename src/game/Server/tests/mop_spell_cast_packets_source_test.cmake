@@ -137,6 +137,41 @@ elseif(MUTATION STREQUAL "spell_start_string_bound")
         "spell.targetString.size() > 0x7F"
         "spell.targetString.size() > 0xFF"
         spell_packets "${spell_packets}")
+elseif(MUTATION STREQUAL "spell_go_sender")
+    string(REPLACE
+        "MopSpellPackets::BuildSpellGo(data, spell)"
+        "false /* removed 18414 spell-go builder */"
+        spell_packets "${spell_packets}")
+elseif(MUTATION STREQUAL "spell_go_registration")
+    string(REPLACE
+        "DefS(SMSG_SPELL_GO, \"SMSG_SPELL_GO\");"
+        "/* removed SMSG_SPELL_GO registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "spell_go_gate")
+    string(REPLACE
+        "case SMSG_SPELL_GO:"
+        "case SMSG_UNKNOWN_0:"
+        world_session "${world_session}")
+elseif(MUTATION STREQUAL "spell_go_miss_reason_width")
+    string(REPLACE
+        "out.WriteBits(miss.reason, 4);"
+        "out.WriteBits(miss.reason, 5);"
+        spell_packets "${spell_packets}")
+elseif(MUTATION STREQUAL "spell_go_hit_mask")
+    string(REPLACE
+        "out.WriteGuidMask<2, 7, 1, 6, 4, 5, 0, 3>(hit);"
+        "out.WriteGuidMask<7, 2, 1, 6, 4, 5, 0, 3>(hit);"
+        spell_packets "${spell_packets}")
+elseif(MUTATION STREQUAL "spell_go_string_bound")
+    string(REPLACE
+        "if ((spell.hasTargetString && spell.targetString.size() > 0x7F)"
+        "if ((spell.hasTargetString && spell.targetString.size() > 0xFF)"
+        spell_packets "${spell_packets}")
+elseif(MUTATION STREQUAL "spell_go_trajectory")
+    string(REPLACE
+        "if (m_targets.GetSpeed() > 0.0f)"
+        "if (false /* removed trajectory flag */)"
+        spell_packets "${spell_packets}")
 endif()
 
 string(FIND "${spell_handler}" "void WorldSession::HandleCastSpellOpcode" cast_start)
@@ -154,6 +189,33 @@ if(spell_start_begin EQUAL -1 OR spell_start_end EQUAL -1 OR spell_start_end LES
 endif()
 math(EXPR spell_start_length "${spell_start_end} - ${spell_start_begin}")
 string(SUBSTRING "${spell_packets}" ${spell_start_begin} ${spell_start_length} spell_start_sender_body)
+
+string(FIND "${spell_packets}" "bool MopSpellPackets::BuildSpellStart" spell_start_builder_begin)
+string(FIND "${spell_packets}" "bool MopSpellPackets::BuildSpellGo" spell_start_builder_end)
+if(spell_start_builder_begin EQUAL -1 OR spell_start_builder_end EQUAL -1
+        OR spell_start_builder_end LESS_EQUAL spell_start_builder_begin)
+    message(FATAL_ERROR "could not isolate BuildSpellStart")
+endif()
+math(EXPR spell_start_builder_length "${spell_start_builder_end} - ${spell_start_builder_begin}")
+string(SUBSTRING "${spell_packets}" ${spell_start_builder_begin} ${spell_start_builder_length} spell_start_builder)
+
+string(FIND "${spell_packets}" "bool MopSpellPackets::BuildSpellGo" spell_go_builder_begin)
+string(FIND "${spell_packets}" "void Spell::SendCastResult" spell_go_builder_end)
+if(spell_go_builder_begin EQUAL -1 OR spell_go_builder_end EQUAL -1
+        OR spell_go_builder_end LESS_EQUAL spell_go_builder_begin)
+    message(FATAL_ERROR "could not isolate BuildSpellGo")
+endif()
+math(EXPR spell_go_builder_length "${spell_go_builder_end} - ${spell_go_builder_begin}")
+string(SUBSTRING "${spell_packets}" ${spell_go_builder_begin} ${spell_go_builder_length} spell_go_builder)
+
+string(FIND "${spell_packets}" "void Spell::SendSpellGo()" spell_go_sender_begin)
+string(FIND "${spell_packets}" "void Spell::WriteAmmoToPacket" spell_go_sender_end)
+if(spell_go_sender_begin EQUAL -1 OR spell_go_sender_end EQUAL -1
+        OR spell_go_sender_end LESS_EQUAL spell_go_sender_begin)
+    message(FATAL_ERROR "could not isolate SendSpellGo")
+endif()
+math(EXPR spell_go_sender_length "${spell_go_sender_end} - ${spell_go_sender_begin}")
+string(SUBSTRING "${spell_packets}" ${spell_go_sender_begin} ${spell_go_sender_length} spell_go_sender_body)
 
 function(require_once source token context)
     set(remaining "${source}")
@@ -264,18 +326,48 @@ require_once("${world_session}"
 require_once("${spell_packets}"
     "MopSpellPackets::BuildSpellStart(data, spell)"
     "18414 spell-start sender wiring")
-require_once("${spell_packets}"
+require_once("${spell_start_builder}"
     "out.WriteBits(spell.targetMask, 20);"
     "spell-start 20-bit target mask")
-require_once("${spell_packets}"
+require_once("${spell_start_builder}"
     "out.WriteGuidMask<2, 6>(spell.casterUnitGuid);"
     "spell-start caster-unit mask order")
-require_once("${spell_packets}"
+require_once("${spell_start_builder}"
     "spell.targetString.size() > 0x7F"
     "spell-start target-string bound")
 forbid("${spell_start_sender_body}"
     "data << m_targets;"
     "legacy spell-start target serializer")
+require_once("${opcode_registry}"
+    "DefS(SMSG_SPELL_GO, \"SMSG_SPELL_GO\");"
+    "SMSG_SPELL_GO registration")
+require_once("${world_session}"
+    "case SMSG_SPELL_GO:"
+    "SMSG_SPELL_GO suppression gate")
+require_once("${spell_go_sender_body}"
+    "MopSpellPackets::BuildSpellGo(data, spell)"
+    "18414 spell-go sender wiring")
+require_once("${spell_go_sender_body}"
+    "if (m_targets.GetSpeed() > 0.0f)"
+    "spell-go trajectory presence")
+require_once("${spell_go_builder}"
+    "out.WriteBits(miss.reason, 4);"
+    "spell-go 4-bit miss reason")
+require_once("${spell_go_builder}"
+    "out.WriteGuidMask<2, 7, 1, 6, 4, 5, 0, 3>(hit);"
+    "spell-go hit GUID mask order")
+require_once("${spell_go_builder}"
+    "if ((spell.hasTargetString && spell.targetString.size() > 0x7F)"
+    "spell-go target-string bound")
+require_once("${spell_go_builder}"
+    "out.WriteBits(spell.targetMask, 20);"
+    "spell-go 20-bit target mask")
+forbid("${spell_go_sender_body}"
+    "data << m_targets;"
+    "legacy spell-go target serializer")
+forbid("${spell_go_sender_body}"
+    "WriteSpellGoTargets"
+    "legacy spell-go hit/miss serializer")
 
 string(FIND "${cast_handler}" "MopSpellPackets::ReadCastSpellRequest(recvPacket, request)" reader_position)
 string(FIND "${cast_handler}" "sSpellStore.LookupEntry(spellId)" lookup_position)

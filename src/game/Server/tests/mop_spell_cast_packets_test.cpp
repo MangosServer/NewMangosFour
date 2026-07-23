@@ -404,6 +404,150 @@ namespace
             packet << spell.runeCooldowns[i];
         return packet;
     }
+
+    static WorldPacket BuildSpellGoFixture(MopSpellPackets::SpellGoPacket const& spell)
+    {
+        WorldPacket packet(SMSG_SPELL_GO, 512);
+        ObjectGuid auxiliaryGuid;
+
+        packet.WriteGuidMask<2>(spell.casterUnitGuid);
+        packet.WriteBit(!spell.hasAmmoInventoryType);
+        packet.WriteBit(spell.hasSourceLocation);
+        packet.WriteGuidMask<2>(spell.casterGuid);
+        if (spell.hasSourceLocation)
+            packet.WriteGuidMask<3, 7, 4, 2, 0, 6, 1, 5>(spell.sourceTransportGuid);
+        packet.WriteGuidMask<6>(spell.casterGuid);
+        packet.WriteBit(!spell.hasDestinationTrailingByte);
+        packet.WriteGuidMask<7>(spell.casterUnitGuid);
+        packet.WriteBits(0, 20);
+        packet.WriteBits(spell.misses.size(), 25);
+        packet.WriteBits(spell.misses.size(), 24);
+        packet.WriteGuidMask<1>(spell.casterUnitGuid);
+        packet.WriteGuidMask<0>(spell.casterGuid);
+        packet.WriteBits(0, 13);
+        for (MopSpellPackets::SpellGoMiss const& miss : spell.misses)
+            packet.WriteGuidMask<1, 3, 6, 4, 5, 2, 0, 7>(miss.guid);
+        packet.WriteGuidMask<5>(spell.casterUnitGuid);
+        packet.WriteBit(false);
+        packet.WriteBit(false);
+        packet.WriteBit(!spell.hasTargetString);
+        packet.WriteGuidMask<7, 2, 1, 3, 6, 0, 5, 4>(spell.itemTargetGuid);
+        packet.WriteGuidMask<7>(spell.casterGuid);
+        packet.WriteGuidMask<0, 6, 5, 7, 4, 2, 3, 1>(spell.targetGuid);
+        packet.WriteBit(!spell.hasRuneStateBefore);
+        packet.WriteBits(spell.hasPredictedPower ? 1 : 0, 21);
+        packet.WriteGuidMask<1>(spell.casterGuid);
+        packet.WriteBit(!spell.hasPredictedType);
+        packet.WriteBit(spell.targetMask == 0);
+        packet.WriteGuidMask<3>(spell.casterUnitGuid);
+        if (spell.hasTargetString)
+            packet.WriteBits(spell.targetString.size(), 7);
+        packet.WriteBit(!spell.hasPredictedHeal);
+        packet.WriteBit(false);
+        packet.WriteBit(!spell.hasCastImmunities);
+        packet.WriteGuidMask<6>(spell.casterUnitGuid);
+        packet.WriteBit(false);
+        packet.WriteBit(spell.hasVisualChain);
+        packet.WriteGuidMask<7, 6, 1, 2, 0, 5, 3, 4>(auxiliaryGuid);
+        packet.WriteBit(!spell.hasDelay);
+        packet.WriteBit(!spell.hasCastSchoolImmunities);
+        packet.WriteBits(spell.runeCooldownCount, 3);
+        packet.WriteGuidMask<0>(spell.casterUnitGuid);
+        for (MopSpellPackets::SpellGoMiss const& miss : spell.misses)
+        {
+            packet.WriteBits(miss.reason, 4);
+            if (miss.reason == SPELL_MISS_REFLECT)
+                packet.WriteBits(miss.reflectResult, 4);
+        }
+        if (spell.targetMask)
+            packet.WriteBits(spell.targetMask, 20);
+        packet.WriteBit(!spell.hasElevation);
+        packet.WriteBit(!spell.hasRuneStateAfter);
+        packet.WriteGuidMask<4>(spell.casterGuid);
+        packet.WriteBit(!spell.hasAmmoDisplayId);
+        packet.WriteBit(spell.hasDestinationLocation);
+        packet.WriteGuidMask<5>(spell.casterGuid);
+        packet.WriteBits(spell.hitGuids.size(), 24);
+        if (spell.hasDestinationLocation)
+            packet.WriteGuidMask<0, 3, 2, 1, 4, 5, 6, 7>(spell.destinationTransportGuid);
+        packet.WriteGuidMask<4>(spell.casterUnitGuid);
+        for (ObjectGuid const& hit : spell.hitGuids)
+            packet.WriteGuidMask<2, 7, 1, 6, 4, 5, 0, 3>(hit);
+        packet.WriteGuidMask<3>(spell.casterGuid);
+        packet.FlushBits();
+
+        packet.WriteGuidBytes<5, 2, 1, 6, 0, 3, 4, 7>(spell.targetGuid);
+        packet.WriteGuidBytes<5, 2, 0, 6, 7, 3, 1, 4>(spell.itemTargetGuid);
+        packet.WriteGuidBytes<2>(spell.casterGuid);
+        for (ObjectGuid const& hit : spell.hitGuids)
+            packet.WriteGuidBytes<0, 6, 2, 7, 5, 4, 3, 1>(hit);
+        packet.WriteGuidBytes<6, 2, 7, 1, 4, 3, 5, 0>(auxiliaryGuid);
+        if (spell.hasDelay)
+            packet << spell.delay;
+        packet << spell.timestamp;
+        for (MopSpellPackets::SpellGoMiss const& miss : spell.misses)
+            packet.WriteGuidBytes<4, 2, 0, 6, 7, 5, 1, 3>(miss.guid);
+        if (spell.hasDestinationLocation)
+        {
+            packet << spell.destinationZ << spell.destinationY;
+            packet.WriteGuidBytes<4, 5, 7, 6, 1, 2>(spell.destinationTransportGuid);
+            packet << spell.destinationX;
+            packet.WriteGuidBytes<0, 3>(spell.destinationTransportGuid);
+        }
+        packet.WriteGuidBytes<6>(spell.casterGuid);
+        packet.WriteGuidBytes<7>(spell.casterUnitGuid);
+        packet.WriteGuidBytes<1>(spell.casterGuid);
+        if (spell.hasVisualChain)
+            packet << spell.visualChainFirst << spell.visualChainSecond;
+        packet << spell.castFlags;
+        if (spell.hasSourceLocation)
+        {
+            packet.WriteGuidBytes<2>(spell.sourceTransportGuid);
+            packet << spell.sourceY << spell.sourceX;
+            packet.WriteGuidBytes<6, 5, 1, 7>(spell.sourceTransportGuid);
+            packet << spell.sourceZ;
+            packet.WriteGuidBytes<3, 0, 4>(spell.sourceTransportGuid);
+        }
+        packet.WriteGuidBytes<6>(spell.casterUnitGuid);
+        if (spell.hasPredictedType)
+            packet << spell.predictedType;
+        packet.WriteGuidBytes<4>(spell.casterGuid);
+        if (spell.hasCastSchoolImmunities)
+            packet << spell.castSchoolImmunities;
+        if (spell.hasCastImmunities)
+            packet << spell.castImmunities;
+        if (spell.hasAmmoDisplayId)
+            packet << spell.ammoDisplayId;
+        packet.WriteGuidBytes<1>(spell.casterUnitGuid);
+        if (spell.hasAmmoInventoryType)
+            packet << spell.ammoInventoryType;
+        if (spell.hasPredictedPower)
+            packet << spell.predictedPowerType << spell.predictedPower;
+        if (spell.hasRuneStateAfter)
+            packet << spell.runeStateAfter;
+        for (uint8 i = 0; i < spell.runeCooldownCount; ++i)
+            packet << spell.runeCooldowns[i];
+        if (spell.hasRuneStateBefore)
+            packet << spell.runeStateBefore;
+        packet.WriteGuidBytes<0>(spell.casterGuid);
+        if (spell.hasDestinationTrailingByte)
+            packet << spell.destinationTrailingByte;
+        if (spell.hasPredictedHeal)
+            packet << spell.predictedHeal;
+        packet << spell.castCount;
+        packet.WriteGuidBytes<5>(spell.casterGuid);
+        packet.WriteGuidBytes<2>(spell.casterUnitGuid);
+        packet.WriteGuidBytes<3>(spell.casterGuid);
+        packet.WriteGuidBytes<5>(spell.casterUnitGuid);
+        if (spell.hasTargetString)
+            packet.append(spell.targetString.data(), spell.targetString.size());
+        packet << spell.spellId;
+        if (spell.hasElevation)
+            packet << spell.elevation;
+        packet.WriteGuidBytes<0, 3, 4>(spell.casterUnitGuid);
+        packet.WriteGuidBytes<7>(spell.casterGuid);
+        return packet;
+    }
 }
 
 static void test_dense_and_guid_permutations()
@@ -691,6 +835,111 @@ static void test_spell_start_wire_layout()
     CHECK(!MopSpellPackets::BuildSpellStart(actual, sparse));
 }
 
+static void test_spell_go_wire_layout()
+{
+    MopSpellPackets::SpellGoPacket spell;
+    spell.casterGuid = ObjectGuid(UINT64_C(0x8070605040302010));
+    spell.casterUnitGuid = ObjectGuid(UINT64_C(0x1020304050607080));
+    spell.targetGuid = ObjectGuid(UINT64_C(0x0011220033440055));
+    spell.itemTargetGuid = ObjectGuid(UINT64_C(0x660077880099AA00));
+    spell.hitGuids.push_back(ObjectGuid(UINT64_C(0x8877665544332211)));
+    spell.hitGuids.push_back(ObjectGuid(UINT64_C(0x1122334455667788)));
+    MopSpellPackets::SpellGoMiss reflect;
+    reflect.guid = ObjectGuid(UINT64_C(0xA1A2A3A4A5A6A7A8));
+    reflect.reason = SPELL_MISS_REFLECT;
+    reflect.reflectResult = SPELL_MISS_RESIST;
+    spell.misses.push_back(reflect);
+    MopSpellPackets::SpellGoMiss resist;
+    resist.guid = ObjectGuid(UINT64_C(0xB1B2B3B4B5B6B7B8));
+    resist.reason = SPELL_MISS_RESIST;
+    spell.misses.push_back(resist);
+    spell.hasSourceLocation = true;
+    spell.sourceTransportGuid = ObjectGuid(UINT64_C(0xC1C2C3C4C5C6C7C8));
+    spell.sourceX = 1.25f;
+    spell.sourceY = 2.25f;
+    spell.sourceZ = 3.25f;
+    spell.hasDestinationLocation = true;
+    spell.destinationTransportGuid = ObjectGuid(UINT64_C(0xD1D2D3D4D5D6D7D8));
+    spell.destinationX = 4.25f;
+    spell.destinationY = 5.25f;
+    spell.destinationZ = 6.25f;
+    spell.hasDestinationTrailingByte = true;
+    spell.destinationTrailingByte = 7;
+    spell.targetMask = TARGET_FLAG_UNIT | TARGET_FLAG_ITEM |
+        TARGET_FLAG_SOURCE_LOCATION | TARGET_FLAG_DEST_LOCATION | TARGET_FLAG_STRING;
+    spell.hasTargetString = true;
+    spell.targetString = "Target";
+    spell.hasDelay = true;
+    spell.delay = 0x01020304u;
+    spell.timestamp = 0x11121314u;
+    spell.castFlags = 0x21222324u;
+    spell.castCount = 9;
+    spell.spellId = 0x31323334u;
+    spell.hasPredictedPower = true;
+    spell.predictedPowerType = 3;
+    spell.predictedPower = -456;
+    spell.hasRuneStateBefore = true;
+    spell.runeStateBefore = 0x15;
+    spell.hasRuneStateAfter = true;
+    spell.runeStateAfter = 0x2A;
+    spell.runeCooldownCount = 2;
+    spell.runeCooldowns[0] = 0x33;
+    spell.runeCooldowns[1] = 0x44;
+    spell.hasPredictedType = true;
+    spell.predictedType = 1;
+    spell.hasPredictedHeal = true;
+    spell.predictedHeal = 0x41424344u;
+    spell.hasCastSchoolImmunities = true;
+    spell.castSchoolImmunities = 0x51525354u;
+    spell.hasCastImmunities = true;
+    spell.castImmunities = 0x61626364u;
+    spell.hasVisualChain = true;
+    spell.visualChainFirst = 0x71727374u;
+    spell.visualChainSecond = 0x81828384u;
+    spell.hasAmmoInventoryType = true;
+    spell.ammoInventoryType = 2;
+    spell.hasAmmoDisplayId = true;
+    spell.ammoDisplayId = 0x91929394u;
+    spell.hasElevation = true;
+    spell.elevation = -0.75f;
+
+    WorldPacket expected = BuildSpellGoFixture(spell);
+    WorldPacket actual;
+    CHECK(MopSpellPackets::BuildSpellGo(actual, spell));
+    CHECK(actual.GetOpcode() == SMSG_SPELL_GO);
+    CHECK(actual.size() == expected.size());
+    CHECK(actual.size() == 0 || std::memcmp(actual.contents(), expected.contents(), actual.size()) == 0);
+
+    MopSpellPackets::SpellGoPacket sparse;
+    sparse.timestamp = 25;
+    sparse.castFlags = CAST_FLAG_UNKNOWN9;
+    sparse.castCount = 1;
+    sparse.spellId = 133;
+    expected = BuildSpellGoFixture(sparse);
+    CHECK(MopSpellPackets::BuildSpellGo(actual, sparse));
+    CHECK(actual.size() == expected.size());
+    CHECK(actual.size() == 0 || std::memcmp(actual.contents(), expected.contents(), actual.size()) == 0);
+
+    sparse.hasTargetString = true;
+    sparse.targetString.assign(128, 'x');
+    CHECK(!MopSpellPackets::BuildSpellGo(actual, sparse));
+    sparse.hasTargetString = false;
+    sparse.targetString.clear();
+    sparse.targetMask = 0x100000;
+    CHECK(!MopSpellPackets::BuildSpellGo(actual, sparse));
+    sparse.targetMask = 0;
+    sparse.runeCooldownCount = 8;
+    CHECK(!MopSpellPackets::BuildSpellGo(actual, sparse));
+    sparse.runeCooldownCount = 0;
+    MopSpellPackets::SpellGoMiss invalidMiss;
+    invalidMiss.reason = 0x10;
+    sparse.misses.push_back(invalidMiss);
+    CHECK(!MopSpellPackets::BuildSpellGo(actual, sparse));
+    sparse.misses[0].reason = SPELL_MISS_REFLECT;
+    sparse.misses[0].reflectResult = 0x10;
+    CHECK(!MopSpellPackets::BuildSpellGo(actual, sparse));
+}
+
 int main(int, char**)
 {
     test_dense_and_guid_permutations();
@@ -704,6 +953,7 @@ int main(int, char**)
     test_cast_failure_wire_layout();
     test_pet_cast_failure_wire_layout();
     test_spell_start_wire_layout();
+    test_spell_go_wire_layout();
 
     if (g_fail)
     {
