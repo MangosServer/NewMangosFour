@@ -381,6 +381,8 @@ enum OpcodesList
     SMSG_RESURRECT_REQUEST                       = 0x1062,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_RESURRECT_RESPONSE                      = 0x0B0C, // 5.4.8 18414 (Wow.exe binary)
     CMSG_RETURN_TO_GRAVEYARD                     = 0x12EA, // 5.4.8 18414 (Wow.exe binary)
+    CMSG_REQUEST_CEMETERY_LIST                   = 0x06E4, // 5.4.8 18414 (Wow.exe binary)
+    SMSG_REQUEST_CEMETERY_LIST_RESPONSE          = 0x042A, // 5.4.8 18414 (Wow.exe binary)
     CMSG_LOOT                                    = 0x1CE2, // 5.4.8 18414 (Wow.exe binary)
     CMSG_LOOT_CURRENCY                           = 0x781C, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     CMSG_LOOT_MONEY                              = 0x02F6, // 5.4.8 18414 (Wow.exe binary)

@@ -293,6 +293,30 @@ GraveYardData const* ObjectMgr::FindGraveYardData(uint32 id, uint32 zoneId) cons
 }
 
 /**
+ * @brief Gets a bounded list of graveyards linked to a zone for a team.
+ */
+std::vector<uint32> ObjectMgr::GetGraveYardIds(uint32 zoneId, Team team, size_t maxCount) const
+{
+    std::vector<uint32> result;
+    if (!maxCount)
+        return result;
+
+    GraveYardMapBounds bounds = mGraveYardMap.equal_range(zoneId);
+    for (GraveYardMap::const_iterator itr = bounds.first; itr != bounds.second; ++itr)
+    {
+        GraveYardData const& data = itr->second;
+        if (data.team != TEAM_BOTH_ALLOWED && data.team != team)
+            continue;
+
+        result.push_back(data.safeLocId);
+        if (result.size() == maxCount)
+            break;
+    }
+
+    return result;
+}
+
+/**
  * @brief Adds a graveyard link for a zone and optional database persistence.
  *
  * @param id The graveyard safe location id.

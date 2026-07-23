@@ -679,6 +679,7 @@ class ObjectMgr
         void SetGraveYardLinkTeam(uint32 id, uint32 zoneId, Team team);
         void LoadGraveyardZones();
         GraveYardData const* FindGraveYardData(uint32 id, uint32 zone) const;
+        std::vector<uint32> GetGraveYardIds(uint32 zoneId, Team team, size_t maxCount) const;
 
         AreaTrigger const* GetAreaTrigger(uint32 trigger) const
         {

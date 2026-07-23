@@ -483,6 +483,8 @@ namespace MopInitialPackets
 
 namespace MopDeathPackets
 {
+    static size_t const CEMETERY_LIST_MAX = 16;
+
     inline void BuildDeathReleaseLocation(WorldPacket& out, uint32 mapId,
         float x, float y, float z)
     {
@@ -497,6 +499,20 @@ namespace MopDeathPackets
         out.FlushBits();
         if (!hasNoDelay)
             out << delayMs;
+    }
+
+    inline void BuildCemeteryListResponse(WorldPacket& out,
+        std::vector<uint32> const& cemeteryIds, bool isGossipTriggered)
+    {
+        size_t const count =
+            cemeteryIds.size() > CEMETERY_LIST_MAX ? CEMETERY_LIST_MAX : cemeteryIds.size();
+        out.Initialize(SMSG_REQUEST_CEMETERY_LIST_RESPONSE,
+            3 + count * sizeof(uint32));
+        out.WriteBits(uint32(count), 22);
+        out.WriteBit(isGossipTriggered);
+        out.FlushBits();
+        for (size_t i = 0; i < count; ++i)
+            out << cemeteryIds[i];
     }
 }
 

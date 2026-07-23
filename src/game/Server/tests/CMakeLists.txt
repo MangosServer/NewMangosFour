@@ -835,7 +835,10 @@ add_test(NAME mop_death_packets_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_death_packets_source_test.cmake)
 
-foreach(mutation IN ITEMS wire_order player_call misc_call registration whitelist opcode_value)
+foreach(mutation IN ITEMS
+        wire_order player_call misc_call registration whitelist opcode_value
+        cemetery_wire cemetery_bound cemetery_query cemetery_serializer
+        cemetery_registration cemetery_whitelist cemetery_opcode cemetery_team_filter)
     add_test(NAME mop_death_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

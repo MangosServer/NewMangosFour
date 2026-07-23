@@ -85,10 +85,72 @@ static void test_opcode_is_framable()
     CHECK(uint32(SMSG_DEATH_RELEASE_LOC) < uint32(OPCODE_TABLE_SIZE));
 }
 
+static void test_empty_cemetery_list_response()
+{
+    WorldPacket packet;
+    MopDeathPackets::BuildCemeteryListResponse(packet, {}, false);
+
+    CHECK(packet.GetOpcode() == SMSG_REQUEST_CEMETERY_LIST_RESPONSE);
+    CHECK(ExpectBytes(packet, { 0x00, 0x00, 0x00 }));
+}
+
+static void test_cemetery_list_response()
+{
+    std::vector<uint32> const cemeteryIds = { 0x11223344u, 0xA1B2C3D4u };
+
+    WorldPacket scheduled;
+    MopDeathPackets::BuildCemeteryListResponse(scheduled, cemeteryIds, false);
+    CHECK(ExpectBytes(scheduled, {
+        0x00, 0x00, 0x08,
+        0x44, 0x33, 0x22, 0x11,
+        0xD4, 0xC3, 0xB2, 0xA1
+    }));
+
+    WorldPacket gossip;
+    MopDeathPackets::BuildCemeteryListResponse(gossip, cemeteryIds, true);
+    CHECK(ExpectBytes(gossip, {
+        0x00, 0x00, 0x0A,
+        0x44, 0x33, 0x22, 0x11,
+        0xD4, 0xC3, 0xB2, 0xA1
+    }));
+}
+
+static void test_cemetery_list_response_is_bounded()
+{
+    std::vector<uint32> cemeteryIds;
+    for (uint32 id = 1; id <= 17; ++id)
+        cemeteryIds.push_back(id);
+
+    WorldPacket packet;
+    MopDeathPackets::BuildCemeteryListResponse(packet, cemeteryIds, false);
+
+    std::vector<uint8_t> expected = { 0x00, 0x00, 0x40 };
+    for (uint32 id = 1; id <= 16; ++id)
+    {
+        expected.push_back(uint8(id));
+        expected.push_back(0x00);
+        expected.push_back(0x00);
+        expected.push_back(0x00);
+    }
+    CHECK(ExpectBytes(packet, expected));
+}
+
+static void test_cemetery_opcodes_are_framable()
+{
+    CHECK(uint32(CMSG_REQUEST_CEMETERY_LIST) == 0x06E4u);
+    CHECK(uint32(SMSG_REQUEST_CEMETERY_LIST_RESPONSE) == 0x042Au);
+    CHECK(uint32(CMSG_REQUEST_CEMETERY_LIST) < uint32(OPCODE_TABLE_SIZE));
+    CHECK(uint32(SMSG_REQUEST_CEMETERY_LIST_RESPONSE) < uint32(OPCODE_TABLE_SIZE));
+}
+
 int main(int /*argc*/, char** /*argv*/)
 {
     test_graveyard_location();
     test_clear_location();
     test_opcode_is_framable();
+    test_empty_cemetery_list_response();
+    test_cemetery_list_response();
+    test_cemetery_list_response_is_bounded();
+    test_cemetery_opcodes_are_framable();
     return g_fail ? 1 : 0;
 }

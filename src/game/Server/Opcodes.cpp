@@ -345,6 +345,10 @@ void InitializeOpcodes()
     // Wave 35 spirit-healer location state.
     DefS(SMSG_DEATH_RELEASE_LOC, "SMSG_DEATH_RELEASE_LOC");
 
+    // Binary-proven scheduled cemetery-list refresh.
+    DefC(CMSG_REQUEST_CEMETERY_LIST, "CMSG_REQUEST_CEMETERY_LIST", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRequestCemeteryListOpcode);
+    DefS(SMSG_REQUEST_CEMETERY_LIST_RESPONSE, "SMSG_REQUEST_CEMETERY_LIST_RESPONSE");
+
     // Wave 36 quest-sharing requests, confirmation prompt, and split result paths.
     DefC(CMSG_PUSHQUESTTOPARTY, "CMSG_PUSHQUESTTOPARTY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandlePushQuestToParty);
     DefC(CMSG_QUEST_CONFIRM_ACCEPT, "CMSG_QUEST_CONFIRM_ACCEPT", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestConfirmAccept);

@@ -81,6 +81,16 @@
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
 
+void WorldSession::HandleRequestCemeteryListOpcode(WorldPacket& /*recv_data*/)
+{
+    std::vector<uint32> const cemeteryIds =
+        sObjectMgr.GetGraveYardIds(GetPlayer()->GetZoneId(), GetPlayer()->GetTeam(), MopDeathPackets::CEMETERY_LIST_MAX);
+
+    WorldPacket data;
+    MopDeathPackets::BuildCemeteryListResponse(data, cemeteryIds, false);
+    SendPacket(&data);
+}
+
 void WorldSession::HandleRepopRequestOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: Received opcode CMSG_REPOP_REQUEST");
