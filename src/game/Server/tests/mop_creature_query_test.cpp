@@ -170,12 +170,54 @@ static void test_opcode_values_are_framable()
     CHECK(uint32_t(SMSG_CREATURE_QUERY_RESPONSE) == 0x048Bu);
 }
 
+static bool PacketContains(WorldPacket const& packet, std::vector<uint8_t> const& needle)
+{
+    if (needle.empty() || packet.size() < needle.size())
+        return false;
+    for (size_t i = 0; i + needle.size() <= packet.size(); ++i)
+    {
+        bool match = true;
+        for (size_t j = 0; j < needle.size(); ++j)
+            if (packet.contents()[i + j] != needle[j]) { match = false; break; }
+        if (match)
+            return true;
+    }
+    return false;
+}
+
+// Mirrors the QueryHandler creature-storm circuit-breaker record: a scoped synthetic POSITIVE for an
+// unknown battle-pet creature, with a non-empty placeholder name and valid (non-zero) defaults. Proves
+// the codec frames it as a well-formed cacheable positive (Codex follow-up: the golden test otherwise
+// only covered a negative and an "A"-name positive, not the synthetic stub the handler now emits).
+static void test_synthetic_stub()
+{
+    MopQueryPackets::CreatureQueryResponse stub;
+    stub.entry = 60649u;
+    stub.hasData = true;
+    stub.name = "Battle Pet 60649";
+    stub.creatureType = 10u;            // CREATURE_TYPE_NOT_SPECIFIED (a defined type, not 0)
+    stub.healthMultiplier = 1.0f;
+    stub.powerMultiplier = 1.0f;
+
+    WorldPacket stubPacket(SMSG_CREATURE_QUERY_RESPONSE, 128);
+    MopQueryPackets::BuildCreatureQueryResponse(stubPacket, stub);
+
+    CHECK(stubPacket.size() > 5);       // a positive, not the 5-byte negative
+    std::vector<uint8_t> name = { 'B','a','t','t','l','e',' ','P','e','t',' ','6','0','6','4','9', 0 };
+    CHECK(PacketContains(stubPacket, name));
+    std::vector<uint8_t> oneF = { 0x00, 0x00, 0x80, 0x3F };      // 1.0f multipliers
+    CHECK(PacketContains(stubPacket, oneF));
+    std::vector<uint8_t> typeTen = { 0x0A, 0x00, 0x00, 0x00 };   // creatureType = 10 (u32 LE)
+    CHECK(PacketContains(stubPacket, typeTen));
+}
+
 int main(int /*argc*/, char** /*argv*/)
 {
     test_missing_template();
     test_minimal_hit();
     test_populated_hit();
     test_opcode_values_are_framable();
+    test_synthetic_stub();
 
     if (g_fail)
     {

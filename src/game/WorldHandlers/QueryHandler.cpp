@@ -292,6 +292,26 @@ void WorldSession::HandleCreatureQueryOpcode(WorldPacket& recv_data)
         for (size_t i = 0; i < response.questItems.size(); ++i)
             response.questItems[i] = ci->QuestItems[i];
     }
+    else if (sWorld.getConfig(CONFIG_BOOL_CREATURE_QUERY_SYNTHETIC_STUB)
+             && entry >= 59358 && entry <= 77137)
+    {
+        // Circuit-breaker for the 18414 client's creature-query storm. The client re-queries any unknown
+        // creature ~170x per UI tick because it never caches a hasData=0 ("not found") response -- proven
+        // from a live capture: 231 known entries were each queried once (positive cached) while 386 unknown
+        // entries were each queried ~170x (negative never cached), with zero overlap. Those 386 IDs are MoP
+        // battle-pet/companion creatures (client-known via BattlePetSpecies, range 59358-77137) that are
+        // absent from creature_template. We answer a SCOPED synthetic POSITIVE -- a cacheable, valid stub --
+        // so the client caches it and stops, collapsing ~66k queries to 386. Codex-reviewed: a non-empty
+        // placeholder name + valid defaults (not an all-zero record); genuine "not found" negatives are
+        // still sent for every entry OUTSIDE this battle-pet range. The real fix is importing the missing
+        // creature_template rows. Disable with CreatureQuery.SyntheticStub = 0.
+        response.hasData = true;
+        response.name = "Battle Pet " + std::to_string(entry);
+        response.creatureType = CREATURE_TYPE_NOT_SPECIFIED;
+        response.healthMultiplier = 1.0f;
+        response.powerMultiplier = 1.0f;
+        DEBUG_LOG("WORLD: CMSG_CREATURE_QUERY - Entry: %u synthetic battle-pet stub (no template).", entry);
+    }
     else
     {
         DEBUG_LOG("WORLD: CMSG_CREATURE_QUERY - Entry: %u NO CREATURE INFO!", entry);

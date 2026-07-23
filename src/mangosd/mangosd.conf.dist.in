@@ -1393,6 +1393,26 @@ CinematicFlyover.BodyEntry          = 12999
 CinematicFlyover.VisibilityDistance = 250
 
 ################################################################################
+# CREATURE QUERY
+#
+#    CreatureQuery.SyntheticStub
+#        The 5.4.8 (18414) client re-queries any creature it knows of but for
+#        which the server has no creature_template (mainly MoP battle-pet /
+#        companion entries, 59358-77137) on a tight per-tick loop, because it
+#        never caches a "not found" response -- tens of thousands of
+#        CMSG_CREATURE_QUERY per session, flooding the world and DB logs. When
+#        enabled the server answers those unknown battle-pet entries with a
+#        scoped synthetic placeholder record so the client caches it and stops
+#        re-asking. A genuine "not found" is still returned for every entry
+#        outside that range. The real fix is importing the missing
+#        creature_template rows.
+#        Default: 1 (enabled)
+#
+################################################################################
+
+CreatureQuery.SyntheticStub         = 1
+
+################################################################################
 # SERVER RATES
 #
 #    Rate.Health

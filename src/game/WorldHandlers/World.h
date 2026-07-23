@@ -420,6 +420,10 @@ enum eConfigBoolValues
     // Cinematic flyover
     CONFIG_BOOL_CINEMATIC_FLYOVER_ENABLE,
     CONFIG_BOOL_CINEMATIC_FLYOVER_DEBUG,
+
+    // Creature-query storm circuit-breaker: answer a scoped synthetic-positive for unknown
+    // battle-pet creatures so the 18414 client caches the result instead of re-querying forever.
+    CONFIG_BOOL_CREATURE_QUERY_SYNTHETIC_STUB,
     CONFIG_BOOL_VALUE_COUNT
 };
 
