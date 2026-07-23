@@ -676,6 +676,7 @@ enum OpcodesList
     SMSG_LOOT_ROLL                               = 0x1840,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_LOOT_MASTER_GIVE                        = 0x1DE1, // 5.4.8 18414 (Wow.exe binary)
     SMSG_LOOT_MASTER_LIST                        = 0x02BF,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
+    CMSG_REQUEST_FORCED_REACTIONS                = 0x06F5,    // 5.4.8 18414 (Wow.exe empty writer; reputation initialization call path)
     SMSG_SET_FORCED_REACTIONS                    = 0x068F,    // 5.4.8 18414 (Wow.exe binary; reader sub_72C708)
     SMSG_SPELL_FAILED_OTHER                      = 0x040B,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_GAMEOBJECT_RESET_STATE                  = 0x100E,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)

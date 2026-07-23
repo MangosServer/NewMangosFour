@@ -328,7 +328,8 @@ endforeach()
 foreach(mutation IN ITEMS builder_call opcode_metadata binder_reader
         binder_confirm_builder playerbound_builder binder_registration
         binder_allowlist tutorial_flag_registration tutorial_clear_registration
-        tutorial_reset_registration tutorial_flag_reader)
+        tutorial_reset_registration tutorial_flag_reader
+        forced_reactions_registration forced_reactions_handler)
     add_test(NAME mop_initial_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND}
             -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}

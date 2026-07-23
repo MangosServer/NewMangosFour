@@ -1474,6 +1474,7 @@ class WorldSession
         void HandleSetFactionAtWarOpcode(WorldPacket& recv_data);
         void HandleSetWatchedFactionOpcode(WorldPacket& recv_data);
         void HandleSetFactionInactiveOpcode(WorldPacket& recv_data);
+        void HandleRequestForcedReactionsOpcode(WorldPacket& recv_data);
 
         void HandleUpdateAccountData(WorldPacket& recvPacket);
         void HandleRequestAccountData(WorldPacket& recvPacket);

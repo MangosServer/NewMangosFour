@@ -454,6 +454,7 @@ static void test_opcode_values_are_framable()
         { uint32_t(SMSG_MOTD), 0x183Bu },
         { uint32_t(SMSG_CORPSE_RECLAIM_DELAY), 0x022Au },
         { uint32_t(SMSG_SET_FORCED_REACTIONS), 0x068Fu },
+        { uint32_t(CMSG_REQUEST_FORCED_REACTIONS), 0x06F5u },
         { uint32_t(SMSG_ITEM_TIME_UPDATE), 0x18C1u },
         { uint32_t(SMSG_ITEM_ENCHANT_TIME_UPDATE), 0x10A2u }
     };

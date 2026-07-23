@@ -69,6 +69,16 @@ elseif(MUTATION STREQUAL "tutorial_flag_reader")
         "recv_data >> iFlag;"
         "/* removed tutorial flag reader */"
         character_handler "${character_handler}")
+elseif(MUTATION STREQUAL "forced_reactions_registration")
+    string(REPLACE
+        "DefC(CMSG_REQUEST_FORCED_REACTIONS, \"CMSG_REQUEST_FORCED_REACTIONS\""
+        "DefC(0xFFFF, \"removed CMSG_REQUEST_FORCED_REACTIONS\""
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "forced_reactions_handler")
+    string(REPLACE
+        "GetPlayer()->GetReputationMgr().SendForceReactions();"
+        "/* removed forced-reaction response */"
+        character_handler "${character_handler}")
 endif()
 
 function(strip_cpp_comments output source)
@@ -231,6 +241,18 @@ if(NOT player_death MATCHES "MopDeathPackets::BuildCorpseReclaimDelay")
 endif()
 if(NOT forced_reactions MATCHES "MopReputationPackets::BuildForcedReactions")
     message(FATAL_ERROR "BuildForcedReactions is not used by the reputation sender")
+endif()
+string(FIND "${character_handler}"
+    "GetPlayer()->GetReputationMgr().SendForceReactions();"
+    forced_reactions_handler_position)
+if(forced_reactions_handler_position EQUAL -1)
+    message(FATAL_ERROR "forced-reaction request handler does not send the current state")
+endif()
+string(FIND "${opcode_registry}"
+    "DefC(CMSG_REQUEST_FORCED_REACTIONS, \"CMSG_REQUEST_FORCED_REACTIONS\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRequestForcedReactionsOpcode);"
+    forced_reactions_registration_position)
+if(forced_reactions_registration_position EQUAL -1)
+    message(FATAL_ERROR "CMSG_REQUEST_FORCED_REACTIONS is missing its logged-in handler registration")
 endif()
 if(NOT item MATCHES "MopItemPackets::BuildItemTimeUpdate")
     message(FATAL_ERROR "BuildItemTimeUpdate is not used by the item sender")

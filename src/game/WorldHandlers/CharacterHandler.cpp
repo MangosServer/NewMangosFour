@@ -1287,6 +1287,16 @@ void WorldSession::HandleSetFactionInactiveOpcode(WorldPacket& recv_data)
 }
 
 /**
+ * @brief Sends the current forced faction reactions requested by the client.
+ *
+ * @param recv_data Empty request packet.
+ */
+void WorldSession::HandleRequestForcedReactionsOpcode(WorldPacket& /*recv_data*/)
+{
+    GetPlayer()->GetReputationMgr().SendForceReactions();
+}
+
+/**
  * @brief Toggles the player's helm visibility flag.
  *
  * @param recv_data The received opcode packet.
