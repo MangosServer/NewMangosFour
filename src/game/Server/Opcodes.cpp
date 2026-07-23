@@ -454,6 +454,11 @@ void InitializeOpcodes()
     DefS(SMSG_PET_STABLE_LIST, "SMSG_PET_STABLE_LIST");
     DefS(SMSG_STABLE_RESULT, "SMSG_STABLE_RESULT");
 
+    // The 18414 client clears its local journal before this empty request.
+    // Return a binary-safe empty, writable journal until collection persistence exists.
+    DefC(CMSG_BATTLE_PET_REQUEST_JOURNAL, "CMSG_BATTLE_PET_REQUEST_JOURNAL", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleBattlePetRequestJournal);
+    DefS(SMSG_BATTLE_PET_JOURNAL, "SMSG_BATTLE_PET_JOURNAL");
+
     // Wave 16 ready-check exchange. All five values and bodies are recovered
     // directly from the 18414 client; server-side state/recipient policy is
     // deliberately kept in Group and GroupHandler.

@@ -54,6 +54,18 @@
 #include "Pet.h"
 #include "SpellAuras.h"
 #include "TemporarySummon.h"
+#include "Player.h"
+
+/**
+ * @brief Completes the 18414 Battle Pet journal initialization with an empty,
+ * writable journal while collection persistence is not implemented.
+ */
+void WorldSession::HandleBattlePetRequestJournal(WorldPacket& /*recv_data*/)
+{
+    WorldPacket data;
+    MopBattlePetPackets::BuildEmptyJournal(data);
+    SendPacket(&data);
+}
 
 /**
  * @brief Handles pet action bar commands, reactions, and spell casts.

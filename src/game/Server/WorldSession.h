@@ -1735,6 +1735,7 @@ class WorldSession
         void HandleTutorialResetOpcode(WorldPacket& recv_data);
 
         // Pet
+        void HandleBattlePetRequestJournal(WorldPacket& recv_data);
         void HandlePetAction(WorldPacket& recv_data);
         void HandlePetStopAttack(WorldPacket& recv_data);
         void HandlePetNameQueryOpcode(WorldPacket& recv_data);

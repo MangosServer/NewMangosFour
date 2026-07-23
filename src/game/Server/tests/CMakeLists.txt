@@ -935,3 +935,24 @@ foreach(mutation IN ITEMS reader registration target_initializer target_mapping 
             -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_spell_cast_packets_source_test.cmake)
     set_tests_properties(mop_spell_cast_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
+
+add_executable(mop_battle_pet_packets_test mop_battle_pet_packets_test.cpp)
+target_include_directories(mop_battle_pet_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_battle_pet_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_battle_pet_packets_test PRIVATE game)
+add_test(NAME mop_battle_pet_packets COMMAND mop_battle_pet_packets_test)
+
+add_test(NAME mop_battle_pet_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_battle_pet_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS pet_count_width writable slot_count_width flush trap_level
+        handler send client_registration server_registration whitelist client_value server_value)
+    add_test(NAME mop_battle_pet_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_battle_pet_packets_source_test.cmake)
+    set_tests_properties(mop_battle_pet_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()

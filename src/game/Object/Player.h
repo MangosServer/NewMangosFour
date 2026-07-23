@@ -516,6 +516,19 @@ namespace MopDeathPackets
     }
 }
 
+namespace MopBattlePetPackets
+{
+    inline void BuildEmptyJournal(WorldPacket& out)
+    {
+        out.Initialize(SMSG_BATTLE_PET_JOURNAL, 8);
+        out.WriteBits(0, 19);
+        out.WriteBit(true);
+        out.WriteBits(0, 25);
+        out.FlushBits();
+        out << uint16(0xFFFF);
+    }
+}
+
 namespace MopReputationPackets
 {
     struct ForcedReaction

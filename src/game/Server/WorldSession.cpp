@@ -342,6 +342,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_CORPSE_MAP_POSITION_QUERY_RESPONSE: // MopQueryPackets::BuildCorpseMapPositionQueryResponse
         case SMSG_DEATH_RELEASE_LOC:         // MopDeathPackets::BuildDeathReleaseLocation
         case SMSG_REQUEST_CEMETERY_LIST_RESPONSE: // MopDeathPackets::BuildCemeteryListResponse
+        case SMSG_BATTLE_PET_JOURNAL:        // MopBattlePetPackets::BuildEmptyJournal
         case SMSG_QUEST_CONFIRM_ACCEPT:      // MopQuestPackets::BuildQuestConfirmAccept
         case SMSG_QUEST_PUSH_RESULT:         // MopQuestPackets::BuildQuestPushResult
         case SMSG_INITIAL_SETUP:             // MopQuestPackets::BuildInitialSetup
