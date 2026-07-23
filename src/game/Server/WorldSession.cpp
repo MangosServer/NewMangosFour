@@ -274,6 +274,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_TRANSFER_PENDING:      // 0x061B -- cross-map load-screen preamble (inline bit-packed body; non-transport
                                          //           path byte-identical to the 18414 reference; transport-case field
                                          //           order unverified -- follow-up when far-teleport-with-transport lands)
+        case SMSG_TRANSFER_ABORTED:      // 0x0C8F -- absent-argument bit, 5-bit reason, optional byte, map ID
             return true;
 
         // Converted in-world control, movement, compact UI, and combat-log bodies. Each
@@ -1433,17 +1434,8 @@ void WorldSession::SaveTutorialsData()
 // Send chat information about aborted transfer (mostly used by Player::SendTransferAbortedByLockstatus())
 void WorldSession::SendTransferAborted(uint32 mapid, uint8 reason, uint8 arg)
 {
-    WorldPacket data(SMSG_TRANSFER_ABORTED, 4 + 2);
-    data << uint32(mapid);
-    data << uint8(reason);                                  // transfer abort reason
-    switch (reason)
-    {
-        case TRANSFER_ABORT_INSUF_EXPAN_LVL:
-        case TRANSFER_ABORT_DIFFICULTY:
-        case TRANSFER_ABORT_UNIQUE_MESSAGE:
-            data << uint8(arg);
-            break;
-    }
+    WorldPacket data(SMSG_TRANSFER_ABORTED, 6);
+    MopTransferPackets::BuildTransferAborted(data, mapid, reason, arg);
     SendPacket(&data);
 }
 
