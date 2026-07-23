@@ -790,6 +790,41 @@ namespace MopWorldEntryPackets
         out << counter;
     }
 
+    struct DiscardedTimeSyncAcksReport
+    {
+        bool hasValue = false;
+        uint32 value = 0;
+    };
+
+    inline DiscardedTimeSyncAcksReport ReadDiscardedTimeSyncAcks(WorldPacket& in)
+    {
+        DiscardedTimeSyncAcksReport report;
+        report.hasValue = !in.ReadBit();
+        if (report.hasValue)
+            in >> report.value;
+        return report;
+    }
+
+    struct TimeSyncResponseDroppedReport
+    {
+        uint32 first = 0;
+        uint32 second = 0;
+    };
+
+    inline TimeSyncResponseDroppedReport ReadTimeSyncResponseDropped(WorldPacket& in)
+    {
+        TimeSyncResponseDroppedReport report;
+        in >> report.first >> report.second;
+        return report;
+    }
+
+    inline uint32 ReadTimeSyncResponseFailed(WorldPacket& in)
+    {
+        uint32 counter = 0;
+        in >> counter;
+        return counter;
+    }
+
     inline void BuildTriggerCinematic(WorldPacket& out, uint32 cinematicSequenceId)
     {
         out << cinematicSequenceId;

@@ -96,6 +96,57 @@ static void test_time_sync()
     CHECK(ExpectBytes(packet, { 0x44, 0x33, 0x22, 0x11 }));
 }
 
+static void test_discarded_time_sync_acks_absent()
+{
+    uint8_t const body[] = { 0x80 };
+    WorldPacket packet(CMSG_DISCARDED_TIME_SYNC_ACKS, sizeof(body));
+    packet.append(body, sizeof(body));
+
+    MopWorldEntryPackets::DiscardedTimeSyncAcksReport const report =
+        MopWorldEntryPackets::ReadDiscardedTimeSyncAcks(packet);
+    CHECK(!report.hasValue);
+    CHECK(packet.rpos() == packet.size());
+}
+
+static void test_discarded_time_sync_acks_present()
+{
+    uint8_t const body[] = { 0x00, 0x44, 0x33, 0x22, 0x11 };
+    WorldPacket packet(CMSG_DISCARDED_TIME_SYNC_ACKS, sizeof(body));
+    packet.append(body, sizeof(body));
+
+    MopWorldEntryPackets::DiscardedTimeSyncAcksReport const report =
+        MopWorldEntryPackets::ReadDiscardedTimeSyncAcks(packet);
+    CHECK(report.hasValue);
+    CHECK(report.value == 0x11223344u);
+    CHECK(packet.rpos() == packet.size());
+}
+
+static void test_time_sync_response_dropped()
+{
+    uint8_t const body[] = {
+        0x44, 0x33, 0x22, 0x11, 0x88, 0x77, 0x66, 0x55
+    };
+    WorldPacket packet(CMSG_TIME_SYNC_RESPONSE_DROPPED, sizeof(body));
+    packet.append(body, sizeof(body));
+
+    MopWorldEntryPackets::TimeSyncResponseDroppedReport const report =
+        MopWorldEntryPackets::ReadTimeSyncResponseDropped(packet);
+    CHECK(report.first == 0x11223344u);
+    CHECK(report.second == 0x55667788u);
+    CHECK(packet.rpos() == packet.size());
+}
+
+static void test_time_sync_response_failed()
+{
+    uint8_t const body[] = { 0x44, 0x33, 0x22, 0x11 };
+    WorldPacket packet(CMSG_TIME_SYNC_RESPONSE_FAILED, sizeof(body));
+    packet.append(body, sizeof(body));
+
+    CHECK(MopWorldEntryPackets::ReadTimeSyncResponseFailed(packet) ==
+        0x11223344u);
+    CHECK(packet.rpos() == packet.size());
+}
+
 static void test_trigger_cinematic()
 {
     WorldPacket packet(SMSG_TRIGGER_CINEMATIC, 4);
@@ -184,6 +235,9 @@ static void test_opcode_values_are_framable()
     CHECK(uint32_t(SMSG_MOVE_TELEPORT) == 0x0B39u);
     CHECK(uint32_t(SMSG_TIME_SYNC_REQ) == 0x1A8Fu);
     CHECK(uint32_t(CMSG_TIME_SYNC_RESP) == 0x01DBu);
+    CHECK(uint32_t(CMSG_DISCARDED_TIME_SYNC_ACKS) == 0x115Bu);
+    CHECK(uint32_t(CMSG_TIME_SYNC_RESPONSE_DROPPED) == 0x10D3u);
+    CHECK(uint32_t(CMSG_TIME_SYNC_RESPONSE_FAILED) == 0x0058u);
     CHECK(uint32_t(SMSG_TRIGGER_CINEMATIC) == 0x0B01u);
     CHECK(uint32_t(SMSG_WORLD_SERVER_INFO) == 0x0082u);
     CHECK(uint32_t(SMSG_INIT_WORLD_STATES) == 0x1560u);
@@ -193,6 +247,9 @@ static void test_opcode_values_are_framable()
     CHECK(uint32_t(SMSG_MOVE_TELEPORT) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_TIME_SYNC_REQ) <= 0x1FFFu);
     CHECK(uint32_t(CMSG_TIME_SYNC_RESP) <= 0x1FFFu);
+    CHECK(uint32_t(CMSG_DISCARDED_TIME_SYNC_ACKS) <= 0x1FFFu);
+    CHECK(uint32_t(CMSG_TIME_SYNC_RESPONSE_DROPPED) <= 0x1FFFu);
+    CHECK(uint32_t(CMSG_TIME_SYNC_RESPONSE_FAILED) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_TRIGGER_CINEMATIC) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_WORLD_SERVER_INFO) <= 0x1FFFu);
     CHECK(uint32_t(SMSG_INIT_WORLD_STATES) <= 0x1FFFu);
@@ -204,6 +261,10 @@ int main(int /*argc*/, char** /*argv*/)
     test_new_world();
     test_login_set_time_speed();
     test_time_sync();
+    test_discarded_time_sync_acks_absent();
+    test_discarded_time_sync_acks_present();
+    test_time_sync_response_dropped();
+    test_time_sync_response_failed();
     test_trigger_cinematic();
     test_world_server_info();
     test_init_world_states();

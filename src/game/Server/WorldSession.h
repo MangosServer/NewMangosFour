@@ -1788,6 +1788,9 @@ class WorldSession
         void HandleSetTitleOpcode(WorldPacket& recv_data);
         void HandleRealmSplitOpcode(WorldPacket& recv_data);
         void HandleTimeSyncResp(WorldPacket& recv_data);
+        void HandleTimeSyncResponseFailed(WorldPacket& recv_data);
+        void HandleTimeSyncResponseDropped(WorldPacket& recv_data);
+        void HandleDiscardedTimeSyncAcks(WorldPacket& recv_data);
         void HandleWhoisOpcode(WorldPacket& recv_data);
         void HandleResetInstancesOpcode(WorldPacket& recv_data);
         void HandleHearthandResurrect(WorldPacket& recv_data);

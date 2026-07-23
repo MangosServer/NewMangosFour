@@ -1630,6 +1630,31 @@ void WorldSession::HandleTimeSyncResp(WorldPacket& recv_data)
     _player->m_timeSyncClient = clientTicks;
 }
 
+void WorldSession::HandleTimeSyncResponseFailed(WorldPacket& recv_data)
+{
+    uint32 const counter =
+        MopWorldEntryPackets::ReadTimeSyncResponseFailed(recv_data);
+    DEBUG_LOG("WORLD: Received opcode CMSG_TIME_SYNC_RESPONSE_FAILED: counter %u", counter);
+}
+
+void WorldSession::HandleTimeSyncResponseDropped(WorldPacket& recv_data)
+{
+    MopWorldEntryPackets::TimeSyncResponseDroppedReport const report =
+        MopWorldEntryPackets::ReadTimeSyncResponseDropped(recv_data);
+    DEBUG_LOG("WORLD: Received opcode CMSG_TIME_SYNC_RESPONSE_DROPPED: first value %u, second value %u",
+        report.first, report.second);
+}
+
+void WorldSession::HandleDiscardedTimeSyncAcks(WorldPacket& recv_data)
+{
+    MopWorldEntryPackets::DiscardedTimeSyncAcksReport const report =
+        MopWorldEntryPackets::ReadDiscardedTimeSyncAcks(recv_data);
+    if (report.hasValue)
+        DEBUG_LOG("WORLD: Received opcode CMSG_DISCARDED_TIME_SYNC_ACKS: value %u", report.value);
+    else
+        DEBUG_LOG("WORLD: Received opcode CMSG_DISCARDED_TIME_SYNC_ACKS: no value");
+}
+
 /**
  * @brief Cancels the player's mount aura when allowed.
  *

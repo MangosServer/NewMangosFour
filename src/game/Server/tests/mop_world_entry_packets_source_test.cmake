@@ -3,6 +3,7 @@ file(READ "${SOURCE_ROOT}/src/game/Object/Player.cpp" player)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" world_session)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/MiscHandler.cpp" misc_handler)
+file(READ "${SOURCE_ROOT}/src/game/Object/Player.h" player_header)
 
 if(MUTATION STREQUAL "time_sync_registration")
     string(REPLACE
@@ -51,6 +52,42 @@ endif()
 if(NOT misc_handler MATCHES "recv_data[ \t]*>>[ \t]*counter[ \t]*>>[ \t]*clientTicks;")
     message(FATAL_ERROR "CMSG_TIME_SYNC_RESP must parse counter before client ticks")
 endif()
+
+if(NOT opcode_registry MATCHES
+        "DefC\\(CMSG_DISCARDED_TIME_SYNC_ACKS,[ \t]*\"CMSG_DISCARDED_TIME_SYNC_ACKS\",[ \t]*STATUS_LOGGEDIN_OR_RECENTLY_LOGGEDOUT,[ \t]*PROCESS_THREADUNSAFE,[ \t]*&WorldSession::HandleDiscardedTimeSyncAcks")
+    message(FATAL_ERROR "CMSG_DISCARDED_TIME_SYNC_ACKS must remain active for recently logged-out sessions")
+endif()
+if(NOT misc_handler MATCHES
+        "MopWorldEntryPackets::ReadDiscardedTimeSyncAcks\\(recv_data\\)")
+    message(FATAL_ERROR "CMSG_DISCARDED_TIME_SYNC_ACKS handler must call the real parser")
+endif()
+
+if(NOT opcode_registry MATCHES
+        "DefC\\(CMSG_TIME_SYNC_RESPONSE_DROPPED,[ \t]*\"CMSG_TIME_SYNC_RESPONSE_DROPPED\"[^\n]*HandleTimeSyncResponseDropped")
+    message(FATAL_ERROR "CMSG_TIME_SYNC_RESPONSE_DROPPED is missing active inbound opcode metadata")
+endif()
+if(NOT misc_handler MATCHES
+        "MopWorldEntryPackets::ReadTimeSyncResponseDropped\\(recv_data\\)")
+    message(FATAL_ERROR "CMSG_TIME_SYNC_RESPONSE_DROPPED handler must call the real parser")
+endif()
+
+if(NOT opcode_registry MATCHES
+        "DefC\\(CMSG_TIME_SYNC_RESPONSE_FAILED,[ \t]*\"CMSG_TIME_SYNC_RESPONSE_FAILED\"[^\n]*HandleTimeSyncResponseFailed")
+    message(FATAL_ERROR "CMSG_TIME_SYNC_RESPONSE_FAILED is missing active inbound opcode metadata")
+endif()
+if(NOT misc_handler MATCHES
+        "MopWorldEntryPackets::ReadTimeSyncResponseFailed\\(recv_data\\)")
+    message(FATAL_ERROR "CMSG_TIME_SYNC_RESPONSE_FAILED handler must call the real parser")
+endif()
+
+foreach(parser IN ITEMS
+        ReadDiscardedTimeSyncAcks
+        ReadTimeSyncResponseDropped
+        ReadTimeSyncResponseFailed)
+    if(NOT player_header MATCHES "${parser}\\(WorldPacket&[ \t]+in\\)")
+        message(FATAL_ERROR "${parser} is missing from the shared time-sync parser ownership")
+    endif()
+endforeach()
 
 foreach(server_name IN ITEMS
         SMSG_LOGIN_VERIFY_WORLD
