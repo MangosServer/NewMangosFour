@@ -107,6 +107,39 @@ void WorldSession::HandleLfgGetStatusOpcode(WorldPacket& /*recv_data*/)
     SendLfgUpdate(!groupFirst, status);
 }
 
+void WorldSession::HandleLfgLockInfoRequestOpcode(WorldPacket& recv_data)
+{
+    bool forPlayer = false;
+    if (!MopLfgPackets::ParseLockInfoRequest(recv_data, forPlayer))
+    {
+        sLog.outError("WORLD: malformed CMSG_LFG_LOCK_INFO_REQUEST from %s",
+            GetPlayerName());
+        return;
+    }
+
+    if (forPlayer)
+        SendLfgPlayerLockInfo();
+    else
+        SendLfgPartyLockInfo();
+}
+
+void WorldSession::SendLfgPlayerLockInfo()
+{
+    // The legacy LFG manager cannot express the 18414 random-dungeon reward
+    // records. Send the binary-proven empty shape instead of guessed fields.
+    WorldPacket data(SMSG_LFG_PLAYER_INFO, 5);
+    MopLfgPackets::BuildEmptyPlayerInfo(data);
+    SendPacket(&data);
+}
+
+void WorldSession::SendLfgPartyLockInfo()
+{
+    // No compatible 18414 party lock model exists in this legacy manager.
+    WorldPacket data(SMSG_LFG_PARTY_INFO, 3);
+    MopLfgPackets::BuildEmptyPartyInfo(data);
+    SendPacket(&data);
+}
+
 void WorldSession::HandleSetLfgCommentOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("CMSG_SET_LFG_COMMENT");

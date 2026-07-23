@@ -211,6 +211,66 @@ static void test_default_player_status()
     CHECK(status.updateType == LFG_UPDATE_DEFAULT);
 }
 
+static void test_lock_info_request()
+{
+    WorldPacket player(CMSG_LFG_LOCK_INFO_REQUEST, 2);
+    player << uint8(0x7F);
+    player.WriteBit(true);
+    player.FlushBits();
+    CHECK(Equal(player, { 0x7F,0x80 }));
+
+    bool forPlayer = false;
+    CHECK(MopLfgPackets::ParseLockInfoRequest(player, forPlayer));
+    CHECK(forPlayer);
+    CHECK(player.rpos() == player.size());
+
+    WorldPacket party(CMSG_LFG_LOCK_INFO_REQUEST, 2);
+    party << uint8(0x7F);
+    party.WriteBit(false);
+    party.FlushBits();
+    CHECK(Equal(party, { 0x7F,0x00 }));
+
+    forPlayer = true;
+    CHECK(MopLfgPackets::ParseLockInfoRequest(party, forPlayer));
+    CHECK(!forPlayer);
+    CHECK(party.rpos() == party.size());
+}
+
+static void test_lock_info_request_rejects_invalid_body()
+{
+    bool forPlayer = false;
+
+    WorldPacket wrongSentinel(CMSG_LFG_LOCK_INFO_REQUEST, 2);
+    wrongSentinel << uint8(0x00) << uint8(0x80);
+    CHECK(!MopLfgPackets::ParseLockInfoRequest(wrongSentinel, forPlayer));
+
+    WorldPacket truncated(CMSG_LFG_LOCK_INFO_REQUEST, 1);
+    truncated << uint8(0x7F);
+    CHECK(!MopLfgPackets::ParseLockInfoRequest(truncated, forPlayer));
+
+    WorldPacket nonzeroPadding(CMSG_LFG_LOCK_INFO_REQUEST, 2);
+    nonzeroPadding << uint8(0x7F) << uint8(0x81);
+    CHECK(!MopLfgPackets::ParseLockInfoRequest(nonzeroPadding, forPlayer));
+}
+
+static void test_empty_lock_info_responses()
+{
+    WorldPacket player(SMSG_LFG_PLAYER_INFO, 5);
+    MopLfgPackets::BuildEmptyPlayerInfo(player);
+    CHECK(Equal(player, { 0x00,0x00,0x00,0x00,0x00 }));
+
+    WorldPacket party(SMSG_LFG_PARTY_INFO, 3);
+    MopLfgPackets::BuildEmptyPartyInfo(party);
+    CHECK(Equal(party, { 0x00,0x00,0x00 }));
+}
+
+static void test_lock_info_opcodes()
+{
+    CHECK(uint32(CMSG_LFG_LOCK_INFO_REQUEST) == 0x006Bu);
+    CHECK(uint32(SMSG_LFG_PLAYER_INFO) == 0x1861u);
+    CHECK(uint32(SMSG_LFG_PARTY_INFO) == 0x168Eu);
+}
+
 int main(int /*argc*/, char** /*argv*/)
 {
     test_reason_present();
@@ -222,6 +282,10 @@ int main(int /*argc*/, char** /*argv*/)
     test_update_status_bounds();
     test_update_status_opcode();
     test_default_player_status();
+    test_lock_info_request();
+    test_lock_info_request_rejects_invalid_body();
+    test_empty_lock_info_responses();
+    test_lock_info_opcodes();
 
     if (g_fail)
     {

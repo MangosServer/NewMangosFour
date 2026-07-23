@@ -316,6 +316,11 @@ void InitializeOpcodes()
     // already-converted unified SMSG_LFG_UPDATE_STATUS body.
     DefC(CMSG_LFG_GET_STATUS, "CMSG_LFG_GET_STATUS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgGetStatusOpcode);
 
+    // Unified 18414 lock-info request: 0x7F byte then one player/party bit.
+    DefC(CMSG_LFG_LOCK_INFO_REQUEST, "CMSG_LFG_LOCK_INFO_REQUEST", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgLockInfoRequestOpcode);
+    DefS(SMSG_LFG_PLAYER_INFO, "SMSG_LFG_PLAYER_INFO");
+    DefS(SMSG_LFG_PARTY_INFO, "SMSG_LFG_PARTY_INFO");
+
     // Empty 18414 raid-lock query and its 20-bit-count, packed-GUID response.
     DefC(CMSG_REQUEST_RAID_INFO, "CMSG_REQUEST_RAID_INFO", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRequestRaidInfoOpcode);
     DefS(SMSG_RAID_INSTANCE_INFO, "SMSG_RAID_INSTANCE_INFO");

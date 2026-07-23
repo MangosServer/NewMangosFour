@@ -1163,6 +1163,8 @@ class WorldSession
         void SendLfgJoinResult(LfgJoinResult result, LFGState state, partyForbidden const& lockedDungeons);
         void SendLfgUpdate(bool isGroup, LFGPlayerStatus status);
         void SendLfgQueueStatus(LFGQueueStatus const& status);
+        void SendLfgPlayerLockInfo();
+        void SendLfgPartyLockInfo();
         void SendLfgRoleCheckUpdate(LFGRoleCheck const& roleCheck);
         void SendLfgRoleChosen(uint64 rawGuid, uint8 roles);
         void SendLfgProposalUpdate(LFGProposal const& proposal);
@@ -1781,6 +1783,7 @@ class WorldSession
         void HandleLfgJoinOpcode(WorldPacket& recv_data);
         void HandleLfgLeaveOpcode(WorldPacket& recv_data);
         void HandleLfgGetStatusOpcode(WorldPacket& recv_data);
+        void HandleLfgLockInfoRequestOpcode(WorldPacket& recv_data);
         void HandleSetLfgCommentOpcode(WorldPacket& recv_data);
         void HandleSetTitleOpcode(WorldPacket& recv_data);
         void HandleRealmSplitOpcode(WorldPacket& recv_data);

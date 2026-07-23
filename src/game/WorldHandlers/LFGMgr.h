@@ -81,6 +81,9 @@ namespace MopLfgPackets
 
     bool BuildBootPlayer(WorldPacket& out, BootUpdate const& update);
     bool BuildUpdateStatus(WorldPacket& out, StatusUpdate const& update);
+    bool ParseLockInfoRequest(WorldPacket& in, bool& forPlayer);
+    void BuildEmptyPlayerInfo(WorldPacket& out);
+    void BuildEmptyPartyInfo(WorldPacket& out);
 }
 
 namespace MopLfgPacketDetail
@@ -184,6 +187,36 @@ inline bool MopLfgPackets::BuildUpdateStatus(WorldPacket& out,
     out << update.ticketType;
     MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 7 });
     return true;
+}
+
+inline bool MopLfgPackets::ParseLockInfoRequest(WorldPacket& in,
+    bool& forPlayer)
+{
+    if (in.size() - in.rpos() != 2)
+        return false;
+
+    size_t const position = in.rpos();
+    uint8 const* body = in.contents() + position;
+    if (body[0] != 0x7F || (body[1] & 0x7F) != 0)
+        return false;
+
+    in.read_skip<uint8>();
+    forPlayer = in.ReadBit();
+    return in.rpos() == in.size();
+}
+
+inline void MopLfgPackets::BuildEmptyPlayerInfo(WorldPacket& out)
+{
+    out.WriteBits(0, 20); // locked dungeon count
+    out.WriteBit(false);  // has player GUID
+    out.WriteBits(0, 17); // random/seasonal dungeon count
+    out.FlushBits();
+}
+
+inline void MopLfgPackets::BuildEmptyPartyInfo(WorldPacket& out)
+{
+    out.WriteBits(0, 22); // party member count
+    out.FlushBits();
 }
 
 

@@ -84,12 +84,30 @@ require_once("${lfg_sender}"
 require_once("${lfg_sender}"
     "MopLfgPackets::BuildUpdateStatus(data, update)"
     "LFG status builder call")
+require_once("${lfg_sender}"
+    "MopLfgPackets::ParseLockInfoRequest(recv_data, forPlayer)"
+    "LFG lock-info request parser call")
+require_once("${lfg_sender}"
+    "MopLfgPackets::BuildEmptyPlayerInfo(data)"
+    "LFG player-info builder call")
+require_once("${lfg_sender}"
+    "MopLfgPackets::BuildEmptyPartyInfo(data)"
+    "LFG party-info builder call")
 require_once("${opcode_registry}"
     "DefS(SMSG_LFG_UPDATE_STATUS, \"SMSG_LFG_UPDATE_STATUS\");"
     "LFG status registration")
 require_once("${opcode_registry}"
     "DefC(CMSG_LFG_GET_STATUS, \"CMSG_LFG_GET_STATUS\""
     "LFG get-status registration")
+require_once("${opcode_registry}"
+    "DefC(CMSG_LFG_LOCK_INFO_REQUEST, \"CMSG_LFG_LOCK_INFO_REQUEST\""
+    "LFG lock-info request registration")
+require_once("${opcode_registry}"
+    "DefS(SMSG_LFG_PLAYER_INFO, \"SMSG_LFG_PLAYER_INFO\");"
+    "LFG player-info registration")
+require_once("${opcode_registry}"
+    "DefS(SMSG_LFG_PARTY_INFO, \"SMSG_LFG_PARTY_INFO\");"
+    "LFG party-info registration")
 require_once("${opcode_header}"
     "SMSG_LFG_UPDATE_STATUS                       = 0x0C2E,"
     "LFG status opcode value")
@@ -137,6 +155,28 @@ endforeach()
 require_once("${lfg_sender}"
     "update.updateReason = uint8(status.updateType);"
     "binary-proven LFG update reason mapping")
+
+foreach(token IN ITEMS
+        "CMSG_LFG_LOCK_INFO_REQUEST                   = 0x006B,"
+        "SMSG_LFG_PLAYER_INFO                         = 0x1861,"
+        "SMSG_LFG_PARTY_INFO                          = 0x168E,")
+    string(FIND "${opcode_header}" "${token}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "5.4.8 LFG lock-info opcode missing: ${token}")
+    endif()
+endforeach()
+
+foreach(token IN ITEMS
+        "if (body[0] != 0x7F || (body[1] & 0x7F) != 0)"
+        "out.WriteBits(0, 20); // locked dungeon count"
+        "out.WriteBit(false);  // has player GUID"
+        "out.WriteBits(0, 17); // random/seasonal dungeon count"
+        "out.WriteBits(0, 22); // party member count")
+    string(FIND "${packet_builder}" "${token}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "LFG lock-info codec missing: ${token}")
+    endif()
+endforeach()
 require_once("${lfg_sender}"
     "update.dungeonCategory = sLFGMgr.GetDungeonCategory(*status.dungeonList.begin());"
     "reference-supported LFG dungeon category mapping")
@@ -168,6 +208,13 @@ foreach(obsolete IN ITEMS SMSG_LFG_UPDATE_PLAYER SMSG_LFG_UPDATE_PARTY)
     string(FIND "${opcode_header}" "${obsolete}" obsolete_opcode)
     if(NOT obsolete_opcode EQUAL -1)
         message(FATAL_ERROR "obsolete split LFG status opcode remains: ${obsolete}")
+    endif()
+endforeach()
+
+foreach(obsolete IN ITEMS CMSG_LFG_GET_PLAYER_INFO CMSG_LFG_GET_PARTY_INFO)
+    string(FIND "${opcode_header}" "${obsolete}" obsolete_opcode)
+    if(NOT obsolete_opcode EQUAL -1)
+        message(FATAL_ERROR "obsolete split LFG lock-info request remains: ${obsolete}")
     endif()
 endforeach()
 
