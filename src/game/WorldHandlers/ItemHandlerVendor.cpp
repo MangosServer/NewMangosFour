@@ -486,9 +486,15 @@ void WorldSession::SendListInventory(ObjectGuid vendorguid)
 void WorldSession::HandleAutoStoreBagItemOpcode(WorldPacket& recv_data)
 {
     // DEBUG_LOG("WORLD: CMSG_AUTOSTORE_BAG_ITEM");
-    uint8 srcbag, srcslot, dstbag;
+    // Decode the 18414 slot-before-bag order and consume its zero update count
+    // before reusing the existing storage validation below.
+    MopItemPackets::AutoStoreBagItemRequest request;
+    if (!MopItemPackets::ParseAutoStoreBagItem(recv_data, request))
+        return;
 
-    recv_data >> srcbag >> srcslot >> dstbag;
+    uint8 const srcbag = request.sourceBag;
+    uint8 const srcslot = request.sourceSlot;
+    uint8 const dstbag = request.destinationBag;
     // DEBUG_LOG("STORAGE: receive srcbag = %u, srcslot = %u, dstbag = %u", srcbag, srcslot, dstbag);
 
     Item* pItem = _player->GetItemByPos(srcbag, srcslot);

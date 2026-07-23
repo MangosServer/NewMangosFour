@@ -319,6 +319,15 @@ void InitializeOpcodes()
     DefC(CMSG_LIST_INVENTORY, "CMSG_LIST_INVENTORY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleListInventoryOpcode);
     DefS(SMSG_LIST_INVENTORY, "SMSG_LIST_INVENTORY");
 
+    // Directly verified 18414 inventory-movement requests. Each handler
+    // decodes the packed request before reusing the established item logic.
+    DefC(CMSG_SWAP_INV_ITEM, "CMSG_SWAP_INV_ITEM", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleSwapInvItemOpcode);
+    DefC(CMSG_SWAP_ITEM, "CMSG_SWAP_ITEM", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleSwapItem);
+    DefC(CMSG_AUTOEQUIP_ITEM, "CMSG_AUTOEQUIP_ITEM", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleAutoEquipItemOpcode);
+    DefC(CMSG_AUTOSTORE_BAG_ITEM, "CMSG_AUTOSTORE_BAG_ITEM", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleAutoStoreBagItemOpcode);
+    DefC(CMSG_SPLIT_ITEM, "CMSG_SPLIT_ITEM", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleSplitItemOpcode);
+    DefS(SMSG_INVENTORY_CHANGE_FAILURE, "SMSG_INVENTORY_CHANGE_FAILURE");
+
     // Empty 18414 status refresh request. The handler replies through the
     // already-converted unified SMSG_LFG_UPDATE_STATUS body.
     DefC(CMSG_LFG_GET_STATUS, "CMSG_LFG_GET_STATUS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgGetStatusOpcode);

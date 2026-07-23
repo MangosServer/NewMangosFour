@@ -60,6 +60,8 @@
 #include "ItemPrototype.h"
 #include "WorldPacket.h"
 
+#include <array>
+
 namespace MopItemPackets
 {
     inline uint8 GuidByte(uint64 guid, uint8 index)
@@ -81,6 +83,324 @@ namespace MopItemPackets
     {
         for (uint8 index : order)
             out.WriteByteSeq(GuidByte(guid, index));
+    }
+
+    // MoP inventory requests carry compressed position records after their
+    // actionable fields. They describe the client's affected slots; the
+    // server parses them for wire integrity and derives gameplay from its own
+    // authoritative inventory state.
+    struct InventoryPositionUpdate
+    {
+        uint8 bag = 0;
+        uint8 slot = 0;
+    };
+
+    struct SwapInvItemRequest
+    {
+        uint8 sourceSlot = 0;
+        uint8 destinationSlot = 0;
+        std::array<InventoryPositionUpdate, 2> updates;
+    };
+
+    struct SwapItemRequest
+    {
+        uint8 sourceBag = 0;
+        uint8 sourceSlot = 0;
+        uint8 destinationBag = 0;
+        uint8 destinationSlot = 0;
+        std::array<InventoryPositionUpdate, 2> updates;
+    };
+
+    struct AutoEquipItemRequest
+    {
+        uint8 cursorBag = 0;
+        uint8 cursorSlot = 0;
+        InventoryPositionUpdate update;
+    };
+
+    struct AutoStoreBagItemRequest
+    {
+        uint8 sourceBag = 0;
+        uint8 sourceSlot = 0;
+        uint8 destinationBag = 0;
+    };
+
+    struct SplitItemRequest
+    {
+        uint8 sourceBag = 0;
+        uint8 sourceSlot = 0;
+        uint8 destinationBag = 0;
+        uint8 destinationSlot = 0;
+        uint32 count = 0;
+    };
+
+    // Drain malformed requests so the session cannot accidentally reuse an
+    // unread tail after a structural validation failure.
+    inline bool RejectRequest(WorldPacket& in)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    // Decode the base-inventory swap body. Its optional update bytes are
+    // slot-then-bag, which intentionally differs from CMSG_SWAP_ITEM.
+    inline bool ParseSwapInvItem(WorldPacket& in, SwapInvItemRequest& request)
+    {
+        if (in.size() - in.rpos() < 3)
+            return RejectRequest(in);
+
+        SwapInvItemRequest parsed;
+        in >> parsed.sourceSlot >> parsed.destinationSlot;
+
+        uint8 const bitByte = in[in.rpos()];
+        if ((bitByte & 0x03) != 0 || in.ReadBits(2) != 2)
+            return RejectRequest(in);
+
+        std::array<bool, 2> slotIsZero;
+        std::array<bool, 2> bagIsZero;
+        for (size_t i = 0; i < parsed.updates.size(); ++i)
+        {
+            slotIsZero[i] = in.ReadBit();
+            bagIsZero[i] = in.ReadBit();
+        }
+
+        size_t byteCount = 0;
+        for (size_t i = 0; i < parsed.updates.size(); ++i)
+            byteCount += !slotIsZero[i] + !bagIsZero[i];
+        if (in.size() - in.rpos() != byteCount)
+            return RejectRequest(in);
+
+        for (size_t i = 0; i < parsed.updates.size(); ++i)
+        {
+            if (!slotIsZero[i])
+                in >> parsed.updates[i].slot;
+            if (!bagIsZero[i])
+                in >> parsed.updates[i].bag;
+        }
+
+        request = parsed;
+        return true;
+    }
+
+    // Decode a cross-container swap. The four leading fields and the optional
+    // bag-then-slot update bytes follow the 18414 writer's non-legacy order.
+    inline bool ParseSwapItem(WorldPacket& in, SwapItemRequest& request)
+    {
+        if (in.size() - in.rpos() < 5)
+            return RejectRequest(in);
+
+        SwapItemRequest parsed;
+        in >> parsed.sourceSlot >> parsed.destinationBag >>
+            parsed.sourceBag >> parsed.destinationSlot;
+
+        uint8 const bitByte = in[in.rpos()];
+        if ((bitByte & 0x03) != 0 || in.ReadBits(2) != 2)
+            return RejectRequest(in);
+
+        std::array<bool, 2> slotIsZero;
+        std::array<bool, 2> bagIsZero;
+        for (size_t i = 0; i < parsed.updates.size(); ++i)
+        {
+            slotIsZero[i] = in.ReadBit();
+            bagIsZero[i] = in.ReadBit();
+        }
+
+        size_t byteCount = 0;
+        for (size_t i = 0; i < parsed.updates.size(); ++i)
+            byteCount += !slotIsZero[i] + !bagIsZero[i];
+        if (in.size() - in.rpos() != byteCount)
+            return RejectRequest(in);
+
+        for (size_t i = 0; i < parsed.updates.size(); ++i)
+        {
+            if (!bagIsZero[i])
+                in >> parsed.updates[i].bag;
+            if (!slotIsZero[i])
+                in >> parsed.updates[i].slot;
+        }
+
+        request = parsed;
+        return true;
+    }
+
+    // Decode cursor slot/bag plus the mandatory one-record compressed update
+    // block produced by AutoEquipCursorItem.
+    inline bool ParseAutoEquipItem(WorldPacket& in,
+        AutoEquipItemRequest& request)
+    {
+        if (in.size() - in.rpos() < 3)
+            return RejectRequest(in);
+
+        AutoEquipItemRequest parsed;
+        in >> parsed.cursorSlot >> parsed.cursorBag;
+
+        uint8 const bitByte = in[in.rpos()];
+        if ((bitByte & 0x0F) != 0 || in.ReadBits(2) != 1)
+            return RejectRequest(in);
+
+        bool const bagIsZero = in.ReadBit();
+        bool const slotIsZero = in.ReadBit();
+        size_t const byteCount = !slotIsZero + !bagIsZero;
+        if (in.size() - in.rpos() != byteCount)
+            return RejectRequest(in);
+
+        if (!slotIsZero)
+            in >> parsed.update.slot;
+        if (!bagIsZero)
+            in >> parsed.update.bag;
+
+        request = parsed;
+        return true;
+    }
+
+    // Decode source slot/bag and destination bag. The final zero byte is the
+    // client's two-bit zero update count plus alignment padding.
+    inline bool ParseAutoStoreBagItem(WorldPacket& in,
+        AutoStoreBagItemRequest& request)
+    {
+        if (in.size() - in.rpos() != 4)
+            return RejectRequest(in);
+
+        AutoStoreBagItemRequest parsed;
+        in >> parsed.sourceSlot >> parsed.sourceBag >> parsed.destinationBag;
+        if (in[in.rpos()] != 0 || in.ReadBits(2) != 0)
+            return RejectRequest(in);
+
+        request = parsed;
+        return true;
+    }
+
+    // Decode the split count between source bag and destination fields. The
+    // final zero byte is a two-bit auxiliary count that is invariant on the
+    // live split-stack construction path.
+    inline bool ParseSplitItem(WorldPacket& in, SplitItemRequest& request)
+    {
+        if (in.size() - in.rpos() != 9)
+            return RejectRequest(in);
+
+        SplitItemRequest parsed;
+        in >> parsed.sourceBag >> parsed.count >> parsed.destinationBag >>
+            parsed.sourceSlot >> parsed.destinationSlot;
+        if (parsed.count == 0 || in[in.rpos()] != 0 || in.ReadBits(2) != 0)
+            return RejectRequest(in);
+
+        request = parsed;
+        return true;
+    }
+
+    // Logical inputs for the common inventory-error response. itemGuid is the
+    // primary client object and itemGuid2 is the secondary involved object.
+    // The two bind-confirm GUID roles are the strongest labels recoverable
+    // from the client handler; their higher-level gameplay names are unknown.
+    struct InventoryChangeFailure
+    {
+        uint8 result = 0;
+        uint64 itemGuid = 0;
+        uint64 itemGuid2 = 0;
+        uint8 bagSubclass = 0;
+        uint32 resultParameter = 0;
+        uint64 bindConfirmPendingGuid = 0;
+        uint64 bindConfirmHelperGuid = 0;
+    };
+
+    // Serialize the 18414 packed-GUID response consumed by CGGameUI. The
+    // result-dependent tail is a required level (1/87), item-limit category
+    // (84/85/89), or the bind-confirm parameter and two extra packed GUIDs
+    // (81). Result zero still carries the four-byte base body.
+    inline void BuildInventoryChangeFailure(WorldPacket& out,
+        InventoryChangeFailure const& failure)
+    {
+        uint64 const g1 = failure.itemGuid;
+        uint64 const g2 = failure.itemGuid2;
+        out.Initialize(SMSG_INVENTORY_CHANGE_FAILURE, 48);
+
+        out.WriteBit(GuidByte(g2, 4) != 0);
+        out.WriteBit(GuidByte(g1, 3) != 0);
+        out.WriteBit(GuidByte(g2, 6) != 0);
+        out.WriteBit(GuidByte(g2, 2) != 0);
+        out.WriteBit(GuidByte(g1, 4) != 0);
+        out.WriteBit(GuidByte(g2, 5) != 0);
+        out.WriteBit(GuidByte(g1, 1) != 0);
+        out.WriteBit(GuidByte(g1, 6) != 0);
+        out.WriteBit(GuidByte(g2, 0) != 0);
+        out.WriteBit(GuidByte(g2, 3) != 0);
+        out.WriteBit(GuidByte(g2, 1) != 0);
+        out.WriteBit(GuidByte(g1, 2) != 0);
+        out.WriteBit(GuidByte(g1, 0) != 0);
+        out.WriteBit(GuidByte(g1, 5) != 0);
+        out.WriteBit(GuidByte(g1, 7) != 0);
+        out.WriteBit(GuidByte(g2, 7) != 0);
+        out.FlushBits();
+
+        out.WriteByteSeq(GuidByte(g2, 0));
+        out << failure.bagSubclass;
+        out.WriteByteSeq(GuidByte(g2, 6));
+        out.WriteByteSeq(GuidByte(g1, 4));
+        out.WriteByteSeq(GuidByte(g1, 0));
+        out.WriteByteSeq(GuidByte(g1, 7));
+        out.WriteByteSeq(GuidByte(g1, 3));
+        out.WriteByteSeq(GuidByte(g2, 1));
+        out.WriteByteSeq(GuidByte(g2, 5));
+        out.WriteByteSeq(GuidByte(g1, 5));
+        out.WriteByteSeq(GuidByte(g2, 7));
+        out.WriteByteSeq(GuidByte(g2, 2));
+        out.WriteByteSeq(GuidByte(g1, 1));
+        out.WriteByteSeq(GuidByte(g1, 6));
+        out.WriteByteSeq(GuidByte(g1, 2));
+        out.WriteByteSeq(GuidByte(g2, 3));
+        out.WriteByteSeq(GuidByte(g2, 4));
+        out << failure.result;
+
+        if (failure.result == 84 || failure.result == 85 ||
+                failure.result == 89)
+        {
+            out << failure.resultParameter;
+        }
+        else if (failure.result == 81)
+        {
+            uint64 const g3 = failure.bindConfirmPendingGuid;
+            uint64 const g4 = failure.bindConfirmHelperGuid;
+            out << failure.resultParameter;
+
+            out.WriteBit(GuidByte(g3, 5) != 0);
+            out.WriteBit(GuidByte(g4, 2) != 0);
+            out.WriteBit(GuidByte(g4, 0) != 0);
+            out.WriteBit(GuidByte(g4, 3) != 0);
+            out.WriteBit(GuidByte(g3, 3) != 0);
+            out.WriteBit(GuidByte(g4, 5) != 0);
+            out.WriteBit(GuidByte(g3, 0) != 0);
+            out.WriteBit(GuidByte(g4, 6) != 0);
+            out.WriteBit(GuidByte(g4, 7) != 0);
+            out.WriteBit(GuidByte(g3, 1) != 0);
+            out.WriteBit(GuidByte(g4, 1) != 0);
+            out.WriteBit(GuidByte(g3, 4) != 0);
+            out.WriteBit(GuidByte(g3, 2) != 0);
+            out.WriteBit(GuidByte(g3, 7) != 0);
+            out.WriteBit(GuidByte(g4, 4) != 0);
+            out.WriteBit(GuidByte(g3, 6) != 0);
+            out.FlushBits();
+
+            out.WriteByteSeq(GuidByte(g4, 7));
+            out.WriteByteSeq(GuidByte(g3, 3));
+            out.WriteByteSeq(GuidByte(g3, 1));
+            out.WriteByteSeq(GuidByte(g3, 4));
+            out.WriteByteSeq(GuidByte(g4, 1));
+            out.WriteByteSeq(GuidByte(g3, 7));
+            out.WriteByteSeq(GuidByte(g4, 6));
+            out.WriteByteSeq(GuidByte(g4, 2));
+            out.WriteByteSeq(GuidByte(g3, 6));
+            out.WriteByteSeq(GuidByte(g4, 0));
+            out.WriteByteSeq(GuidByte(g3, 2));
+            out.WriteByteSeq(GuidByte(g4, 4));
+            out.WriteByteSeq(GuidByte(g3, 0));
+            out.WriteByteSeq(GuidByte(g3, 5));
+            out.WriteByteSeq(GuidByte(g4, 5));
+            out.WriteByteSeq(GuidByte(g4, 3));
+        }
+        else if (failure.result == 1 || failure.result == 87)
+        {
+            out << failure.resultParameter;
+        }
     }
 
     struct VendorItemRecord

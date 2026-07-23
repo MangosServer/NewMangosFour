@@ -827,6 +827,29 @@ set_target_properties(mop_vendor_packets_test PROPERTIES CXX_STANDARD 17 CXX_STA
 target_link_libraries(mop_vendor_packets_test PRIVATE game)
 add_test(NAME mop_vendor_packets COMMAND mop_vendor_packets_test)
 
+add_executable(mop_inventory_packets_test mop_inventory_packets_test.cpp)
+target_include_directories(mop_inventory_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_inventory_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_inventory_packets_test PRIVATE game)
+add_test(NAME mop_inventory_packets COMMAND mop_inventory_packets_test)
+
+add_test(NAME mop_inventory_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_inventory_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS swap_inv_handler swap_handler autoequip_handler autostore_handler split_handler
+        registration_swap_inv registration_swap registration_autoequip registration_autostore registration_split
+        opcode_values legacy_reader failure_sender failure_registration failure_admission
+        failure_opcode_value failure_legacy_sender)
+    add_test(NAME mop_inventory_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_inventory_packets_source_test.cmake)
+    set_tests_properties(mop_inventory_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_character_customize_packets_test mop_character_customize_packets_test.cpp)
 target_include_directories(mop_character_customize_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
