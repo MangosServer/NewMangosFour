@@ -480,7 +480,10 @@ add_test(NAME mop_rated_bg_packets_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_rated_bg_packets_source_test.cmake)
 
-foreach(mutation IN ITEMS builder_call inbound_registration outbound_registration)
+foreach(mutation IN ITEMS
+        builder_call inbound_registration outbound_registration
+        conquest_builder_call conquest_inbound_registration conquest_outbound_registration
+        conquest_allowlist)
     add_test(NAME mop_rated_bg_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

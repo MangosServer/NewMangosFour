@@ -472,6 +472,11 @@ void InitializeOpcodes()
     DefC(CMSG_REQUEST_RATED_BG_STATS, "CMSG_REQUEST_RATED_BG_STATS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRequestRatedBGStatsOpcode);
     DefS(SMSG_BATTLEFIELD_RATED_INFO, "SMSG_BATTLEFIELD_RATED_INFO");
 
+    // Live-log conquest formula request and its directly paired response.
+    // Wow.exe proves the empty request and five-field response reader.
+    DefC(CMSG_REQUEST_CONQUEST_FORMULA_CONSTANTS, "CMSG_REQUEST_CONQUEST_FORMULA_CONSTANTS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRequestConquestFormulaConstantsOpcode);
+    DefS(SMSG_CONQUEST_FORMULA_CONSTANTS, "SMSG_CONQUEST_FORMULA_CONSTANTS");
+
     // Wave 19 calendar update bodies. Names come through the 5.4.7 bridge;
     // values and layouts are proved by the 18414 receive routes.
     DefS(SMSG_CALENDAR_EVENT_INITIAL_INVITE, "SMSG_CALENDAR_EVENT_INITIAL_INVITE");

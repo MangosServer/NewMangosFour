@@ -376,6 +376,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_RAID_READY_CHECK_COMPLETED: // MopReadyCheckPackets::BuildCompleted
         case SMSG_MAIL_QUERY_NEXT_TIME_RESULT: // MopMailPackets::BuildNextMailTimeResult
         case SMSG_BATTLEFIELD_RATED_INFO:      // MopRatedBattlegroundPackets::BuildBattlefieldRatedInfo
+        case SMSG_CONQUEST_FORMULA_CONSTANTS:  // MopBattleGroundPackets::BuildConquestFormulaConstants
         case SMSG_CALENDAR_EVENT_INITIAL_INVITE: // MopCalendarPackets::BuildCalendarInitialInvite
         case SMSG_CALENDAR_EVENT_INVITE_STATUS:  // MopCalendarPackets::BuildCalendarInviteStatus
         case SMSG_CALENDAR_EVENT_MODERATOR_STATUS: // MopCalendarPackets::BuildCalendarModeratorStatus

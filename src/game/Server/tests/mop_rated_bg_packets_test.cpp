@@ -28,6 +28,7 @@
  */
 
 #include "Player.h"
+#include "BattleGround.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
 
@@ -70,13 +71,33 @@ static void test_opcodes()
 {
     CHECK(uint32(CMSG_REQUEST_RATED_BG_STATS) == 0x0826u);
     CHECK(uint32(SMSG_BATTLEFIELD_RATED_INFO) == 0x0EBAu);
+    CHECK(uint32(CMSG_REQUEST_CONQUEST_FORMULA_CONSTANTS) == 0x0365u);
+    CHECK(uint32(SMSG_CONQUEST_FORMULA_CONSTANTS) == 0x0EABu);
     CHECK(uint32(CMSG_REQUEST_RATED_BG_STATS) < uint32(OPCODE_TABLE_SIZE));
     CHECK(uint32(SMSG_BATTLEFIELD_RATED_INFO) < uint32(OPCODE_TABLE_SIZE));
+    CHECK(uint32(CMSG_REQUEST_CONQUEST_FORMULA_CONSTANTS) < uint32(OPCODE_TABLE_SIZE));
+    CHECK(uint32(SMSG_CONQUEST_FORMULA_CONSTANTS) < uint32(OPCODE_TABLE_SIZE));
+}
+
+static void test_conquest_formula_constants_body()
+{
+    WorldPacket packet;
+    MopBattleGroundPackets::BuildConquestFormulaConstants(packet);
+
+    CHECK(packet.GetOpcode() == SMSG_CONQUEST_FORMULA_CONSTANTS);
+    CHECK(Equal(packet, {
+        0xD0,0x07,0x00,0x00, // minimum weekly conquest points
+        0xF6,0xE8,0xCC,0x44, // exponential coefficient: 1639.28f
+        0x11,0x01,0x87,0x3B, // exponent numerator: 0.00412f
+        0xAC,0x0D,0x00,0x00, // maximum weekly conquest points
+        0x52,0xE8,0xBC,0x44  // base coefficient: 1511.26f
+    }));
 }
 
 int main(int /*argc*/, char** /*argv*/)
 {
     test_fixed_four_by_eight_body();
+    test_conquest_formula_constants_body();
     test_opcodes();
     if (g_fail)
     {

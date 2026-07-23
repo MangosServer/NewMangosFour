@@ -78,6 +78,19 @@ namespace MopBattleGroundPackets
         out.Initialize(SMSG_START_TIMER, 12);
         out << maxTime << timeRemaining << timerType;
     }
+
+    inline void BuildConquestFormulaConstants(WorldPacket& out)
+    {
+        // Wow.exe reader sub_6BE42C proves this five-field wire order. The
+        // values are the 5.4.8 server formula constants used by the working
+        // emulator lineage; the client applies them in sub_910126/sub_910162.
+        out.Initialize(SMSG_CONQUEST_FORMULA_CONSTANTS, 20);
+        out << uint32(2000);
+        out << float(1639.28);
+        out << float(0.00412);
+        out << uint32(3500);
+        out << float(1511.26);
+    }
 }
 
 struct PvPDifficultyEntry;

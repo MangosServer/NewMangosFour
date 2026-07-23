@@ -816,6 +816,13 @@ void WorldSession::HandleRequestRatedBGStatsOpcode(WorldPacket& recv_data)
     GetPlayer()->SendRatedBGStats();
 }
 
+void WorldSession::HandleRequestConquestFormulaConstantsOpcode(WorldPacket& /*recv_data*/)
+{
+    WorldPacket data;
+    MopBattleGroundPackets::BuildConquestFormulaConstants(data);
+    SendPacket(&data);
+}
+
 void WorldSession::HandleRequestPvPOptionsEnabledOpcode(WorldPacket& recv_data)
 {
     // null packet

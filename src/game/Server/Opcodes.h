@@ -1204,6 +1204,8 @@ enum OpcodesList
     SMSG_WEEKLY_RESET_CURRENCIES                 = 0x023E,    // 5.4.8 18414 (Wow.exe leaf; was 0x3CA1, unframable)
     CMSG_INSPECT_RATED_BG_STATS                  = 0x0882, // 5.4.8 18414 (Wow.exe binary, via CMSG_REQUEST_INSPECT_RATED_BG_STATS)
     CMSG_REQUEST_RATED_BG_STATS                  = 0x0826, // 5.4.8 18414 (Wow.exe binary)
+    CMSG_REQUEST_CONQUEST_FORMULA_CONSTANTS      = 0x0365, // 5.4.8 18414 (Wow.exe empty writer; arena initialization call path)
+    SMSG_CONQUEST_FORMULA_CONSTANTS              = 0x0EAB, // 5.4.8 18414 (Wow.exe reader sub_6BE42C; conquest-cap formula consumers)
     CMSG_REQUEST_PVP_REWARDS                     = 0x0375, // 5.4.8 18414 (Wow.exe binary)
     SMSG_PVP_REWARDS                             = 0x08AA,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus; fuzzy via SMSG_REQUEST_PVP_REWARDS_RESPONSE)
     CMSG_REQUEST_PVP_OPTIONS_ENABLED             = 0x0A22, // 5.4.8 18414 (Wow.exe binary)
