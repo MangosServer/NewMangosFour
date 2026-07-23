@@ -931,7 +931,9 @@ add_test(NAME mop_spell_cast_packets_source
 foreach(mutation IN ITEMS reader registration target_initializer target_mapping movement_count_width
         movement_count_bound movement_flag_order missile_guard elevation_guard full_consumption string_bound legacy_prefix
         cast_failed_sender cast_failed_registration pet_cast_failed_registration cast_failed_gate
-        pet_cast_failed_gate cast_result_translation pet_presence_order debug_cast_failed_sender)
+        pet_cast_failed_gate cast_result_translation pet_presence_order debug_cast_failed_sender
+        spell_start_sender spell_start_registration spell_start_gate spell_start_target_mask_width
+        spell_start_caster_mask spell_start_string_bound)
     add_test(NAME mop_spell_cast_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

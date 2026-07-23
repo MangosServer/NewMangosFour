@@ -223,6 +223,14 @@ class SpellCastTargets
         void setUnitTarget(Unit* target);
         ObjectGuid getUnitTargetGuid() const { return m_unitTargetGUID; }
         Unit* getUnitTarget() const { return m_unitTarget; }
+        ObjectGuid getObjectTargetGuid() const
+        {
+            if (m_unitTargetGUID)
+                return m_unitTargetGUID;
+            if (m_GOTargetGUID)
+                return m_GOTargetGUID;
+            return m_CorpseTargetGUID;
+        }
 
         void setDestination(float x, float y, float z);
         void setSource(float x, float y, float z);
@@ -263,6 +271,8 @@ class SpellCastTargets
 
         float GetElevation() const { return m_elevation; }
         float GetSpeed() const { return m_speed; }
+        ObjectGuid getSourceTransportGuid() const { return m_srcTransportGUID; }
+        ObjectGuid getDestinationTransportGuid() const { return m_destTransportGUID; }
 
         uint32 m_targetMask;
 
@@ -295,6 +305,53 @@ namespace MopSpellPackets
         uint32 arg18 = 0;
     };
 
+    struct SpellStartPacket
+    {
+        ObjectGuid casterGuid;
+        ObjectGuid casterUnitGuid;
+        ObjectGuid targetGuid;
+        ObjectGuid itemTargetGuid;
+        bool hasSourceLocation = false;
+        ObjectGuid sourceTransportGuid;
+        float sourceX = 0.0f;
+        float sourceY = 0.0f;
+        float sourceZ = 0.0f;
+        bool hasDestinationLocation = false;
+        ObjectGuid destinationTransportGuid;
+        float destinationX = 0.0f;
+        float destinationY = 0.0f;
+        float destinationZ = 0.0f;
+        uint32 targetMask = 0;
+        bool hasTargetString = false;
+        std::string targetString;
+        uint32 castTime = 0;
+        uint32 castFlags = 0;
+        uint8 castCount = 0;
+        uint32 spellId = 0;
+        bool hasPredictedPower = false;
+        int32 predictedPower = 0;
+        uint8 predictedPowerType = 0;
+        bool hasCastSchoolImmunities = false;
+        uint32 castSchoolImmunities = 0;
+        bool hasCastImmunities = false;
+        uint32 castImmunities = 0;
+        bool hasVisualChain = false;
+        uint32 visualChainFirst = 0;
+        uint32 visualChainSecond = 0;
+        bool hasAmmoInventoryType = false;
+        uint8 ammoInventoryType = 0;
+        bool hasAmmoDisplayId = false;
+        uint32 ammoDisplayId = 0;
+        bool hasPredictedHeal = false;
+        uint32 predictedHeal = 0;
+        bool hasPredictedType = false;
+        uint8 predictedType = 0;
+        bool hasElevation = false;
+        float elevation = 0.0f;
+        uint8 runeCooldownCount = 0;
+        uint8 runeCooldowns[7] = {};
+    };
+
     struct CastSpellRequest
     {
         uint8 castCount = 0;
@@ -320,6 +377,7 @@ namespace MopSpellPackets
     uint32 ToClientCastResult(SpellCastResult result);
     void BuildCastFailed(WorldPacket& out, uint32 spellId, SpellCastResult result,
         uint8 castCount, bool isPetCastResult, CastFailedArguments const& arguments);
+    bool BuildSpellStart(WorldPacket& out, SpellStartPacket const& spell);
     bool ReadCastSpellRequest(WorldPacket& in, CastSpellRequest& request);
 }
 

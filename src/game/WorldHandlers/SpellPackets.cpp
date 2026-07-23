@@ -150,6 +150,127 @@ void MopSpellPackets::BuildCastFailed(WorldPacket& out, uint32 spellId,
         out << arguments.arg18;
 }
 
+bool MopSpellPackets::BuildSpellStart(WorldPacket& out, SpellStartPacket const& spell)
+{
+    if (spell.hasTargetString && spell.targetString.size() > 0x7F ||
+        spell.targetMask > 0xFFFFF ||
+        spell.runeCooldownCount > 7)
+        return false;
+
+    ObjectGuid unknownGuid;
+    out.Initialize(SMSG_SPELL_START, 256);
+
+    out.WriteBits(0, 24);                                  // miss count
+    out.WriteGuidMask<5>(spell.casterGuid);
+    out.WriteBit(true);                                    // unknown byte absent
+    out.WriteBit(false);
+    out.WriteGuidMask<4>(spell.casterUnitGuid);
+    out.WriteGuidMask<2>(spell.casterGuid);
+    out.WriteBits(spell.runeCooldownCount, 3);
+    out.WriteGuidMask<2, 6>(spell.casterUnitGuid);
+    out.WriteBits(0, 25);                                  // miss-type count
+    out.WriteBits(0, 13);
+    out.WriteGuidMask<4>(spell.casterGuid);
+    out.WriteBits(0, 24);                                  // hit count
+    out.WriteGuidMask<7>(spell.casterUnitGuid);
+    out.WriteBit(spell.hasSourceLocation);
+    out.WriteBits(spell.hasPredictedPower ? 1 : 0, 21);
+    out.WriteGuidMask<3, 0, 1, 7, 2, 6, 4, 5>(spell.itemTargetGuid);
+    out.WriteBit(!spell.hasElevation);
+    out.WriteBit(!spell.hasTargetString);
+    out.WriteBit(!spell.hasAmmoInventoryType);
+    out.WriteBit(spell.hasDestinationLocation);
+    out.WriteBit(true);                                    // unknown uint32 absent
+    out.WriteGuidMask<3>(spell.casterGuid);
+    if (spell.hasDestinationLocation)
+        out.WriteGuidMask<1, 6, 2, 7, 0, 3, 5, 4>(spell.destinationTransportGuid);
+    out.WriteBit(!spell.hasAmmoDisplayId);
+    if (spell.hasSourceLocation)
+        out.WriteGuidMask<4, 3, 5, 1, 7, 0, 6, 2>(spell.sourceTransportGuid);
+    out.WriteBit(false);
+    out.WriteGuidMask<6>(spell.casterGuid);
+    out.WriteGuidMask<2, 1, 7, 6, 0, 5, 3, 4>(unknownGuid);
+    out.WriteBit(spell.targetMask == 0);
+    if (spell.targetMask)
+        out.WriteBits(spell.targetMask, 20);
+    out.WriteGuidMask<1>(spell.casterGuid);
+    out.WriteBit(!spell.hasPredictedHeal);
+    out.WriteBit(true);                                    // second unknown byte absent
+    out.WriteBit(!spell.hasCastSchoolImmunities);
+    out.WriteGuidMask<5>(spell.casterUnitGuid);
+    out.WriteBit(false);
+    out.WriteBits(0, 20);                                  // extra-target count
+    out.WriteGuidMask<1, 4, 6, 7, 5, 3, 0, 2>(spell.targetGuid);
+    out.WriteGuidMask<0>(spell.casterGuid);
+    out.WriteGuidMask<3>(spell.casterUnitGuid);
+    out.WriteBit(true);                                    // third unknown byte absent
+    if (spell.hasTargetString)
+        out.WriteBits(spell.targetString.size(), 7);
+    out.WriteBit(!spell.hasCastImmunities);
+    out.WriteGuidMask<1>(spell.casterUnitGuid);
+    out.WriteBit(spell.hasVisualChain);
+    out.WriteGuidMask<7>(spell.casterGuid);
+    out.WriteBit(!spell.hasPredictedType);
+    out.WriteGuidMask<0>(spell.casterUnitGuid);
+    out.FlushBits();
+
+    out.WriteGuidBytes<1, 7, 6, 0, 4, 2, 3, 5>(spell.itemTargetGuid);
+    out.WriteGuidBytes<4, 5, 1, 7, 6, 3, 2, 0>(spell.targetGuid);
+    out << spell.castTime;
+    out.WriteGuidBytes<4, 5, 3, 2, 1, 6, 7, 0>(unknownGuid);
+    if (spell.hasDestinationLocation)
+    {
+        out.WriteGuidBytes<4, 0, 5, 7, 1, 2, 3>(spell.destinationTransportGuid);
+        out << spell.destinationY << spell.destinationZ;
+        out.WriteGuidBytes<6>(spell.destinationTransportGuid);
+        out << spell.destinationX;
+    }
+    if (spell.hasSourceLocation)
+    {
+        out.WriteGuidBytes<0, 5, 4, 7, 3, 6>(spell.sourceTransportGuid);
+        out << spell.sourceX;
+        out.WriteGuidBytes<2>(spell.sourceTransportGuid);
+        out << spell.sourceZ;
+        out.WriteGuidBytes<1>(spell.sourceTransportGuid);
+        out << spell.sourceY;
+    }
+    out.WriteGuidBytes<4>(spell.casterGuid);
+    if (spell.hasCastSchoolImmunities)
+        out << spell.castSchoolImmunities;
+    out.WriteGuidBytes<2>(spell.casterGuid);
+    if (spell.hasCastImmunities)
+        out << spell.castImmunities;
+    if (spell.hasVisualChain)
+        out << spell.visualChainFirst << spell.visualChainSecond;
+    if (spell.hasPredictedPower)
+        out << spell.predictedPower << spell.predictedPowerType;
+    out << spell.castFlags;
+    out.WriteGuidBytes<5, 7, 1>(spell.casterGuid);
+    out << spell.castCount;
+    out.WriteGuidBytes<7, 0>(spell.casterUnitGuid);
+    out.WriteGuidBytes<6, 0>(spell.casterGuid);
+    out.WriteGuidBytes<1>(spell.casterUnitGuid);
+    if (spell.hasAmmoInventoryType)
+        out << spell.ammoInventoryType;
+    if (spell.hasPredictedHeal)
+        out << spell.predictedHeal;
+    out.WriteGuidBytes<6, 3>(spell.casterUnitGuid);
+    out << spell.spellId;
+    if (spell.hasAmmoDisplayId)
+        out << spell.ammoDisplayId;
+    out.WriteGuidBytes<4, 5, 2>(spell.casterUnitGuid);
+    if (spell.hasTargetString)
+        out.append(spell.targetString.data(), spell.targetString.size());
+    if (spell.hasPredictedType)
+        out << spell.predictedType;
+    out.WriteGuidBytes<3>(spell.casterGuid);
+    if (spell.hasElevation)
+        out << spell.elevation;
+    for (uint8 i = 0; i < spell.runeCooldownCount; ++i)
+        out << spell.runeCooldowns[i];
+    return true;
+}
+
 /**
  * @brief Sends the cast result for this spell to the appropriate receiver.
  *
@@ -336,64 +457,48 @@ void Spell::SendSpellStart()
             castFlags |= CAST_FLAG_HEAL_PREDICTION;
         }
 
-    WorldPacket data(SMSG_SPELL_START, (8 + 8 + 4 + 4 + 2));
-    if (m_CastItem)
+    MopSpellPackets::SpellStartPacket spell;
+    spell.casterGuid = m_CastItem ? m_CastItem->GetObjectGuid() : m_caster->GetObjectGuid();
+    spell.casterUnitGuid = m_caster->GetObjectGuid();
+    spell.targetGuid = m_targets.getObjectTargetGuid();
+    spell.itemTargetGuid = m_targets.getItemTargetGuid();
+    spell.hasSourceLocation = (m_targets.m_targetMask & TARGET_FLAG_SOURCE_LOCATION) != 0;
+    spell.sourceTransportGuid = m_targets.getSourceTransportGuid();
+    m_targets.getSource(spell.sourceX, spell.sourceY, spell.sourceZ);
+    spell.hasDestinationLocation = (m_targets.m_targetMask & TARGET_FLAG_DEST_LOCATION) != 0;
+    spell.destinationTransportGuid = m_targets.getDestinationTransportGuid();
+    m_targets.getDestination(spell.destinationX, spell.destinationY, spell.destinationZ);
+    spell.targetMask = m_targets.m_targetMask;
+    if (m_targets.m_targetMask & TARGET_FLAG_STRING)
     {
-        data << m_CastItem->GetPackGUID();
+        spell.hasTargetString = true;
+        spell.targetString = m_targets.m_strTarget;
     }
-    else
+    spell.castTime = m_casttime;
+    spell.castFlags = castFlags;
+    spell.castCount = m_cast_count;
+    spell.spellId = m_spellInfo->ID;
+
+    spell.hasPredictedPower = (castFlags & CAST_FLAG_PREDICTED_POWER) != 0;
+    if (spell.hasPredictedPower)
     {
-        data << m_caster->GetPackGUID();
-    }
-
-    data << m_caster->GetPackGUID();
-    data << uint8(m_cast_count);                            // pending spell cast
-    data << uint32(m_spellInfo->ID);                        // spellId
-    data << uint32(castFlags);                              // cast flags
-    data << uint32(m_timer);                                // delay?
-    data << uint32(m_casttime);                             // m_casttime
-
-    data << m_targets;
-
-    if (castFlags & CAST_FLAG_PREDICTED_POWER)              // predicted power
-    {
-        data << uint32(m_caster->GetPower(Powers(m_spellInfo->GetPowerType())));
-    }
-
-    if (castFlags & CAST_FLAG_PREDICTED_RUNES)              // predicted runes
-    {
-        if (m_caster->GetTypeId() == TYPEID_PLAYER)
-        {
-            Player* caster = (Player*)m_caster;
-
-            data << uint8(m_runesState);
-            data << uint8(caster->GetRunesState());
-            for (uint8 i = 0; i < MAX_RUNES; ++i)
-            {
-                data << uint8(caster->GetRuneCooldownFraction(i));
-            }
-        }
-        else
-        {
-            data << uint8(0);
-            data << uint8(0);
-            for (uint8 i = 0; i < MAX_RUNES; ++i)
-            {
-                data << uint8(0);
-            }
-        }
+        spell.predictedPower = m_caster->GetPower(Powers(m_spellInfo->GetPowerType()));
+        spell.predictedPowerType = uint8(m_spellInfo->GetPowerType());
     }
 
-    if (castFlags & CAST_FLAG_AMMO)                         // projectile info
+    if ((castFlags & CAST_FLAG_PREDICTED_RUNES) && m_caster->GetTypeId() == TYPEID_PLAYER)
     {
-        WriteAmmoToPacket(&data);
+        Player* player = static_cast<Player*>(m_caster);
+        spell.runeCooldownCount = uint8(std::min<uint32>(MAX_RUNES, 7));
+        for (uint8 i = 0; i < spell.runeCooldownCount; ++i)
+            spell.runeCooldowns[i] = player->GetRuneCooldownFraction(i);
     }
 
-    if (castFlags & CAST_FLAG_IMMUNITY)                     // cast immunity
-    {
-        data << uint32(0);                                  // used for SetCastSchoolImmunities
-        data << uint32(0);                                  // used for SetCastImmunities
-    }
+    spell.hasCastSchoolImmunities = (castFlags & CAST_FLAG_IMMUNITY) != 0;
+    spell.hasCastImmunities = (castFlags & CAST_FLAG_IMMUNITY) != 0;
+    spell.hasVisualChain = (castFlags & CAST_FLAG_VISUAL_CHAIN) != 0;
+    spell.hasElevation = (castFlags & CAST_FLAG_ADJUST_MISSILE) != 0;
+    spell.elevation = m_targets.GetElevation();
 
     if (castFlags & CAST_FLAG_HEAL_PREDICTION)
     {
@@ -411,14 +516,15 @@ void Spell::SendSpellStart()
             }
         }
 
-        data << uint32(amt);
-        data << uint8(type);
-        if (type == DOT)
-        {
-            data << m_caster->GetPackGUID();
-        }
+        spell.hasPredictedHeal = true;
+        spell.predictedHeal = uint32(amt);
+        spell.hasPredictedType = true;
+        spell.predictedType = type;
     }
 
+    WorldPacket data;
+    if (!MopSpellPackets::BuildSpellStart(data, spell))
+        return;
     m_caster->SendMessageToSet(&data, true);
 }
 

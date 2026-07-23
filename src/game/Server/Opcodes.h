@@ -342,7 +342,7 @@ enum OpcodesList
     CMSG_CAST_SPELL                              = 0x0206, // 5.4.8 18414 (Wow.exe binary)
     CMSG_CANCEL_CAST                             = 0x18C0, // 5.4.8 18414 (Wow.exe binary)
     SMSG_CAST_FAILED                             = 0x143A,    // 5.4.8 18414 (Wow.exe reader + Spell_C handler; name reference-consensus)
-    SMSG_SPELL_START                             = 0x107A,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
+    SMSG_SPELL_START                             = 0x107A,    // 5.4.8 18414 (Wow.exe reader + Spell_C handler; name via bridge)
     SMSG_SPELL_GO                                = 0x09D8,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_SPELL_FAILURE                           = 0x04AF,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_SPELL_COOLDOWN                          = 0x0452,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)

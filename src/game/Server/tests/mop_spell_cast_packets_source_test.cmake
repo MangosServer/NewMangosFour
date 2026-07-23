@@ -107,6 +107,36 @@ elseif(MUTATION STREQUAL "debug_cast_failed_sender")
         "MopSpellPackets::BuildCastFailed(data, 133, SpellCastResult(failnum), 0, false, arguments);"
         "WorldPacket data(SMSG_CAST_FAILED, 5);"
         debug_commands "${debug_commands}")
+elseif(MUTATION STREQUAL "spell_start_sender")
+    string(REPLACE
+        "MopSpellPackets::BuildSpellStart(data, spell)"
+        "false /* removed 18414 spell-start builder */"
+        spell_packets "${spell_packets}")
+elseif(MUTATION STREQUAL "spell_start_registration")
+    string(REPLACE
+        "DefS(SMSG_SPELL_START, \"SMSG_SPELL_START\");"
+        "/* removed SMSG_SPELL_START registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "spell_start_gate")
+    string(REPLACE
+        "case SMSG_SPELL_START:"
+        "case SMSG_UNKNOWN_0:"
+        world_session "${world_session}")
+elseif(MUTATION STREQUAL "spell_start_target_mask_width")
+    string(REPLACE
+        "out.WriteBits(spell.targetMask, 20);"
+        "out.WriteBits(spell.targetMask, 21);"
+        spell_packets "${spell_packets}")
+elseif(MUTATION STREQUAL "spell_start_caster_mask")
+    string(REPLACE
+        "out.WriteGuidMask<2, 6>(spell.casterUnitGuid);"
+        "out.WriteGuidMask<6, 2>(spell.casterUnitGuid);"
+        spell_packets "${spell_packets}")
+elseif(MUTATION STREQUAL "spell_start_string_bound")
+    string(REPLACE
+        "spell.targetString.size() > 0x7F"
+        "spell.targetString.size() > 0xFF"
+        spell_packets "${spell_packets}")
 endif()
 
 string(FIND "${spell_handler}" "void WorldSession::HandleCastSpellOpcode" cast_start)
@@ -116,6 +146,14 @@ if(cast_start EQUAL -1 OR cast_end EQUAL -1 OR cast_end LESS_EQUAL cast_start)
 endif()
 math(EXPR cast_length "${cast_end} - ${cast_start}")
 string(SUBSTRING "${spell_handler}" ${cast_start} ${cast_length} cast_handler)
+
+string(FIND "${spell_packets}" "void Spell::SendSpellStart()" spell_start_begin)
+string(FIND "${spell_packets}" "void Spell::SendSpellGo()" spell_start_end)
+if(spell_start_begin EQUAL -1 OR spell_start_end EQUAL -1 OR spell_start_end LESS_EQUAL spell_start_begin)
+    message(FATAL_ERROR "could not isolate SendSpellStart")
+endif()
+math(EXPR spell_start_length "${spell_start_end} - ${spell_start_begin}")
+string(SUBSTRING "${spell_packets}" ${spell_start_begin} ${spell_start_length} spell_start_sender_body)
 
 function(require_once source token context)
     set(remaining "${source}")
@@ -217,6 +255,27 @@ require_once("${debug_commands}"
 forbid("${debug_commands}"
     "WorldPacket data(SMSG_CAST_FAILED"
     "legacy debug cast-failure body")
+require_once("${opcode_registry}"
+    "DefS(SMSG_SPELL_START, \"SMSG_SPELL_START\");"
+    "SMSG_SPELL_START registration")
+require_once("${world_session}"
+    "case SMSG_SPELL_START:"
+    "SMSG_SPELL_START suppression gate")
+require_once("${spell_packets}"
+    "MopSpellPackets::BuildSpellStart(data, spell)"
+    "18414 spell-start sender wiring")
+require_once("${spell_packets}"
+    "out.WriteBits(spell.targetMask, 20);"
+    "spell-start 20-bit target mask")
+require_once("${spell_packets}"
+    "out.WriteGuidMask<2, 6>(spell.casterUnitGuid);"
+    "spell-start caster-unit mask order")
+require_once("${spell_packets}"
+    "spell.targetString.size() > 0x7F"
+    "spell-start target-string bound")
+forbid("${spell_start_sender_body}"
+    "data << m_targets;"
+    "legacy spell-start target serializer")
 
 string(FIND "${cast_handler}" "MopSpellPackets::ReadCastSpellRequest(recvPacket, request)" reader_position)
 string(FIND "${cast_handler}" "sSpellStore.LookupEntry(spellId)" lookup_position)

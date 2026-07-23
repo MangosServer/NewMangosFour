@@ -319,6 +319,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_SPELLDISPELLOG:                  // MopCombatLogPackets::BuildDispelLog
         case SMSG_CAST_FAILED:                     // MopSpellPackets::BuildCastFailed
         case SMSG_PET_CAST_FAILED:                 // MopSpellPackets::BuildCastFailed (pet bit order)
+        case SMSG_SPELL_START:                     // MopSpellPackets::BuildSpellStart
         case SMSG_MESSAGECHAT:                     // MopChatPackets::BuildMessage
         case SMSG_TEXT_EMOTE:                      // MopChatPackets::BuildTextEmote
         case SMSG_EMOTE:                           // Unit::HandleEmoteCommand; uint32 plus uint64
