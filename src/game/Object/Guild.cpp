@@ -819,7 +819,9 @@ void Guild::BroadcastAddonToGuild(WorldSession* session, const std::string& msg,
         {
             Player* pl = sObjectAccessor.FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
 
-            if (pl && pl->GetSession() && HasRankRight(pl->GetRank(), GR_RIGHT_GCHATLISTEN) && !pl->GetSocial()->HasIgnore(session->GetPlayer()->GetObjectGuid()))
+            if (pl && pl->GetSession() && pl->GetSession()->IsAddonRegistered(prefix) &&
+                HasRankRight(pl->GetRank(), GR_RIGHT_GCHATLISTEN) &&
+                !pl->GetSocial()->HasIgnore(session->GetPlayer()->GetObjectGuid()))
             {
                 pl->GetSession()->SendPacket(&data);
             }
@@ -874,7 +876,9 @@ void Guild::BroadcastAddonToOfficers(WorldSession* session, const std::string& m
 
             Player* pl = sObjectAccessor.FindPlayer(ObjectGuid(HIGHGUID_PLAYER, itr->first));
 
-            if (pl && pl->GetSession() && HasRankRight(pl->GetRank(), GR_RIGHT_OFFCHATLISTEN) && !pl->GetSocial()->HasIgnore(session->GetPlayer()->GetObjectGuid()))
+            if (pl && pl->GetSession() && pl->GetSession()->IsAddonRegistered(prefix) &&
+                HasRankRight(pl->GetRank(), GR_RIGHT_OFFCHATLISTEN) &&
+                !pl->GetSocial()->HasIgnore(session->GetPlayer()->GetObjectGuid()))
             {
                 pl->GetSession()->SendPacket(&data);
             }

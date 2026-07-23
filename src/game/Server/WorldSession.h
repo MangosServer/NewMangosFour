@@ -1688,6 +1688,9 @@ class WorldSession
         void SendChatRestrictedNotice(ChatRestrictionType restriction);
         void HandleMessagechatOpcode(WorldPacket& recvPacket);
         void HandleAddonMessagechatOpcode(WorldPacket& recvPacket);
+        void HandleUnregisterAddonPrefixesOpcode(WorldPacket& recvPacket);
+        void HandleAddonRegisteredPrefixesOpcode(WorldPacket& recvPacket);
+        bool IsAddonRegistered(std::string const& prefix) const;
         void HandleTextEmoteOpcode(WorldPacket& recvPacket);
         void HandleChatIgnoredOpcode(WorldPacket& recvPacket);
 
@@ -1912,6 +1915,8 @@ class WorldSession
         uint32 m_Tutorials[8];
         TutorialDataState m_tutorialState;
         AddonsList m_addonsList;
+        std::vector<std::string> m_registeredAddonPrefixes;
+        bool m_filterAddonMessages = true;
         ACE_Based::LockedQueue<WorldPacket*, ACE_Thread_Mutex> _recvQueue;
 };
 #endif

@@ -180,6 +180,8 @@ enum OpcodesList
     CMSG_MESSAGECHAT_ADDON_PARTY                 = 0x028E, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MESSAGECHAT_ADDON_RAID                  = 0x009A, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MESSAGECHAT_ADDON_WHISPER               = 0x0EBB, // 5.4.8 18414 (Wow.exe binary)
+    CMSG_UNREGISTER_ALL_ADDON_PREFIXES           = 0x029F, // 5.4.8 18414 (Wow.exe empty writer and registration-container call path)
+    CMSG_ADDON_REGISTERED_PREFIXES               = 0x040E, // 5.4.8 18414 (Wow.exe writer: 24-bit count, 5-bit lengths, raw strings)
     CMSG_MESSAGECHAT_AFK                         = 0x0EAB, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MESSAGECHAT_BATTLEGROUND                = 0x2156, // 4.3.4 15595 — NYI in 5.4.8 refs (unverified)
     CMSG_MESSAGECHAT_CHANNEL                     = 0x00BB, // 5.4.8 18414 (Wow.exe binary)

@@ -1614,6 +1614,28 @@ void Group::BroadcastPacket(WorldPacket* packet, bool ignorePlayersInBGRaid, int
     }
 }
 
+void Group::BroadcastAddonMessagePacket(WorldPacket* packet,
+    std::string const& prefix, bool ignorePlayersInBGRaid, int group,
+    ObjectGuid ignore)
+{
+    for (GroupReference* itr = GetFirstMember(); itr != NULL; itr = itr->next())
+    {
+        Player* pl = itr->getSource();
+        if (!pl || (ignore && pl->GetObjectGuid() == ignore) ||
+            (ignorePlayersInBGRaid && pl->GetGroup() != this))
+        {
+            continue;
+        }
+
+        WorldSession* session = pl->GetSession();
+        if (session && (group == -1 || itr->getSubGroup() == group) &&
+            session->IsAddonRegistered(prefix))
+        {
+            session->SendPacket(packet);
+        }
+    }
+}
+
 /**
  * @brief Sends a ready-check packet to the leader and assistants.
  *

@@ -106,6 +106,28 @@ typedef uint32 ChatTagFlags;
 
 namespace MopChatPackets
 {
+    inline bool ReadAddonPrefixBatch(WorldPacket& in,
+        std::vector<std::string>& prefixes)
+    {
+        uint32 const count = in.ReadBits(24);
+        if (count > 64 || prefixes.size() + count > 64)
+        {
+            in.rfinish();
+            prefixes.clear();
+            return false;
+        }
+
+        std::vector<uint8> lengths;
+        lengths.reserve(count);
+        for (uint32 i = 0; i < count; ++i)
+            lengths.push_back(uint8(in.ReadBits(5)));
+
+        for (uint8 length : lengths)
+            prefixes.push_back(in.ReadString(length));
+
+        return true;
+    }
+
     struct Message
     {
         ChatMsg chatType = CHAT_MSG_SYSTEM;

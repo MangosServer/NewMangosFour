@@ -1084,6 +1084,8 @@ class Group
         void UpdatePlayerOutOfRange(Player* pPlayer);
         // ignore: GUID of player that will be ignored
         void BroadcastPacket(WorldPacket* packet, bool ignorePlayersInBGRaid, int group = -1, ObjectGuid ignore = ObjectGuid());
+        void BroadcastAddonMessagePacket(WorldPacket* packet, std::string const& prefix,
+            bool ignorePlayersInBGRaid, int group = -1, ObjectGuid ignore = ObjectGuid());
         void BroadcastReadyCheck(WorldPacket* packet);
         void OfflineReadyCheck();
         bool StartReadyCheck(uint8 partyIndex, ObjectGuid initiator);

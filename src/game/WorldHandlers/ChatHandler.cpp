@@ -898,7 +898,7 @@ void WorldSession::HandleAddonMessagechatOpcode(WorldPacket& recv_data)
             WorldPacket data;
             ChatHandler::BuildChatPacket(data, type, msg.c_str(), LANG_ADDON, CHAT_TAG_NONE,
                 _player->GetObjectGuid(), _player->GetName(), ObjectGuid(), NULL, NULL, 0, prefix.c_str());
-            group->BroadcastPacket(&data, false);
+            group->BroadcastAddonMessagePacket(&data, prefix, false);
             break;
         }
         case CHAT_MSG_GUILD:
@@ -953,7 +953,8 @@ void WorldSession::HandleAddonMessagechatOpcode(WorldPacket& recv_data)
             WorldPacket data;
             ChatHandler::BuildChatPacket(data, type, msg.c_str(), LANG_ADDON, CHAT_TAG_NONE,
                 _player->GetObjectGuid(), _player->GetName(), _player->GetObjectGuid(), _player->GetName(), NULL, 0, prefix.c_str());
-            receiver->GetSession()->SendPacket(&data);
+            if (receiver->GetSession()->IsAddonRegistered(prefix))
+                receiver->GetSession()->SendPacket(&data);
             break;
         }
         // Messages sent to "RAID" while in a party will get delivered to "PARTY"
@@ -974,7 +975,8 @@ void WorldSession::HandleAddonMessagechatOpcode(WorldPacket& recv_data)
             WorldPacket data;
             ChatHandler::BuildChatPacket(data, type, msg.c_str(), LANG_ADDON, CHAT_TAG_NONE,
                 _player->GetObjectGuid(), _player->GetName(), ObjectGuid(), NULL, NULL, 0, prefix.c_str());
-            group->BroadcastPacket(&data, false, group->GetMemberGroup(_player->GetObjectGuid()));
+            group->BroadcastAddonMessagePacket(&data, prefix, false,
+                group->GetMemberGroup(_player->GetObjectGuid()));
             break;
         }
         default:
@@ -983,6 +985,26 @@ void WorldSession::HandleAddonMessagechatOpcode(WorldPacket& recv_data)
             break;
         }
     }
+}
+
+void WorldSession::HandleUnregisterAddonPrefixesOpcode(WorldPacket& recv_data)
+{
+    recv_data.rfinish();
+    m_registeredAddonPrefixes.clear();
+}
+
+void WorldSession::HandleAddonRegisteredPrefixesOpcode(WorldPacket& recv_data)
+{
+    m_filterAddonMessages = MopChatPackets::ReadAddonPrefixBatch(
+        recv_data, m_registeredAddonPrefixes);
+}
+
+bool WorldSession::IsAddonRegistered(std::string const& prefix) const
+{
+    return !m_filterAddonMessages ||
+        std::find(m_registeredAddonPrefixes.begin(),
+            m_registeredAddonPrefixes.end(), prefix) !=
+        m_registeredAddonPrefixes.end();
 }
 
 /**

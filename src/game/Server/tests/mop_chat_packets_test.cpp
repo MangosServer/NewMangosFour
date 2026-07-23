@@ -183,6 +183,53 @@ static void test_opcode()
 {
     CHECK(uint32(SMSG_MESSAGECHAT) == 0x1A9Au);
     CHECK(uint32(SMSG_MESSAGECHAT) < uint32(OPCODE_TABLE_SIZE));
+    CHECK(uint32(CMSG_UNREGISTER_ALL_ADDON_PREFIXES) == 0x029Fu);
+    CHECK(uint32(CMSG_ADDON_REGISTERED_PREFIXES) == 0x040Eu);
+}
+
+static void test_addon_prefix_batch()
+{
+    uint8 const body[] = {
+        0x00, 0x00, 0x02, // 24-bit prefix count
+        0x19, 0x00,       // 5-bit lengths: 3, 4
+        'A', 'B', 'C', 'W', 'X', 'Y', 'Z'
+    };
+    WorldPacket packet(CMSG_ADDON_REGISTERED_PREFIXES, sizeof(body));
+    packet.append(body, sizeof(body));
+
+    std::vector<std::string> prefixes;
+    CHECK(MopChatPackets::ReadAddonPrefixBatch(packet, prefixes));
+    CHECK(prefixes.size() == 2);
+    CHECK(prefixes[0] == "ABC");
+    CHECK(prefixes[1] == "WXYZ");
+    CHECK(packet.rpos() == packet.size());
+}
+
+static void test_addon_prefix_soft_cap()
+{
+    WorldPacket oversized(CMSG_ADDON_REGISTERED_PREFIXES, 3);
+    oversized.WriteBits(65u, 24);
+    oversized.FlushBits();
+
+    std::vector<std::string> prefixes;
+    CHECK(!MopChatPackets::ReadAddonPrefixBatch(oversized, prefixes));
+    CHECK(oversized.rpos() == oversized.size());
+
+    WorldPacket full(CMSG_ADDON_REGISTERED_PREFIXES, 43);
+    full.WriteBits(64u, 24);
+    for (uint32 i = 0; i < 64; ++i)
+        full.WriteBits(0u, 5);
+    full.FlushBits();
+    CHECK(MopChatPackets::ReadAddonPrefixBatch(full, prefixes));
+    CHECK(prefixes.size() == 64);
+
+    WorldPacket oneMore(CMSG_ADDON_REGISTERED_PREFIXES, 5);
+    oneMore.WriteBits(1u, 24);
+    oneMore.WriteBits(1u, 5);
+    oneMore.FlushBits();
+    oneMore.append("X", 1);
+    CHECK(!MopChatPackets::ReadAddonPrefixBatch(oneMore, prefixes));
+    CHECK(prefixes.empty());
 }
 
 static void test_text_emote_response()
@@ -228,6 +275,8 @@ int main(int /*argc*/, char** /*argv*/)
     test_guild_message();
     test_length_boundaries();
     test_opcode();
+    test_addon_prefix_batch();
+    test_addon_prefix_soft_cap();
     test_text_emote_response();
     test_text_emote_request();
 
