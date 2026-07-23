@@ -254,6 +254,13 @@ void MopUpdateObject::AppendSelfPlayerValuesBlock(ByteBuffer& out, uint64 guid,
             fields.push_back({ TranslateSelfInventoryIndex(sourceIndex), value });
             continue;
         }
+        // IDA 9.4 18414 CGPlayerData::local: coinage 1149-1150,
+        // XP 1151, nextLevelXP 1152. Source indices are pinned by the caller.
+        if (sourceIndex >= 1142 && sourceIndex <= 1145)
+        {
+            fields.push_back({ uint16(sourceIndex + 7), value });
+            continue;
+        }
 
         if (sourceIndex >= 29 && sourceIndex <= 33)
         {

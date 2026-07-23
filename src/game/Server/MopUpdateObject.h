@@ -106,9 +106,9 @@ namespace MopUpdateObject
     void AppendSelfInventoryValuesBlock(ByteBuffer& out, uint64 guid,
         StaticField const* sourceFields, uint32 fieldCount);
 
-    /// Translate the binary-proved self-player Unit projection plus the
-    /// existing inventory range into one ordered 18414 VALUES block.
-    /// Changed-to-zero values are retained.
+    /// Translate the binary-proved self-player Unit projection, existing
+    /// inventory range, and directly recovered coinage/XP fields into one
+    /// ordered 18414 VALUES block. Changed-to-zero values are retained.
     void AppendSelfPlayerValuesBlock(ByteBuffer& out, uint64 guid,
         StaticField const* sourceFields, uint32 fieldCount);
 

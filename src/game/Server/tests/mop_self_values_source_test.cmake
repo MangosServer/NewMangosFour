@@ -8,6 +8,10 @@ elseif(MUTATION STREQUAL "health_feed")
     string(REPLACE "addIfChanged(UNIT_FIELD_HEALTH);"
         "/* removed self health feed */"
         object_update "${object_update}")
+elseif(MUTATION STREQUAL "progression_feed")
+    string(REPLACE "addIfChanged(PLAYER_XP);"
+        "/* removed self XP feed */"
+        object_update "${object_update}")
 endif()
 
 string(FIND "${object_update}"
@@ -45,6 +49,14 @@ require_once("addIfChanged\\(UNIT_FIELD_LEVEL\\)"
     "self level feed")
 require_once("for \\(uint16 i = MopUpdateObject::SelfInventorySourceStart"
     "self inventory feed")
+require_once("addIfChanged\\(PLAYER_FIELD_COINAGE\\)"
+    "self coinage low-word feed")
+require_once("addIfChanged\\(PLAYER_FIELD_COINAGE \\+ 1\\)"
+    "self coinage high-word feed")
+require_once("addIfChanged\\(PLAYER_XP\\)"
+    "self XP feed")
+require_once("addIfChanged\\(PLAYER_NEXT_LEVEL_XP\\)"
+    "self next-level XP feed")
 require_once("data->AddUpdateBlock\\(\\)"
     "single merged update block")
 

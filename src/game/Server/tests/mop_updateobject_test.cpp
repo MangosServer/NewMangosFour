@@ -307,6 +307,10 @@ int main(int /*argc*/, char** /*argv*/)
             { 64, 19724 },               // native display -> 70
             { 960, 0 },                  // first inventory link -> 965
             { 1131, 0xAABBCCDDu },       // final buyback field -> 1136
+            { 1142, 0x01234567u },       // coinage low -> 1149
+            { 1143, 0x89ABCDEFu },       // coinage high -> 1150
+            { 1144, 0 },                 // XP -> 1151
+            { 1145, 0x00123456u },       // next-level XP -> 1152
         };
         ByteBuffer values;
         MopUpdateObject::AppendSelfPlayerValuesBlock(values, 0x10, sourceFields,
@@ -314,8 +318,8 @@ int main(int /*argc*/, char** /*argv*/)
         values.rpos(3); // VALUES + packed GUID
         uint8 blockCount;
         values >> blockCount;
-        CHECK(blockCount == 36);
-        uint32 masks[36];
+        CHECK(blockCount == 37);
+        uint32 masks[37];
         for (uint32& mask : masks) values >> mask;
         auto hasBit = [&masks](uint16 index)
         {
@@ -324,7 +328,8 @@ int main(int /*argc*/, char** /*argv*/)
         for (uint16 index : { uint16(7), uint16(30), uint16(31), uint16(33),
                 uint16(34), uint16(38), uint16(39), uint16(40), uint16(44),
                 uint16(55), uint16(57), uint16(61), uint16(67), uint16(68),
-                uint16(69), uint16(70), uint16(965), uint16(1136) })
+                uint16(69), uint16(70), uint16(965), uint16(1136),
+                uint16(1149), uint16(1150), uint16(1151), uint16(1152) })
         {
             CHECK(hasBit(index));
         }
@@ -336,7 +341,7 @@ int main(int /*argc*/, char** /*argv*/)
             0, 0x03040201u, 4, 0, 0x11111111u, 0x55555555u,
             0x66666666u, 0x77777777u, 0xBBBBBBBBu, 90, 35,
             0x00000008u, 0x3EC6A7F0u, 0x3FC00000u, 19724, 19724,
-            0, 0xAABBCCDDu,
+            0, 0xAABBCCDDu, 0x01234567u, 0x89ABCDEFu, 0, 0x00123456u,
         };
         for (uint32 expectedValue : expected)
         {

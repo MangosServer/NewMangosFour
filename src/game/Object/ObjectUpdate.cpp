@@ -99,6 +99,9 @@ namespace
             MopUpdateObject::ObserverVisibleItemFieldCount &&
         MopUpdateObject::ObserverVisibleItemTargetStart == 921,
         "observer Player visible-item projection must remain local 916..953 to target 921..958");
+    static_assert(PLAYER_FIELD_COINAGE == 1142 && PLAYER_XP == 1144 &&
+        PLAYER_NEXT_LEVEL_XP == 1145,
+        "self progression projection assumes the legacy 17538 Player indices");
 
     bool CanBuildMopInventoryObject(Object const& object, Player* target)
     {
@@ -560,7 +563,7 @@ void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player* target) c
         std::vector<MopUpdateObject::StaticField> fields;
         if (target == static_cast<Player const*>(this))
         {
-            fields.reserve(16 + MopUpdateObject::SelfInventoryFieldCount);
+            fields.reserve(25 + MopUpdateObject::SelfInventoryFieldCount);
             auto addIfChanged = [this, &fields](uint16 sourceIndex)
             {
                 if (m_changedValues[sourceIndex])
@@ -597,6 +600,10 @@ void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player* target) c
                     fields.push_back({ i, m_uint32Values[i] });
                 }
             }
+            addIfChanged(PLAYER_FIELD_COINAGE);
+            addIfChanged(PLAYER_FIELD_COINAGE + 1);
+            addIfChanged(PLAYER_XP);
+            addIfChanged(PLAYER_NEXT_LEVEL_XP);
             if (!fields.empty())
             {
                 MopUpdateObject::AppendSelfPlayerValuesBlock(data->GetBuffer(),
