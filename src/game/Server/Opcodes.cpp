@@ -186,11 +186,10 @@ void InitializeOpcodes()
     // UNKNOWN (0x0AAE) and muddies the RAD live-capture.
     DefS(SMSG_UPDATE_ACCOUNT_DATA, "SMSG_UPDATE_ACCOUNT_DATA");
 
-    // CMSG_BATTLE_PAY_GET_PURCHASE_LIST (0x18B2): benign in-game Shop catalog probe at char-select
-    // (value from SkyFire 5.4.8.18414). We do not implement the store, so consume it as a recognized
-    // no-op (Handle_NULL) instead of letting it dispatch as an UNKNOWN "not handled" opcode. The
-    // client tolerates no reply; this only clarifies the log.
-    DefC(0x18B2, "CMSG_BATTLE_PAY_GET_PURCHASE_LIST", STATUS_AUTHED, PROCESS_INPLACE, &WorldSession::Handle_NULL);
+    // Shipped UI C_PurchaseAPI.GetPurchaseList maps through the retained API
+    // table directly to the empty 0x18B2 writer. The Store response/backend is
+    // not implemented, so this registration is intentionally recognition-only.
+    DefC(CMSG_BATTLE_PAY_GET_PURCHASE_LIST, "CMSG_BATTLE_PAY_GET_PURCHASE_LIST", STATUS_AUTHED, PROCESS_INPLACE, &WorldSession::Handle_NULL);
 
     // Wave 2 server messages whose 5.4.8 bodies are encoded by MopCompactPackets.
     DefS(SMSG_ATTACKSWING_ERROR, "SMSG_ATTACKSWING_ERROR");

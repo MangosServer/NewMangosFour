@@ -32,6 +32,15 @@ elseif(MUTATION STREQUAL "violence_value")
     string(REPLACE "CMSG_VIOLENCE_LEVEL                         = 0x0040" "CMSG_VIOLENCE_LEVEL                         = 0x0000" opcode_header "${opcode_header}")
 elseif(MUTATION STREQUAL "battlefield_status_registration")
     string(REPLACE "DefC(CMSG_BATTLEFIELD_STATUS," "DefC(CMSG_UNUSED_BATTLEFIELD_STATUS," opcodes "${opcodes}")
+elseif(MUTATION STREQUAL "battle_pay_registration")
+    string(REPLACE "DefC(CMSG_BATTLE_PAY_GET_PURCHASE_LIST," "DefC(CMSG_UNUSED_BATTLE_PAY_GET_PURCHASE_LIST," opcodes "${opcodes}")
+elseif(MUTATION STREQUAL "battle_pay_duplicate_raw")
+    string(REPLACE
+        "DefC(CMSG_BATTLE_PAY_GET_PURCHASE_LIST, \"CMSG_BATTLE_PAY_GET_PURCHASE_LIST\", STATUS_AUTHED, PROCESS_INPLACE, &WorldSession::Handle_NULL);"
+        "DefC(CMSG_BATTLE_PAY_GET_PURCHASE_LIST, \"CMSG_BATTLE_PAY_GET_PURCHASE_LIST\", STATUS_AUTHED, PROCESS_INPLACE, &WorldSession::Handle_NULL);\n    DefC(0x18B2, \"CMSG_BATTLE_PAY_GET_PURCHASE_LIST\", STATUS_AUTHED, PROCESS_INPLACE, &WorldSession::Handle_NULL);"
+        opcodes "${opcodes}")
+elseif(MUTATION STREQUAL "battle_pay_value")
+    string(REPLACE "CMSG_BATTLE_PAY_GET_PURCHASE_LIST            = 0x18B2" "CMSG_BATTLE_PAY_GET_PURCHASE_LIST            = 0x0000" opcode_header "${opcode_header}")
 endif()
 
 string(FIND "${opcode_header}" "CMSG_LOGOUT_REQUEST                          = 0x0643" logout_manual_value)
@@ -257,6 +266,23 @@ math(EXPR battlefield_status_handler_length "${battlefield_status_handler_end} -
 string(SUBSTRING "${battleground}" ${battlefield_status_handler_start} ${battlefield_status_handler_length} battlefield_status_handler_body)
 if(battlefield_status_handler_body MATCHES "recv_data[ \t]*(>>|\\.|->)")
     message(FATAL_ERROR "empty battlefield-status request must not read request data")
+endif()
+
+set(expected_battle_pay_registration
+    "DefC(CMSG_BATTLE_PAY_GET_PURCHASE_LIST, \"CMSG_BATTLE_PAY_GET_PURCHASE_LIST\", STATUS_AUTHED, PROCESS_INPLACE, &WorldSession::Handle_NULL);")
+string(FIND "${opcodes}" "${expected_battle_pay_registration}" exact_battle_pay_registration)
+string(REGEX MATCHALL "DefC\\(CMSG_BATTLE_PAY_GET_PURCHASE_LIST," battle_pay_registrations "${opcodes}")
+list(LENGTH battle_pay_registrations battle_pay_registration_count)
+if(exact_battle_pay_registration EQUAL -1 OR NOT battle_pay_registration_count EQUAL 1)
+    message(FATAL_ERROR "Battle Pay purchase-list request must be registered exactly once as recognition-only auth traffic")
+endif()
+string(FIND "${opcodes}" "DefC(0x18B2," raw_battle_pay_registration)
+if(NOT raw_battle_pay_registration EQUAL -1)
+    message(FATAL_ERROR "stale raw 0x18B2 registration duplicates the named Battle Pay route")
+endif()
+string(FIND "${opcode_header}" "CMSG_BATTLE_PAY_GET_PURCHASE_LIST            = 0x18B2" battle_pay_value)
+if(battle_pay_value EQUAL -1)
+    message(FATAL_ERROR "Battle Pay purchase-list request opcode drifted")
 endif()
 
 set(selection_tokens

@@ -112,7 +112,7 @@ add_test(NAME mop_client_opcode_worklist_source
 foreach(mutation IN ITEMS
         logout_manual_registration logout_idle_registration logout_manual_value
         violence_registration violence_handler violence_value
-        battlefield_status_registration)
+        battlefield_status_registration battle_pay_registration battle_pay_duplicate_raw battle_pay_value)
     add_test(NAME mop_client_opcode_worklist_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

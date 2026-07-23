@@ -1222,6 +1222,7 @@ enum OpcodesList
     CMSG_REFORGE_ITEM                            = 0x0C4F, // 5.4.8 18414 (Wow.exe binary)
     SMSG_REFORGE_RESULT                          = 0x141E,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_LOAD_SCREEN                             = 0x1DBD, // 5.4.8 18414 (Wow.exe binary)
+    CMSG_BATTLE_PAY_GET_PURCHASE_LIST            = 0x18B2, // 5.4.8 18414 (C_PurchaseAPI.GetPurchaseList -> sub_92EADD -> empty writer sub_661E3F)
     CMSG_QUERY_COUNTDOWN_TIMER                   = 0x044E, // 5.4.8 18414 (Wow.exe writer sub_690D37; retained usage literal)
     SMSG_START_TIMER                             = 0x0E3F,    // 5.4.8 18414 (Wow.exe reader sub_6E7584; leaf sub_90BF87)
     CMSG_ENABLE_NAGLE                            = 0x12B3, // 5.4.8 18414 (Wow.exe binary)

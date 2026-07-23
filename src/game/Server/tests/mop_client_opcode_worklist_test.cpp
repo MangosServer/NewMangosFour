@@ -170,6 +170,8 @@ static void test_opcode_values()
     CHECK(uint32(SMSG_QUESTGIVER_STATUS) == 0x1275u);
     CHECK(uint32(CMSG_BATTLEFIELD_STATUS) == 0x1F9Eu);
     CHECK(uint32(CMSG_BATTLEFIELD_STATUS) <= 0x1FFFu);
+    CHECK(uint32(CMSG_BATTLE_PAY_GET_PURCHASE_LIST) == 0x18B2u);
+    CHECK(uint32(CMSG_BATTLE_PAY_GET_PURCHASE_LIST) <= 0x1FFFu);
 }
 
 static void test_player_state_requests()
