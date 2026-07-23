@@ -48,6 +48,7 @@ set(converted_packets
     SMSG_SETUP_CURRENCY
     SMSG_SPELL_EXECUTE_LOG
     SMSG_SPELL_PERIODIC_AURA_LOG
+    SMSG_SPELL_GO
     SMSG_PLAYED_TIME
     SMSG_PLAYER_MOVE
     SMSG_MONSTER_MOVE
@@ -84,7 +85,7 @@ endforeach()
 
 # These tempting high-impact senders still use stale or only partly verified bodies.
 # Keeping them absent is deliberate until their complete 18414 readers are recovered.
-foreach(opcode IN ITEMS SMSG_UPDATE_OBJECT SMSG_SPELL_GO SMSG_UPDATE_ACCOUNT_DATA)
+foreach(opcode IN ITEMS SMSG_UPDATE_OBJECT SMSG_UPDATE_ACCOUNT_DATA)
     string(REGEX MATCHALL "case[ \\t]+${opcode}:" unsafe_matches "${session_source}")
     list(LENGTH unsafe_matches unsafe_count)
     if(NOT unsafe_count EQUAL 0)

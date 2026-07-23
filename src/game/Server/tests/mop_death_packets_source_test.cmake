@@ -126,7 +126,7 @@ require_once("${player_header}"
     "cemetery-list serializer")
 
 string(FIND "${player_header}" "inline void BuildCemeteryListResponse" cemetery_serializer_start)
-string(FIND "${player_header}" "namespace MopReputationPackets" cemetery_serializer_end)
+string(FIND "${player_header}" "namespace MopBattlePetPackets" cemetery_serializer_end)
 if(cemetery_serializer_start EQUAL -1 OR cemetery_serializer_end EQUAL -1 OR
         cemetery_serializer_end LESS_EQUAL cemetery_serializer_start)
     message(FATAL_ERROR "could not isolate cemetery-list serializer")
