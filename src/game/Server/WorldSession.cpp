@@ -326,6 +326,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_QUESTGIVER_STATUS:               // MopQuestStatusPackets::BuildStatus
         case SMSG_GOSSIP_MESSAGE:                  // MopGossipPackets::BuildMessage
         case SMSG_LIST_INVENTORY:                  // MopItemPackets::BuildVendorList
+        case SMSG_CHAR_CUSTOMIZE:                  // MopCharacterCustomizePackets::BuildResponse
             return true;
 
         // In-world query replies. The core already emits genuine 18414 bodies for these

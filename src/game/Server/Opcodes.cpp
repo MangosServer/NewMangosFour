@@ -163,6 +163,11 @@ void InitializeOpcodes()
     DefC(CMSG_CHAR_DELETE, "CMSG_CHAR_DELETE", STATUS_AUTHED, PROCESS_THREADUNSAFE, &WorldSession::HandleCharDeleteOpcode);
     DefS(SMSG_CHAR_DELETE, "SMSG_CHAR_DELETE");
 
+    // Character customization request/response at character select. Both bodies use the
+    // 18414 GUID bit/byte permutations recovered directly from Wow.exe.
+    DefC(CMSG_CHAR_CUSTOMIZE, "CMSG_CHAR_CUSTOMIZE", STATUS_AUTHED, PROCESS_THREADUNSAFE, &WorldSession::HandleCharCustomizeOpcode);
+    DefS(SMSG_CHAR_CUSTOMIZE, "SMSG_CHAR_CUSTOMIZE");
+
     // CMSG_UPDATE_ACCOUNT_DATA (0x0068): the client uploads its account-level saved config (tutorial
     // flags, macros, etc.). Its 18414 value differs from the enum's stale 0x0800 and it was never
     // registered, so it only showed as "not handled opcode UNKNOWN (0x0068)". Registered by literal

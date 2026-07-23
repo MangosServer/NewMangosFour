@@ -1939,6 +1939,68 @@ namespace MopRaidInstancePackets
     }
 }
 
+namespace MopCharacterCustomizePackets
+{
+    struct Appearance
+    {
+        uint8 hairStyle = 0;
+        uint8 gender = 0;
+        uint8 skin = 0;
+        uint8 facialHair = 0;
+        uint8 face = 0;
+        uint8 hairColor = 0;
+    };
+
+    struct Request
+    {
+        ObjectGuid guid;
+        std::string name;
+        Appearance appearance;
+    };
+
+    inline Request ReadRequest(WorldPacket& in)
+    {
+        Request request;
+        in >> request.appearance.hairStyle >> request.appearance.gender
+            >> request.appearance.skin >> request.appearance.facialHair
+            >> request.appearance.face >> request.appearance.hairColor;
+
+        in.ReadGuidMask<2, 6, 1, 0, 7, 5>(request.guid);
+        uint32 const nameLength = in.ReadBits(6);
+        in.ReadGuidMask<4, 3>(request.guid);
+        in.ReadGuidBytes<4>(request.guid);
+        request.name = in.ReadString(nameLength);
+        in.ReadGuidBytes<0, 2, 6, 5, 3, 1, 7>(request.guid);
+        return request;
+    }
+
+    inline void BuildResponse(WorldPacket& out, uint8 result, ObjectGuid guid,
+        Appearance const& appearance, std::string const& name)
+    {
+        size_t const nameLength = std::min<size_t>(name.size(), 63);
+        out.Initialize(SMSG_CHAR_CUSTOMIZE, 15 + nameLength);
+
+        out.WriteGuidMask<0, 7, 3, 2, 6, 5, 1, 4>(guid);
+        out.FlushBits();
+        out.WriteGuidBytes<1>(guid);
+        out << result;
+
+        if (result == RESPONSE_SUCCESS)
+        {
+            out << appearance.facialHair << appearance.skin << appearance.gender
+                << appearance.hairStyle << appearance.face << appearance.hairColor;
+        }
+
+        out.WriteGuidBytes<7, 3, 5, 2, 6, 0, 4>(guid);
+        if (result == RESPONSE_SUCCESS)
+        {
+            out.WriteBits(uint32(nameLength), 6);
+            out.FlushBits();
+            out.append(name.data(), nameLength);
+        }
+    }
+}
+
 class Player : public Unit
 {
         friend class WorldSession;

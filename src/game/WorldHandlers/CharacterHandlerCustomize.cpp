@@ -327,21 +327,23 @@ void WorldSession::HandleRemoveGlyphOpcode(WorldPacket& recv_data)
 
 void WorldSession::HandleCharCustomizeOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid guid;
-    std::string newname;
+    MopCharacterCustomizePackets::Request const request =
+        MopCharacterCustomizePackets::ReadRequest(recv_data);
+    ObjectGuid const guid = request.guid;
+    std::string newname = request.name;
 
-    recv_data >> guid;
-    recv_data >> newname;
-
-    uint8 gender, skin, face, hairStyle, hairColor, facialHair;
-    recv_data >> gender >> skin >> hairColor >> hairStyle >> facialHair >> face;
+    auto sendCustomizeResult = [this, guid](uint8 result)
+    {
+        WorldPacket data;
+        MopCharacterCustomizePackets::BuildResponse(data, result, guid,
+            MopCharacterCustomizePackets::Appearance(), std::string());
+        SendPacket(&data);
+    };
 
     QueryResult* result = CharacterDatabase.PQuery("SELECT `at_login` FROM `characters` WHERE `guid` = '%u'", guid.GetCounter());
     if (!result)
     {
-        WorldPacket data(SMSG_CHAR_CUSTOMIZE, 1);
-        data << uint8(CHAR_CREATE_ERROR);
-        SendPacket(&data);
+        sendCustomizeResult(CHAR_CREATE_ERROR);
         return;
     }
 
@@ -351,36 +353,28 @@ void WorldSession::HandleCharCustomizeOpcode(WorldPacket& recv_data)
 
     if (!(at_loginFlags & AT_LOGIN_CUSTOMIZE))
     {
-        WorldPacket data(SMSG_CHAR_CUSTOMIZE, 1);
-        data << uint8(CHAR_CREATE_ERROR);
-        SendPacket(&data);
+        sendCustomizeResult(CHAR_CREATE_ERROR);
         return;
     }
 
     // prevent character rename to invalid name
     if (!normalizePlayerName(newname))
     {
-        WorldPacket data(SMSG_CHAR_CUSTOMIZE, 1);
-        data << uint8(CHAR_NAME_NO_NAME);
-        SendPacket(&data);
+        sendCustomizeResult(CHAR_NAME_NO_NAME);
         return;
     }
 
     uint8 res = ObjectMgr::CheckPlayerName(newname, true);
     if (res != CHAR_NAME_SUCCESS)
     {
-        WorldPacket data(SMSG_CHAR_CUSTOMIZE, 1);
-        data << uint8(res);
-        SendPacket(&data);
+        sendCustomizeResult(res);
         return;
     }
 
     // check name limitations
     if (GetSecurity() == SEC_PLAYER && sObjectMgr.IsReservedName(newname))
     {
-        WorldPacket data(SMSG_CHAR_CUSTOMIZE, 1);
-        data << uint8(CHAR_NAME_RESERVED);
-        SendPacket(&data);
+        sendCustomizeResult(CHAR_NAME_RESERVED);
         return;
     }
 
@@ -388,30 +382,23 @@ void WorldSession::HandleCharCustomizeOpcode(WorldPacket& recv_data)
     ObjectGuid newguid = sObjectMgr.GetPlayerGuidByName(newname);
     if (newguid && newguid != guid)
     {
-        WorldPacket data(SMSG_CHAR_CUSTOMIZE, 1);
-        data << uint8(CHAR_CREATE_NAME_IN_USE);
-        SendPacket(&data);
+        sendCustomizeResult(CHAR_CREATE_NAME_IN_USE);
         return;
     }
 
     CharacterDatabase.escape_string(newname);
-    Player::Customize(guid, gender, skin, face, hairStyle, hairColor, facialHair);
+    MopCharacterCustomizePackets::Appearance const& appearance = request.appearance;
+    Player::Customize(guid, appearance.gender, appearance.skin, appearance.face,
+        appearance.hairStyle, appearance.hairColor, appearance.facialHair);
     CharacterDatabase.PExecute("UPDATE `characters` SET `name` = '%s', `at_login` = `at_login` & ~ %u WHERE `guid` ='%u'", newname.c_str(), uint32(AT_LOGIN_CUSTOMIZE), guid.GetCounter());
     CharacterDatabase.PExecute("DELETE FROM `character_declinedname` WHERE `guid` ='%u'", guid.GetCounter());
 
     std::string IP_str = GetRemoteAddress();
     sLog.outChar("Account: %d (IP: %s), Character %s customized to: %s", GetAccountId(), IP_str.c_str(), guid.GetString().c_str(), newname.c_str());
 
-    WorldPacket data(SMSG_CHAR_CUSTOMIZE, 1 + 8 + (newname.size() + 1) + 6);
-    data << uint8(RESPONSE_SUCCESS);
-    data << ObjectGuid(guid);
-    data << newname;
-    data << uint8(gender);
-    data << uint8(skin);
-    data << uint8(face);
-    data << uint8(hairStyle);
-    data << uint8(hairColor);
-    data << uint8(facialHair);
+    WorldPacket data;
+    MopCharacterCustomizePackets::BuildResponse(data, RESPONSE_SUCCESS, guid,
+        appearance, newname);
     SendPacket(&data);
 
     sWorld.InvalidatePlayerDataToAllClient(guid);
