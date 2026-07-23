@@ -327,6 +327,8 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_TEXT_EMOTE:                      // MopChatPackets::BuildTextEmote
         case SMSG_EMOTE:                           // Unit::HandleEmoteCommand; uint32 plus uint64
         case SMSG_NOTIFICATION:                    // 12-bit byte length followed by raw notification text
+        case SMSG_TRADE_STATUS:                    // MopTradePackets::BuildStatus
+        case SMSG_TRADE_STATUS_EXTENDED:           // MopTradePackets::BuildUpdate
         case SMSG_STANDSTATE_UPDATE:               // one uint8 stand state; Unit_C.cpp leaf 0x810583
         case SMSG_ATTACKSTART:                     // MopCompactPackets::BuildAttackStart
         case SMSG_ATTACKSTOP:                      // MopCompactPackets::BuildAttackStop

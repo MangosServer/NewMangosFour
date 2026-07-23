@@ -243,6 +243,8 @@ void InitializeOpcodes()
     DefS(SMSG_TEXT_EMOTE, "SMSG_TEXT_EMOTE");
     DefS(SMSG_EMOTE, "SMSG_EMOTE");
     DefS(SMSG_NOTIFICATION, "SMSG_NOTIFICATION");
+    DefS(SMSG_TRADE_STATUS, "SMSG_TRADE_STATUS");
+    DefS(SMSG_TRADE_STATUS_EXTENDED, "SMSG_TRADE_STATUS_EXTENDED");
 
     // 18414 tutorial state requests: one uint32 flag index, then empty clear/reset controls.
     DefC(CMSG_TUTORIAL_FLAG, "CMSG_TUTORIAL_FLAG", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTutorialFlagOpcode);

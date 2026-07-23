@@ -320,6 +320,156 @@ namespace MopControlPackets
     }
 }
 
+namespace MopTradePackets
+{
+    struct StatusData
+    {
+        bool flag = false;
+        uint32 first = 0;
+        uint32 second = 0;
+        uint8 slot = 0;
+        uint64 guid = 0;
+    };
+
+    struct ItemData
+    {
+        bool notWrapped = true;
+        uint64 creatorGuid = 0;
+        uint64 giftCreatorGuid = 0;
+        bool hasLock = false;
+        uint32 maxDurability = 0;
+        uint32 unknown0 = 0;
+        uint32 reforge = 0;
+        uint32 permanentEnchant = 0;
+        uint32 durability = 0;
+        std::array<uint32, 3> gemEnchant = {{ 0, 0, 0 }};
+        uint32 randomProperty = 0;
+        uint32 spellCharges = 0;
+        uint32 suffixFactor = 0;
+        uint8 slot = 0;
+        uint32 itemId = 0;
+        uint32 stackCount = 0;
+    };
+
+    struct UpdateData
+    {
+        uint32 transaction = 0;
+        uint32 currency = 0;
+        uint32 spell = 0;
+        uint8 side = 0;
+        uint64 money = 0;
+        uint32 slotCountA = 0;
+        uint32 sequence = 0;
+        uint32 slotCountB = 0;
+        std::vector<ItemData> items;
+    };
+
+    inline bool BuildStatus(WorldPacket& out, TradeStatus status,
+        StatusData const& data = StatusData())
+    {
+        out.Initialize(SMSG_TRADE_STATUS, 16);
+        out.WriteBit(false);
+        out.WriteBits(uint32(status), 5);
+
+        switch (status)
+        {
+            case TRADE_STATUS_FAILED:
+                out.WriteBit(data.flag);
+                out << data.first << data.second;
+                break;
+            case TRADE_STATUS_INITIATED:
+                out << data.first;
+                break;
+            case TRADE_STATUS_CURRENCY_NOT_TRADABLE:
+            case TRADE_STATUS_NOT_ENOUGH_CURRENCY:
+                out << data.first << data.second;
+                break;
+            case TRADE_STATUS_WRONG_REALM:
+            case TRADE_STATUS_NOT_ON_TAPLIST:
+                out << data.slot;
+                break;
+            case TRADE_STATUS_PROPOSED:
+            {
+                ObjectGuid guid(data.guid);
+                out.WriteGuidMask<6, 2, 1, 4, 7, 3, 0, 5>(guid);
+                out.FlushBits();
+                out.WriteGuidBytes<6, 2, 1, 7, 5, 4, 0, 3>(guid);
+                break;
+            }
+            default:
+                out.FlushBits();
+                break;
+        }
+
+        return true;
+    }
+
+    inline bool BuildUpdate(WorldPacket& out, UpdateData const& update)
+    {
+        if (update.items.size() > 7)
+            return false;
+
+        bool usedSlots[7] = { false, false, false, false, false, false, false };
+        for (ItemData const& item : update.items)
+        {
+            if (item.slot > 6 || usedSlots[item.slot])
+                return false;
+            usedSlots[item.slot] = true;
+        }
+
+        out.Initialize(SMSG_TRADE_STATUS_EXTENDED, 128);
+        out << update.transaction << update.currency << update.spell
+            << update.side << update.money << update.slotCountA
+            << update.sequence << update.slotCountB;
+        out.WriteBits(uint32(update.items.size()), 20);
+
+        for (ItemData const& item : update.items)
+        {
+            ObjectGuid creator(item.creatorGuid);
+            ObjectGuid giftCreator(item.giftCreatorGuid);
+            out.WriteBit(item.notWrapped);
+            out.WriteGuidMask<2>(giftCreator);
+            if (item.notWrapped)
+            {
+                out.WriteGuidMask<3, 5, 1, 6, 0>(creator);
+                out.WriteBit(item.hasLock);
+                out.WriteGuidMask<4, 7, 2>(creator);
+            }
+            out.WriteGuidMask<0, 4, 7, 3, 6, 1, 5>(giftCreator);
+        }
+
+        for (ItemData const& item : update.items)
+        {
+            ObjectGuid creator(item.creatorGuid);
+            ObjectGuid giftCreator(item.giftCreatorGuid);
+            if (item.notWrapped)
+            {
+                out.WriteGuidBytes<3>(creator);
+                out << item.maxDurability << item.unknown0 << item.reforge;
+                out.WriteGuidBytes<1, 5, 7, 6, 0>(creator);
+                out << item.permanentEnchant << item.durability;
+                out.WriteGuidBytes<2>(creator);
+                for (uint32 enchant : item.gemEnchant)
+                    out << enchant;
+                out << item.randomProperty << item.spellCharges
+                    << item.suffixFactor;
+                out.WriteGuidBytes<4>(creator);
+            }
+
+            out.WriteGuidBytes<4>(giftCreator);
+            out << item.slot;
+            out.WriteGuidBytes<5, 1, 2, 3>(giftCreator);
+            out << item.itemId;
+            out.WriteGuidBytes<7, 0>(giftCreator);
+            out << item.stackCount;
+            out.WriteGuidBytes<6>(giftCreator);
+        }
+
+        out.FlushBits();
+        return true;
+    }
+}
+
 namespace MopInitialPackets
 {
     static size_t const ACTION_BUTTON_COUNT = 132;

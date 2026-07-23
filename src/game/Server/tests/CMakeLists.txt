@@ -564,6 +564,31 @@ target_compile_definitions(mop_channel_packets_test PRIVATE
 target_link_libraries(mop_channel_packets_test PRIVATE shared)
 add_test(NAME mop_channel_packets COMMAND mop_channel_packets_test)
 
+add_executable(mop_trade_packets_test mop_trade_packets_test.cpp)
+target_include_directories(mop_trade_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared
+    $<TARGET_PROPERTY:game,INTERFACE_INCLUDE_DIRECTORIES>)
+set_target_properties(mop_trade_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_compile_definitions(mop_trade_packets_test PRIVATE
+    $<TARGET_PROPERTY:game,INTERFACE_COMPILE_DEFINITIONS>)
+target_link_libraries(mop_trade_packets_test PRIVATE shared)
+add_test(NAME mop_trade_packets COMMAND mop_trade_packets_test)
+
+add_test(NAME mop_trade_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_trade_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS status_values status_registration extended_registration
+        status_gate extended_gate status_builder proposal_builder extended_builder
+        count_width rollback_status over_money)
+    add_test(NAME mop_trade_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_trade_packets_source_test.cmake)
+    set_tests_properties(mop_trade_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_test(NAME mop_channel_packets_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_channel_packets_source_test.cmake)

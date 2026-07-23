@@ -66,6 +66,11 @@ class GMTicket;
 class MovementInfo;
 class WorldSession;
 
+namespace MopTradePackets
+{
+    struct StatusData;
+}
+
 namespace MopHotfixPackets
 {
     struct HotfixRecord
@@ -1266,6 +1271,7 @@ class WorldSession
         void SendBattlegGroundList(ObjectGuid guid, BattleGroundTypeId bgTypeId);
 
         void SendTradeStatus(TradeStatus status);
+        void SendTradeStatus(TradeStatus status, MopTradePackets::StatusData const& statusData);
         void SendUpdateTrade(bool trader_state = true);
         void SendCancelTrade();
 

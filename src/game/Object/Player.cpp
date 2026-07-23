@@ -249,12 +249,6 @@ void TradeData::SetMoney(uint64 money)
         return;
     }
 
-    if (money > m_player->GetMoney())
-    {
-        m_player->GetSession()->SendTradeStatus(TRADE_STATUS_CLOSE_WINDOW);
-        return;
-    }
-
     m_money = money;
 
     SetAccepted(false);
@@ -294,11 +288,11 @@ void TradeData::SetAccepted(bool state, bool crosssend /*= false*/)
     {
         if (crosssend)
         {
-            m_trader->GetSession()->SendTradeStatus(TRADE_STATUS_BACK_TO_TRADE);
+            m_trader->GetSession()->SendTradeStatus(TRADE_STATUS_UNACCEPTED);
         }
         else
         {
-            m_player->GetSession()->SendTradeStatus(TRADE_STATUS_BACK_TO_TRADE);
+            m_player->GetSession()->SendTradeStatus(TRADE_STATUS_UNACCEPTED);
         }
     }
 }
