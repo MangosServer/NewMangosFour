@@ -488,6 +488,7 @@ void InitializeOpcodes()
 
     // Wave 18 rated-battleground self statistics. The inspect exchange is a
     // separate protocol and is deliberately not registered here.
+    DefC(CMSG_BATTLEFIELD_STATUS, "CMSG_BATTLEFIELD_STATUS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleBattlefieldStatusOpcode);
     DefC(CMSG_REQUEST_RATED_BG_STATS, "CMSG_REQUEST_RATED_BG_STATS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRequestRatedBGStatsOpcode);
     DefS(SMSG_BATTLEFIELD_RATED_INFO, "SMSG_BATTLEFIELD_RATED_INFO");
 

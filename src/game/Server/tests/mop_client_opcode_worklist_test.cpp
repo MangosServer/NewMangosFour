@@ -168,6 +168,8 @@ static void test_opcode_values()
     CHECK(uint32(SMSG_STANDSTATE_UPDATE) == 0x1C12u);
     CHECK(uint32(CMSG_QUESTGIVER_STATUS_QUERY) == 0x036Au);
     CHECK(uint32(SMSG_QUESTGIVER_STATUS) == 0x1275u);
+    CHECK(uint32(CMSG_BATTLEFIELD_STATUS) == 0x1F9Eu);
+    CHECK(uint32(CMSG_BATTLEFIELD_STATUS) <= 0x1FFFu);
 }
 
 static void test_player_state_requests()
