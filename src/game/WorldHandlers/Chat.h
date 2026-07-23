@@ -248,6 +248,77 @@ namespace MopChatPackets
             out << message.realmId1;
         return true;
     }
+
+    struct TextEmoteRequest
+    {
+        uint32 textEmote = 0;
+        uint32 emoteNumber = 0;
+        ObjectGuid targetGuid;
+    };
+
+    inline TextEmoteRequest ReadTextEmoteRequest(WorldPacket& in)
+    {
+        TextEmoteRequest request;
+        in >> request.textEmote;
+        in >> request.emoteNumber;
+        in.ReadGuidMask<6, 7, 3, 2, 0, 5, 1, 4>(request.targetGuid);
+        in.ReadGuidBytes<0, 5, 1, 4, 2, 3, 7, 6>(request.targetGuid);
+        return request;
+    }
+
+    inline void BuildTextEmote(WorldPacket& out, uint64 sourceGuid,
+        uint64 targetGuid, uint32 textEmote, uint32 emoteNumber)
+    {
+        uint8 const sourceMask1[] = { 1 };
+        uint8 const targetMask1[] = { 7 };
+        uint8 const sourceMask2[] = { 6 };
+        uint8 const targetMask2[] = { 5 };
+        uint8 const sourceMask3[] = { 3 };
+        uint8 const targetMask3[] = { 6, 2 };
+        uint8 const sourceMask4[] = { 7 };
+        uint8 const targetMask4[] = { 0, 1 };
+        uint8 const sourceMask5[] = { 4, 2 };
+        uint8 const targetMask5[] = { 3, 4 };
+        uint8 const sourceMask6[] = { 0, 5 };
+
+        uint8 const targetBytes1[] = { 2, 1 };
+        uint8 const sourceBytes1[] = { 7, 4 };
+        uint8 const targetBytes2[] = { 7 };
+        uint8 const sourceBytes2[] = { 5, 2 };
+        uint8 const sourceBytes3[] = { 6 };
+        uint8 const targetBytes3[] = { 0 };
+        uint8 const sourceBytes4[] = { 3, 1 };
+        uint8 const targetBytes4[] = { 6 };
+        uint8 const sourceBytes5[] = { 0 };
+        uint8 const targetBytes5[] = { 3, 5, 4 };
+
+        out.Initialize(SMSG_TEXT_EMOTE, 26);
+        WriteGuidMask(out, sourceGuid, sourceMask1);
+        WriteGuidMask(out, targetGuid, targetMask1);
+        WriteGuidMask(out, sourceGuid, sourceMask2);
+        WriteGuidMask(out, targetGuid, targetMask2);
+        WriteGuidMask(out, sourceGuid, sourceMask3);
+        WriteGuidMask(out, targetGuid, targetMask3);
+        WriteGuidMask(out, sourceGuid, sourceMask4);
+        WriteGuidMask(out, targetGuid, targetMask4);
+        WriteGuidMask(out, sourceGuid, sourceMask5);
+        WriteGuidMask(out, targetGuid, targetMask5);
+        WriteGuidMask(out, sourceGuid, sourceMask6);
+        out.FlushBits();
+
+        WriteGuidBytes(out, targetGuid, targetBytes1);
+        WriteGuidBytes(out, sourceGuid, sourceBytes1);
+        WriteGuidBytes(out, targetGuid, targetBytes2);
+        WriteGuidBytes(out, sourceGuid, sourceBytes2);
+        out << textEmote;
+        WriteGuidBytes(out, sourceGuid, sourceBytes3);
+        WriteGuidBytes(out, targetGuid, targetBytes3);
+        WriteGuidBytes(out, sourceGuid, sourceBytes4);
+        WriteGuidBytes(out, targetGuid, targetBytes4);
+        WriteGuidBytes(out, sourceGuid, sourceBytes5);
+        WriteGuidBytes(out, targetGuid, targetBytes5);
+        out << emoteNumber;
+    }
 }
 
 class ChatHandler

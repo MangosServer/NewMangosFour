@@ -226,6 +226,10 @@ void InitializeOpcodes()
     DefS(SMSG_SPELLDISPELLOG, "SMSG_SPELLDISPELLOG");
     DefS(SMSG_AURA_UPDATE, "SMSG_AURA_UPDATE");
     DefS(SMSG_MESSAGECHAT, "SMSG_MESSAGECHAT");
+    DefC(CMSG_TEXT_EMOTE, "CMSG_TEXT_EMOTE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTextEmoteOpcode);
+    DefC(CMSG_EMOTE, "CMSG_EMOTE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleEmoteOpcode);
+    DefS(SMSG_TEXT_EMOTE, "SMSG_TEXT_EMOTE");
+    DefS(SMSG_EMOTE, "SMSG_EMOTE");
     DefS(SMSG_NOTIFICATION, "SMSG_NOTIFICATION");
 
     // 18414 tutorial state requests: one uint32 flag index, then empty clear/reset controls.

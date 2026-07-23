@@ -527,7 +527,7 @@ add_test(NAME mop_chat_packets_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_chat_packets_source_test.cmake)
 
-foreach(mutation IN ITEMS builder registration allowlist cross_faction_denial text_bound receiver_identity addon_identity
+foreach(mutation IN ITEMS builder registration allowlist emote_builder emote_reader emote_registration emote_allowlist emote_body cross_faction_denial text_bound receiver_identity addon_identity
         legacy_wrong_faction legacy_gm_chat legacy_member_count)
     add_test(NAME mop_chat_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}

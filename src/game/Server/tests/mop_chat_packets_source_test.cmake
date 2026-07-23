@@ -5,6 +5,7 @@ file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/ChannelHandler.cpp" channel_han
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/Channel.cpp" channel_sender)
 file(READ "${SOURCE_ROOT}/src/game/Object/PlayerChat.cpp" player_chat)
 file(READ "${SOURCE_ROOT}/src/game/Object/Guild.cpp" guild_chat)
+file(READ "${SOURCE_ROOT}/src/game/Object/Unit.cpp" unit_emote)
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.h" session_header)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.h" opcode_header)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
@@ -25,6 +26,31 @@ elseif(MUTATION STREQUAL "allowlist")
         "case SMSG_MESSAGECHAT:"
         "case 0xFFFF: /* removed chat allowlist */"
         world_session "${world_session}")
+elseif(MUTATION STREQUAL "emote_builder")
+    string(REPLACE
+        "MopChatPackets::BuildTextEmote(data,"
+        "false /* removed text-emote builder */ (data,"
+        chat_handler "${chat_handler}")
+elseif(MUTATION STREQUAL "emote_reader")
+    string(REPLACE
+        "MopChatPackets::ReadTextEmoteRequest(recv_data)"
+        "MopChatPackets::TextEmoteRequest{} /* removed text-emote reader */"
+        chat_handler "${chat_handler}")
+elseif(MUTATION STREQUAL "emote_registration")
+    string(REPLACE
+        "DefC(CMSG_TEXT_EMOTE, \"CMSG_TEXT_EMOTE\""
+        "DefC(0xFFFF, \"removed CMSG_TEXT_EMOTE\""
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "emote_allowlist")
+    string(REPLACE
+        "case SMSG_TEXT_EMOTE:"
+        "case 0xFFFF: /* removed text-emote allowlist */"
+        world_session "${world_session}")
+elseif(MUTATION STREQUAL "emote_body")
+    string(REPLACE
+        "data << uint32(emote_id);"
+        "data << uint16(emote_id); /* damaged emote body */"
+        unit_emote "${unit_emote}")
 elseif(MUTATION STREQUAL "cross_faction_denial")
     string(REPLACE
         "if (GetPlayer()->GetTeam() != player->GetTeam())"
@@ -87,6 +113,40 @@ require_once("${opcode_registry}"
 require_once("${world_session}"
     "case SMSG_MESSAGECHAT:"
     "generic chat suppression allowlist")
+require_once("${chat_handler}"
+    "MopChatPackets::BuildTextEmote(data,"
+    "text-emote response builder call")
+require_once("${chat_handler}"
+    "MopChatPackets::ReadTextEmoteRequest(recv_data)"
+    "text-emote request reader call")
+require_once("${opcode_registry}"
+    "DefC(CMSG_TEXT_EMOTE, \"CMSG_TEXT_EMOTE\""
+    "text-emote request registration")
+require_once("${opcode_registry}"
+    "DefC(CMSG_EMOTE, \"CMSG_EMOTE\""
+    "emote request registration")
+require_once("${opcode_registry}"
+    "DefS(SMSG_TEXT_EMOTE, \"SMSG_TEXT_EMOTE\");"
+    "text-emote response registration")
+require_once("${opcode_registry}"
+    "DefS(SMSG_EMOTE, \"SMSG_EMOTE\");"
+    "emote response registration")
+require_once("${world_session}"
+    "case SMSG_TEXT_EMOTE:"
+    "text-emote response allowlist")
+require_once("${world_session}"
+    "case SMSG_EMOTE:"
+    "emote response allowlist")
+require_once("${unit_emote}"
+    "data << uint32(emote_id);"
+    "emote response uint32 field")
+
+string(FIND "${unit_emote}" "data << uint32(emote_id);" emote_id_position)
+string(FIND "${unit_emote}" "data << GetObjectGuid();" emote_guid_position)
+if(emote_id_position EQUAL -1 OR emote_guid_position EQUAL -1 OR
+        NOT emote_id_position LESS emote_guid_position)
+    message(FATAL_ERROR "emote response must write uint32 before plain GUID")
+endif()
 require_once("${chat_handler}"
     "if (GetPlayer()->GetTeam() != player->GetTeam())"
     "cross-faction whisper denial")

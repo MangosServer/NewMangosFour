@@ -185,6 +185,40 @@ static void test_opcode()
     CHECK(uint32(SMSG_MESSAGECHAT) < uint32(OPCODE_TABLE_SIZE));
 }
 
+static void test_text_emote_response()
+{
+    WorldPacket packet;
+    MopChatPackets::BuildTextEmote(packet,
+        UI64LIT(0x0002030005060008), UI64LIT(0x1100334400667700),
+        0x11223344u, 0x55667788u);
+
+    CHECK(packet.GetOpcode() == SMSG_TEXT_EMOTE);
+    CHECK(Equal(packet, {
+        0x7A, 0x57,
+        0x67, 0x76, 0x10, 0x02, 0x07,
+        0x44, 0x33, 0x22, 0x11,
+        0x03, 0x04, 0x09, 0x32, 0x45,
+        0x88, 0x77, 0x66, 0x55
+    }));
+}
+
+static void test_text_emote_request()
+{
+    uint8 const body[] = {
+        0x44, 0x33, 0x22, 0x11,
+        0x88, 0x77, 0x66, 0x55,
+        0x57, 0x32, 0x76, 0x45, 0x67, 0x10
+    };
+    WorldPacket packet(CMSG_TEXT_EMOTE, sizeof(body));
+    packet.append(body, sizeof(body));
+
+    MopChatPackets::TextEmoteRequest request =
+        MopChatPackets::ReadTextEmoteRequest(packet);
+    CHECK(request.textEmote == 0x11223344u);
+    CHECK(request.emoteNumber == 0x55667788u);
+    CHECK(request.targetGuid.GetRawValue() == UI64LIT(0x1100334400667700));
+}
+
 int main(int /*argc*/, char** /*argv*/)
 {
     test_gm_system_message();
@@ -194,6 +228,8 @@ int main(int /*argc*/, char** /*argv*/)
     test_guild_message();
     test_length_boundaries();
     test_opcode();
+    test_text_emote_response();
+    test_text_emote_request();
 
     if (g_fail)
     {

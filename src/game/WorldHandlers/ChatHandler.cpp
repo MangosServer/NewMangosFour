@@ -1020,22 +1020,12 @@ namespace MaNGOS
 
             void operator()(WorldPacket& data, int32 loc_idx)
             {
-                char const* nam = i_target ? i_target->GetNameForLocaleIdx(loc_idx) : NULL;
-                uint32 namlen = (nam ? strlen(nam) : 0) + 1;
-
-                data.Initialize(SMSG_TEXT_EMOTE, (20 + namlen));
-                data << ObjectGuid(i_player.GetObjectGuid());
-                data << uint32(i_text_emote);
-                data << uint32(i_emote_num);
-                data << uint32(namlen);
-                if (namlen > 1)
-                {
-                    data.append(nam, namlen);
-                }
-                else
-                {
-                    data << uint8(0x00);
-                }
+                (void)loc_idx;
+                uint64 const targetGuid = i_target ?
+                    i_target->GetObjectGuid().GetRawValue() : 0;
+                MopChatPackets::BuildTextEmote(data,
+                    i_player.GetObjectGuid().GetRawValue(), targetGuid,
+                    i_text_emote, i_emote_num);
 
                 DEBUG_LOG("SMSG_TEXT_EMOTE i_text_emote %u i_emote_num %u",
                     i_text_emote, i_emote_num);
@@ -1068,12 +1058,11 @@ void WorldSession::HandleTextEmoteOpcode(WorldPacket& recv_data)
         return;
     }
 
-    uint32 text_emote, emoteNum;
-    ObjectGuid guid;
-
-    recv_data >> text_emote;
-    recv_data >> emoteNum;
-    recv_data >> guid;
+    MopChatPackets::TextEmoteRequest const request =
+        MopChatPackets::ReadTextEmoteRequest(recv_data);
+    uint32 const text_emote = request.textEmote;
+    uint32 const emoteNum = request.emoteNumber;
+    ObjectGuid const guid = request.targetGuid;
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
