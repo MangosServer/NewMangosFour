@@ -553,6 +553,31 @@ foreach(mutation IN ITEMS builder registration allowlist emote_builder emote_rea
     set_tests_properties(mop_chat_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_executable(mop_channel_packets_test mop_channel_packets_test.cpp)
+target_include_directories(mop_channel_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared
+    $<TARGET_PROPERTY:game,INTERFACE_INCLUDE_DIRECTORIES>)
+set_target_properties(mop_channel_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_compile_definitions(mop_channel_packets_test PRIVATE
+    $<TARGET_PROPERTY:game,INTERFACE_COMPILE_DEFINITIONS>)
+target_link_libraries(mop_channel_packets_test PRIVATE shared)
+add_test(NAME mop_channel_packets COMMAND mop_channel_packets_test)
+
+add_test(NAME mop_channel_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_channel_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS list_realm notify_guid_identity wrong_faction_tail
+        you_joined_tail you_left_tail list_registration notify_registration
+        list_gate notify_gate)
+    add_test(NAME mop_channel_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_channel_packets_source_test.cmake)
+    set_tests_properties(mop_channel_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_test(NAME mop_pet_unlearn_legacy_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_pet_unlearn_legacy_source_test.cmake)

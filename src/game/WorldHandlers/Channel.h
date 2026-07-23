@@ -31,10 +31,67 @@
 #include "WorldPacket.h"
 #include "Player.h"
 
+#include <limits>
 #include <map>
+#include <vector>
 
 namespace MopChannelPackets
 {
+    static size_t const CHANNEL_NAME_MAX = 127;
+    static size_t const PLAYER_NAME_MAX = 512;
+
+    struct Member
+    {
+        uint64 guid;
+        uint32 realmId;
+        uint8 flags;
+    };
+
+    inline bool BuildList(WorldPacket& out, std::string const& channelName,
+        uint8 channelFlags, std::vector<Member> const& members)
+    {
+        if (channelName.size() > CHANNEL_NAME_MAX ||
+                members.size() > size_t(std::numeric_limits<int32>::max()))
+            return false;
+
+        out.Initialize(SMSG_CHANNEL_LIST,
+            1 + channelName.size() + 1 + 1 + 4 + members.size() * (8 + 4 + 1));
+        out << uint8(1);
+        out << channelName;
+        out << channelFlags;
+        out << int32(members.size());
+        for (Member const& member : members)
+            out << member.guid << member.realmId << member.flags;
+        return true;
+    }
+
+    inline bool BeginNotify(WorldPacket& out, uint8 subtype,
+        std::string const& channelName)
+    {
+        if (channelName.size() > CHANNEL_NAME_MAX)
+            return false;
+
+        out.Initialize(SMSG_CHANNEL_NOTIFY, 1 + channelName.size() + 1);
+        out << subtype << channelName;
+        return true;
+    }
+
+    inline void WriteGuidIdentity(WorldPacket& out, uint64 guid,
+        uint32 realmId)
+    {
+        out << guid << realmId;
+    }
+
+    inline bool WriteNameIdentity(WorldPacket& out, std::string const& name,
+        uint32 realmId)
+    {
+        if (name.size() > PLAYER_NAME_MAX)
+            return false;
+
+        out << name << realmId;
+        return true;
+    }
+
     struct JoinChannelRequest
     {
         uint32 channelId = 0;
@@ -264,7 +321,7 @@ private:
     void MakePlayerNotBanned(WorldPacket* data, const std::string& name);   //? 0x16
     void MakePlayerAlreadyMember(WorldPacket* data, ObjectGuid guid);       //+ 0x17
     void MakeInvite(WorldPacket* data, ObjectGuid guid);                    //? 0x18
-    void MakeInviteWrongFaction(WorldPacket* data);                         //? 0x19
+    void MakeInviteWrongFaction(WorldPacket* data, const std::string& name);//? 0x19
     void MakeWrongFaction(WorldPacket* data);                               //? 0x1A
     void MakeInvalidName(WorldPacket* data);                                //? 0x1B
     void MakeNotModerated(WorldPacket* data);                               //? 0x1C

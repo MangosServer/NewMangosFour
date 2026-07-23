@@ -584,18 +584,10 @@ void Channel::List(Player* player)
         return;
     }
 
-    // list players in channel
-    WorldPacket data(SMSG_CHANNEL_LIST, 1 + (GetName().size() + 1) + 1 + 4 + m_players.size() * (8 + 1));
-    data << uint8(1);                                       // channel type?
-    data << GetName();                                      // channel name
-    data << uint8(GetFlags());                              // channel flags?
-
-    size_t pos = data.wpos();
-    data << uint32(0);                                      // size of list, placeholder
-
+    std::vector<MopChannelPackets::Member> members;
+    members.reserve(m_players.size());
     AccountTypes gmLevelInWhoList = (AccountTypes)sWorld.getConfig(CONFIG_UINT32_GM_LEVEL_IN_WHO_LIST);
 
-    uint32 count = 0;
     for (PlayerList::const_iterator i = m_players.begin(); i != m_players.end(); ++i)
     {
         Player* plr = sObjectMgr.GetPlayer(i->first);
@@ -605,14 +597,13 @@ void Channel::List(Player* player)
         if (plr && (player->GetSession()->GetSecurity() > SEC_PLAYER || plr->GetSession()->GetSecurity() <= gmLevelInWhoList) &&
                 plr->IsVisibleGloballyFor(player))
         {
-            data << ObjectGuid(i->first);
-            data << uint8(i->second.flags);                 // flags seems to be changed...
-            ++count;
+            members.push_back({i->first.GetRawValue(), realmID, i->second.flags});
         }
     }
 
-    data.put<uint32>(pos, count);
-
+    WorldPacket data;
+    if (!MopChannelPackets::BuildList(data, GetName(), GetFlags(), members))
+        return;
     SendToOne(&data, guid);
 }
 
@@ -795,7 +786,7 @@ void Channel::Invite(Player* player, const char* targetName)
     if (target->GetTeam() != player->GetTeam() && !sWorld.getConfig(CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_CHANNEL))
     {
         WorldPacket data;
-        MakeInviteWrongFaction(&data);
+        MakeInviteWrongFaction(&data, targetName);
         SendToOne(&data, guid);
         return;
     }
@@ -875,9 +866,7 @@ void Channel::DeVoice(ObjectGuid /*guid1*/, ObjectGuid /*guid2*/)
  */
 void Channel::MakeNotifyPacket(WorldPacket* data, uint8 notify_type)
 {
-    data->Initialize(SMSG_CHANNEL_NOTIFY, 1 + m_name.size() + 1);
-    *data << uint8(notify_type);
-    *data << m_name;
+    MANGOS_ASSERT(MopChannelPackets::BeginNotify(*data, notify_type, m_name));
 }
 
 /**
@@ -889,7 +878,7 @@ void Channel::MakeNotifyPacket(WorldPacket* data, uint8 notify_type)
 void Channel::MakeJoined(WorldPacket* data, ObjectGuid guid)
 {
     MakeNotifyPacket(data, CHAT_JOINED_NOTICE);
-    *data << ObjectGuid(guid);
+    MopChannelPackets::WriteGuidIdentity(*data, guid.GetRawValue(), realmID);
 }
 
 /**
@@ -901,7 +890,7 @@ void Channel::MakeJoined(WorldPacket* data, ObjectGuid guid)
 void Channel::MakeLeft(WorldPacket* data, ObjectGuid guid)
 {
     MakeNotifyPacket(data, CHAT_LEFT_NOTICE);
-    *data << ObjectGuid(guid);
+    MopChannelPackets::WriteGuidIdentity(*data, guid.GetRawValue(), realmID);
 }
 
 /**
@@ -968,7 +957,7 @@ void Channel::MakeNotModerator(WorldPacket* data)
 void Channel::MakePasswordChanged(WorldPacket* data, ObjectGuid guid)
 {
     MakeNotifyPacket(data, CHAT_PASSWORD_CHANGED_NOTICE);
-    *data << ObjectGuid(guid);
+    MopChannelPackets::WriteGuidIdentity(*data, guid.GetRawValue(), realmID);
 }
 
 /**
@@ -980,7 +969,7 @@ void Channel::MakePasswordChanged(WorldPacket* data, ObjectGuid guid)
 void Channel::MakeOwnerChanged(WorldPacket* data, ObjectGuid guid)
 {
     MakeNotifyPacket(data, CHAT_OWNER_CHANGED_NOTICE);
-    *data << ObjectGuid(guid);
+    MopChannelPackets::WriteGuidIdentity(*data, guid.GetRawValue(), realmID);
 }
 
 /**
@@ -992,7 +981,7 @@ void Channel::MakeOwnerChanged(WorldPacket* data, ObjectGuid guid)
 void Channel::MakePlayerNotFound(WorldPacket* data, const std::string& name)
 {
     MakeNotifyPacket(data, CHAT_PLAYER_NOT_FOUND_NOTICE);
-    *data << name;
+    MANGOS_ASSERT(MopChannelPackets::WriteNameIdentity(*data, name, realmID));
 }
 
 /**
@@ -1020,7 +1009,8 @@ void Channel::MakeChannelOwner(WorldPacket* data)
     }
 
     MakeNotifyPacket(data, CHAT_CHANNEL_OWNER_NOTICE);
-    *data << ((IsConstant() || !m_ownerGuid) ? "Nobody" : name);
+    MANGOS_ASSERT(MopChannelPackets::WriteNameIdentity(*data,
+        (IsConstant() || !m_ownerGuid) ? "Nobody" : name, realmID));
 }
 
 /**
@@ -1033,7 +1023,7 @@ void Channel::MakeChannelOwner(WorldPacket* data)
 void Channel::MakeModeChange(WorldPacket* data, ObjectGuid guid, uint8 oldflags)
 {
     MakeNotifyPacket(data, CHAT_MODE_CHANGE_NOTICE);
-    *data << ObjectGuid(guid);
+    MopChannelPackets::WriteGuidIdentity(*data, guid.GetRawValue(), realmID);
     *data << uint8(oldflags);
     *data << uint8(GetPlayerFlags(guid));
 }
@@ -1047,7 +1037,7 @@ void Channel::MakeModeChange(WorldPacket* data, ObjectGuid guid, uint8 oldflags)
 void Channel::MakeAnnouncementsOn(WorldPacket* data, ObjectGuid guid)
 {
     MakeNotifyPacket(data, CHAT_ANNOUNCEMENTS_ON_NOTICE);
-    *data << ObjectGuid(guid);
+    MopChannelPackets::WriteGuidIdentity(*data, guid.GetRawValue(), realmID);
 }
 
 /**
@@ -1059,7 +1049,7 @@ void Channel::MakeAnnouncementsOn(WorldPacket* data, ObjectGuid guid)
 void Channel::MakeAnnouncementsOff(WorldPacket* data, ObjectGuid guid)
 {
     MakeNotifyPacket(data, CHAT_ANNOUNCEMENTS_OFF_NOTICE);
-    *data << ObjectGuid(guid);
+    MopChannelPackets::WriteGuidIdentity(*data, guid.GetRawValue(), realmID);
 }
 
 /**
@@ -1071,7 +1061,7 @@ void Channel::MakeAnnouncementsOff(WorldPacket* data, ObjectGuid guid)
 void Channel::MakeModerationOn(WorldPacket* data, ObjectGuid guid)
 {
     MakeNotifyPacket(data, CHAT_MODERATION_ON_NOTICE);
-    *data << ObjectGuid(guid);
+    MopChannelPackets::WriteGuidIdentity(*data, guid.GetRawValue(), realmID);
 }
 
 /**
@@ -1083,7 +1073,7 @@ void Channel::MakeModerationOn(WorldPacket* data, ObjectGuid guid)
 void Channel::MakeModerationOff(WorldPacket* data, ObjectGuid guid)
 {
     MakeNotifyPacket(data, CHAT_MODERATION_OFF_NOTICE);
-    *data << ObjectGuid(guid);
+    MopChannelPackets::WriteGuidIdentity(*data, guid.GetRawValue(), realmID);
 }
 
 /**
@@ -1106,8 +1096,8 @@ void Channel::MakeMuted(WorldPacket* data)
 void Channel::MakePlayerKicked(WorldPacket* data, ObjectGuid target, ObjectGuid source)
 {
     MakeNotifyPacket(data, CHAT_PLAYER_KICKED_NOTICE);
-    *data << ObjectGuid(target);
-    *data << ObjectGuid(source);
+    MopChannelPackets::WriteGuidIdentity(*data, target.GetRawValue(), realmID);
+    MopChannelPackets::WriteGuidIdentity(*data, source.GetRawValue(), realmID);
 }
 
 /**
@@ -1130,8 +1120,8 @@ void Channel::MakeBanned(WorldPacket* data)
 void Channel::MakePlayerBanned(WorldPacket* data, ObjectGuid target, ObjectGuid source)
 {
     MakeNotifyPacket(data, CHAT_PLAYER_BANNED_NOTICE);
-    *data << ObjectGuid(target);
-    *data << ObjectGuid(source);
+    MopChannelPackets::WriteGuidIdentity(*data, target.GetRawValue(), realmID);
+    MopChannelPackets::WriteGuidIdentity(*data, source.GetRawValue(), realmID);
 }
 
 /**
@@ -1144,8 +1134,8 @@ void Channel::MakePlayerBanned(WorldPacket* data, ObjectGuid target, ObjectGuid 
 void Channel::MakePlayerUnbanned(WorldPacket* data, ObjectGuid target, ObjectGuid source)
 {
     MakeNotifyPacket(data, CHAT_PLAYER_UNBANNED_NOTICE);
-    *data << ObjectGuid(target);
-    *data << ObjectGuid(source);
+    MopChannelPackets::WriteGuidIdentity(*data, target.GetRawValue(), realmID);
+    MopChannelPackets::WriteGuidIdentity(*data, source.GetRawValue(), realmID);
 }
 
 /**
@@ -1157,7 +1147,7 @@ void Channel::MakePlayerUnbanned(WorldPacket* data, ObjectGuid target, ObjectGui
 void Channel::MakePlayerNotBanned(WorldPacket* data, const std::string& name)
 {
     MakeNotifyPacket(data, CHAT_PLAYER_NOT_BANNED_NOTICE);
-    *data << name;
+    MANGOS_ASSERT(MopChannelPackets::WriteNameIdentity(*data, name, realmID));
 }
 
 /**
@@ -1169,7 +1159,7 @@ void Channel::MakePlayerNotBanned(WorldPacket* data, const std::string& name)
 void Channel::MakePlayerAlreadyMember(WorldPacket* data, ObjectGuid guid)
 {
     MakeNotifyPacket(data, CHAT_PLAYER_ALREADY_MEMBER_NOTICE);
-    *data << ObjectGuid(guid);
+    MopChannelPackets::WriteGuidIdentity(*data, guid.GetRawValue(), realmID);
 }
 
 /**
@@ -1181,7 +1171,7 @@ void Channel::MakePlayerAlreadyMember(WorldPacket* data, ObjectGuid guid)
 void Channel::MakeInvite(WorldPacket* data, ObjectGuid guid)
 {
     MakeNotifyPacket(data, CHAT_INVITE_NOTICE);
-    *data << ObjectGuid(guid);
+    MopChannelPackets::WriteGuidIdentity(*data, guid.GetRawValue(), realmID);
 }
 
 /**
@@ -1189,9 +1179,10 @@ void Channel::MakeInvite(WorldPacket* data, ObjectGuid guid)
  *
  * @param data The packet to fill.
  */
-void Channel::MakeInviteWrongFaction(WorldPacket* data)
+void Channel::MakeInviteWrongFaction(WorldPacket* data, const std::string& name)
 {
     MakeNotifyPacket(data, CHAT_INVITE_WRONG_FACTION_NOTICE);
+    MANGOS_ASSERT(MopChannelPackets::WriteNameIdentity(*data, name, realmID));
 }
 
 /**
@@ -1233,7 +1224,7 @@ void Channel::MakeNotModerated(WorldPacket* data)
 void Channel::MakePlayerInvited(WorldPacket* data, const std::string& name)
 {
     MakeNotifyPacket(data, CHAT_PLAYER_INVITED_NOTICE);
-    *data << name;
+    MANGOS_ASSERT(MopChannelPackets::WriteNameIdentity(*data, name, realmID));
 }
 
 /**
@@ -1245,7 +1236,7 @@ void Channel::MakePlayerInvited(WorldPacket* data, const std::string& name)
 void Channel::MakePlayerInviteBanned(WorldPacket* data, const std::string& name)
 {
     MakeNotifyPacket(data, CHAT_PLAYER_INVITE_BANNED_NOTICE);
-    *data << name;
+    MANGOS_ASSERT(MopChannelPackets::WriteNameIdentity(*data, name, realmID));
 }
 
 /**
@@ -1271,13 +1262,13 @@ void Channel::MakeNotInLfg(WorldPacket* data)
 void Channel::MakeVoiceOn(WorldPacket* data, ObjectGuid guid)
 {
     MakeNotifyPacket(data, CHAT_VOICE_ON_NOTICE);
-    *data << ObjectGuid(guid);
+    MopChannelPackets::WriteGuidIdentity(*data, guid.GetRawValue(), realmID);
 }
 
 void Channel::MakeVoiceOff(WorldPacket* data, ObjectGuid guid)
 {
     MakeNotifyPacket(data, CHAT_VOICE_OFF_NOTICE);
-    *data << ObjectGuid(guid);
+    MopChannelPackets::WriteGuidIdentity(*data, guid.GetRawValue(), realmID);
 }
 
 /**

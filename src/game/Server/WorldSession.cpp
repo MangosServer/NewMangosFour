@@ -322,6 +322,8 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_SPELL_START:                     // MopSpellPackets::BuildSpellStart
         case SMSG_SPELL_GO:                        // MopSpellPackets::BuildSpellGo
         case SMSG_MESSAGECHAT:                     // MopChatPackets::BuildMessage
+        case SMSG_CHANNEL_NOTIFY:                  // MopChannelPackets direct 18414 subtype serializers
+        case SMSG_CHANNEL_LIST:                    // MopChannelPackets::BuildList
         case SMSG_TEXT_EMOTE:                      // MopChatPackets::BuildTextEmote
         case SMSG_EMOTE:                           // Unit::HandleEmoteCommand; uint32 plus uint64
         case SMSG_NOTIFICATION:                    // 12-bit byte length followed by raw notification text
