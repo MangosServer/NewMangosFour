@@ -401,6 +401,8 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_CALENDAR_EVENT_INITIAL_INVITE: // MopCalendarPackets::BuildCalendarInitialInvite
         case SMSG_CALENDAR_EVENT_INVITE_STATUS:  // MopCalendarPackets::BuildCalendarInviteStatus
         case SMSG_CALENDAR_EVENT_MODERATOR_STATUS: // MopCalendarPackets::BuildCalendarModeratorStatus
+        case SMSG_CALENDAR_SEND_CALENDAR:       // MopCalendarPackets::BuildCalendarList
+        case SMSG_CALENDAR_SEND_EVENT:          // MopCalendarPackets::BuildCalendarEvent
         case SMSG_MINIMAP_PING:               // MopGroupMarkerPackets::BuildMinimapPing
         case SMSG_RAID_TARGET_UPDATE_ALL:     // MopGroupMarkerPackets::BuildRaidTargetAll
         case SMSG_RAID_TARGET_UPDATE_SINGLE:  // MopGroupMarkerPackets::BuildRaidTargetSingle

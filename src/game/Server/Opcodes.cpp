@@ -518,6 +518,13 @@ void InitializeOpcodes()
     DefS(SMSG_CALENDAR_EVENT_INVITE_STATUS, "SMSG_CALENDAR_EVENT_INVITE_STATUS");
     DefS(SMSG_CALENDAR_EVENT_MODERATOR_STATUS, "SMSG_CALENDAR_EVENT_MODERATOR_STATUS");
 
+    // Shipped OpenCalendar/CalendarOpenEvent APIs reach these empty/uint64
+    // requests; the paired response values and readers are proved in 18414.
+    DefC(CMSG_CALENDAR_GET_CALENDAR, "CMSG_CALENDAR_GET_CALENDAR", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleCalendarGetCalendar);
+    DefC(CMSG_CALENDAR_GET_EVENT, "CMSG_CALENDAR_GET_EVENT", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleCalendarGetEvent);
+    DefS(SMSG_CALENDAR_SEND_CALENDAR, "SMSG_CALENDAR_SEND_CALENDAR");
+    DefS(SMSG_CALENDAR_SEND_EVENT, "SMSG_CALENDAR_SEND_EVENT");
+
     // Live-log calendar pending-count pair. The 18414 client sends an empty
     // request and consumes exactly one uint32 from the response.
     DefC(CMSG_CALENDAR_GET_NUM_PENDING, "CMSG_CALENDAR_GET_NUM_PENDING", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleCalendarGetNumPending);

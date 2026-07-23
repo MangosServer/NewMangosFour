@@ -45,14 +45,14 @@ namespace MopCalendarPackets
         return uint8(guid >> (index * 8));
     }
 
-    inline void WriteGuidMask(WorldPacket& out, uint64 guid,
+    inline void WriteGuidMask(ByteBuffer& out, uint64 guid,
         std::initializer_list<size_t> order)
     {
         for (size_t index : order)
             out.WriteBit(GuidByte(guid, index) != 0);
     }
 
-    inline void WriteGuidBytes(WorldPacket& out, uint64 guid,
+    inline void WriteGuidBytes(ByteBuffer& out, uint64 guid,
         std::initializer_list<size_t> order)
     {
         for (size_t index : order)
@@ -83,6 +83,242 @@ namespace MopCalendarPackets
         uint8 rank = 0;
         bool displayPendingAction = false;
     };
+
+    struct CalendarListEvent
+    {
+        uint64 creatorGuid = 0;
+        uint64 guildGuid = 0;
+        std::string title;
+        int32 dungeonId = 0;
+        uint32 eventTime = 0;
+        uint32 flags = 0;
+        uint64 eventId = 0;
+        uint8 type = 0;
+    };
+
+    struct CalendarListInvite
+    {
+        uint64 senderGuid = 0;
+        uint64 inviteId = 0;
+        uint8 status = 0;
+        uint64 eventId = 0;
+        uint8 rank = 0;
+        bool guildEvent = false;
+    };
+
+    struct CalendarListLockout
+    {
+        uint64 instanceGuid = 0;
+        uint32 difficulty = 0;
+        uint32 resetRemaining = 0;
+        uint32 mapId = 0;
+    };
+
+    struct CalendarListReset
+    {
+        int32 mapId = 0;
+        int32 resetRemaining = 0;
+        int32 offset = 0;
+    };
+
+    struct CalendarEventInvite
+    {
+        uint64 inviteeGuid = 0;
+        uint32 statusTime = 0;
+        bool guildEvent = false;
+        std::string text;
+        uint8 level = 0;
+        uint8 rank = 0;
+        uint64 inviteId = 0;
+        uint8 status = 0;
+    };
+
+    struct CalendarEventDetails
+    {
+        uint64 creatorGuid = 0;
+        uint64 guildGuid = 0;
+        std::string title;
+        std::string description;
+        uint32 flags = 0;
+        uint32 eventTime = 0;
+        int32 dungeonId = 0;
+        uint8 type = 0;
+        uint64 eventId = 0;
+        uint8 sendType = 0;
+    };
+
+    inline bool BuildCalendarList(WorldPacket& out,
+        std::vector<CalendarListEvent> const& events,
+        std::vector<CalendarListInvite> const& invites,
+        std::vector<CalendarListLockout> const& lockouts,
+        std::vector<CalendarListReset> const& resets,
+        uint32 packedZoneTime, uint32 serverTime)
+    {
+        if (events.size() >= (size_t(1) << 19) ||
+            invites.size() >= (size_t(1) << 19) ||
+            lockouts.size() >= (size_t(1) << 20) ||
+            resets.size() >= (size_t(1) << 20))
+            return false;
+
+        for (CalendarListEvent const& event : events)
+            if (event.title.size() >= (size_t(1) << 8))
+                return false;
+
+        ByteBuffer eventBuffer;
+        ByteBuffer lockoutBuffer;
+        ByteBuffer inviteBuffer;
+
+        out.WriteBits(resets.size(), 20);
+        out.WriteBits(0, 16); // Nonzero holiday records are not semantically recovered.
+        out.WriteBits(lockouts.size(), 20);
+        for (CalendarListLockout const& lockout : lockouts)
+            WriteGuidMask(out, lockout.instanceGuid, { 6, 7, 2, 1, 5, 4, 0, 3 });
+
+        out.WriteBits(invites.size(), 19);
+        for (CalendarListInvite const& invite : invites)
+            WriteGuidMask(out, invite.senderGuid, { 1, 2, 6, 7, 3, 0, 4, 5 });
+
+        out.WriteBits(events.size(), 19);
+        for (CalendarListEvent const& event : events)
+        {
+            WriteGuidMask(out, event.creatorGuid, { 2 });
+            WriteGuidMask(out, event.guildGuid, { 1, 7 });
+            WriteGuidMask(out, event.creatorGuid, { 4 });
+            WriteGuidMask(out, event.guildGuid, { 5, 6, 3, 4 });
+            WriteGuidMask(out, event.creatorGuid, { 7 });
+            out.WriteBits(event.title.size(), 8);
+            WriteGuidMask(out, event.creatorGuid, { 1 });
+            WriteGuidMask(out, event.guildGuid, { 2, 0 });
+            WriteGuidMask(out, event.creatorGuid, { 0, 3, 6, 5 });
+
+            WriteGuidBytes(eventBuffer, event.creatorGuid, { 5 });
+            WriteGuidBytes(eventBuffer, event.guildGuid, { 3 });
+            eventBuffer.append(event.title.data(), event.title.size());
+            WriteGuidBytes(eventBuffer, event.guildGuid, { 7 });
+            eventBuffer << event.dungeonId;
+            WriteGuidBytes(eventBuffer, event.creatorGuid, { 0, 4 });
+            WriteGuidBytes(eventBuffer, event.guildGuid, { 2 });
+            WriteGuidBytes(eventBuffer, event.creatorGuid, { 7, 2 });
+            eventBuffer << event.eventTime;
+            WriteGuidBytes(eventBuffer, event.creatorGuid, { 3, 1 });
+            WriteGuidBytes(eventBuffer, event.guildGuid, { 6, 1 });
+            WriteGuidBytes(eventBuffer, event.creatorGuid, { 6 });
+            eventBuffer << event.flags;
+            WriteGuidBytes(eventBuffer, event.guildGuid, { 4, 5, 0 });
+            eventBuffer << event.eventId;
+            eventBuffer << event.type;
+        }
+        out.FlushBits();
+
+        for (CalendarListLockout const& lockout : lockouts)
+        {
+            lockoutBuffer << lockout.difficulty;
+            WriteGuidBytes(lockoutBuffer, lockout.instanceGuid, { 3, 0, 1, 5 });
+            lockoutBuffer << lockout.resetRemaining;
+            lockoutBuffer << lockout.mapId;
+            WriteGuidBytes(lockoutBuffer, lockout.instanceGuid, { 2, 7, 6, 4 });
+        }
+
+        for (CalendarListInvite const& invite : invites)
+        {
+            WriteGuidBytes(inviteBuffer, invite.senderGuid, { 2 });
+            inviteBuffer << invite.inviteId;
+            inviteBuffer << invite.status;
+            WriteGuidBytes(inviteBuffer, invite.senderGuid, { 6, 3, 4, 1, 0 });
+            inviteBuffer << invite.eventId;
+            WriteGuidBytes(inviteBuffer, invite.senderGuid, { 7, 5 });
+            inviteBuffer << invite.rank;
+            inviteBuffer << uint8(invite.guildEvent);
+        }
+
+        out.append(eventBuffer);
+        out.append(lockoutBuffer);
+        out.append(inviteBuffer);
+        out << packedZoneTime;
+        for (CalendarListReset const& reset : resets)
+        {
+            out << reset.mapId;
+            out << reset.resetRemaining;
+            out << reset.offset;
+        }
+        out << uint32(1135753200); // Established calendar reference epoch (28 Dec 2005).
+        out << serverTime;
+        return true;
+    }
+
+    inline bool BuildCalendarEvent(WorldPacket& out,
+        CalendarEventDetails const& event,
+        std::vector<CalendarEventInvite> const& invites)
+    {
+        if (invites.size() >= (size_t(1) << 20) ||
+            event.title.size() >= (size_t(1) << 8) ||
+            event.description.size() >= (size_t(1) << 11))
+            return false;
+
+        for (CalendarEventInvite const& invite : invites)
+            if (invite.text.size() >= (size_t(1) << 8))
+                return false;
+
+        ByteBuffer inviteBuffer;
+
+        out.WriteBits(invites.size(), 20);
+        for (CalendarEventInvite const& invite : invites)
+        {
+            WriteGuidMask(out, invite.inviteeGuid, { 1, 2, 0, 7, 3, 5, 6 });
+            out.WriteBits(invite.text.size(), 8);
+            WriteGuidMask(out, invite.inviteeGuid, { 4 });
+
+            inviteBuffer << invite.statusTime;
+            WriteGuidBytes(inviteBuffer, invite.inviteeGuid, { 5 });
+            inviteBuffer << uint8(invite.guildEvent);
+            WriteGuidBytes(inviteBuffer, invite.inviteeGuid, { 1, 2, 6 });
+            inviteBuffer.append(invite.text.data(), invite.text.size());
+            inviteBuffer << invite.level;
+            WriteGuidBytes(inviteBuffer, invite.inviteeGuid, { 7 });
+            inviteBuffer << invite.rank;
+            inviteBuffer << invite.inviteId;
+            WriteGuidBytes(inviteBuffer, invite.inviteeGuid, { 0, 3, 4 });
+            inviteBuffer << invite.status;
+        }
+
+        out.WriteBits(event.title.size(), 8);
+        WriteGuidMask(out, event.creatorGuid, { 2, 0 });
+        WriteGuidMask(out, event.guildGuid, { 4, 5 });
+        WriteGuidMask(out, event.creatorGuid, { 1, 5, 3 });
+        WriteGuidMask(out, event.guildGuid, { 6 });
+        out.WriteBits(event.description.size(), 11);
+        WriteGuidMask(out, event.guildGuid, { 1, 7 });
+        WriteGuidMask(out, event.creatorGuid, { 6 });
+        WriteGuidMask(out, event.guildGuid, { 2, 0 });
+        WriteGuidMask(out, event.creatorGuid, { 4 });
+        WriteGuidMask(out, event.guildGuid, { 3 });
+        WriteGuidMask(out, event.creatorGuid, { 7 });
+        out.FlushBits();
+
+        out.append(inviteBuffer);
+        WriteGuidBytes(out, event.creatorGuid, { 0, 5 });
+        out << event.flags;
+        WriteGuidBytes(out, event.guildGuid, { 1 });
+        WriteGuidBytes(out, event.creatorGuid, { 7, 3 });
+        out << event.eventTime;
+        WriteGuidBytes(out, event.guildGuid, { 6 });
+        WriteGuidBytes(out, event.creatorGuid, { 4 });
+        out << event.dungeonId;
+        out << uint32(0); // Opaque post-dungeon scalar; no proven server mapping.
+        WriteGuidBytes(out, event.guildGuid, { 4 });
+        out << event.type;
+        out.append(event.title.data(), event.title.size());
+        WriteGuidBytes(out, event.creatorGuid, { 6 });
+        WriteGuidBytes(out, event.guildGuid, { 3 });
+        WriteGuidBytes(out, event.creatorGuid, { 2 });
+        WriteGuidBytes(out, event.guildGuid, { 7 });
+        WriteGuidBytes(out, event.creatorGuid, { 1 });
+        out.append(event.description.data(), event.description.size());
+        WriteGuidBytes(out, event.guildGuid, { 2, 5, 0 });
+        out << event.eventId;
+        out << event.sendType;
+        return true;
+    }
 
     inline bool BuildCalendarInitialInvite(WorldPacket& out,
         std::vector<InitialInvite> const& entries)

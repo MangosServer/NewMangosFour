@@ -44,47 +44,50 @@ void WorldSession::HandleCalendarGetCalendar(WorldPacket& /*recv_data*/)
 
     time_t currTime = time(NULL);
 
-    WorldPacket data(SMSG_CALENDAR_SEND_CALENDAR);
-
     CalendarInvitesList invites;
     sCalendarMgr.GetPlayerInvitesList(guid, invites);
-
-    data << uint32(invites.size());
+    std::vector<MopCalendarPackets::CalendarListInvite> inviteRecords;
+    inviteRecords.reserve(invites.size());
     DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "Sending > %zu invites", invites.size());
 
-    for (CalendarInvitesList::const_iterator itr = invites.begin(); itr != invites.end(); ++itr)
+    for (CalendarInvite const* invite : invites)
     {
-        CalendarEvent const* event = (*itr)->GetCalendarEvent();
+        CalendarEvent const* event = invite->GetCalendarEvent();
         MANGOS_ASSERT(event);                           // TODO: be sure no way to have a null event
 
-        data << uint64(event->EventId);
-        data << uint64((*itr)->InviteId);
-        data << uint8((*itr)->Status);
-        data << uint8((*itr)->Rank);
+        MopCalendarPackets::CalendarListInvite record;
+        record.senderGuid = invite->SenderGuid.GetRawValue();
+        record.inviteId = invite->InviteId;
+        record.status = invite->Status;
+        record.eventId = event->EventId;
+        record.rank = invite->Rank;
+        record.guildEvent = event->IsGuildEvent() &&
+            event->GuildId == _player->GetGuildId();
+        inviteRecords.push_back(record);
 
-        data << uint8(event->IsGuildEvent());
-        data << event->CreatorGuid.WriteAsPacked();
         DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "invite> EventId[" UI64FMTD "], InviteId[" UI64FMTD "], status[%u], rank[%u]",
-                         event->EventId, (*itr)->InviteId, uint32((*itr)->Status), uint32((*itr)->Rank));
+                         event->EventId, invite->InviteId, uint32(invite->Status), uint32(invite->Rank));
     }
 
     CalendarEventsList events;
     sCalendarMgr.GetPlayerEventsList(guid, events);
-
-    data << uint32(events.size());
+    std::vector<MopCalendarPackets::CalendarListEvent> eventRecords;
+    eventRecords.reserve(events.size());
     DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "Sending > %zu events", events.size());
 
-    for (CalendarEventsList::const_iterator itr = events.begin(); itr != events.end(); ++itr)
+    for (CalendarEvent const* event : events)
     {
-        CalendarEvent const* event = *itr;
-
-        data << uint64(event->EventId);
-        data << event->Title;
-        data << uint32(event->Type);
-        data << secsToTimeBitFields(event->EventTime);
-        data << uint32(event->Flags);
-        data << int32(event->DungeonId);
-        data << event->CreatorGuid.WriteAsPacked();
+        MopCalendarPackets::CalendarListEvent record;
+        record.creatorGuid = event->CreatorGuid.GetRawValue();
+        if (Guild* guild = sGuildMgr.GetGuildById(event->GuildId))
+            record.guildGuid = guild->GetObjectGuid().GetRawValue();
+        record.title = event->Title;
+        record.dungeonId = event->DungeonId;
+        record.eventTime = secsToTimeBitFields(event->EventTime);
+        record.flags = event->Flags;
+        record.eventId = event->EventId;
+        record.type = event->Type;
+        eventRecords.push_back(record);
 
         std::string timeStr = TimeToTimestampStr(event->EventTime);
         DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "Events> EventId[" UI64FMTD "], Title[%s], Time[%s], Type[%u],  Flag[%u], DungeonId[%d], CreatorGuid[%s]",
@@ -92,110 +95,65 @@ void WorldSession::HandleCalendarGetCalendar(WorldPacket& /*recv_data*/)
                          uint32(event->Flags), event->DungeonId, event->CreatorGuid.GetString().c_str());
     }
 
-    data << uint32(currTime);                               // server time
-    data << secsToTimeBitFields(currTime);                  // zone time ??
-
-    ByteBuffer dataBuffer;
-    uint32 boundCounter = 0;
+    std::vector<MopCalendarPackets::CalendarListLockout> lockoutRecords;
     for (uint8 i = 0; i < MAX_DIFFICULTY; ++i)
     {
         Player::BoundInstancesMap boundInstances = _player->GetBoundInstances(Difficulty(i));
-        for (Player::BoundInstancesMap::const_iterator itr = boundInstances.begin(); itr != boundInstances.end(); ++itr)
+        for (auto const& bound : boundInstances)
         {
-            if (itr->second.perm)
-            {
-                DungeonPersistentState const* state = itr->second.state;
-                dataBuffer << uint32(state->GetMapId());
-                dataBuffer << uint32(state->GetDifficulty());
-                dataBuffer << uint32(state->GetResetTime() - currTime);
-                dataBuffer << uint64(state->GetInstanceId());   // instance save id as unique instance copy id
-                ++boundCounter;
-            }
+            if (!bound.second.perm)
+                continue;
+
+            DungeonPersistentState const* state = bound.second.state;
+            MopCalendarPackets::CalendarListLockout record;
+            record.instanceGuid = state->GetInstanceGuid().GetRawValue();
+            record.difficulty = state->GetDifficulty();
+            record.resetRemaining = state->GetResetTime() > currTime ?
+                uint32(state->GetResetTime() - currTime) : 0;
+            record.mapId = state->GetMapId();
+            lockoutRecords.push_back(record);
         }
     }
 
-    data << uint32(boundCounter);
-    data.append(dataBuffer);
-
-    data << uint32(1135753200);                             // Constant date, unk (28.12.2005 07:00)
-
-    // Reuse variables
-    boundCounter = 0;
+    std::vector<MopCalendarPackets::CalendarListReset> resetRecords;
     std::set<uint32> sentMaps;
-    dataBuffer.clear();
-
-    for (MapDifficultyMap::const_iterator itr = sMapDifficultyMap.begin(); itr != sMapDifficultyMap.end(); ++itr)
+    for (auto const& mapDifficulty : sMapDifficultyMap)
     {
-        uint32 map_diff_pair = itr->first;
+        uint32 map_diff_pair = mapDifficulty.first;
         uint32 mapId = PAIR32_LOPART(map_diff_pair);
-        Difficulty difficulty = Difficulty(PAIR32_HIPART(map_diff_pair));
-        MapDifficultyEntry const* mapDiff = itr->second;
+        MapDifficultyEntry const* mapDiff = mapDifficulty.second;
 
         // skip mapDiff without global reset time
         if (!mapDiff->RaidDuration)
-        {
             continue;
-        }
 
         // skip non raid map
         MapEntry const* mapEntry = sMapStore.LookupEntry(mapId);
         if (!mapEntry || !mapEntry->IsRaid())
-        {
             continue;
-        }
 
         // skip already sent map (not same difficulty?)
-        if (sentMaps.find(mapId) != sentMaps.end())
-        {
+        if (!sentMaps.insert(mapId).second)
             continue;
-        }
 
         uint32 resetTime = sMapPersistentStateMgr.GetScheduler().GetMaxResetTimeFor(mapDiff);
-
-        sentMaps.insert(mapId);
-        dataBuffer << mapId;
-        dataBuffer << resetTime;
-
-        DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "MapId [%u] -> Reset Time: %u", mapId, resetTime);
-        dataBuffer << int32(0); // showed 68400 on map 509 must investigate more
-        ++boundCounter;
+        MopCalendarPackets::CalendarListReset record;
+        record.mapId = int32(mapId);
+        record.resetRemaining = resetTime > currTime ?
+            int32(resetTime - currTime) : 0;
+        record.offset = 0; // Direct reader proves the scalar, not a nonzero meaning.
+        resetRecords.push_back(record);
+        DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "MapId [%u] -> Reset in: %d", mapId, record.resetRemaining);
     }
-    DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "Map sent [%u]", boundCounter);
+    DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "Map sent [%zu]", resetRecords.size());
 
-    data << uint32(boundCounter);
-    data.append(dataBuffer);
-
-    // TODO: Fix this, how we do know how many and what holidays to send?
-    uint32 holidayCount = 0;
-    data << uint32(holidayCount);
-    /*for (uint32 i = 0; i < holidayCount; ++i)
+    WorldPacket data(SMSG_CALENDAR_SEND_CALENDAR);
+    if (!MopCalendarPackets::BuildCalendarList(data, eventRecords, inviteRecords, lockoutRecords, resetRecords,
+        secsToTimeBitFields(currTime), uint32(currTime)))
     {
-        HolidaysEntry const* holiday = sHolidaysStore.LookupEntry(666);
-
-        data << uint32(holiday->Id);                        // m_ID
-        data << uint32(holiday->Region);                    // m_region, might be looping
-        data << uint32(holiday->Looping);                   // m_looping, might be region
-        data << uint32(holiday->Priority);                  // m_priority
-        data << uint32(holiday->CalendarFilterType);        // m_calendarFilterType
-
-        for (uint8 j = 0; j < MAX_HOLIDAY_DATES; ++j)
-        {
-            data << uint32(holiday->Date[j]);               // 26 * m_date -- WritePackedTime ?
-        }
-
-        for (uint8 j = 0; j < MAX_HOLIDAY_DURATIONS; ++j)
-        {
-            data << uint32(holiday->Duration[j]);           // 10 * m_duration
-        }
-
-        for (uint8 j = 0; j < MAX_HOLIDAY_FLAGS; ++j)
-        {
-            data << uint32(holiday->CalendarFlags[j]);      // 10 * m_calendarFlags
-        }
-
-        data << holiday->TextureFilename;                   // m_textureFilename (holiday name)
-    }*/
-
+        sLog.outError("Calendar list exceeds the 5.4.8 wire bounds for player %s", guid.GetString().c_str());
+        return;
+    }
     SendPacket(&data);
 }
 
@@ -203,6 +161,13 @@ void WorldSession::HandleCalendarGetEvent(WorldPacket& recv_data)
 {
     ObjectGuid guid = _player->GetObjectGuid();
     DEBUG_LOG("WORLD: Received opcode CMSG_CALENDAR_GET_EVENT [%s]", guid.GetString().c_str());
+
+    if (recv_data.size() < sizeof(uint64))
+    {
+        sLog.outError("CMSG_CALENDAR_GET_EVENT from %s is truncated (%zu bytes)",
+            guid.GetString().c_str(), recv_data.size());
+        return;
+    }
 
     uint64 eventId;
     recv_data >> eventId;
@@ -213,7 +178,7 @@ void WorldSession::HandleCalendarGetEvent(WorldPacket& recv_data)
     }
     else
     {
-        sCalendarMgr.SendCalendarCommandResult(_player, CALENDAR_ERROR_EVENT_INVALID);
+        DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "Calendar event " UI64FMTD " does not exist; legacy command-result body remains gated", eventId);
     }
 }
 
@@ -941,46 +906,53 @@ void CalendarMgr::SendCalendarEvent(Player* player, CalendarEvent const* event, 
     DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "SendCalendarEvent> sendType[%u], CreatorGuid[%s], EventId[" UI64FMTD "], Type[%u], Flags[%u], Title[%s]",
                      sendType, event->CreatorGuid.GetString().c_str(), event->EventId, uint32(event->Type), event->Flags, event->Title.c_str());
 
-    WorldPacket data(SMSG_CALENDAR_SEND_EVENT);
-    data << uint8(sendType);
-    data << event->CreatorGuid.WriteAsPacked();
-    data << uint64(event->EventId);
-    data << event->Title;
-    data << event->Description;
-    data << uint8(event->Type);
-    data << uint8(event->Repeatable);
-    data << uint32(CALENDAR_MAX_INVITES);
-    data << event->DungeonId;
-    data << event->Flags;
-    data << secsToTimeBitFields(event->EventTime);
-    data << secsToTimeBitFields(event->UnknownTime);
-    data << event->GuildId;
+    MopCalendarPackets::CalendarEventDetails eventRecord;
+    eventRecord.creatorGuid = event->CreatorGuid.GetRawValue();
+    if (Guild* guild = sGuildMgr.GetGuildById(event->GuildId))
+        eventRecord.guildGuid = guild->GetObjectGuid().GetRawValue();
+    eventRecord.title = event->Title;
+    eventRecord.description = event->Description;
+    eventRecord.flags = event->Flags;
+    eventRecord.eventTime = secsToTimeBitFields(event->EventTime);
+    eventRecord.dungeonId = event->DungeonId;
+    eventRecord.type = event->Type;
+    eventRecord.eventId = event->EventId;
+    eventRecord.sendType = uint8(sendType);
 
     CalendarInviteMap const* cInvMap = event->GetInviteMap();
-    data << (uint32)cInvMap->size();
-    for (CalendarInviteMap::const_iterator itr = cInvMap->begin(); itr != cInvMap->end(); ++itr)
+    std::vector<MopCalendarPackets::CalendarEventInvite> inviteRecords;
+    inviteRecords.reserve(cInvMap->size());
+    for (auto const& inviteEntry : *cInvMap)
     {
-        CalendarInvite const* invite = itr->second;
+        CalendarInvite const* invite = inviteEntry.second;
         ObjectGuid inviteeGuid = invite->InviteeGuid;
         Player* invitee = sObjectMgr.GetPlayer(inviteeGuid);
 
         uint8 inviteeLevel = invitee ? invitee->getLevel() : Player::GetLevelFromDB(inviteeGuid);
         uint32 inviteeGuildId = invitee ? invitee->GetGuildId() : Player::GetGuildIdFromDB(inviteeGuid);
 
-        data << inviteeGuid.WriteAsPacked();
-        data << uint8(inviteeLevel);
-        data << uint8(invite->Status);
-        data << uint8(invite->Rank);
-        data << uint8(event->IsGuildEvent() && event->GuildId == inviteeGuildId);
-        data << uint64(itr->first);
-        data << secsToTimeBitFields(invite->LastUpdateTime);
-        data << invite->Text;
+        MopCalendarPackets::CalendarEventInvite record;
+        record.inviteeGuid = inviteeGuid.GetRawValue();
+        record.statusTime = secsToTimeBitFields(invite->LastUpdateTime);
+        record.guildEvent = event->IsGuildEvent() && event->GuildId == inviteeGuildId;
+        record.text = invite->Text;
+        record.level = inviteeLevel;
+        record.rank = invite->Rank;
+        record.inviteId = invite->InviteId;
+        record.status = invite->Status;
+        inviteRecords.push_back(record);
 
         DEBUG_FILTER_LOG(LOG_FILTER_CALENDAR, "Invite> InviteId[" UI64FMTD "], InviteLvl[%u], Status[%u], Rank[%u],  GuildEvent[%s], Text[%s]",
                          invite->InviteId, uint32(inviteeLevel), uint32(invite->Status), uint32(invite->Rank),
                          (event->IsGuildEvent() && event->GuildId == inviteeGuildId) ? "true" : "false", invite->Text.c_str());
     }
-    //data.hexlike();
+
+    WorldPacket data(SMSG_CALENDAR_SEND_EVENT);
+    if (!MopCalendarPackets::BuildCalendarEvent(data, eventRecord, inviteRecords))
+    {
+        sLog.outError("Calendar event " UI64FMTD " exceeds the 5.4.8 wire bounds", event->EventId);
+        return;
+    }
     player->SendDirectMessage(&data);
 }
 

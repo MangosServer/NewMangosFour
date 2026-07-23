@@ -520,7 +520,9 @@ add_test(NAME mop_calendar_packets_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_calendar_packets_source_test.cmake)
 
-foreach(mutation IN ITEMS initial_builder status_builder moderator_builder initial_registration status_registration moderator_registration pending_client_registration pending_server_registration pending_gate)
+foreach(mutation IN ITEMS initial_builder status_builder moderator_builder initial_registration status_registration moderator_registration pending_client_registration pending_server_registration pending_gate
+        list_builder event_builder get_calendar_registration get_event_registration send_calendar_registration send_event_registration send_calendar_gate send_event_gate get_event_size_guard
+        legacy_list_body legacy_event_body)
     add_test(NAME mop_calendar_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

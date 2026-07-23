@@ -50,6 +50,61 @@ elseif(MUTATION STREQUAL "pending_gate")
         "case SMSG_CALENDAR_SEND_NUM_PENDING:"
         "/* removed pending-count framing gate */"
         world_session "${world_session}")
+elseif(MUTATION STREQUAL "list_builder")
+    string(REPLACE
+        "MopCalendarPackets::BuildCalendarList(data, eventRecords, inviteRecords, lockoutRecords, resetRecords,"
+        "false /* removed calendar-list builder */"
+        calendar_sender "${calendar_sender}")
+elseif(MUTATION STREQUAL "event_builder")
+    string(REPLACE
+        "MopCalendarPackets::BuildCalendarEvent(data, eventRecord, inviteRecords)"
+        "false /* removed selected-event builder */"
+        calendar_sender "${calendar_sender}")
+elseif(MUTATION STREQUAL "get_calendar_registration")
+    string(REPLACE
+        "DefC(CMSG_CALENDAR_GET_CALENDAR, \"CMSG_CALENDAR_GET_CALENDAR\""
+        "/* removed get-calendar registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "get_event_registration")
+    string(REPLACE
+        "DefC(CMSG_CALENDAR_GET_EVENT, \"CMSG_CALENDAR_GET_EVENT\""
+        "/* removed get-event registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "send_calendar_registration")
+    string(REPLACE
+        "DefS(SMSG_CALENDAR_SEND_CALENDAR, \"SMSG_CALENDAR_SEND_CALENDAR\");"
+        "/* removed send-calendar registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "send_event_registration")
+    string(REPLACE
+        "DefS(SMSG_CALENDAR_SEND_EVENT, \"SMSG_CALENDAR_SEND_EVENT\");"
+        "/* removed send-event registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "send_calendar_gate")
+    string(REPLACE
+        "case SMSG_CALENDAR_SEND_CALENDAR:"
+        "/* removed send-calendar framing gate */"
+        world_session "${world_session}")
+elseif(MUTATION STREQUAL "send_event_gate")
+    string(REPLACE
+        "case SMSG_CALENDAR_SEND_EVENT:"
+        "/* removed send-event framing gate */"
+        world_session "${world_session}")
+elseif(MUTATION STREQUAL "get_event_size_guard")
+    string(REPLACE
+        "if (recv_data.size() < sizeof(uint64))"
+        "if (false /* removed get-event size guard */)"
+        calendar_sender "${calendar_sender}")
+elseif(MUTATION STREQUAL "legacy_list_body")
+    string(REPLACE
+        "MopCalendarPackets::BuildCalendarList(data, eventRecords, inviteRecords, lockoutRecords, resetRecords,"
+        "MopCalendarPackets::BuildCalendarList(data, eventRecords, inviteRecords, lockoutRecords, resetRecords, /* mutation */ data << uint32(invites.size());"
+        calendar_sender "${calendar_sender}")
+elseif(MUTATION STREQUAL "legacy_event_body")
+    string(REPLACE
+        "MopCalendarPackets::BuildCalendarEvent(data, eventRecord, inviteRecords)"
+        "MopCalendarPackets::BuildCalendarEvent(data, eventRecord, inviteRecords) /* mutation */; data << uint8(sendType)"
+        calendar_sender "${calendar_sender}")
 endif()
 
 function(require_once source token context)
@@ -100,6 +155,42 @@ require_once("${calendar_sender}"
 require_once("${world_session}"
     "case SMSG_CALENDAR_SEND_NUM_PENDING:"
     "pending-count framing gate")
+require_once("${calendar_sender}"
+    "MopCalendarPackets::BuildCalendarList(data, eventRecords, inviteRecords, lockoutRecords, resetRecords,"
+    "calendar-list builder call")
+require_once("${calendar_sender}"
+    "MopCalendarPackets::BuildCalendarEvent(data, eventRecord, inviteRecords)"
+    "selected-event builder call")
+require_once("${opcode_registry}"
+    "DefC(CMSG_CALENDAR_GET_CALENDAR, \"CMSG_CALENDAR_GET_CALENDAR\""
+    "get-calendar registration")
+require_once("${opcode_registry}"
+    "DefC(CMSG_CALENDAR_GET_EVENT, \"CMSG_CALENDAR_GET_EVENT\""
+    "get-event registration")
+require_once("${opcode_registry}"
+    "DefS(SMSG_CALENDAR_SEND_CALENDAR, \"SMSG_CALENDAR_SEND_CALENDAR\");"
+    "send-calendar registration")
+require_once("${opcode_registry}"
+    "DefS(SMSG_CALENDAR_SEND_EVENT, \"SMSG_CALENDAR_SEND_EVENT\");"
+    "send-event registration")
+require_once("${world_session}"
+    "case SMSG_CALENDAR_SEND_CALENDAR:"
+    "send-calendar framing gate")
+require_once("${world_session}"
+    "case SMSG_CALENDAR_SEND_EVENT:"
+    "send-event framing gate")
+require_once("${calendar_sender}"
+    "if (recv_data.size() < sizeof(uint64))"
+    "get-event minimum-size guard")
+
+foreach(legacy IN ITEMS
+        "data << uint32(invites.size())"
+        "data << uint8(sendType)")
+    string(FIND "${calendar_sender}" "${legacy}" position)
+    if(NOT position EQUAL -1)
+        message(FATAL_ERROR "legacy primary calendar body remains: ${legacy}")
+    endif()
+endforeach()
 
 foreach(source IN ITEMS "${guild_sender}" "${calendar_sender}" "${opcode_header}")
     foreach(legacy IN ITEMS
