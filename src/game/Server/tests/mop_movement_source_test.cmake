@@ -23,6 +23,14 @@ elseif(MUTATION STREQUAL "player_move_sequence")
     string(REPLACE "MSEHasPitch,\n    MSEGuidBit2,\n    MSEUnknownBit148"
         "MSEGuidBit2,\n    MSEHasPitch,\n    MSEUnknownBit148"
         movement_structures "${movement_structures}")
+elseif(MUTATION STREQUAL "force_swim_sequence")
+    string(REPLACE "MSEPositionY,\n    MSEMovementCounter,\n    MSEPositionZ"
+        "MSEMovementCounter,\n    MSEPositionY,\n    MSEPositionZ"
+        movement_structures "${movement_structures}")
+elseif(MUTATION STREQUAL "force_swim_flags2_width")
+    string(REPLACE "MSEUnknownBit148,\n    MSEFlags2_13,\n    MSEHasFallDirection"
+        "MSEUnknownBit148,\n    MSEFlags2,\n    MSEHasFallDirection"
+        movement_structures "${movement_structures}")
 elseif(MUTATION STREQUAL "allocation_bound")
     string(REPLACE "movementForceCount > (data.size() - data.rpos()) / sizeof(uint32)"
         "movementForceCount > data.size() / sizeof(uint32)" movement_codec "${movement_codec}")
@@ -36,6 +44,14 @@ elseif(MUTATION STREQUAL "movement_gap_registration")
     string(REPLACE "DefC(CMSG_MOVE_START_STRAFE_LEFT, \"CMSG_MOVE_START_STRAFE_LEFT\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleMovementOpcodes);"
         "DefC_disabled(CMSG_MOVE_START_STRAFE_LEFT, \"CMSG_MOVE_START_STRAFE_LEFT\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleMovementOpcodes);"
         opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "force_swim_registration")
+    string(REPLACE "DefC(CMSG_FORCE_SWIM_SPEED_CHANGE_ACK, \"CMSG_FORCE_SWIM_SPEED_CHANGE_ACK\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleForceSpeedChangeAckOpcodes);"
+        "DefC_disabled(CMSG_FORCE_SWIM_SPEED_CHANGE_ACK, \"CMSG_FORCE_SWIM_SPEED_CHANGE_ACK\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleForceSpeedChangeAckOpcodes);"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "force_swim_handler_order")
+    string(REPLACE "recv_data >> newspeed;\n    recv_data >> movementInfo;"
+        "recv_data >> movementInfo;\n    recv_data >> newspeed;"
+        movement_handler "${movement_handler}")
 elseif(MUTATION STREQUAL "output_metadata")
     string(REPLACE "DefS(SMSG_PLAYER_MOVE, \"SMSG_PLAYER_MOVE\");"
         "DefS_disabled(SMSG_PLAYER_MOVE, \"SMSG_PLAYER_MOVE\");" opcode_registry "${opcode_registry}")
@@ -147,6 +163,7 @@ set(heartbeat "MSEPositionZ,MSEPositionX,MSEPositionY,MSEMovementForceCount,MSEH
 set(set_facing "MSEPositionY,MSEPositionX,MSEPositionZ,MSEGuidBit5,MSEHasMovementFlags2,MSEGuidBit3,MSEGuidBit2,MSEMovementForceCount,MSEUnknownBit172,MSEHasPitch,MSEGuidBit0,MSEHasOrientation,MSEHasTimestamp,MSEUnknownBit148,MSEHasUnknownUInt32,MSEGuidBit4,MSEUnknownBit149,MSEGuidBit1,MSEGuidBit6,MSEHasFallData,MSEHasMovementFlags,MSEHasSplineElevation,MSEHasTransportData,MSEGuidBit7,MSETransportGuidBit0,MSETransportGuidBit7,MSEHasTransportTime2,MSETransportGuidBit3,MSETransportGuidBit6,MSEHasTransportTime3,MSETransportGuidBit2,MSETransportGuidBit5,MSETransportGuidBit1,MSETransportGuidBit4,MSEHasFallDirection,MSEFlags2_13,MSEFlags,MSEMovementForceIds,MSEGuidByte0,MSEGuidByte6,MSEGuidByte3,MSEGuidByte1,MSEGuidByte2,MSEGuidByte7,MSEGuidByte4,MSEGuidByte5,MSETransportGuidByte0,MSETransportGuidByte2,MSETransportPositionO,MSETransportGuidByte7,MSETransportTime3,MSETransportGuidByte5,MSETransportTime,MSETransportPositionX,MSETransportTime2,MSETransportPositionZ,MSETransportSeat,MSETransportPositionY,MSETransportGuidByte4,MSETransportGuidByte3,MSETransportGuidByte6,MSETransportGuidByte1,MSEFallTime,MSEFallVerticalSpeed,MSEFallHorizontalSpeed,MSEFallSinAngle,MSEFallCosAngle,MSEUnknownUInt32,MSETimestamp,MSESplineElevation,MSEPositionO,MSEPitch,MSEEnd")
 set(fall_land "MSEPositionY,MSEPositionZ,MSEPositionX,MSEHasFallData,MSEUnknownBit172,MSEUnknownBit148,MSEHasTimestamp,MSEGuidBit7,MSEUnknownBit149,MSEHasSplineElevation,MSEGuidBit5,MSEHasPitch,MSEHasMovementFlags2,MSEGuidBit2,MSEGuidBit3,MSEGuidBit0,MSEHasOrientation,MSEMovementForceCount,MSEHasMovementFlags,MSEHasUnknownUInt32,MSEGuidBit1,MSEHasTransportData,MSEGuidBit6,MSEGuidBit4,MSETransportGuidBit0,MSEHasTransportTime2,MSETransportGuidBit3,MSETransportGuidBit5,MSETransportGuidBit1,MSETransportGuidBit7,MSETransportGuidBit4,MSETransportGuidBit2,MSETransportGuidBit6,MSEHasTransportTime3,MSEFlags2_13,MSEHasFallDirection,MSEFlags,MSEGuidByte4,MSEGuidByte3,MSEGuidByte7,MSEGuidByte0,MSEGuidByte2,MSEGuidByte5,MSEGuidByte1,MSEGuidByte6,MSEMovementForceIds,MSEFallSinAngle,MSEFallHorizontalSpeed,MSEFallCosAngle,MSEFallTime,MSEFallVerticalSpeed,MSETransportGuidByte4,MSETransportPositionY,MSETransportPositionO,MSETransportPositionZ,MSETransportSeat,MSETransportGuidByte3,MSETransportGuidByte6,MSETransportTime2,MSETransportGuidByte2,MSETransportGuidByte1,MSETransportGuidByte5,MSETransportTime3,MSETransportTime,MSETransportPositionX,MSETransportGuidByte7,MSETransportGuidByte0,MSEUnknownUInt32,MSETimestamp,MSESplineElevation,MSEPitch,MSEPositionO,MSEEnd")
 set(player_move "MSEHasPitch,MSEGuidBit2,MSEUnknownBit148,MSEUnknownBit149,MSEGuidBit0,MSEHasOrientation,MSEHasFallData,MSEHasUnknownUInt32,MSEGuidBit3,MSEHasFallDirection,MSEHasTransportData,MSEGuidBit4,MSETransportGuidBit5,MSETransportGuidBit4,MSETransportGuidBit7,MSETransportGuidBit2,MSETransportGuidBit6,MSEHasTransportTime2,MSETransportGuidBit3,MSETransportGuidBit1,MSEHasTransportTime3,MSETransportGuidBit0,MSEHasSplineElevation,MSEHasMovementFlags,MSEUnknownBit172,MSEFlags,MSEHasMovementFlags2,MSEGuidBit7,MSEGuidBit1,MSEHasTimestamp,MSEFlags2_13,MSEGuidBit5,MSEMovementForceCount,MSEGuidBit6,MSEPositionY,MSETransportGuidByte7,MSETransportTime2,MSETransportPositionX,MSETransportGuidByte5,MSETransportSeat,MSETransportGuidByte2,MSETransportGuidByte0,MSETransportGuidByte3,MSETransportTime,MSETransportGuidByte4,MSETransportPositionZ,MSETransportGuidByte1,MSETransportPositionY,MSETransportPositionO,MSETransportGuidByte6,MSETransportTime3,MSEGuidByte5,MSEGuidByte1,MSEPositionZ,MSEMovementForceIds,MSETimestamp,MSEPositionO,MSEGuidByte3,MSEFallSinAngle,MSEFallHorizontalSpeed,MSEFallCosAngle,MSEFallVerticalSpeed,MSEFallTime,MSEGuidByte0,MSEPitch,MSEGuidByte2,MSEGuidByte6,MSESplineElevation,MSEUnknownUInt32,MSEPositionX,MSEGuidByte4,MSEGuidByte7,MSEEnd")
+set(force_swim_speed_ack "MSEPositionY,MSEMovementCounter,MSEPositionZ,MSEPositionX,MSEGuidBit4,MSEUnknownBit149,MSEHasSplineElevation,MSEGuidBit2,MSEHasMovementFlags2,MSEGuidBit5,MSEGuidBit3,MSEHasMovementFlags,MSEGuidBit0,MSEHasPitch,MSEHasUnknownUInt32,MSEHasOrientation,MSEUnknownBit172,MSEGuidBit1,MSEHasFallData,MSEMovementForceCount,MSEHasTimestamp,MSEGuidBit7,MSEGuidBit6,MSEHasTransportData,MSEUnknownBit148,MSEFlags2_13,MSEHasFallDirection,MSETransportGuidBit4,MSETransportGuidBit2,MSETransportGuidBit7,MSEHasTransportTime3,MSETransportGuidBit1,MSETransportGuidBit6,MSETransportGuidBit3,MSETransportGuidBit0,MSEHasTransportTime2,MSETransportGuidBit5,MSEFlags,MSEGuidByte0,MSEGuidByte4,MSEGuidByte5,MSEGuidByte6,MSEMovementForceIds,MSEGuidByte1,MSEGuidByte3,MSEGuidByte7,MSEGuidByte2,MSETransportGuidByte7,MSETransportTime2,MSETransportSeat,MSETransportTime3,MSETransportGuidByte4,MSETransportPositionY,MSETransportPositionZ,MSETransportGuidByte0,MSETransportGuidByte6,MSETransportGuidByte3,MSETransportGuidByte2,MSETransportPositionO,MSETransportTime,MSETransportGuidByte5,MSETransportGuidByte1,MSETransportPositionX,MSEFallHorizontalSpeed,MSEFallSinAngle,MSEFallCosAngle,MSEFallVerticalSpeed,MSEFallTime,MSETimestamp,MSESplineElevation,MSEUnknownUInt32,MSEPitch,MSEPositionO,MSEEnd")
 
 require_sequence("${movement_structures}" MovementStartForwardSequence "${start_forward}")
 require_sequence("${movement_structures}" MovementStartBackwardSequence "${start_backward}")
@@ -162,6 +179,7 @@ require_sequence("${movement_structures}" MovementHeartBeatSequence "${heartbeat
 require_sequence("${movement_structures}" MovementSetFacingSequence "${set_facing}")
 require_sequence("${movement_structures}" MovementFallLandSequence "${fall_land}")
 require_sequence("${movement_structures}" PlayerMoveSequence "${player_move}")
+require_sequence("${movement_structures}" MovementForceSwimSpeedChangeAckSequence "${force_swim_speed_ack}")
 
 foreach(required IN ITEMS
         "bool GetUnknownBit148() const" "bool GetUnknownBit149() const" "bool GetUnknownBit172() const"
@@ -194,6 +212,31 @@ foreach(name IN ITEMS MSG_MOVE_HEARTBEAT CMSG_MOVE_START_FORWARD CMSG_MOVE_START
 endforeach()
 require_once("${opcode_registry}" "DefS(SMSG_PLAYER_MOVE, \"SMSG_PLAYER_MOVE\");" "SMSG_PLAYER_MOVE metadata")
 require_once("${opcode_registry}" "DefS(SMSG_MONSTER_MOVE, \"SMSG_MONSTER_MOVE\");" "SMSG_MONSTER_MOVE metadata")
+require_once("${opcode_registry}"
+    "DefC(CMSG_FORCE_SWIM_SPEED_CHANGE_ACK, \"CMSG_FORCE_SWIM_SPEED_CHANGE_ACK\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleForceSpeedChangeAckOpcodes);"
+    "CMSG_FORCE_SWIM_SPEED_CHANGE_ACK registration")
+
+string(REGEX MATCH "void WorldSession::HandleForceSpeedChangeAckOpcodes\\(WorldPacket& recv_data\\)(.*)void WorldSession::HandleSetActiveMoverOpcode" force_speed_handler_body "${movement_handler}")
+string(FIND "${force_speed_handler_body}" "recv_data >> newspeed;" force_speed_position)
+string(FIND "${force_speed_handler_body}" "recv_data >> movementInfo;" movement_info_position)
+if(force_speed_position EQUAL -1 OR movement_info_position EQUAL -1 OR
+        NOT force_speed_position LESS movement_info_position)
+    message(FATAL_ERROR "force-swim ACK must extract leading speed before MovementInfo")
+endif()
+foreach(required IN ITEMS "_player->GetObjectGuid() != movementInfo.GetGuid()"
+        "case CMSG_FORCE_SWIM_SPEED_CHANGE_ACK:" "move_type = MOVE_SWIM"
+        "fabs(_player->GetSpeed(move_type) - newspeed)")
+    string(FIND "${force_speed_handler_body}" "${required}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "force-swim ACK handler missing: ${required}")
+    endif()
+endforeach()
+foreach(forbidden IN ITEMS "guid.ReadAsPacked()" "recv_data >> Unused<uint32>()")
+    string(FIND "${force_speed_handler_body}" "${forbidden}" position)
+    if(NOT position EQUAL -1)
+        message(FATAL_ERROR "legacy force-speed framing remains live: ${forbidden}")
+    endif()
+endforeach()
 
 foreach(required IN ITEMS
         "WriteBits(type, 3)" "WriteBits(uncompressedSplineCount, 20)"

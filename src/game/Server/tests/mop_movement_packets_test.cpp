@@ -66,7 +66,7 @@ enum class RefOp
     SplineElevation, FallHorizontal, FallVertical, FallCos, FallSin,
     TransportSeat, TransportO, TransportX, TransportY, TransportZ,
     TransportTime, TransportTime2, TransportTime3,
-    ForceCount, ForceIds, HasUnknownUInt32, UnknownUInt32, End
+    ForceCount, ForceIds, MovementCounter, HasUnknownUInt32, UnknownUInt32, End
 };
 
 struct RefState
@@ -369,6 +369,23 @@ static RefOp const kPlayerMove[] = {
     RefOp::FallCos, RefOp::FallVertical, RefOp::FallTime, GB(0), RefOp::Pitch, GB(2), GB(6),
     RefOp::SplineElevation, RefOp::UnknownUInt32, RefOp::PositionX, GB(4), GB(7), RefOp::End };
 
+static RefOp const kForceSwimSpeedChangeAck[] = {
+    RefOp::PositionY, RefOp::MovementCounter, RefOp::PositionZ, RefOp::PositionX,
+    G(4), RefOp::Raw149, RefOp::HasSplineElevation, G(2), RefOp::HasFlags2,
+    G(5), G(3), RefOp::HasFlags, G(0), RefOp::HasPitch,
+    RefOp::HasUnknownUInt32, RefOp::HasOrientation, RefOp::Raw172, G(1),
+    RefOp::HasFall, RefOp::ForceCount, RefOp::HasTimestamp, G(7), G(6),
+    RefOp::HasTransport, RefOp::Raw148, RefOp::Flags2,
+    RefOp::HasFallDirection, T(4), T(2), T(7), RefOp::HasTransportTime3,
+    T(1), T(6), T(3), T(0), RefOp::HasTransportTime2, T(5), RefOp::Flags,
+    GB(0), GB(4), GB(5), GB(6), RefOp::ForceIds, GB(1), GB(3), GB(7), GB(2),
+    TB(7), RefOp::TransportTime2, RefOp::TransportSeat, RefOp::TransportTime3,
+    TB(4), RefOp::TransportY, RefOp::TransportZ, TB(0), TB(6), TB(3), TB(2),
+    RefOp::TransportO, RefOp::TransportTime, TB(5), TB(1), RefOp::TransportX,
+    RefOp::FallHorizontal, RefOp::FallSin, RefOp::FallCos, RefOp::FallVertical,
+    RefOp::FallTime, RefOp::Timestamp, RefOp::SplineElevation,
+    RefOp::UnknownUInt32, RefOp::Pitch, RefOp::PositionO, RefOp::End };
+
 #undef G
 #undef GB
 #undef T
@@ -405,6 +422,7 @@ static std::vector<uint8> Encode(RefOp const (&sequence)[N], RefState const& s,
             case RefOp::HasTransportTime3: if (s.hasTransport) w.Bit(s.hasTransportTime3); break;
             case RefOp::HasSplineElevation: w.Bit(!s.hasSplineElevation); break;
             case RefOp::ForceCount: w.Bits(count, 22); break;
+            case RefOp::MovementCounter: w.U32(0xCAFEBABEu); break;
             case RefOp::HasUnknownUInt32: w.Bit(!s.hasUnknownUInt32); break;
             case RefOp::PositionX: w.F32(s.x); break;
             case RefOp::PositionY: w.F32(s.y); break;
@@ -651,6 +669,30 @@ static void test_server_built_embedded_guid()
     CHECK(Equal(packet, Encode(kPlayerMove, state)));
 }
 
+static void test_force_swim_speed_change_ack_fixture()
+{
+    RefState state;
+    state.flags2 = 0x0ABCu;
+    std::vector<uint8> const movement = Encode(kForceSwimSpeedChangeAck, state);
+
+    WorldPacket packet(CMSG_FORCE_SWIM_SPEED_CHANGE_ACK, movement.size() + sizeof(float));
+    packet << float(13.25f);
+    packet.append(movement.data(), movement.size());
+    CHECK(packet.size() >= 4);
+    CHECK(packet.contents()[0] == 0x00);
+    CHECK(packet.contents()[1] == 0x00);
+    CHECK(packet.contents()[2] == 0x54);
+    CHECK(packet.contents()[3] == 0x41);
+
+    float speed = 0.0f;
+    MovementInfo info;
+    packet >> speed;
+    packet >> info;
+    CHECK(speed == 13.25f);
+    CHECK(packet.rpos() == packet.size());
+    CheckDecoded(info, state, CMSG_FORCE_SWIM_SPEED_CHANGE_ACK);
+}
+
 template <size_t N>
 static bool Rejects(OpcodesList opcode, RefOp const (&sequence)[N], RefState const& state,
     uint32 count, size_t idsToWrite, bool stopAfterIds)
@@ -661,6 +703,27 @@ static bool Rejects(OpcodesList opcode, RefOp const (&sequence)[N], RefState con
     try
     {
         MovementInfo info;
+        packet >> info;
+    }
+    catch (ByteBufferException const&)
+    {
+        return true;
+    }
+    return false;
+}
+
+static bool RejectsForceSwim(RefState const& state, uint32 count, size_t idsToWrite, bool stopAfterIds)
+{
+    std::vector<uint8> const movement =
+        Encode(kForceSwimSpeedChangeAck, state, count, idsToWrite, stopAfterIds);
+    WorldPacket packet(CMSG_FORCE_SWIM_SPEED_CHANGE_ACK, movement.size() + sizeof(float));
+    packet << float(13.25f);
+    packet.append(movement.data(), movement.size());
+    try
+    {
+        float speed = 0.0f;
+        MovementInfo info;
+        packet >> speed;
         packet >> info;
     }
     catch (ByteBufferException const&)
@@ -682,6 +745,8 @@ static void test_hostile_counts_rejected()
     CHECK(Rejects(CMSG_MOVE_START_TURN_LEFT, kStartTurnLeft, state, (1u << 22) - 1u, 0, false));
     CHECK(Rejects(CMSG_MOVE_START_TURN_RIGHT, kStartTurnRight, state, (1u << 22) - 1u, 0, false));
     CHECK(Rejects(CMSG_MOVE_STOP_TURN, kStopTurn, state, (1u << 22) - 1u, 0, false));
+    CHECK(RejectsForceSwim(state, (1u << 22) - 1u, 0, false));
+    CHECK(RejectsForceSwim(state, 2, 1, true));
 }
 
 static void test_opcode_values_are_framable()
@@ -699,12 +764,14 @@ static void test_opcode_values_are_framable()
     CHECK(uint32(CMSG_MOVE_START_TURN_LEFT) == 0x01D0u);
     CHECK(uint32(CMSG_MOVE_START_TURN_RIGHT) == 0x107Bu);
     CHECK(uint32(CMSG_MOVE_STOP_TURN) == 0x1170u);
+    CHECK(uint32(CMSG_FORCE_SWIM_SPEED_CHANGE_ACK) == 0x1853u);
     CHECK(uint32(SMSG_PLAYER_MOVE) == 0x1A32u);
     CHECK(uint32(SMSG_SPLINE_MOVE_SET_NORMAL_FALL) == 0x0B08u);
     CHECK(uint32(SMSG_SPLINE_MOVE_SET_WATER_WALK) == 0x1823u);
     CHECK(uint32(SMSG_SPLINE_MOVE_SET_FEATHER_FALL) == 0x1893u);
     CHECK(uint32(SMSG_SPLINE_MOVE_SET_LAND_WALK) == 0x18B6u);
     CHECK(uint32(SMSG_PLAYER_MOVE) < uint32(OPCODE_TABLE_SIZE));
+    CHECK(uint32(CMSG_FORCE_SWIM_SPEED_CHANGE_ACK) < uint32(OPCODE_TABLE_SIZE));
     CHECK(uint32(SMSG_SPLINE_MOVE_SET_LAND_WALK) < uint32(OPCODE_TABLE_SIZE));
 }
 
@@ -752,6 +819,7 @@ int main(int, char**)
     test_thirteen_inbound_fixtures_and_exact_relay();
     test_complementary_and_empty_state();
     test_server_built_embedded_guid();
+    test_force_swim_speed_change_ack_fixture();
     test_spline_state_packets();
     test_hostile_counts_rejected();
     test_opcode_values_are_framable();

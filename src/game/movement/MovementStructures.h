@@ -2813,6 +2813,85 @@ MovementStatusElements DismissControlledVehicleSequence[] =
     MSEEnd,
 };
 
+MovementStatusElements MovementForceSwimSpeedChangeAckSequence[] =
+{
+    MSEPositionY,
+    MSEMovementCounter,
+    MSEPositionZ,
+    MSEPositionX,
+    MSEGuidBit4,
+    MSEUnknownBit149,
+    MSEHasSplineElevation,
+    MSEGuidBit2,
+    MSEHasMovementFlags2,
+    MSEGuidBit5,
+    MSEGuidBit3,
+    MSEHasMovementFlags,
+    MSEGuidBit0,
+    MSEHasPitch,
+    MSEHasUnknownUInt32,
+    MSEHasOrientation,
+    MSEUnknownBit172,
+    MSEGuidBit1,
+    MSEHasFallData,
+    MSEMovementForceCount,
+    MSEHasTimestamp,
+    MSEGuidBit7,
+    MSEGuidBit6,
+    MSEHasTransportData,
+    MSEUnknownBit148,
+    MSEFlags2_13,
+    MSEHasFallDirection,
+    MSETransportGuidBit4,
+    MSETransportGuidBit2,
+    MSETransportGuidBit7,
+    MSEHasTransportTime3,
+    MSETransportGuidBit1,
+    MSETransportGuidBit6,
+    MSETransportGuidBit3,
+    MSETransportGuidBit0,
+    MSEHasTransportTime2,
+    MSETransportGuidBit5,
+    MSEFlags,
+
+    MSEGuidByte0,
+    MSEGuidByte4,
+    MSEGuidByte5,
+    MSEGuidByte6,
+    MSEMovementForceIds,
+    MSEGuidByte1,
+    MSEGuidByte3,
+    MSEGuidByte7,
+    MSEGuidByte2,
+    MSETransportGuidByte7,
+    MSETransportTime2,
+    MSETransportSeat,
+    MSETransportTime3,
+    MSETransportGuidByte4,
+    MSETransportPositionY,
+    MSETransportPositionZ,
+    MSETransportGuidByte0,
+    MSETransportGuidByte6,
+    MSETransportGuidByte3,
+    MSETransportGuidByte2,
+    MSETransportPositionO,
+    MSETransportTime,
+    MSETransportGuidByte5,
+    MSETransportGuidByte1,
+    MSETransportPositionX,
+    MSEFallHorizontalSpeed,
+    MSEFallSinAngle,
+    MSEFallCosAngle,
+    MSEFallVerticalSpeed,
+    MSEFallTime,
+    MSETimestamp,
+    MSESplineElevation,
+    MSEUnknownUInt32,
+    MSEPitch,
+    MSEPositionO,
+    MSEEnd,
+};
+
 MovementStatusElements* GetMovementStatusElementsSequence(uint16 opcode)
 {
     switch (opcode)
@@ -2891,6 +2970,8 @@ MovementStatusElements* GetMovementStatusElementsSequence(uint16 opcode)
             return DismissControlledVehicleSequence;
         case CMSG_CHANGE_SEATS_ON_CONTROLLED_VEHICLE:
             return ChangeSeatsOnControlledVehicleSequence;
+        case CMSG_FORCE_SWIM_SPEED_CHANGE_ACK:
+            return MovementForceSwimSpeedChangeAckSequence;
     }
     return NULL;
 }

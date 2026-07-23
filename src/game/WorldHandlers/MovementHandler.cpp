@@ -449,17 +449,14 @@ void WorldSession::HandleForceSpeedChangeAckOpcodes(WorldPacket& recv_data)
     DEBUG_LOG("WORLD: Received %s (%u, 0x%X) opcode", LookupOpcodeName(DIR_CLIENT, recv_data.GetOpcode()), opcode, opcode);
 
     /* extract packet */
-    ObjectGuid guid;
     MovementInfo movementInfo;
     float  newspeed;
 
-    recv_data >> guid.ReadAsPacked();
-    recv_data >> Unused<uint32>();                          // counter or moveEvent
-    recv_data >> movementInfo;
     recv_data >> newspeed;
+    recv_data >> movementInfo;
 
     // now can skip not our packet
-    if (_player->GetObjectGuid() != guid)
+    if (_player->GetObjectGuid() != movementInfo.GetGuid())
     {
         recv_data.rpos(recv_data.wpos());                   // prevent warnings spam
         return;
