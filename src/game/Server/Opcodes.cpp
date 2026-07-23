@@ -258,15 +258,16 @@ void InitializeOpcodes()
     DefS(SMSG_SET_PROFICIENCY, "SMSG_SET_PROFICIENCY");
     DefS(SMSG_WEATHER, "SMSG_WEATHER");
 
-    // CMSG_LOGOUT_REQUEST (0x1349) / CMSG_LOGOUT_CANCEL (0x06C1): in-world logout control. Values RE'd
-    // from the 18414 Wow.exe binary (matching SkyFire). The handlers already existed but were never
-    // registered, so the client's Logout button dispatched as an UNKNOWN "not handled" opcode and did
-    // nothing. STATUS_LOGGEDIN -- both require an in-world player (the handlers dereference GetPlayer()).
+    // CMSG_LOGOUT_REQUEST (0x0643) is the manual "logout" API route; CMSG_LOGOUT_REQUEST_IDLE
+    // (0x1349) is the distinct automatic-idle route. Both have empty bodies and use the existing logout
+    // flow. CMSG_LOGOUT_CANCEL remains 0x06C1. STATUS_LOGGEDIN -- all require an in-world player
+    // (the handlers dereference GetPlayer()).
     // The replies (SMSG_LOGOUT_RESPONSE/CANCEL_ACK/COMPLETE) pass the enter-world suppression via
     // IsEnterWorldConverted(); their 18414 bodies are simple (response = uint32 reason + instant bit;
     // cancel-ack/complete = empty). On the open-world start map logout is the non-instant 20s-timer
     // path (instant only in rest areas / for GMs).
     DefC(CMSG_LOGOUT_REQUEST, "CMSG_LOGOUT_REQUEST", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLogoutRequestOpcode);
+    DefC(CMSG_LOGOUT_REQUEST_IDLE, "CMSG_LOGOUT_REQUEST_IDLE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLogoutRequestOpcode);
     DefC(CMSG_LOGOUT_CANCEL, "CMSG_LOGOUT_CANCEL", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLogoutCancelOpcode);
     DefS(SMSG_LOGOUT_RESPONSE, "SMSG_LOGOUT_RESPONSE");
     DefS(SMSG_LOGOUT_CANCEL_ACK, "SMSG_LOGOUT_CANCEL_ACK");

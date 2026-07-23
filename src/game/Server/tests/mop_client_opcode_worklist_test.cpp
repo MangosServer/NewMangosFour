@@ -148,6 +148,10 @@ static void test_load_screen_request()
 
 static void test_opcode_values()
 {
+    CHECK(uint32(CMSG_LOGOUT_REQUEST) == 0x0643u);
+    CHECK(uint32(CMSG_LOGOUT_REQUEST_IDLE) == 0x1349u);
+    CHECK(uint32(CMSG_LOGOUT_REQUEST) <= 0x1FFFu);
+    CHECK(uint32(CMSG_LOGOUT_REQUEST_IDLE) <= 0x1FFFu);
     CHECK(uint32(CMSG_REQUEST_HOTFIX) == 0x158Du);
     CHECK(uint32(CMSG_JOIN_CHANNEL) == 0x148Eu);
     CHECK(uint32(CMSG_CANCEL_TRADE) == 0x1941u);

@@ -109,7 +109,9 @@ add_test(NAME mop_client_opcode_worklist_source
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_client_opcode_worklist_source_test.cmake)
 
-foreach(mutation IN ITEMS violence_registration violence_handler violence_value)
+foreach(mutation IN ITEMS
+        logout_manual_registration logout_idle_registration logout_manual_value
+        violence_registration violence_handler violence_value)
     add_test(NAME mop_client_opcode_worklist_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}
