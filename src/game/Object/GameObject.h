@@ -57,8 +57,154 @@
 #include "Object.h"
 #include "LootMgr.h"
 #include "Database/DatabaseEnv.h"
+#include "Opcodes.h"
 #include "Utilities/EventProcessor.h"
+#include "WorldPacket.h"
+#include <array>
 #include <memory>
+
+namespace MopGameObjectPackets
+{
+    inline uint8 GuidByte(uint64 guid, size_t index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+
+    inline bool RejectRequest(WorldPacket& in)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    inline size_t PresentByteCount(uint8 mask)
+    {
+        size_t count = 0;
+        for (; mask != 0; mask >>= 1)
+        {
+            count += mask & 1;
+        }
+        return count;
+    }
+
+    inline bool ParseSingleGuidRequest(WorldPacket& in,
+        std::array<uint8, 8> const& maskOrder,
+        std::array<uint8, 8> const& byteOrder, uint64& guid)
+    {
+        if (in.size() - in.rpos() < 1)
+        {
+            return RejectRequest(in);
+        }
+
+        uint8 const mask = in[in.rpos()];
+        if (in.size() - in.rpos() != 1 + PresentByteCount(mask))
+        {
+            return RejectRequest(in);
+        }
+
+        uint8 guidBytes[8] = {};
+        for (uint8 index : maskOrder)
+        {
+            guidBytes[index] = in.ReadBit();
+        }
+        for (uint8 index : byteOrder)
+        {
+            in.ReadByteSeq(guidBytes[index]);
+        }
+
+        uint64 parsed = 0;
+        for (size_t index = 0; index < 8; ++index)
+        {
+            parsed |= uint64(guidBytes[index]) << (index * 8);
+        }
+        guid = parsed;
+        return in.rpos() == in.size();
+    }
+
+    // The 18414 client gives actual use and criteria-reporting requests
+    // different packed-GUID permutations despite both carrying only one GUID.
+    inline bool ParseUseRequest(WorldPacket& in, uint64& guid)
+    {
+        return ParseSingleGuidRequest(in,
+            {{ 6, 1, 3, 4, 0, 5, 7, 2 }},
+            {{ 0, 1, 6, 2, 3, 4, 5, 7 }}, guid);
+    }
+
+    inline bool ParseReportUseRequest(WorldPacket& in, uint64& guid)
+    {
+        return ParseSingleGuidRequest(in,
+            {{ 4, 7, 5, 3, 6, 1, 2, 0 }},
+            {{ 7, 1, 6, 5, 0, 3, 2, 4 }}, guid);
+    }
+
+    inline void WriteGuidMask(WorldPacket& out, uint64 guid,
+        std::initializer_list<size_t> order)
+    {
+        for (size_t index : order)
+        {
+            out.WriteBit(GuidByte(guid, index) != 0);
+        }
+    }
+
+    inline void WriteGuidBytes(WorldPacket& out, uint64 guid,
+        std::initializer_list<size_t> order)
+    {
+        for (size_t index : order)
+        {
+            out.WriteByteSeq(GuidByte(guid, index));
+        }
+    }
+
+    struct CustomAnimation
+    {
+        uint64 gameObjectGuid = 0;
+        uint32 animId = 0;
+        bool hasAnimId = true;
+        bool mappedAnimationMode = false;
+    };
+
+    inline bool BuildCustomAnimation(WorldPacket& out,
+        CustomAnimation const& animation)
+    {
+        // The client indexes a four-entry animation table when the optional
+        // animation id is present; larger values would address past that table.
+        if (animation.hasAnimId && animation.animId >= 4)
+        {
+            return false;
+        }
+
+        out.Initialize(SMSG_GAMEOBJECT_CUSTOM_ANIM, 14);
+        WriteGuidMask(out, animation.gameObjectGuid,
+            { 4, 7, 1, 0, 5, 3, 2 });
+        out.WriteBit(!animation.hasAnimId);
+        WriteGuidMask(out, animation.gameObjectGuid, { 6 });
+        out.WriteBit(animation.mappedAnimationMode);
+        out.FlushBits();
+
+        if (animation.hasAnimId)
+        {
+            out << animation.animId;
+        }
+        WriteGuidBytes(out, animation.gameObjectGuid,
+            { 5, 6, 7, 3, 4, 0, 2, 1 });
+        return true;
+    }
+
+    inline void BuildDespawnAnimation(WorldPacket& out, uint64 guid)
+    {
+        out.Initialize(SMSG_GAMEOBJECT_DESPAWN_ANIM, 9);
+        WriteGuidMask(out, guid, { 0, 2, 4, 1, 7, 3, 6, 5 });
+        out.FlushBits();
+        WriteGuidBytes(out, guid, { 0, 2, 4, 5, 7, 3, 1, 6 });
+    }
+
+    inline void BuildPageText(WorldPacket& out, uint64 guid)
+    {
+        out.Initialize(SMSG_GAMEOBJECT_PAGETEXT, 9);
+        WriteGuidMask(out, guid, { 0, 3, 2, 6, 5, 1, 7, 4 });
+        out.FlushBits();
+        WriteGuidBytes(out, guid, { 6, 2, 7, 0, 5, 3, 1, 4 });
+    }
+}
 
 // GCC have alternative #pragma pack(N) syntax and old gcc version not support pack(push,N), also any gcc version not support it at some platform
 #if defined( __GNUC__ )

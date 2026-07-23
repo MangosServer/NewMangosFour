@@ -24,6 +24,7 @@
  */
 
 #include "Object.h"
+#include "GameObject.h"
 #include "SharedDefines.h"
 #include "WorldPacket.h"
 #include "Opcodes.h"
@@ -332,15 +333,26 @@ void WorldObject::SendMessageToSetExcept(WorldPacket* data, Player const* skippe
 
 void WorldObject::SendObjectDeSpawnAnim(ObjectGuid guid)
 {
-    WorldPacket data(SMSG_GAMEOBJECT_DESPAWN_ANIM, 8);
-    data << ObjectGuid(guid);
+    WorldPacket data;
+    // 18414 consumes a packed GUID here, not the legacy raw uint64 body.
+    MopGameObjectPackets::BuildDespawnAnimation(data, guid.GetRawValue());
     SendMessageToSet(&data, true);
 }
 
 void WorldObject::SendGameObjectCustomAnim(ObjectGuid guid, uint32 animId /*= 0*/)
 {
-    WorldPacket data(SMSG_GAMEOBJECT_CUSTOM_ANIM, 8 + 4);
-    data << ObjectGuid(guid);
-    data << uint32(animId);
+    MopGameObjectPackets::CustomAnimation animation;
+    animation.gameObjectGuid = guid.GetRawValue();
+    animation.animId = animId;
+
+    WorldPacket data;
+    if (!MopGameObjectPackets::BuildCustomAnimation(data, animation))
+    {
+        // The 18414 reader has only four animation slots. Do not put a
+        // client-out-of-range index on the wire.
+        sLog.outError("WorldObject::SendGameObjectCustomAnim: animation id %u is out of range",
+            animId);
+        return;
+    }
     SendMessageToSet(&data, true);
 }

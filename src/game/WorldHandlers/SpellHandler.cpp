@@ -51,6 +51,7 @@
 #include "ScriptMgr.h"
 #include "Totem.h"
 #include "SpellAuras.h"
+#include "GameObject.h"
 
 /**
  * @brief Handles use-item requests and casts the item's use spell.
@@ -321,9 +322,21 @@ void WorldSession::HandleOpenItemOpcode(WorldPacket& recvPacket)
  */
 void WorldSession::HandleGameObjectUseOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid guid;
+    // Wow.exe 18414 writes this GUID as a request-specific bit/XOR sequence.
+    uint64 rawGuid = 0;
+    if (!MopGameObjectPackets::ParseUseRequest(recv_data, rawGuid))
+    {
+        sLog.outError("HandleGameObjectUseOpcode: malformed CMSG_GAMEOBJ_USE");
+        return;
+    }
 
-    recv_data >> guid;
+    ObjectGuid guid(rawGuid);
+    if (!guid.IsGameObject())
+    {
+        sLog.outError("HandleGameObjectUseOpcode: spoofed non-GameObject GUID %s",
+            guid.GetString().c_str());
+        return;
+    }
 
     DEBUG_LOG("WORLD: Received opcode CMSG_GAMEOBJ_USE guid: %s", guid.GetString().c_str());
 
@@ -370,8 +383,21 @@ void WorldSession::HandleGameObjectUseOpcode(WorldPacket& recv_data)
 
 void WorldSession::HandleGameobjectReportUse(WorldPacket& recvPacket)
 {
-    ObjectGuid guid;
-    recvPacket >> guid;
+    // The report request uses a second packed-GUID permutation in 18414.
+    uint64 rawGuid = 0;
+    if (!MopGameObjectPackets::ParseReportUseRequest(recvPacket, rawGuid))
+    {
+        sLog.outError("HandleGameobjectReportUse: malformed CMSG_GAMEOBJ_REPORT_USE");
+        return;
+    }
+
+    ObjectGuid guid(rawGuid);
+    if (!guid.IsGameObject())
+    {
+        sLog.outError("HandleGameobjectReportUse: spoofed non-GameObject GUID %s",
+            guid.GetString().c_str());
+        return;
+    }
 
     DEBUG_LOG("WORLD: Received opcode CMSG_GAMEOBJ_REPORT_USE guid: %s", guid.GetString().c_str());
 

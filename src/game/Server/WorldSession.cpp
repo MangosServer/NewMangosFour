@@ -343,6 +343,9 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_LOOT_REMOVED:                    // MopLootPackets::BuildLootRemoved
         case SMSG_LOOT_MONEY_NOTIFY:               // MopLootPackets::BuildLootMoneyNotify
         case SMSG_LOOT_CLEAR_MONEY:                // MopLootPackets::BuildLootClearMoney
+        case SMSG_GAMEOBJECT_CUSTOM_ANIM:          // MopGameObjectPackets::BuildCustomAnimation
+        case SMSG_GAMEOBJECT_DESPAWN_ANIM:         // MopGameObjectPackets::BuildDespawnAnimation
+        case SMSG_GAMEOBJECT_PAGETEXT:             // MopGameObjectPackets::BuildPageText
         case SMSG_CHAR_CUSTOMIZE:                  // MopCharacterCustomizePackets::BuildResponse
             return true;
 

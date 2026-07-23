@@ -477,10 +477,10 @@ typedef uint16_t uint16;
  *   SMSG_GMTICKET_RESOLVE_RESPONSE                 0x1ABE  DORMANT  [medium-conf]
  *
  *  -- GameObject_C.cpp (4) --
- *   SMSG_GAMEOBJECT_CUSTOM_ANIM                    0x001F  DORMANT  [low-conf]
+ *   SMSG_GAMEOBJECT_CUSTOM_ANIM                    0x001F  ACTIVE   [high-conf]
  *   SMSG_GAME_OBJECT_ACTIVATE_ANIM_KIT             0x0C8A  DOC      [low-conf]
- *   SMSG_GAMEOBJECT_DESPAWN_ANIM                   0x108B  DORMANT  [low-conf]
- *   SMSG_GAMEOBJECT_PAGETEXT                       0x14AF  DORMANT  [low-conf]
+ *   SMSG_GAMEOBJECT_DESPAWN_ANIM                   0x108B  ACTIVE   [high-conf]
+ *   SMSG_GAMEOBJECT_PAGETEXT                       0x14AF  ACTIVE   [high-conf]
  *
  *  -- GameUI.cpp (49) --
  *   SMSG_UNKNOWN_0x001B                            0x001B  DOC     
@@ -1514,8 +1514,8 @@ typedef uint16_t uint16;
  *   CMSG_JOIN_PET_BATTLE_QUEUE                     0x06D4  DOC     
  *   CMSG_ON_MISSILE_TRAJECTORY_COLLISION           0x06D6  DORMANT 
  *   CMSG_TRANSMOGRIFY_ITEMS                        0x06D7  DOC     
- *   CMSG_GAMEOBJ_USE                               0x06D8  DORMANT 
- *   CMSG_GAMEOBJ_REPORT_USE                        0x06D9  DORMANT 
+ *   CMSG_GAMEOBJ_USE                               0x06D8  ACTIVE   [high-conf]
+ *   CMSG_GAMEOBJ_REPORT_USE                        0x06D9  ACTIVE   [high-conf]
  *   CMSG_PETITION_SIGN                             0x06DA  DORMANT 
  *   CMSG_OPT_OUT_OF_LOOT                           0x06E0  DORMANT 
  *   CMSG_REQUEST_CEMETERY_LIST                     0x06E4  DOC     

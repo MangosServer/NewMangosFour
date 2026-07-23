@@ -225,7 +225,7 @@ enum OpcodesList
     SMSG_READ_ITEM_FAILED                        = 0x0E8B,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork; fuzzy via SMSG_READ_ITEM_RESULT_FAILED)
     SMSG_ITEM_COOLDOWN                           = 0x1904,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_GAMEOBJ_USE                             = 0x06D8, // 5.4.8 18414 (Wow.exe binary)
-    SMSG_GAMEOBJECT_CUSTOM_ANIM                  = 0x001F,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
+    SMSG_GAMEOBJECT_CUSTOM_ANIM                  = 0x001F,    // 5.4.8 18414 (Wow.exe binary; direct reader)
     CMSG_AREATRIGGER                             = 0x1C44, // 5.4.8 18414 (Wow.exe binary)
     CMSG_MOVE_START_FORWARD                      = 0x095A, // 5.4.8 18414
     CMSG_MOVE_START_BACKWARD                     = 0x09D8, // 5.4.8 18414
@@ -513,7 +513,7 @@ enum OpcodesList
     CMSG_PING                                    = 0x0012, // 5.4.8 18414 (Wow.exe binary)
     SMSG_PONG                                    = 0x1969,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_CLEAR_COOLDOWNS                         = 0x1458,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
-    SMSG_GAMEOBJECT_PAGETEXT                     = 0x14AF,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
+    SMSG_GAMEOBJECT_PAGETEXT                     = 0x14AF,    // 5.4.8 18414 (Wow.exe binary; direct reader)
     CMSG_SETSHEATHED                             = 0x0249, // 5.4.8 18414 (Wow.exe writer sub_6867F6; body sub_66659D)
     SMSG_COOLDOWN_CHEAT                          = 0x0432,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_SPELL_DELAYED                           = 0x087A,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
@@ -557,7 +557,7 @@ enum OpcodesList
     CMSG_GMTICKET_GETTICKET                      = 0x1F89, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_TICKET_GET_TICKET)
     SMSG_GMTICKET_GETTICKET                      = 0x129B,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus; via SMSG_GM_TICKET_GET_TICKET)
     SMSG_INSTANCE_ENCOUNTER                      = 0x1215,    // (no client leaf)
-    SMSG_GAMEOBJECT_DESPAWN_ANIM                 = 0x108B,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
+    SMSG_GAMEOBJECT_DESPAWN_ANIM                 = 0x108B,    // 5.4.8 18414 (Wow.exe binary; direct reader)
     CMSG_GMTICKET_DELETETICKET                   = 0x1A23, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_TICKET_DELETE_TICKET)
     SMSG_GMTICKET_DELETETICKET                   = 0x6D17,    // (legacy; no client leaf; unframable >0x1FFF)
     CMSG_GMTICKET_SYSTEMSTATUS                   = 0x0A82, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_TICKET_SYSTEM_STATUS)

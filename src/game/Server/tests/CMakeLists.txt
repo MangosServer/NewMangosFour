@@ -874,6 +874,34 @@ foreach(mutation IN ITEMS open_parser take_parser money_parser release_parser
         PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_executable(mop_gameobject_interaction_packets_test
+    mop_gameobject_interaction_packets_test.cpp)
+target_include_directories(mop_gameobject_interaction_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_gameobject_interaction_packets_test
+    PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_gameobject_interaction_packets_test PRIVATE game)
+add_test(NAME mop_gameobject_interaction_packets
+    COMMAND mop_gameobject_interaction_packets_test)
+
+add_test(NAME mop_gameobject_interaction_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_gameobject_interaction_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS use_parser report_parser guid_type_guard
+        custom_sender despawn_sender pagetext_sender
+        client_registration report_registration server_registration
+        sender_admission opcode_values legacy_reader)
+    add_test(NAME mop_gameobject_interaction_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_gameobject_interaction_packets_source_test.cmake)
+    set_tests_properties(
+        mop_gameobject_interaction_packets_source_mutation_${mutation}
+        PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_character_customize_packets_test mop_character_customize_packets_test.cpp)
 target_include_directories(mop_character_customize_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
