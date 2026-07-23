@@ -213,21 +213,14 @@ void WorldSession::HandleGMTicketDeleteTicketOpcode(WorldPacket& /*recv_data*/)
  */
 void WorldSession::HandleGMTicketCreateOpcode(WorldPacket& recv_data)
 {
-    uint32 mapId;
-    float x, y, z;
-    std::string ticketText = "";
-    uint8 isFollowup;
-    recv_data >> mapId >> x >> y >> z;                        // last check 2.4.3
-    recv_data >> ticketText;
+    MopGMTicketPackets::CreateRequest request;
+    if (!MopGMTicketPackets::ReadCreateRequest(recv_data, request))
+        return;
 
-    recv_data.read_skip<uint32>();                          // unk1, 11 - talk to gm, 1 - report problem
-    recv_data >> isFollowup;                                // unk2, 1 - followup ticket
-    recv_data.read_skip<uint32>();                          // unk3, 0
-    recv_data.read_skip<uint32>();                          // unk4, 0
+    DEBUG_LOG("TicketCreate: map %u, x %f, y %f, z %f, text %s",
+        request.mapId, request.x, request.y, request.z, request.message.c_str());
 
-    DEBUG_LOG("TicketCreate: map %u, x %f, y %f, z %f, text %s", mapId, x, y, z, ticketText.c_str());
-
-    if (sTicketMgr.GetGMTicket(GetPlayer()->GetObjectGuid()) && !isFollowup)
+    if (sTicketMgr.GetGMTicket(GetPlayer()->GetObjectGuid()) && !request.isFollowup)
     {
         WorldPacket data;
         MopGMTicketPackets::BuildUpdate(data, GMTICKET_RESPONSE_ALREADY_EXIST);
@@ -235,7 +228,7 @@ void WorldSession::HandleGMTicketCreateOpcode(WorldPacket& recv_data)
         return;
     }
 
-    sTicketMgr.Create(_player->GetObjectGuid(), ticketText.c_str());
+    sTicketMgr.Create(_player->GetObjectGuid(), request.message.c_str());
 
     SendQueryTimeResponse();
 

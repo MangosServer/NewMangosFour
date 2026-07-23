@@ -46,6 +46,19 @@ enum GMTicketResponse
 
 namespace MopGMTicketPackets
 {
+    struct CreateRequest
+    {
+        uint32 mapId = 0;
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+        uint8 category = 0;
+        uint32 attachmentSize = 0;
+        bool needResponse = false;
+        bool isFollowup = false;
+        std::string message;
+    };
+
     struct TicketInfo
     {
         uint32 ticketId = 0;
@@ -59,6 +72,47 @@ namespace MopGMTicketPackets
         uint32 lastChangeTime = 0;
         std::string waitTimeOverride;
     };
+
+    inline bool ReadCreateRequest(WorldPacket& in, CreateRequest& request)
+    {
+        request = CreateRequest();
+        if (in.size() - in.rpos() < 21)
+        {
+            in.rfinish();
+            return false;
+        }
+
+        CreateRequest parsed;
+        in >> parsed.mapId >> parsed.z >> parsed.y >> parsed.category >> parsed.x
+            >> parsed.attachmentSize;
+
+        uint32 const attachmentSize = parsed.attachmentSize;
+        if (attachmentSize > in.size() - in.rpos())
+        {
+            in.rfinish();
+            return false;
+        }
+        in.read_skip(attachmentSize);
+
+        if (in.size() - in.rpos() < 2)
+        {
+            in.rfinish();
+            return false;
+        }
+
+        parsed.needResponse = in.ReadBit();
+        parsed.isFollowup = in.ReadBit();
+        uint32 const messageLength = in.ReadBits(11);
+        if (messageLength != in.size() - in.rpos())
+        {
+            in.rfinish();
+            return false;
+        }
+
+        parsed.message = in.ReadString(messageLength);
+        request = parsed;
+        return true;
+    }
 
     inline void BuildUpdate(WorldPacket& out, GMTicketResponse response)
     {

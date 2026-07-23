@@ -54,6 +54,24 @@ elseif(MUTATION STREQUAL "case_server_registration")
 elseif(MUTATION STREQUAL "case_whitelist")
     string(REPLACE "case SMSG_GM_TICKET_CASE_STATUS:"
         "/* removed case-status whitelist */" session_source "${session_source}")
+elseif(MUTATION STREQUAL "create_parser_call")
+    string(REPLACE
+        "MopGMTicketPackets::ReadCreateRequest(recv_data, request)"
+        "false /* removed create-request parser */"
+        ticket_handler "${ticket_handler}")
+elseif(MUTATION STREQUAL "create_registration")
+    string(REPLACE
+        "DefC(CMSG_GMTICKET_CREATE, \"CMSG_GMTICKET_CREATE\""
+        "/* removed create-ticket client registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "create_message_width")
+    string(REPLACE "in.ReadBits(11)" "in.ReadBits(10)"
+        ticket_header "${ticket_header}")
+elseif(MUTATION STREQUAL "create_attachment_bounds")
+    string(REPLACE
+        "attachmentSize > in.size() - in.rpos()"
+        "attachmentSize > in.size()"
+        ticket_header "${ticket_header}")
 endif()
 
 function(require_once source token context)
@@ -63,6 +81,19 @@ function(require_once source token context)
         message(FATAL_ERROR "${context}: expected one active occurrence, found ${count}")
     endif()
 endfunction()
+
+string(FIND "${ticket_handler}"
+    "void WorldSession::HandleGMTicketCreateOpcode" create_handler_start)
+if(create_handler_start EQUAL -1)
+    message(FATAL_ERROR "GM-ticket create handler missing")
+endif()
+string(SUBSTRING "${ticket_handler}" ${create_handler_start} -1 create_handler_tail)
+string(FIND "${create_handler_tail}"
+    "void WorldSession::HandleGMTicketSystemStatusOpcode" create_handler_end)
+if(create_handler_end EQUAL -1)
+    message(FATAL_ERROR "GM-ticket create handler boundary missing")
+endif()
+string(SUBSTRING "${create_handler_tail}" 0 ${create_handler_end} create_handler)
 
 require_once("${ticket_header}"
     "out << uint8\\(response\\)"
@@ -134,3 +165,21 @@ foreach(required IN ITEMS
         message(FATAL_ERROR "GM-ticket response whitelist missing: ${required}")
     endif()
 endforeach()
+
+require_once("${create_handler}"
+    "MopGMTicketPackets::ReadCreateRequest\\(recv_data,[ \\t]*request\\)"
+    "GM-ticket create parser integration")
+if(create_handler MATCHES
+        "recv_data[ \\t]*>>[ \\t]*mapId[ \\t]*>>[ \\t]*x[ \\t]*>>[ \\t]*y[ \\t]*>>[ \\t]*z"
+        OR create_handler MATCHES "recv_data[ \\t]*>>[ \\t]*ticketText")
+    message(FATAL_ERROR "legacy GM-ticket create layout remains active")
+endif()
+require_once("${opcode_registry}"
+    "DefC\\(CMSG_GMTICKET_CREATE,[ \\t]*\"CMSG_GMTICKET_CREATE\""
+    "GM-ticket create registration")
+require_once("${ticket_header}"
+    "in.ReadBits\\(11\\)"
+    "GM-ticket create 11-bit message length")
+require_once("${ticket_header}"
+    "attachmentSize > in.size\\(\\) - in.rpos\\(\\)"
+    "GM-ticket create attachment bounds check")
