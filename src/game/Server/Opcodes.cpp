@@ -328,6 +328,18 @@ void InitializeOpcodes()
     DefC(CMSG_SPLIT_ITEM, "CMSG_SPLIT_ITEM", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleSplitItemOpcode);
     DefS(SMSG_INVENTORY_CHANGE_FAILURE, "SMSG_INVENTORY_CHANGE_FAILURE");
 
+    // Directly verified 18414 loot-window requests and replies. The handlers
+    // validate the packed view identity before reusing authoritative loot state.
+    DefC(CMSG_LOOT, "CMSG_LOOT", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLootOpcode);
+    DefC(CMSG_AUTOSTORE_LOOT_ITEM, "CMSG_AUTOSTORE_LOOT_ITEM", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleAutostoreLootItemOpcode);
+    DefC(CMSG_LOOT_MONEY, "CMSG_LOOT_MONEY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLootMoneyOpcode);
+    DefC(CMSG_LOOT_RELEASE, "CMSG_LOOT_RELEASE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLootReleaseOpcode);
+    DefS(SMSG_LOOT_RESPONSE, "SMSG_LOOT_RESPONSE");
+    DefS(SMSG_LOOT_RELEASE_RESPONSE, "SMSG_LOOT_RELEASE_RESPONSE");
+    DefS(SMSG_LOOT_REMOVED, "SMSG_LOOT_REMOVED");
+    DefS(SMSG_LOOT_MONEY_NOTIFY, "SMSG_LOOT_MONEY_NOTIFY");
+    DefS(SMSG_LOOT_CLEAR_MONEY, "SMSG_LOOT_CLEAR_MONEY");
+
     // Empty 18414 status refresh request. The handler replies through the
     // already-converted unified SMSG_LFG_UPDATE_STATUS body.
     DefC(CMSG_LFG_GET_STATUS, "CMSG_LFG_GET_STATUS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgGetStatusOpcode);

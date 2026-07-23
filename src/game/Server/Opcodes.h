@@ -392,7 +392,7 @@ enum OpcodesList
     SMSG_LOOT_RELEASE_RESPONSE                   = 0x123F,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_LOOT_REMOVED                            = 0x0C3E,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_LOOT_MONEY_NOTIFY                       = 0x14C0,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
-    SMSG_LOOT_ITEM_NOTIFY                        = 0x080F,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
+    SMSG_UNKNOWN_080F                            = 0x080F,    // 5.4.8 18414 (Wow.exe leaf; direct reader is a loot-roll batch, exact name unresolved)
     SMSG_LOOT_CLEAR_MONEY                        = 0x1632,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_ITEM_PUSH_RESULT                        = 0x0E0A,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_DUEL_REQUESTED                          = 0x0022,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)

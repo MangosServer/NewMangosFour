@@ -24,6 +24,7 @@
  */
 
 #include "LootMgr.h"
+#include "Group.h"
 #include "Log.h"
 #include "ObjectMgr.h"
 #include "ProgressBar.h"
@@ -1119,154 +1120,162 @@ uint32 Loot::GetMaxSlotInLootFor(Player* player) const
 }
 
 /**
- * @brief Serializes a loot item entry into a byte buffer.
- *
- * @param b The output byte buffer.
- * @param li The loot item view.
- * @return ByteBuffer& The populated byte buffer.
+ * @brief Builds the 18414 loot-view body from the existing gameplay model.
  */
-ByteBuffer& operator<<(ByteBuffer& b, LootItem const& li)
+bool BuildMopLootResponse(WorldPacket& out, LootView const& view,
+    ObjectGuid sourceGuid, LootType lootType)
 {
-    if (li.type == LOOT_ITEM_TYPE_ITEM)
-    {
-        b << uint32(li.itemid);
-        b << uint32(li.count);                                  // nr of items of this type
-        b << uint32(ObjectMgr::GetItemPrototype(li.itemid)->DisplayInfoID);
-        b << uint32(li.randomSuffix);
-        b << uint32(li.randomPropertyId);
-    }
-    else if (li.type == LOOT_ITEM_TYPE_CURRENCY)
-    {
-        b << uint32(li.itemid);
-        b << uint32(li.count);
-    }
-    // b << uint8(0);                                       // slot type - will send after this function call
-    return b;
-}
+    Loot& loot = view.loot;
+    MopLootPackets::LootResponse response;
+    response.sourceGuid = sourceGuid.GetRawValue();
 
-/**
- * @brief Serializes a loot view for a specific viewer into a byte buffer.
- *
- * @param b The output byte buffer.
- * @param lv The loot view to serialize.
- * @return ByteBuffer& The populated byte buffer.
- */
-ByteBuffer& operator<<(ByteBuffer& b, LootView const& lv)
-{
-    if (lv.permission == NONE_PERMISSION)
+    // MaNGOS currently has one active loot target per player. The client keeps
+    // source and view identities separately for area loot, so the wire codec
+    // preserves both fields even though ordinary loot intentionally equates them.
+    response.lootGuid = sourceGuid.GetRawValue();
+    response.hasLootType = true;
+    response.lootType = uint8(lootType);
+    response.success = true;
+
+    if (view.permission != NONE_PERMISSION)
     {
-        b << uint32(0);                                     // gold
-        b << uint8(0);                                      // item count
-        b << uint8(0);                                      // currency count
-        return b;
+        response.money = loot.gold;
     }
 
-    Loot& l = lv.loot;
-
-    uint8 itemsShown = 0;
-    uint8 currenciesShown = 0;
-
-    // gold
-    b << uint32(l.gold);
-
-    size_t count_pos = b.wpos();                            // pos of item count byte
-    b << uint8(0);                                          // item count placeholder
-    size_t currency_count_pos = b.wpos();                   // pos of currency count byte
-    b << uint8(0);                                          // currency count placeholder
-
-    for (uint8 i = 0; i < l.items.size(); ++i)
+    if (Group* group = view.viewer->GetGroup())
     {
-        LootSlotType slot_type = l.items[i].GetSlotTypeForSharedLoot(lv.permission, lv.viewer, l.GetLootTarget());
-        if (slot_type >= MAX_LOOT_SLOT_TYPE)
+        response.hasLootMethod = true;
+        response.lootMethod = uint8(group->GetLootMethod());
+        response.hasLootThreshold = true;
+        response.lootThreshold = uint8(group->GetLootThreshold());
+    }
+
+    auto appendItem = [&response](uint8 lootListId, ::LootItem const& item,
+        LootSlotType slotType)
+    {
+        MopLootPackets::LootItem wireItem;
+        wireItem.randomSuffix = int32(item.randomSuffix);
+        wireItem.count = item.count;
+        wireItem.itemId = item.itemid;
+        wireItem.situ.assign(4, 0); // Client-compatible empty item-modifier block.
+        wireItem.randomPropertyId = item.randomPropertyId;
+        wireItem.lootListId = lootListId;
+        wireItem.slotType = uint8(slotType);
+        if (ItemPrototype const* prototype =
+                ObjectMgr::GetItemPrototype(item.itemid))
         {
-            continue;
+            wireItem.displayInfoId = prototype->DisplayInfoID;
         }
+        response.items.push_back(wireItem);
+    };
 
-        b << uint8(i) << l.items[i];
-        b << uint8(slot_type);                              // 0 - get 1 - look only 2 - master selection
-        ++itemsShown;
-    }
-
-    QuestItemMap const& lootPlayerNonQuestNonFFAConditionalItems = l.GetPlayerNonQuestNonFFANonCurrencyConditionalItems();
-    QuestItemMap::const_iterator nn_itr = lootPlayerNonQuestNonFFAConditionalItems.find(lv.viewer->GetGUIDLow());
-    if (nn_itr != lootPlayerNonQuestNonFFAConditionalItems.end())
+    if (view.permission != NONE_PERMISSION)
     {
-        QuestItemList* conditional_list =  nn_itr->second;
-        for (QuestItemList::const_iterator ci = conditional_list->begin() ; ci != conditional_list->end(); ++ci)
+        for (size_t index = 0; index < loot.items.size(); ++index)
         {
-            LootItem& item = l.items[ci->index];
-
-            LootSlotType slot_type = item.GetSlotTypeForSharedLoot(lv.permission, lv.viewer, l.GetLootTarget(), !ci->is_looted);
-            if (slot_type >= MAX_LOOT_SLOT_TYPE)
+            ::LootItem const& item = loot.items[index];
+            LootSlotType const slotType = item.GetSlotTypeForSharedLoot(
+                view.permission, view.viewer, loot.GetLootTarget());
+            if (slotType < MAX_LOOT_SLOT_TYPE)
             {
-                continue;
-            }
-
-            b << uint8(ci->index) << item;
-            b << uint8(slot_type);                          // allow loot
-            ++itemsShown;
-        }
-    }
-
-    // in next cases used same slot type for all items
-    LootSlotType slot_type = lv.permission == OWNER_PERMISSION ? LOOT_SLOT_OWNER : LOOT_SLOT_NORMAL;
-
-    QuestItemMap const& lootPlayerQuestItems = l.GetPlayerQuestItems();
-    QuestItemMap::const_iterator q_itr = lootPlayerQuestItems.find(lv.viewer->GetGUIDLow());
-    if (q_itr != lootPlayerQuestItems.end())
-    {
-        QuestItemList* q_list = q_itr->second;
-        for (QuestItemList::const_iterator qi = q_list->begin() ; qi != q_list->end(); ++qi)
-        {
-            LootItem& item = l.m_questItems[qi->index];
-            if (!qi->is_looted && !item.is_looted)
-            {
-                b << uint8(l.items.size() + (qi - q_list->begin()));
-                b << item;
-                b << uint8(slot_type);                      // allow loot
-                ++itemsShown;
+                // Loot-list IDs remain bytes even though the client count field
+                // is wider; never wrap an internal vector index onto the wire.
+                if (index > UINT8_MAX)
+                {
+                    return false;
+                }
+                appendItem(uint8(index), item, slotType);
             }
         }
-    }
 
-    QuestItemMap const& lootPlayerFFAItems = l.GetPlayerFFAItems();
-    QuestItemMap::const_iterator ffa_itr = lootPlayerFFAItems.find(lv.viewer->GetGUIDLow());
-    if (ffa_itr != lootPlayerFFAItems.end())
-    {
-        QuestItemList* ffa_list = ffa_itr->second;
-        for (QuestItemList::const_iterator fi = ffa_list->begin() ; fi != ffa_list->end(); ++fi)
+        QuestItemMap const& conditionalItems =
+            loot.GetPlayerNonQuestNonFFANonCurrencyConditionalItems();
+        QuestItemMap::const_iterator conditionalItr =
+            conditionalItems.find(view.viewer->GetGUIDLow());
+        if (conditionalItr != conditionalItems.end())
         {
-            LootItem& item = l.items[fi->index];
-            if (!fi->is_looted && !item.is_looted)
+            for (QuestItemList::const_iterator itr =
+                    conditionalItr->second->begin();
+                    itr != conditionalItr->second->end(); ++itr)
             {
-                b << uint8(fi->index) << item;
-                b << uint8(slot_type);                      // allow loot
-                ++itemsShown;
+                ::LootItem const& item = loot.items[itr->index];
+                LootSlotType const slotType =
+                    item.GetSlotTypeForSharedLoot(view.permission,
+                        view.viewer, loot.GetLootTarget(), !itr->is_looted);
+                if (slotType < MAX_LOOT_SLOT_TYPE)
+                {
+                    appendItem(itr->index, item, slotType);
+                }
+            }
+        }
+
+        LootSlotType const personalSlotType =
+            view.permission == OWNER_PERMISSION ?
+                LOOT_SLOT_OWNER : LOOT_SLOT_NORMAL;
+
+        QuestItemMap const& questItems = loot.GetPlayerQuestItems();
+        QuestItemMap::const_iterator questItr =
+            questItems.find(view.viewer->GetGUIDLow());
+        if (questItr != questItems.end())
+        {
+            QuestItemList const& visible = *questItr->second;
+            for (QuestItemList::const_iterator itr = visible.begin();
+                    itr != visible.end(); ++itr)
+            {
+                ::LootItem const& item = loot.m_questItems[itr->index];
+                if (!itr->is_looted && !item.is_looted)
+                {
+                    size_t const visibleIndex =
+                        loot.items.size() + (itr - visible.begin());
+                    if (visibleIndex > UINT8_MAX)
+                    {
+                        return false;
+                    }
+                    appendItem(uint8(visibleIndex), item, personalSlotType);
+                }
+            }
+        }
+
+        QuestItemMap const& ffaItems = loot.GetPlayerFFAItems();
+        QuestItemMap::const_iterator ffaItr =
+            ffaItems.find(view.viewer->GetGUIDLow());
+        if (ffaItr != ffaItems.end())
+        {
+            for (QuestItemList::const_iterator itr = ffaItr->second->begin();
+                    itr != ffaItr->second->end(); ++itr)
+            {
+                ::LootItem const& item = loot.items[itr->index];
+                if (!itr->is_looted && !item.is_looted)
+                {
+                    appendItem(itr->index, item, personalSlotType);
+                }
+            }
+        }
+
+        QuestItemMap const& currencies = loot.GetPlayerCurrencies();
+        QuestItemMap::const_iterator currencyItr =
+            currencies.find(view.viewer->GetGUIDLow());
+        if (currencyItr != currencies.end())
+        {
+            for (QuestItemList::const_iterator itr =
+                    currencyItr->second->begin();
+                    itr != currencyItr->second->end(); ++itr)
+            {
+                ::LootItem const& item = loot.items[itr->index];
+                if (!itr->is_looted && !item.is_looted)
+                {
+                    MopLootPackets::LootCurrency currency;
+                    currency.amount = item.count;
+                    currency.currencyId = item.itemid;
+                    currency.lootListId = itr->index;
+                    currency.slotType = uint8(personalSlotType);
+                    response.currencies.push_back(currency);
+                }
             }
         }
     }
 
-    QuestItemMap const& lootPlayerCurrencies = l.GetPlayerCurrencies();
-    QuestItemMap::const_iterator currency_itr = lootPlayerCurrencies.find(lv.viewer->GetGUIDLow());
-    if (currency_itr != lootPlayerCurrencies.end())
-    {
-        QuestItemList* currency_list = currency_itr->second;
-        for (QuestItemList::const_iterator ci = currency_list->begin() ; ci != currency_list->end(); ++ci)
-        {
-            LootItem& item = l.items[ci->index];
-            if (!ci->is_looted && !item.is_looted)
-            {
-                b << uint8(ci->index) << item;
-                ++currenciesShown;
-            }
-        }
-    }
-
-    // update number of items and currencies shown
-    b.put<uint8>(count_pos, itemsShown);
-    b.put<uint8>(currency_count_pos, currenciesShown);
-
-    return b;
+    return MopLootPackets::BuildLootResponse(out, response);
 }
 
 /**

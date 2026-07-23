@@ -7,8 +7,8 @@ file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" world_session)
 
 if(MUTATION STREQUAL "currency_send")
-    string(REPLACE "currency->is_looted = true;"
-        "player->SendNotifyLootItemRemoved(lootSlot);\n        currency->is_looted = true;"
+    string(REPLACE "player->SendNotifyLootItemRemoved(lootSlot);"
+        "/* removed converted currency-row removal */"
         loot_handler "${loot_handler}")
 elseif(MUTATION STREQUAL "legacy_selector")
     string(APPEND player_loot
@@ -24,9 +24,13 @@ elseif(MUTATION STREQUAL "generic_backend")
         "void Player::RemovedGenericLootBackend(uint8 lootSlot)"
         player_loot "${player_loot}")
 elseif(MUTATION STREQUAL "premature_registration")
-    string(APPEND opcode_registry "\nDefS(SMSG_LOOT_REMOVED, \"SMSG_LOOT_REMOVED\");\n")
+    string(REPLACE "DefS(SMSG_LOOT_REMOVED, \"SMSG_LOOT_REMOVED\");"
+        "/* removed generic loot-removal registration */"
+        opcode_registry "${opcode_registry}")
 elseif(MUTATION STREQUAL "premature_allowlist")
-    string(APPEND world_session "\ncase SMSG_LOOT_REMOVED:\n")
+    string(REPLACE "case SMSG_LOOT_REMOVED:"
+        "case 0xFFFF: /* removed generic loot-removal admission */"
+        world_session "${world_session}")
 endif()
 
 function(require_once source token context)
@@ -66,16 +70,16 @@ extract_body(currency_branch "${loot_handler}"
     "ItemPosCountVec dest;")
 
 foreach(token IN ITEMS
-        "player->ModifyCurrencyCount(item->itemid, int32(item->count * currencyEntry->GetPrecision()))"
+        "player->ModifyCurrencyCount(item->itemid,"
+        "int32(item->count * currencyEntry->GetPrecision()))"
         "currency->is_looted = true;"
-        "--loot->unlootedCount;")
+        "--loot->unlootedCount;"
+        "player->SendNotifyLootItemRemoved(lootSlot);")
     string(FIND "${currency_branch}" "${token}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR "live currency loot accounting missing: ${token}")
     endif()
 endforeach()
-forbid("${currency_branch}" "SendNotifyLootItemRemoved("
-    "unimplemented modern currency-row removal")
 
 require_once("${player_loot}" "void Player::SendNotifyLootItemRemoved(uint8 lootSlot)"
     "generic loot-removal backend")
@@ -83,6 +87,10 @@ require_once("${player_header}" "void SendNotifyLootItemRemoved(uint8 lootSlot);
     "generic loot-removal declaration")
 require_once("${opcode_header}" "SMSG_LOOT_REMOVED                            = 0x0C3E"
     "binary-proven generic loot-removal leaf")
+require_once("${opcode_registry}" "DefS(SMSG_LOOT_REMOVED, \"SMSG_LOOT_REMOVED\");"
+    "converted generic loot-removal registration")
+require_once("${world_session}" "case SMSG_LOOT_REMOVED:"
+    "converted generic loot-removal admission")
 
 set(production "${player_loot}${player_header}${currency_header}${loot_handler}${opcode_header}")
 foreach(token IN ITEMS
@@ -93,8 +101,3 @@ foreach(token IN ITEMS
         "SendNotifyLootItemRemoved(_, bool currency)")
     forbid("${production}" "${token}" "retired currency-specific loot-removal wiring")
 endforeach()
-
-forbid("${opcode_registry}" "DefS(SMSG_LOOT_REMOVED"
-    "unconverted generic loot-removal registration")
-forbid("${world_session}" "case SMSG_LOOT_REMOVED:"
-    "unconverted generic loot-removal allowlist")

@@ -338,6 +338,11 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_GOSSIP_MESSAGE:                  // MopGossipPackets::BuildMessage
         case SMSG_LIST_INVENTORY:                  // MopItemPackets::BuildVendorList
         case SMSG_INVENTORY_CHANGE_FAILURE:        // MopItemPackets::BuildInventoryChangeFailure
+        case SMSG_LOOT_RESPONSE:                   // MopLootPackets::BuildLootResponse
+        case SMSG_LOOT_RELEASE_RESPONSE:           // MopLootPackets::BuildLootReleaseResponse
+        case SMSG_LOOT_REMOVED:                    // MopLootPackets::BuildLootRemoved
+        case SMSG_LOOT_MONEY_NOTIFY:               // MopLootPackets::BuildLootMoneyNotify
+        case SMSG_LOOT_CLEAR_MONEY:                // MopLootPackets::BuildLootClearMoney
         case SMSG_CHAR_CUSTOMIZE:                  // MopCharacterCustomizePackets::BuildResponse
             return true;
 

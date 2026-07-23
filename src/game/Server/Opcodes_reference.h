@@ -641,7 +641,7 @@ typedef uint16_t uint16;
  *
  *  -- LootRoll.cpp (7) --
  *   SMSG_LOOT_MASTER_LIST                          0x02BF  DORMANT  [low-conf]
- *   SMSG_LOOT_ITEM_NOTIFY                          0x080F  DORMANT 
+ *   SMSG_UNKNOWN_080F                              0x080F  DOC      [direct reader: loot-roll batch; exact name unresolved]
  *   SMSG_LOOT_ROLL_WON                             0x0A3A  DORMANT 
  *   SMSG_LOOT_START_ROLL                           0x0EAA  DORMANT 
  *   SMSG_LOOT_ALL_PASSED                           0x0EBB  DORMANT 

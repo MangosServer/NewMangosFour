@@ -850,6 +850,30 @@ foreach(mutation IN ITEMS swap_inv_handler swap_handler autoequip_handler autost
     set_tests_properties(mop_inventory_packets_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_executable(mop_loot_packets_test mop_loot_packets_test.cpp)
+target_include_directories(mop_loot_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_loot_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_loot_packets_test PRIVATE game)
+add_test(NAME mop_loot_packets COMMAND mop_loot_packets_test)
+
+add_test(NAME mop_loot_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_loot_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS open_parser take_parser money_parser release_parser
+        response_sender release_sender removed_sender money_sender situ_model
+        registration_cmsg registration_smsg admission opcode_values unknown_name
+        legacy_reader legacy_sender)
+    add_test(NAME mop_loot_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_loot_packets_source_test.cmake)
+    set_tests_properties(mop_loot_packets_source_mutation_${mutation}
+        PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_character_customize_packets_test mop_character_customize_packets_test.cpp)
 target_include_directories(mop_character_customize_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..

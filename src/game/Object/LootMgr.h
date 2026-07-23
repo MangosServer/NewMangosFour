@@ -29,8 +29,11 @@
 #include "ItemEnchantmentMgr.h"
 #include "ByteBuffer.h"
 #include "ObjectGuid.h"
+#include "Opcodes.h"
 #include "Utilities/LinkedReference/RefManager.h"
+#include "WorldPacket.h"
 
+#include <array>
 #include <map>
 #include <vector>
 
@@ -87,6 +90,426 @@ enum LootSlotType
     LOOT_SLOT_OWNER   = 4,                                  // ignore binding confirmation and etc, for single player looting
     MAX_LOOT_SLOT_TYPE                                      // custom, use for mark skipped from show items
 };
+
+namespace MopLootPackets
+{
+    constexpr size_t MAX_TAKE_ENTRIES = 50;
+    constexpr size_t MAX_VISIBLE_ENTRIES = 255;
+    constexpr size_t MAX_SITU_BYTES = 64;
+
+    struct LootTakeEntry
+    {
+        uint64 lootGuid = 0;
+        uint8 lootListId = 0;
+    };
+
+    struct LootItem
+    {
+        int32 randomSuffix = 0;
+        uint32 count = 0;
+        uint32 itemId = 0;
+        std::vector<uint8> situ;
+        int32 randomPropertyId = 0;
+        uint32 displayInfoId = 0;
+        uint8 slotType = 0;
+        uint8 lootListId = 0;
+        uint8 optionalByte = 0;
+        uint8 unknown = 0;
+        bool canTradeToTapList = false;
+        bool hasOptionalByte = false;
+        bool hasLootListId = true;
+    };
+
+    struct LootCurrency
+    {
+        uint32 amount = 0;
+        uint32 currencyId = 0;
+        uint8 slotType = 0;
+        uint8 lootListId = 0;
+    };
+
+    struct LootResponse
+    {
+        uint64 sourceGuid = 0;
+        uint64 lootGuid = 0;
+        uint32 money = 0;
+        uint8 lootMethod = 3;
+        uint8 lootType = 0;
+        uint8 failureReason = 0;
+        uint8 lootThreshold = 0;
+        bool hasLootMethod = false;
+        bool hasLootType = false;
+        bool hasFailureReason = false;
+        bool hasLootThreshold = false;
+        bool success = true;
+        bool isAreaOfEffectLooting = false;
+        std::vector<LootItem> items;
+        std::vector<LootCurrency> currencies;
+    };
+
+    inline uint8 GuidByte(uint64 guid, size_t index)
+    {
+        return uint8(guid >> (index * 8));
+    }
+
+    inline bool RejectRequest(WorldPacket& in)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    inline size_t PresentByteCount(uint8 mask)
+    {
+        size_t count = 0;
+        for (; mask != 0; mask >>= 1)
+        {
+            count += mask & 1;
+        }
+        return count;
+    }
+
+    inline bool ParseSingleGuidRequest(WorldPacket& in,
+        std::array<uint8, 8> const& maskOrder,
+        std::array<uint8, 8> const& byteOrder, uint64& guid)
+    {
+        if (in.size() - in.rpos() < 1)
+        {
+            return RejectRequest(in);
+        }
+
+        uint8 const mask = in[in.rpos()];
+        if (in.size() - in.rpos() != 1 + PresentByteCount(mask))
+        {
+            return RejectRequest(in);
+        }
+
+        uint8 guidBytes[8] = {};
+        for (uint8 index : maskOrder)
+        {
+            guidBytes[index] = in.ReadBit();
+        }
+        for (uint8 index : byteOrder)
+        {
+            in.ReadByteSeq(guidBytes[index]);
+        }
+
+        uint64 parsed = 0;
+        for (size_t index = 0; index < 8; ++index)
+        {
+            parsed |= uint64(guidBytes[index]) << (index * 8);
+        }
+        guid = parsed;
+        return in.rpos() == in.size();
+    }
+
+    // Both requests contain one GUID, but 18414 deliberately uses different
+    // mask and XOR-byte permutations for opening and releasing a loot source.
+    inline bool ParseLootRequest(WorldPacket& in, uint64& guid)
+    {
+        return ParseSingleGuidRequest(in,
+            {{ 4, 5, 2, 7, 0, 1, 3, 6 }},
+            {{ 3, 5, 0, 6, 4, 1, 7, 2 }}, guid);
+    }
+
+    inline bool ParseLootReleaseRequest(WorldPacket& in, uint64& guid)
+    {
+        return ParseSingleGuidRequest(in,
+            {{ 7, 4, 2, 3, 0, 5, 6, 1 }},
+            {{ 0, 6, 4, 2, 5, 3, 7, 1 }}, guid);
+    }
+
+    inline bool ParseLootMoneyRequest(WorldPacket& in)
+    {
+        if (in.rpos() != in.size())
+        {
+            return RejectRequest(in);
+        }
+        return true;
+    }
+
+    inline bool ParseAutostoreLootItemRequest(WorldPacket& in,
+        std::vector<LootTakeEntry>& entries)
+    {
+        if (in.size() - in.rpos() < 3)
+        {
+            return RejectRequest(in);
+        }
+
+        uint32 const count = in.ReadBits(23);
+        if (count == 0 || count > MAX_TAKE_ENTRIES)
+        {
+            return RejectRequest(in);
+        }
+
+        // The 23-bit count leaves one bit in its last byte. Every entry adds
+        // exactly eight mask bits, so the final low bit is invariant padding.
+        size_t const maskEnd = in.rpos() + count;
+        if (maskEnd > in.size() || (in[maskEnd - 1] & 0x01) != 0)
+        {
+            return RejectRequest(in);
+        }
+
+        std::vector<std::array<uint8, 8> > guidBytes(count);
+        size_t bytePhaseSize = count; // one raw loot-list slot per entry
+        uint8 const maskOrder[] = { 2, 7, 0, 6, 5, 3, 1, 4 };
+        for (uint32 entry = 0; entry < count; ++entry)
+        {
+            for (uint8 index : maskOrder)
+            {
+                guidBytes[entry][index] = in.ReadBit();
+                bytePhaseSize += guidBytes[entry][index] != 0;
+            }
+        }
+        in.ResetBitReader();
+
+        if (in.size() - in.rpos() != bytePhaseSize)
+        {
+            return RejectRequest(in);
+        }
+
+        std::vector<LootTakeEntry> parsed(count);
+        uint8 const byteOrder[] = { 0, 4, 1, 7, 6, 5, 3, 2 };
+        for (uint32 entry = 0; entry < count; ++entry)
+        {
+            for (uint8 index : byteOrder)
+            {
+                in.ReadByteSeq(guidBytes[entry][index]);
+            }
+
+            for (size_t index = 0; index < 8; ++index)
+            {
+                parsed[entry].lootGuid |=
+                    uint64(guidBytes[entry][index]) << (index * 8);
+            }
+            in >> parsed[entry].lootListId;
+        }
+
+        entries.swap(parsed);
+        return in.rpos() == in.size();
+    }
+
+    inline void WriteGuidMask(WorldPacket& out, uint64 guid,
+        std::initializer_list<size_t> order)
+    {
+        for (size_t index : order)
+        {
+            out.WriteBit(GuidByte(guid, index) != 0);
+        }
+    }
+
+    inline void WriteGuidBytes(WorldPacket& out, uint64 guid,
+        std::initializer_list<size_t> order)
+    {
+        for (size_t index : order)
+        {
+            out.WriteByteSeq(GuidByte(guid, index));
+        }
+    }
+
+    inline bool BuildLootResponse(WorldPacket& out,
+        LootResponse const& response)
+    {
+        if (response.items.size() > MAX_VISIBLE_ENTRIES ||
+            response.currencies.size() > MAX_VISIBLE_ENTRIES)
+        {
+            return false;
+        }
+
+        for (LootItem const& item : response.items)
+        {
+            if (item.slotType > 7 || item.unknown > 3 ||
+                item.situ.size() > MAX_SITU_BYTES)
+            {
+                return false;
+            }
+        }
+        for (LootCurrency const& currency : response.currencies)
+        {
+            if (currency.slotType > 7)
+            {
+                return false;
+            }
+        }
+
+        out.Initialize(SMSG_LOOT_RESPONSE, 64);
+
+        // The client reads every item bit record before any item bytes, then
+        // every currency bit record before currency bytes. Keep these phases
+        // separate even though ordinary loot uses small byte-sized lists.
+        out.WriteBit(!response.hasLootMethod);
+        out.WriteBit(!response.hasLootType);
+        out.WriteBit(GuidByte(response.sourceGuid, 4) != 0);
+        out.WriteBits(uint32(response.currencies.size()), 20);
+        WriteGuidMask(out, response.lootGuid, { 2, 3, 7, 1 });
+        WriteGuidMask(out, response.sourceGuid, { 6, 7 });
+        out.WriteBit(response.money == 0);
+        out.WriteBit(response.success);
+        out.WriteBit(!response.hasFailureReason);
+        out.WriteBit(response.isAreaOfEffectLooting);
+        out.WriteBit(GuidByte(response.sourceGuid, 5) != 0);
+        out.WriteBit(GuidByte(response.lootGuid, 6) != 0);
+        out.WriteBits(uint32(response.items.size()), 19);
+        out.WriteBit(GuidByte(response.lootGuid, 0) != 0);
+
+        for (LootItem const& item : response.items)
+        {
+            out.WriteBits(item.slotType, 3);
+            out.WriteBit(item.canTradeToTapList);
+            out.WriteBit(!item.hasOptionalByte);
+            out.WriteBit(!item.hasLootListId);
+            out.WriteBits(item.unknown, 2);
+        }
+
+        WriteGuidMask(out, response.sourceGuid, { 1, 0 });
+        for (LootCurrency const& currency : response.currencies)
+        {
+            out.WriteBits(currency.slotType, 3);
+        }
+        WriteGuidMask(out, response.lootGuid, { 5 });
+        WriteGuidMask(out, response.sourceGuid, { 3 });
+        WriteGuidMask(out, response.lootGuid, { 4 });
+        out.WriteBit(!response.hasLootThreshold);
+        WriteGuidMask(out, response.sourceGuid, { 2 });
+        out.FlushBits();
+
+        if (response.hasLootThreshold)
+        {
+            out << response.lootThreshold;
+        }
+
+        for (LootItem const& item : response.items)
+        {
+            out << item.randomSuffix << item.count << item.itemId;
+            out << uint32(item.situ.size());
+            if (!item.situ.empty())
+            {
+                out.append(item.situ.data(), item.situ.size());
+            }
+            if (item.hasOptionalByte)
+            {
+                out << item.optionalByte;
+            }
+            out << item.randomPropertyId;
+            if (item.hasLootListId)
+            {
+                out << item.lootListId;
+            }
+            out << item.displayInfoId;
+        }
+
+        WriteGuidBytes(out, response.lootGuid, { 2 });
+        if (response.money != 0)
+        {
+            out << response.money;
+        }
+        WriteGuidBytes(out, response.lootGuid, { 7 });
+        WriteGuidBytes(out, response.sourceGuid, { 5 });
+        WriteGuidBytes(out, response.lootGuid, { 3, 4 });
+        if (response.hasLootMethod)
+        {
+            out << response.lootMethod;
+        }
+        if (response.hasLootType)
+        {
+            out << response.lootType;
+        }
+        WriteGuidBytes(out, response.sourceGuid, { 4 });
+        WriteGuidBytes(out, response.lootGuid, { 5 });
+
+        for (LootCurrency const& currency : response.currencies)
+        {
+            out << currency.amount << currency.lootListId <<
+                currency.currencyId;
+        }
+
+        WriteGuidBytes(out, response.sourceGuid, { 2, 3 });
+        if (response.hasFailureReason)
+        {
+            out << response.failureReason;
+        }
+        WriteGuidBytes(out, response.lootGuid, { 1 });
+        WriteGuidBytes(out, response.sourceGuid, { 0 });
+        WriteGuidBytes(out, response.lootGuid, { 0 });
+        WriteGuidBytes(out, response.sourceGuid, { 6, 7, 1 });
+        WriteGuidBytes(out, response.lootGuid, { 6 });
+        return true;
+    }
+
+    inline void BuildLootReleaseResponse(WorldPacket& out, uint64 sourceGuid,
+        uint64 lootGuid)
+    {
+        out.Initialize(SMSG_LOOT_RELEASE_RESPONSE, 18);
+        // Source and loot-view identities are distinct client fields. The
+        // current single-target gameplay layer intentionally supplies the same
+        // internal GUID for both; future area loot need not.
+        WriteGuidMask(out, lootGuid, { 0, 7, 5 });
+        WriteGuidMask(out, sourceGuid, { 0 });
+        WriteGuidMask(out, lootGuid, { 4, 6 });
+        WriteGuidMask(out, sourceGuid, { 1 });
+        WriteGuidMask(out, lootGuid, { 2 });
+        WriteGuidMask(out, sourceGuid, { 5 });
+        WriteGuidMask(out, lootGuid, { 3 });
+        WriteGuidMask(out, sourceGuid, { 3, 2, 4 });
+        WriteGuidMask(out, lootGuid, { 1 });
+        WriteGuidMask(out, sourceGuid, { 6, 7 });
+        out.FlushBits();
+
+        WriteGuidBytes(out, sourceGuid, { 1 });
+        WriteGuidBytes(out, lootGuid, { 1 });
+        WriteGuidBytes(out, sourceGuid, { 2, 5 });
+        WriteGuidBytes(out, lootGuid, { 5, 7, 3 });
+        WriteGuidBytes(out, sourceGuid, { 0 });
+        WriteGuidBytes(out, lootGuid, { 2, 0 });
+        WriteGuidBytes(out, sourceGuid, { 3, 6 });
+        WriteGuidBytes(out, lootGuid, { 6 });
+        WriteGuidBytes(out, sourceGuid, { 4 });
+        WriteGuidBytes(out, lootGuid, { 4 });
+        WriteGuidBytes(out, sourceGuid, { 7 });
+    }
+
+    inline void BuildLootMoneyNotify(WorldPacket& out, uint32 amount,
+        bool soleLoot)
+    {
+        out.Initialize(SMSG_LOOT_MONEY_NOTIFY, 5);
+        // One means "You loot"; zero means the group-split "Your share" path.
+        out.WriteBit(soleLoot);
+        out.FlushBits();
+        out << amount;
+    }
+
+    inline void BuildLootClearMoney(WorldPacket& out, uint64 lootGuid)
+    {
+        out.Initialize(SMSG_LOOT_CLEAR_MONEY, 9);
+        WriteGuidMask(out, lootGuid, { 6, 0, 4, 1, 3, 5, 2, 7 });
+        out.FlushBits();
+        WriteGuidBytes(out, lootGuid, { 0, 4, 2, 7, 1, 5, 3, 6 });
+    }
+
+    inline void BuildLootRemoved(WorldPacket& out, uint64 sourceGuid,
+        uint64 lootGuid, uint8 lootListId)
+    {
+        out.Initialize(SMSG_LOOT_REMOVED, 19);
+        // The second GUID is the active client loot-view lookup key; the slot
+        // is the raw ID previously assigned in SMSG_LOOT_RESPONSE.
+        WriteGuidMask(out, sourceGuid, { 7, 0, 2 });
+        WriteGuidMask(out, lootGuid, { 0, 1, 2, 7, 6, 5 });
+        WriteGuidMask(out, sourceGuid, { 1, 5, 6 });
+        WriteGuidMask(out, lootGuid, { 3, 4 });
+        WriteGuidMask(out, sourceGuid, { 3, 4 });
+        out.FlushBits();
+
+        WriteGuidBytes(out, lootGuid, { 1 });
+        WriteGuidBytes(out, sourceGuid, { 7 });
+        WriteGuidBytes(out, lootGuid, { 7, 0 });
+        WriteGuidBytes(out, sourceGuid, { 6, 2 });
+        WriteGuidBytes(out, lootGuid, { 5, 3, 2 });
+        WriteGuidBytes(out, sourceGuid, { 0, 5, 1 });
+        out << lootListId;
+        WriteGuidBytes(out, lootGuid, { 6 });
+        WriteGuidBytes(out, sourceGuid, { 3, 4 });
+        WriteGuidBytes(out, lootGuid, { 4 });
+    }
+}
 
 struct LootStoreItem
 {
@@ -253,18 +676,15 @@ class LootValidatorRefManager : public RefManager<Loot, LootValidatorRef>
 struct LootView;
 
 /**
- * Serializes a loot item entry into a byte buffer.
+ * Builds the complete 5.4.8 loot-window response for one viewer.
  */
-ByteBuffer& operator<<(ByteBuffer& b, LootItem const& li);
-
-/**
- * Serializes a loot view into a byte buffer.
- */
-ByteBuffer& operator<<(ByteBuffer& b, LootView const& lv);
+bool BuildMopLootResponse(WorldPacket& out, LootView const& view,
+    ObjectGuid sourceGuid, LootType lootType);
 
 struct Loot
 {
-        friend ByteBuffer& operator<<(ByteBuffer& b, LootView const& lv);
+        friend bool BuildMopLootResponse(WorldPacket& out,
+            LootView const& view, ObjectGuid sourceGuid, LootType lootType);
 
         QuestItemMap const& GetPlayerCurrencies() const { return m_playerCurrencies; }
         QuestItemMap const& GetPlayerQuestItems() const { return m_playerQuestItems; }

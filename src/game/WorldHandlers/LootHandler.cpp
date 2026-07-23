@@ -67,9 +67,26 @@ void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recv_data)
     Player*  player = GetPlayer();
     ObjectGuid lguid = player->GetLootGuid();
     Loot* loot = nullptr;
-    uint8 lootSlot = 0;
 
-    recv_data >> lootSlot;
+    std::vector<MopLootPackets::LootTakeEntry> entries;
+    if (!MopLootPackets::ParseAutostoreLootItemRequest(recv_data, entries))
+    {
+        return;
+    }
+
+    // The client can batch up to 50 area-loot views. This server currently
+    // owns one active view, so every batch entry must identify that view; the
+    // slot is the raw loot-list ID assigned in SMSG_LOOT_RESPONSE.
+    for (MopLootPackets::LootTakeEntry const& entry : entries)
+    {
+        if (ObjectGuid(entry.lootGuid) != lguid)
+        {
+            sLog.outError("WORLD: CMSG_AUTOSTORE_LOOT_ITEM spoofed loot GUID %s; active target is %s.",
+                ObjectGuid(entry.lootGuid).GetString().c_str(),
+                lguid.GetString().c_str());
+            return;
+        }
+    }
 
     if (lguid.IsGameObject())
     {
@@ -129,112 +146,131 @@ void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recv_data)
         player->GetSession()->DoLootRelease(lguid);
     }
 
-    QuestItem* qitem = NULL;
-    QuestItem* ffaitem = NULL;
-    QuestItem* conditem = NULL;
-    QuestItem* currency = NULL;
-
-    LootItem* item = loot->LootItemInSlot(lootSlot, player, &qitem, &ffaitem, &conditem, &currency);
-
-    if (!item)
+    for (MopLootPackets::LootTakeEntry const& entry : entries)
     {
-        player->SendEquipError(EQUIP_ERR_ALREADY_LOOTED, NULL, NULL);
-        return;
-    }
+        uint8 const lootSlot = entry.lootListId;
+        QuestItem* qitem = NULL;
+        QuestItem* ffaitem = NULL;
+        QuestItem* conditem = NULL;
+        QuestItem* currency = NULL;
 
-    // questitems use the blocked field for other purposes
-    // ToDo: this call is handled else where, not here.
-    if (!qitem && item->is_blocked)
-    {
-        player->SendLootRelease(lguid);
-        return;
-    }
+        LootItem* item = loot->LootItemInSlot(lootSlot, player, &qitem,
+            &ffaitem, &conditem, &currency);
 
-    if (currency)
-    {
-        if (CurrencyTypesEntry const * currencyEntry = sCurrencyTypesStore.LookupEntry(item->itemid))
+        if (!item)
         {
-            player->ModifyCurrencyCount(item->itemid, int32(item->count * currencyEntry->GetPrecision()));
+            player->SendEquipError(EQUIP_ERR_ALREADY_LOOTED, NULL, NULL);
+            return;
         }
 
-        currency->is_looted = true;
-        --loot->unlootedCount;
-        return;
-    }
-
-    ItemPosCountVec dest;
-    InventoryResult msg = player->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, item->itemid, item->count);
-    if (msg == EQUIP_ERR_OK)
-    {
-        Item* newitem = player->StoreNewItem(dest, item->itemid, true, item->randomPropertyId);
-
-        if (qitem)
+        // Quest items use the blocked field for other purposes.
+        if (!qitem && item->is_blocked)
         {
-            qitem->is_looted = true;
-            // freeforall is 1 if everyone's supposed to get the quest item.
-            if (item->freeforall || loot->GetPlayerQuestItems().size() == 1)
+            player->SendLootRelease(lguid);
+            return;
+        }
+
+        if (currency)
+        {
+            if (CurrencyTypesEntry const* currencyEntry =
+                    sCurrencyTypesStore.LookupEntry(item->itemid))
             {
-                player->SendNotifyLootItemRemoved(lootSlot);
+                player->ModifyCurrencyCount(item->itemid,
+                    int32(item->count * currencyEntry->GetPrecision()));
+            }
+
+            currency->is_looted = true;
+            --loot->unlootedCount;
+            player->SendNotifyLootItemRemoved(lootSlot);
+            continue;
+        }
+
+        ItemPosCountVec dest;
+        InventoryResult msg = player->CanStoreNewItem(NULL_BAG, NULL_SLOT,
+            dest, item->itemid, item->count);
+        if (msg == EQUIP_ERR_OK)
+        {
+            Item* newitem = player->StoreNewItem(dest, item->itemid, true,
+                item->randomPropertyId);
+
+            if (qitem)
+            {
+                qitem->is_looted = true;
+                if (item->freeforall ||
+                    loot->GetPlayerQuestItems().size() == 1)
+                {
+                    player->SendNotifyLootItemRemoved(lootSlot);
+                }
+                else
+                {
+                    loot->NotifyQuestItemRemoved(qitem->index);
+                }
             }
             else
             {
-                loot->NotifyQuestItemRemoved(qitem->index);
+                if (ffaitem)
+                {
+                    ffaitem->is_looted = true;
+                    player->SendNotifyLootItemRemoved(lootSlot);
+                }
+                else
+                {
+                    if (conditem)
+                    {
+                        conditem->is_looted = true;
+                    }
+                    loot->NotifyItemRemoved(lootSlot);
+                }
             }
+
+            if (!item->freeforall)
+            {
+                item->is_looted = true;
+            }
+
+            --loot->unlootedCount;
+
+            player->SendNewItem(newitem, uint32(item->count), false, false,
+                true);
+
+#ifdef ENABLE_ELUNA
+            if (Eluna* e = player->GetEluna())
+            {
+                e->OnLootItem(player, newitem, item->count, lguid);
+            }
+#endif /* ENABLE_ELUNA */
+
+            player->GetAchievementMgr().UpdateAchievementCriteria(
+                ACHIEVEMENT_CRITERIA_TYPE_LOOT_ITEM, item->itemid,
+                item->count);
+            player->GetAchievementMgr().UpdateAchievementCriteria(
+                ACHIEVEMENT_CRITERIA_TYPE_LOOT_TYPE, loot->loot_type,
+                item->count);
+            player->GetAchievementMgr().UpdateAchievementCriteria(
+                ACHIEVEMENT_CRITERIA_TYPE_LOOT_EPIC_ITEM, item->itemid,
+                item->count);
         }
         else
         {
-            if (ffaitem)
-            {
-                // freeforall case, notify only one player of the removal
-                ffaitem->is_looted = true;
-                player->SendNotifyLootItemRemoved(lootSlot);
-            }
-            else
-            {
-                // not freeforall, notify everyone
-                if (conditem)
-                {
-                    conditem->is_looted = true;
-                }
-                loot->NotifyItemRemoved(lootSlot);
-            }
+            player->SendEquipError(msg, NULL, NULL, item->itemid);
+            return;
         }
-
-        // if only one person is supposed to loot the item, then set it to looted
-        if (!item->freeforall)
-        {
-            item->is_looted = true;
-        }
-
-        --loot->unlootedCount;
-
-        player->SendNewItem(newitem, uint32(item->count), false, false, true);
-
-#ifdef ENABLE_ELUNA
-        if (Eluna* e = player->GetEluna())
-        {
-            e->OnLootItem(player, newitem, item->count, lguid);
-        }
-#endif /* ENABLE_ELUNA */
-
-        player->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_ITEM, item->itemid, item->count);
-        player->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_TYPE, loot->loot_type, item->count);
-        player->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_EPIC_ITEM, item->itemid, item->count);
-    }
-    else
-    {
-        player->SendEquipError(msg, NULL, NULL, item->itemid);
     }
 }
 
 /**
  * @brief Handles looting money from the player's current loot target.
  *
- * @param recv_data The unused incoming packet.
+ * @param recv_data The empty 18414 request body.
  */
-void WorldSession::HandleLootMoneyOpcode(WorldPacket & /*recv_data*/)
+void WorldSession::HandleLootMoneyOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: CMSG_LOOT_MONEY");
+
+    if (!MopLootPackets::ParseLootMoneyRequest(recv_data))
+    {
+        return;
+    }
 
     Player* player = GetPlayer();
     ObjectGuid guid = player->GetLootGuid();
@@ -314,7 +350,6 @@ void WorldSession::HandleLootMoneyOpcode(WorldPacket & /*recv_data*/)
 
     if (pLoot)
     {
-        pLoot->NotifyMoneyRemoved();
         if (shareMoney && player->GetGroup())           // item, pickpocket and players can be looted only single player
         {
             Group* group = player->GetGroup();
@@ -339,9 +374,8 @@ void WorldSession::HandleLootMoneyOpcode(WorldPacket & /*recv_data*/)
                 player->ModifyMoney(pLoot->gold);
                 player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_MONEY, pLoot->gold);
 
-                WorldPacket data(SMSG_LOOT_MONEY_NOTIFY, 4 + 1);
-                data << uint32(pLoot->gold);
-                data << uint8(1);
+                WorldPacket data;
+                MopLootPackets::BuildLootMoneyNotify(data, pLoot->gold, true);
                 SendPacket(&data);
             }
             else
@@ -353,10 +387,9 @@ void WorldSession::HandleLootMoneyOpcode(WorldPacket & /*recv_data*/)
                     (*i)->ModifyMoney(money_per_player);
                     (*i)->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_MONEY, money_per_player);
 
-                    WorldPacket data(SMSG_LOOT_MONEY_NOTIFY, 4 + 1);
-                    data << uint32(money_per_player);
-                    // Controls the text displayed in chat. 0 is "Your share is..." and 1 is "You loot..."
-                    data << uint8(playersNear.size() <= 1);
+                    WorldPacket data;
+                    MopLootPackets::BuildLootMoneyNotify(data,
+                        uint32(money_per_player), playersNear.size() <= 1);
                     (*i)->SendDirectMessage(&data);
                 }
             }
@@ -366,11 +399,12 @@ void WorldSession::HandleLootMoneyOpcode(WorldPacket & /*recv_data*/)
             player->ModifyMoney(pLoot->gold);
             player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_LOOT_MONEY, pLoot->gold);
 
-            WorldPacket data(SMSG_LOOT_MONEY_NOTIFY, 4 + 1);
-            data << uint32(pLoot->gold);
-            data << uint8(1); // 1 is "you loot..."
+            WorldPacket data;
+            MopLootPackets::BuildLootMoneyNotify(data, pLoot->gold, true);
             SendPacket(&data);
         }
+
+        pLoot->NotifyMoneyRemoved();
 
         // Used by Eluna
 #ifdef ENABLE_ELUNA
@@ -399,8 +433,12 @@ void WorldSession::HandleLootOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: CMSG_LOOT");
 
-    ObjectGuid guid;
-    recv_data >> guid;
+    uint64 rawGuid = 0;
+    if (!MopLootPackets::ParseLootRequest(recv_data, rawGuid))
+    {
+        return;
+    }
+    ObjectGuid const guid(rawGuid);
 
     // Check possible cheat
     if (!GetPlayer()->IsAlive() || !guid.IsCreatureOrVehicle())
@@ -426,12 +464,23 @@ void WorldSession::HandleLootReleaseOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: CMSG_LOOT_RELEASE");
 
-    // cheaters can modify lguid to prevent correct apply loot release code and re-loot
-    // use internal stored guid
-    recv_data.read_skip<uint64>();                          // guid;
+    uint64 requestRawGuid = 0;
+    if (!MopLootPackets::ParseLootReleaseRequest(recv_data, requestRawGuid))
+    {
+        return;
+    }
 
     if (ObjectGuid lootGuid = GetPlayer()->GetLootGuid())
     {
+        // Never let an untrusted request choose the cleanup target. A mismatch
+        // is observable, but the internal target must still be released or the
+        // sender could preserve re-loot state with a spoofed GUID.
+        if (ObjectGuid(requestRawGuid) != lootGuid)
+        {
+            sLog.outError("WORLD: CMSG_LOOT_RELEASE GUID %s does not match active target %s.",
+                ObjectGuid(requestRawGuid).GetString().c_str(),
+                lootGuid.GetString().c_str());
+        }
         DoLootRelease(lootGuid);
     }
 }

@@ -127,9 +127,9 @@ void Player::RemovedInsignia(Player* looterPlr)
  */
 void Player::SendLootRelease(ObjectGuid guid)
 {
-    WorldPacket data(SMSG_LOOT_RELEASE_RESPONSE, (8 + 1));
-    data << guid;
-    data << uint8(1);
+    WorldPacket data;
+    MopLootPackets::BuildLootReleaseResponse(data, guid.GetRawValue(),
+        guid.GetRawValue());
     SendDirectMessage(&data);
 }
 
@@ -552,10 +552,15 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
     // need know merged fishing/corpse loot type for achievements
     loot->loot_type = loot_type;
 
-    WorldPacket data(SMSG_LOOT_RESPONSE, (9 + 50));         // we guess size
-    data << ObjectGuid(guid);
-    data << uint8(loot_type);
-    data << LootView(*loot, this, permission);
+    WorldPacket data;
+    if (!BuildMopLootResponse(data, LootView(*loot, this, permission), guid,
+            loot_type))
+    {
+        sLog.outError("Player::SendLoot could not encode the 18414 loot view for %s.",
+            guid.GetString().c_str());
+        SendLootRelease(guid);
+        return;
+    }
     SendDirectMessage(&data);
 
     // add 'this' player as one of the players that are looting 'loot'
@@ -575,7 +580,14 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
  */
 void Player::SendNotifyLootMoneyRemoved()
 {
-    WorldPacket data(SMSG_LOOT_CLEAR_MONEY, 0);
+    ObjectGuid const lootGuid = GetLootGuid();
+    if (!lootGuid)
+    {
+        return;
+    }
+
+    WorldPacket data;
+    MopLootPackets::BuildLootClearMoney(data, lootGuid.GetRawValue());
     GetSession()->SendPacket(&data);
 }
 
@@ -584,13 +596,20 @@ void Player::SendNotifyLootMoneyRemoved()
  *
  * @param lootSlot The loot slot index that was removed.
  *
- * The 5.4.8 body also needs source-object and loot-view GUIDs. Keep this
- * legacy one-byte body gated until the loot-response identity model is
- * migrated with it.
+ * The current single-target model deliberately uses its authoritative active
+ * target for both the source and client loot-view identities established by
+ * SMSG_LOOT_RESPONSE.
  */
 void Player::SendNotifyLootItemRemoved(uint8 lootSlot)
 {
-    WorldPacket data(SMSG_LOOT_REMOVED, 1);
-    data << uint8(lootSlot);
+    ObjectGuid const lootGuid = GetLootGuid();
+    if (!lootGuid)
+    {
+        return;
+    }
+
+    WorldPacket data;
+    MopLootPackets::BuildLootRemoved(data, lootGuid.GetRawValue(),
+        lootGuid.GetRawValue(), lootSlot);
     GetSession()->SendPacket(&data);
 }
