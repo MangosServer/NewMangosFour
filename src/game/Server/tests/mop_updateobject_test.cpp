@@ -284,6 +284,72 @@ int main(int /*argc*/, char** /*argv*/)
         CHECK(values.rpos() == values.size());
     }
 
+    // Post-create self updates must preserve the same binary-proved Unit-field
+    // projection as BuildSelfCreate while sharing one VALUES block with the
+    // existing inventory remap. Changed-to-zero fields remain present.
+    {
+        const MopUpdateObject::StaticField sourceFields[] =
+        {
+            { 7, 0 },                    // scale -> 7
+            { 26, 0x04030201u },         // bytes0 -> 30 plus display power -> 31
+            { 28, 0 },                   // health -> 33
+            { 29, 0x11111111u },         // power1 -> 34
+            { 33, 0x55555555u },         // power5 -> 38
+            { 34, 0x66666666u },         // max health -> 39
+            { 35, 0x77777777u },         // max power1 -> 40
+            { 39, 0xBBBBBBBBu },         // max power5 -> 44
+            { 50, 90 },                  // level -> 55
+            { 51, 35 },                  // faction -> 57
+            { 55, 0x00000008u },         // unit flags -> 61
+            { 61, 0x3EC6A7F0u },         // bounding radius -> 67
+            { 62, 0x3FC00000u },         // combat reach -> 68
+            { 63, 19724 },               // display -> 69
+            { 64, 19724 },               // native display -> 70
+            { 960, 0 },                  // first inventory link -> 965
+            { 1131, 0xAABBCCDDu },       // final buyback field -> 1136
+        };
+        ByteBuffer values;
+        MopUpdateObject::AppendSelfPlayerValuesBlock(values, 0x10, sourceFields,
+            sizeof(sourceFields) / sizeof(sourceFields[0]));
+        values.rpos(3); // VALUES + packed GUID
+        uint8 blockCount;
+        values >> blockCount;
+        CHECK(blockCount == 36);
+        uint32 masks[36];
+        for (uint32& mask : masks) values >> mask;
+        auto hasBit = [&masks](uint16 index)
+        {
+            return (masks[index / 32] & (uint32(1) << (index % 32))) != 0;
+        };
+        for (uint16 index : { uint16(7), uint16(30), uint16(31), uint16(33),
+                uint16(34), uint16(38), uint16(39), uint16(40), uint16(44),
+                uint16(55), uint16(57), uint16(61), uint16(67), uint16(68),
+                uint16(69), uint16(70), uint16(965), uint16(1136) })
+        {
+            CHECK(hasBit(index));
+        }
+        CHECK(!hasBit(28));
+        CHECK(!hasBit(960));
+
+        const uint32 expected[] =
+        {
+            0, 0x03040201u, 4, 0, 0x11111111u, 0x55555555u,
+            0x66666666u, 0x77777777u, 0xBBBBBBBBu, 90, 35,
+            0x00000008u, 0x3EC6A7F0u, 0x3FC00000u, 19724, 19724,
+            0, 0xAABBCCDDu,
+        };
+        for (uint32 expectedValue : expected)
+        {
+            uint32 actualValue;
+            values >> actualValue;
+            CHECK(actualValue == expectedValue);
+        }
+        uint8 dynamicCount;
+        values >> dynamicCount;
+        CHECK(dynamicCount == 0);
+        CHECK(values.rpos() == values.size());
+    }
+
     CHECK(MopUpdateObject::RepackUnitBytes0(0x04030201u) == 0x03040201u);
     CHECK(MopUpdateObject::TranslateUnitDynamicFlags(0x000000A5u) == 0x0000014Au);
     CHECK(MopUpdateObject::TranslateUnitDynamicFlags(0xFFFF01A5u) == 0x0000014Au);

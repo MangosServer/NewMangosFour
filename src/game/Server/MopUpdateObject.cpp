@@ -235,6 +235,62 @@ void MopUpdateObject::AppendSelfInventoryValuesBlock(ByteBuffer& out, uint64 gui
     AppendValuesBlock(out, guid, fields.data(), uint32(fields.size()));
 }
 
+void MopUpdateObject::AppendSelfPlayerValuesBlock(ByteBuffer& out, uint64 guid,
+    StaticField const* sourceFields, uint32 fieldCount)
+{
+    MANGOS_ASSERT(sourceFields || fieldCount == 0);
+
+    std::vector<StaticField> fields;
+    fields.reserve(fieldCount + 1);
+    for (uint32 i = 0; i < fieldCount; ++i)
+    {
+        MANGOS_ASSERT(i == 0 || sourceFields[i - 1].index < sourceFields[i].index);
+        const uint16 sourceIndex = sourceFields[i].index;
+        const uint32 value = sourceFields[i].value;
+
+        if (sourceIndex >= SelfInventorySourceStart &&
+            sourceIndex < SelfInventorySourceStart + SelfInventoryFieldCount)
+        {
+            fields.push_back({ TranslateSelfInventoryIndex(sourceIndex), value });
+            continue;
+        }
+
+        if (sourceIndex >= 29 && sourceIndex <= 33)
+        {
+            fields.push_back({ uint16(sourceIndex + 5), value });
+            continue;
+        }
+        if (sourceIndex >= 35 && sourceIndex <= 39)
+        {
+            fields.push_back({ uint16(sourceIndex + 5), value });
+            continue;
+        }
+
+        switch (sourceIndex)
+        {
+            case 7:  fields.push_back({ 7, value }); break;
+            case 26:
+                fields.push_back({ 30, RepackUnitBytes0(value) });
+                fields.push_back({ 31, (value >> 24) & 0xFFu });
+                break;
+            case 28: fields.push_back({ 33, value }); break;
+            case 34: fields.push_back({ 39, value }); break;
+            case 50: fields.push_back({ 55, value }); break;
+            case 51: fields.push_back({ 57, value }); break;
+            case 55: fields.push_back({ 61, value }); break;
+            case 61: fields.push_back({ 67, value }); break;
+            case 62: fields.push_back({ 68, value }); break;
+            case 63: fields.push_back({ 69, value }); break;
+            case 64: fields.push_back({ 70, value }); break;
+            default:
+                MANGOS_ASSERT(false && "unsupported legacy self-player field");
+                break;
+        }
+    }
+
+    AppendValuesBlock(out, guid, fields.data(), uint32(fields.size()));
+}
+
 void MopUpdateObject::AppendPositionOnlyMovement(ByteBuffer& out, PositionOnlyMovement const& movement)
 {
     out.WriteBit(0);                 // game-object data

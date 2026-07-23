@@ -85,9 +85,13 @@ namespace
         MopUpdateObject::SelfInventorySourceStart + MopUpdateObject::SelfInventoryFieldCount,
         "self inventory translation must end before local field 1132");
     static_assert(OBJECT_FIELD_SCALE_X == 7 && UNIT_FIELD_BYTES_0 == 26 &&
-        UNIT_FIELD_HEALTH == 28 && UNIT_FIELD_MAXHEALTH == 34 &&
+        UNIT_FIELD_HEALTH == 28 && UNIT_FIELD_POWER1 == 29 &&
+        UNIT_FIELD_POWER5 == 33 && UNIT_FIELD_MAXHEALTH == 34 &&
+        UNIT_FIELD_MAXPOWER1 == 35 && UNIT_FIELD_MAXPOWER5 == 39 &&
         UNIT_FIELD_LEVEL == 50 && UNIT_FIELD_FACTIONTEMPLATE == 51 &&
-        UNIT_VIRTUAL_ITEM_SLOT_ID == 52 && UNIT_FIELD_DISPLAYID == 63 &&
+        UNIT_VIRTUAL_ITEM_SLOT_ID == 52 && UNIT_FIELD_FLAGS == 55 &&
+        UNIT_FIELD_BOUNDINGRADIUS == 61 && UNIT_FIELD_COMBATREACH == 62 &&
+        UNIT_FIELD_DISPLAYID == 63 &&
         UNIT_FIELD_NATIVEDISPLAYID == 64 && UNIT_FIELD_MOUNTDISPLAYID == 65,
         "observer Player Unit-field projection assumes the legacy 17538 indices");
     static_assert(PLAYER_VISIBLE_ITEM_1_ENTRYID == MopUpdateObject::ObserverVisibleItemSourceStart &&
@@ -556,7 +560,35 @@ void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player* target) c
         std::vector<MopUpdateObject::StaticField> fields;
         if (target == static_cast<Player const*>(this))
         {
-            fields.reserve(MopUpdateObject::SelfInventoryFieldCount);
+            fields.reserve(16 + MopUpdateObject::SelfInventoryFieldCount);
+            auto addIfChanged = [this, &fields](uint16 sourceIndex)
+            {
+                if (m_changedValues[sourceIndex])
+                {
+                    fields.push_back({ sourceIndex, m_uint32Values[sourceIndex] });
+                }
+            };
+
+            addIfChanged(OBJECT_FIELD_SCALE_X);
+            addIfChanged(UNIT_FIELD_BYTES_0);
+            addIfChanged(UNIT_FIELD_HEALTH);
+            for (uint16 i = 0; i < 5; ++i)
+            {
+                addIfChanged(uint16(UNIT_FIELD_POWER1 + i));
+            }
+            addIfChanged(UNIT_FIELD_MAXHEALTH);
+            for (uint16 i = 0; i < 5; ++i)
+            {
+                addIfChanged(uint16(UNIT_FIELD_MAXPOWER1 + i));
+            }
+            addIfChanged(UNIT_FIELD_LEVEL);
+            addIfChanged(UNIT_FIELD_FACTIONTEMPLATE);
+            addIfChanged(UNIT_FIELD_FLAGS);
+            addIfChanged(UNIT_FIELD_BOUNDINGRADIUS);
+            addIfChanged(UNIT_FIELD_COMBATREACH);
+            addIfChanged(UNIT_FIELD_DISPLAYID);
+            addIfChanged(UNIT_FIELD_NATIVEDISPLAYID);
+
             for (uint16 i = MopUpdateObject::SelfInventorySourceStart;
                  i < MopUpdateObject::SelfInventorySourceStart + MopUpdateObject::SelfInventoryFieldCount; ++i)
             {
@@ -567,7 +599,7 @@ void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player* target) c
             }
             if (!fields.empty())
             {
-                MopUpdateObject::AppendSelfInventoryValuesBlock(data->GetBuffer(),
+                MopUpdateObject::AppendSelfPlayerValuesBlock(data->GetBuffer(),
                     GetObjectGuid().GetRawValue(), fields.data(), uint32(fields.size()));
                 data->AddUpdateBlock();
             }

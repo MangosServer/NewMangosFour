@@ -106,6 +106,12 @@ namespace MopUpdateObject
     void AppendSelfInventoryValuesBlock(ByteBuffer& out, uint64 guid,
         StaticField const* sourceFields, uint32 fieldCount);
 
+    /// Translate the binary-proved self-player Unit projection plus the
+    /// existing inventory range into one ordered 18414 VALUES block.
+    /// Changed-to-zero values are retained.
+    void AppendSelfPlayerValuesBlock(ByteBuffer& out, uint64 guid,
+        StaticField const* sourceFields, uint32 fieldCount);
+
     /// Convert the legacy [race,class,gender,power] packed value to the 18414
     /// [race,class,power,gender] layout.
     uint32 RepackUnitBytes0(uint32 legacyBytes0);
