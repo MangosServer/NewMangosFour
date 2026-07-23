@@ -902,6 +902,33 @@ foreach(mutation IN ITEMS use_parser report_parser guid_type_guard
         PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_executable(mop_world_quest_interaction_packets_test
+    mop_world_quest_interaction_packets_test.cpp)
+target_include_directories(mop_world_quest_interaction_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_world_quest_interaction_packets_test
+    PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_world_quest_interaction_packets_test PRIVATE game)
+add_test(NAME mop_world_quest_interaction_packets
+    COMMAND mop_world_quest_interaction_packets_test)
+
+add_test(NAME mop_world_quest_interaction_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_world_quest_interaction_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS area_parser area_leave no_corpse_builder
+        quest_parser quest_builder client_registration server_registration
+        sender_admission opcode_values npc_dormant)
+    add_test(NAME mop_world_quest_interaction_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_world_quest_interaction_packets_source_test.cmake)
+    set_tests_properties(
+        mop_world_quest_interaction_packets_source_mutation_${mutation}
+        PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_character_customize_packets_test mop_character_customize_packets_test.cpp)
 target_include_directories(mop_character_customize_packets_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..

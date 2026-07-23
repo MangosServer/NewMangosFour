@@ -833,9 +833,15 @@ uint32 WorldSession::getDialogStatus(Player* pPlayer, Object* questgiver, uint32
  *
  * @param recvPacket The received opcode packet.
  */
-void WorldSession::HandleQuestgiverStatusMultipleQuery(WorldPacket& /*recvPacket*/)
+void WorldSession::HandleQuestgiverStatusMultipleQuery(WorldPacket& recvPacket)
 {
     DEBUG_LOG("WORLD: Received opcode CMSG_QUESTGIVER_STATUS_MULTIPLE_QUERY");
+
+    if (!MopQuestStatusPackets::ParseMultipleStatusQuery(recvPacket))
+    {
+        DEBUG_LOG("WORLD: Ignoring malformed CMSG_QUESTGIVER_STATUS_MULTIPLE_QUERY");
+        return;
+    }
 
     _player->SendQuestGiverStatusMultiple();
 }

@@ -26,6 +26,93 @@
 #ifndef MANGOS_H_NPCHANDLER
 #define MANGOS_H_NPCHANDLER
 
+#include "ObjectGuid.h"
+#include "Opcodes.h"
+#include "WorldPacket.h"
+
+#include <array>
+
+namespace MopNpcTextPackets
+{
+    struct Request
+    {
+        uint32 textId = 0;
+        ObjectGuid sourceGuid;
+    };
+
+    struct Response
+    {
+        uint32 textId = 0;
+        bool found = false;
+        std::array<float, 8> probabilities = {};
+        std::array<uint32, 8> broadcastTextIds = {};
+    };
+
+    inline bool RejectRequest(WorldPacket& in)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    inline size_t PresentByteCount(uint8 mask)
+    {
+        size_t count = 0;
+        for (; mask != 0; mask >>= 1)
+        {
+            count += mask & 1;
+        }
+        return count;
+    }
+
+    inline bool ParseRequest(WorldPacket& in, Request& request)
+    {
+        if (in.size() - in.rpos() < 5)
+        {
+            return RejectRequest(in);
+        }
+
+        uint8 const mask = in[in.rpos() + 4];
+        if (in.size() - in.rpos() != 5 + PresentByteCount(mask))
+        {
+            return RejectRequest(in);
+        }
+
+        Request parsed;
+        in >> parsed.textId;
+        in.ReadGuidMask<4, 5, 1, 7, 0, 2, 6, 3>(parsed.sourceGuid);
+        in.ReadGuidBytes<4, 0, 2, 5, 1, 7, 3, 6>(parsed.sourceGuid);
+        if (in.rpos() != in.size())
+        {
+            return RejectRequest(in);
+        }
+
+        request = parsed;
+        return true;
+    }
+
+    inline void BuildResponse(WorldPacket& out, Response const& response)
+    {
+        uint32 const recordSize = response.found ? 64 : 0;
+        out.Initialize(SMSG_NPC_TEXT_UPDATE, 9 + recordSize);
+        out << response.textId << recordSize;
+        if (response.found)
+        {
+            for (float probability : response.probabilities)
+            {
+                out << probability;
+            }
+            for (uint32 broadcastTextId : response.broadcastTextIds)
+            {
+                out << broadcastTextId;
+            }
+        }
+
+        // The final bit controls insertion into the client's WNPC cache.
+        out.WriteBit(response.found);
+        out.FlushBits();
+    }
+}
+
 // GCC have alternative #pragma pack(N) syntax and old gcc version not support pack(push,N), also any gcc version not support it at some platform
 #if defined( __GNUC__ )
 #pragma pack(1)

@@ -701,6 +701,56 @@ namespace MopReputationPackets
     }
 }
 
+namespace MopAreaTriggerPackets
+{
+    struct Request
+    {
+        uint32 triggerId = 0;
+        bool entered = false;
+    };
+
+    inline bool RejectRequest(WorldPacket& in)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    inline bool ParseRequest(WorldPacket& in, Request& request)
+    {
+        // The direct 18414 writer always emits one uint32 and one bit byte:
+        // an invariant high bit, the enter/leave bit, then six zero pad bits.
+        if (in.size() - in.rpos() != 5)
+        {
+            return RejectRequest(in);
+        }
+
+        uint8 const bitByte = in[in.rpos() + 4];
+        if ((bitByte & 0x80) == 0 || (bitByte & 0x3F) != 0)
+        {
+            return RejectRequest(in);
+        }
+
+        Request parsed;
+        in >> parsed.triggerId;
+        bool const packetFlag = in.ReadBit();
+        parsed.entered = in.ReadBit();
+        if (!packetFlag || in.rpos() != in.size())
+        {
+            return RejectRequest(in);
+        }
+
+        request = parsed;
+        return true;
+    }
+
+    inline void BuildNoCorpse(WorldPacket& out)
+    {
+        // The 18414 reader consumes no fields before displaying
+        // ERR_CORPSE_IS_NOT_IN_INSTANCE.
+        out.Initialize(SMSG_AREA_TRIGGER_NO_CORPSE, 0);
+    }
+}
+
 namespace MopQuestPackets
 {
     static size_t const COMPLETED_QUEST_BYTES = 2048;

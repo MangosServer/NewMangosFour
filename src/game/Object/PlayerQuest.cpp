@@ -3041,11 +3041,8 @@ void Player::SendQuestUpdateAddCreatureOrGo(Quest const* pQuest, ObjectGuid guid
 
 void Player::SendQuestGiverStatusMultiple()
 {
-    uint32 count = 0;
     uint32 dialogStatus = DIALOG_STATUS_NONE;
-
-    WorldPacket data(SMSG_QUESTGIVER_STATUS_MULTIPLE, 4);
-    data << uint32(count);                                  // placeholder
+    std::vector<MopQuestStatusPackets::StatusEntry> entries;
 
     for (GuidSet::const_iterator itr = m_clientGUIDs.begin(); itr != m_clientGUIDs.end(); ++itr)
     {
@@ -3071,9 +3068,10 @@ void Player::SendQuestGiverStatusMultiple()
                 dialogStatus = GetSession()->getDialogStatus(this, questgiver, DIALOG_STATUS_NONE);
             }
 
-            data << questgiver->GetObjectGuid();
-            data << dialogStatus;
-            ++count;
+            MopQuestStatusPackets::StatusEntry entry;
+            entry.guid = questgiver->GetObjectGuid();
+            entry.status = dialogStatus;
+            entries.push_back(entry);
         }
         else if (itr->IsGameObject())
         {
@@ -3096,13 +3094,19 @@ void Player::SendQuestGiverStatusMultiple()
                 dialogStatus = GetSession()->getDialogStatus(this, questgiver, DIALOG_STATUS_NONE);
             }
 
-            data << questgiver->GetObjectGuid();
-            data << dialogStatus;
-            ++count;
+            MopQuestStatusPackets::StatusEntry entry;
+            entry.guid = questgiver->GetObjectGuid();
+            entry.status = dialogStatus;
+            entries.push_back(entry);
         }
     }
 
-    data.put<uint32>(0, count);                             // write real count
+    WorldPacket data;
+    if (!MopQuestStatusPackets::BuildMultipleStatus(data, entries))
+    {
+        sLog.outError("Player::SendQuestGiverStatusMultiple: 18414 response exceeds the wire framing limit");
+        return;
+    }
     GetSession()->SendPacket(&data);
 }
 

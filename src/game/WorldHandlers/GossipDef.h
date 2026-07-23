@@ -37,6 +37,24 @@ class WorldSession;
 
 namespace MopQuestStatusPackets
 {
+    struct StatusEntry
+    {
+        ObjectGuid guid;
+        uint32 status = 0;
+    };
+
+    inline bool ParseMultipleStatusQuery(WorldPacket& in)
+    {
+        // The direct 18414 packet class has a null body; any payload is
+        // malformed rather than an optional extension.
+        if (in.rpos() != in.size())
+        {
+            in.rfinish();
+            return false;
+        }
+        return true;
+    }
+
     inline ObjectGuid ReadStatusQuery(WorldPacket& in)
     {
         ObjectGuid guid;
@@ -54,6 +72,47 @@ namespace MopQuestStatusPackets
         out.WriteGuidBytes<7>(questGiverGuid);
         out << status;
         out.WriteGuidBytes<4, 6, 1, 5, 2, 0, 3>(questGiverGuid);
+    }
+
+    inline bool BuildMultipleStatus(WorldPacket& out,
+        std::vector<StatusEntry> const& entries)
+    {
+        if (entries.size() >= (size_t(1) << 21))
+        {
+            return false;
+        }
+
+        // The entry count below is 21 bits, but the separate post-crypt
+        // transport header limits the complete payload to 19 bits.
+        size_t payloadSize = 3 + entries.size() * 5;
+        for (StatusEntry const& entry : entries)
+        {
+            uint64 guid = entry.guid.GetRawValue();
+            for (size_t index = 0; index < 8; ++index)
+            {
+                payloadSize += uint8(guid >> (index * 8)) != 0;
+            }
+        }
+        if (payloadSize > 0x7FFFF)
+        {
+            return false;
+        }
+
+        out.Initialize(SMSG_QUESTGIVER_STATUS_MULTIPLE, payloadSize);
+        out.WriteBits(uint32(entries.size()), 21);
+        for (StatusEntry const& entry : entries)
+        {
+            out.WriteGuidMask<4, 0, 3, 6, 5, 7, 1, 2>(entry.guid);
+        }
+        out.FlushBits();
+
+        for (StatusEntry const& entry : entries)
+        {
+            out.WriteGuidBytes<6, 2, 7, 5, 4>(entry.guid);
+            out << entry.status;
+            out.WriteGuidBytes<1, 3, 0>(entry.guid);
+        }
+        return true;
     }
 }
 

@@ -421,7 +421,7 @@ typedef uint16_t uint16;
  *   SMSG_PET_NAME_QUERY_RESPONSE                   0x0ABE  DORMANT 
  *   SMSG_INVALIDATE_PLAYER                         0x102E  DORMANT  [medium-conf]
  *   SMSG_PETITION_QUERY_RESPONSE                   0x1083  DORMANT  [medium-conf]
- *   SMSG_NPC_TEXT_UPDATE                           0x140A  DORMANT  [low-conf]
+ *   SMSG_NPC_TEXT_UPDATE                           0x140A  DORMANT  [high-conf]
  *   SMSG_BATTLE_PET_QUERY_NAME_RESPONSE            0x1540  DOC     
  *   SMSG_NAME_QUERY_RESPONSE                       0x169B  DORMANT 
  *   SMSG_GUILD_QUERY_RESPONSE                      0x1B79  DORMANT 
@@ -494,7 +494,7 @@ typedef uint16_t uint16;
  *   SMSG_UNKNOWN_0x06BA                            0x06BA  DOC      [low-conf]
  *   SMSG_UPDATE_COMBO_POINTS                       0x082F  DORMANT 
  *   SMSG_TALENTS_INVOLUNTARILY_RESET               0x088A  DORMANT  [low-conf]
- *   SMSG_AREA_TRIGGER_NO_CORPSE                    0x089E  DORMANT  [medium-conf]
+ *   SMSG_AREA_TRIGGER_NO_CORPSE                    0x089E  ACTIVE   [high-conf]
  *   SMSG_GUILD_BANK_LIST                           0x0B79  DORMANT  [medium-conf]
  *   SMSG_MONEY_NOTIFY                              0x0C0F  DOC      [medium-conf]
  *   SMSG_ITEM_PUSH_RESULT                          0x0E0A  DORMANT 
@@ -748,7 +748,7 @@ typedef uint16_t uint16;
  *   SMSG_PLAY_TIME_WARNING                         0x062A  DORMANT  [medium-conf]
  *   SMSG_DISMOUNTRESULT                            0x062F  DORMANT  [medium-conf]
  *   SMSG_QUEST_POI_QUERY_RESPONSE                  0x067F  DORMANT  [medium-conf]
- *   SMSG_QUESTGIVER_STATUS_MULTIPLE                0x06CE  DORMANT 
+ *   SMSG_QUESTGIVER_STATUS_MULTIPLE                0x06CE  ACTIVE   [high-conf]
  *   SMSG_QUESTUPDATE_FAILEDTIMER                   0x06FF  DORMANT 
  *   SMSG_QUEST_PUSH_RESULT                         0x074D  DOC      [medium-conf]
  *   SMSG_QUESTGIVER_OFFER_REWARD                   0x074F  DORMANT 
@@ -1377,7 +1377,7 @@ typedef uint16_t uint16;
  *   CMSG_IGNORE_TRADE                              0x0276  DORMANT 
  *   CMSG_RIDE_VEHICLE_INTERACT                     0x0277  DORMANT 
  *   CMSG_SET_FACTION_ATWAR                         0x027B  DORMANT 
- *   CMSG_NPC_TEXT_QUERY                            0x0287  DORMANT 
+ *   CMSG_NPC_TEXT_QUERY                            0x0287  DORMANT  [high-conf]
  *   CMSG_MESSAGECHAT_ADDON_PARTY                   0x028E  DORMANT 
  *   CMSG_SUSPEND_TOKEN_RESPONSE                    0x0292  DOC     
  *   CMSG_UNREGISTER_ALL_ADDON_PREFIXES             0x029F  DOC     
@@ -1406,7 +1406,7 @@ typedef uint16_t uint16;
  *   CMSG_AUCTION_LIST_ITEMS                        0x02EA  DORMANT 
  *   CMSG_AUCTION_SELL_ITEM                         0x02EB  DORMANT 
  *   CMSG_SPLIT_ITEM                                0x02EC  DORMANT 
- *   CMSG_QUESTGIVER_STATUS_MULTIPLE_QUERY          0x02F1  DORMANT 
+ *   CMSG_QUESTGIVER_STATUS_MULTIPLE_QUERY          0x02F1  ACTIVE   [high-conf]
  *   CMSG_SHOWING_CLOAK                             0x02F2  DORMANT 
  *   CMSG_LOOT_MONEY                                0x02F6  DORMANT 
  *   CMSG_ACCEPT_LEVEL_GRANT                        0x02FB  DORMANT 
@@ -1855,7 +1855,7 @@ typedef uint16_t uint16;
  *   CMSG_CALENDAR_EVENT_STATUS                     0x1AB3  DORMANT 
  *   CMSG_GUILD_QUERY                               0x1AB6  DORMANT 
  *   CMSG_BATTLEFIELD_LIST                          0x1C41  DORMANT 
- *   CMSG_AREATRIGGER                               0x1C44  DORMANT 
+ *   CMSG_AREATRIGGER                               0x1C44  ACTIVE   [high-conf]
  *   CMSG_PET_BATTLE_QUIT_NOTIFY                    0x1C45  DOC     
  *   CMSG_LF_GUILD_REMOVE_APPLICATION               0x1C53  DOC     
  *   CMSG_GUILD_QUERY_NEWS                          0x1C58  DOC     

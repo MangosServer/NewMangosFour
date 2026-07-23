@@ -790,9 +790,21 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: Received opcode CMSG_AREATRIGGER");
 
-    uint32 Trigger_ID;
+    MopAreaTriggerPackets::Request request;
+    if (!MopAreaTriggerPackets::ParseRequest(recv_data, request))
+    {
+        DEBUG_LOG("WORLD: Ignoring malformed CMSG_AREATRIGGER");
+        return;
+    }
 
-    recv_data >> Trigger_ID;
+    // The 18414 client reports both edges. Existing area-trigger gameplay is
+    // enter-only, so a valid leave report must not replay quests or teleports.
+    if (!request.entered)
+    {
+        return;
+    }
+
+    uint32 const Trigger_ID = request.triggerId;
     DEBUG_LOG("Trigger ID: %u", Trigger_ID);
     Player* player = GetPlayer();
 
@@ -903,7 +915,8 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
         // corpse not in dungeon or some linked deep dungeons
         if (!instance_map)
         {
-            WorldPacket data(SMSG_AREA_TRIGGER_NO_CORPSE);
+            WorldPacket data;
+            MopAreaTriggerPackets::BuildNoCorpse(data);
             player->GetSession()->SendPacket(&data);
             return;
         }

@@ -348,6 +348,18 @@ void InitializeOpcodes()
     DefS(SMSG_GAMEOBJECT_DESPAWN_ANIM, "SMSG_GAMEOBJECT_DESPAWN_ANIM");
     DefS(SMSG_GAMEOBJECT_PAGETEXT, "SMSG_GAMEOBJECT_PAGETEXT");
 
+    // Directly verified 18414 world/quest interactions. Area-trigger reports
+    // distinguish enter from leave; the quest marker reply batches packed GUIDs.
+    DefC(CMSG_AREATRIGGER, "CMSG_AREATRIGGER", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleAreaTriggerOpcode);
+    DefS(SMSG_AREA_TRIGGER_NO_CORPSE, "SMSG_AREA_TRIGGER_NO_CORPSE");
+    DefC(CMSG_QUESTGIVER_STATUS_MULTIPLE_QUERY, "CMSG_QUESTGIVER_STATUS_MULTIPLE_QUERY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestgiverStatusMultipleQuery);
+    DefS(SMSG_QUESTGIVER_STATUS_MULTIPLE, "SMSG_QUESTGIVER_STATUS_MULTIPLE");
+
+    // CMSG_NPC_TEXT_QUERY is intentionally still dormant. Its 18414 response
+    // requires BroadcastText.db2 IDs, which the current npc_text backend does
+    // not retain; registering it would replace real gossip with a fabricated
+    // empty response.
+
     // Empty 18414 status refresh request. The handler replies through the
     // already-converted unified SMSG_LFG_UPDATE_STATUS body.
     DefC(CMSG_LFG_GET_STATUS, "CMSG_LFG_GET_STATUS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgGetStatusOpcode);
