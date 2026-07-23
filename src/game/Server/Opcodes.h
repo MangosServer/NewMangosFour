@@ -1368,7 +1368,6 @@ enum OpcodesList
     SMSG_ATTACKSWING_ERROR                       = 0x11E1,    // 5.4.8 18414 (Wow.exe leaf; name via 5.4.7 bridge; reader sub_6F568B)
     SMSG_PLAY_SPELL_VISUAL_KIT                   = 0x11E3,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_PET_BATTLE_QUEUE_PROPOSE_MATCH          = 0x1202,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)
-    SMSG_MISSILE_CANCEL                          = 0x1203,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_DIFFERENT_INSTANCE_FROM_PARTY           = 0x120B,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_CANCEL_SCENE                            = 0x120E,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)
     SMSG_ENCOUNTER_END                           = 0x120F,    // 5.4.8 18414 (Wow.exe binary)

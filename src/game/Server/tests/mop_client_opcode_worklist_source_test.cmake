@@ -41,6 +41,11 @@ elseif(MUTATION STREQUAL "battle_pay_duplicate_raw")
         opcodes "${opcodes}")
 elseif(MUTATION STREQUAL "battle_pay_value")
     string(REPLACE "CMSG_BATTLE_PAY_GET_PURCHASE_LIST            = 0x18B2" "CMSG_BATTLE_PAY_GET_PURCHASE_LIST            = 0x0000" opcode_header "${opcode_header}")
+elseif(MUTATION STREQUAL "missile_cancel_reintroduced")
+    string(REPLACE
+        "SMSG_PET_BATTLE_QUEUE_PROPOSE_MATCH          = 0x1202,"
+        "SMSG_PET_BATTLE_QUEUE_PROPOSE_MATCH          = 0x1202,\n    SMSG_MISSILE_CANCEL                          = 0x1203,"
+        opcode_header "${opcode_header}")
 endif()
 
 string(FIND "${opcode_header}" "CMSG_LOGOUT_REQUEST                          = 0x0643" logout_manual_value)
@@ -283,6 +288,11 @@ endif()
 string(FIND "${opcode_header}" "CMSG_BATTLE_PAY_GET_PURCHASE_LIST            = 0x18B2" battle_pay_value)
 if(battle_pay_value EQUAL -1)
     message(FATAL_ERROR "Battle Pay purchase-list request opcode drifted")
+endif()
+
+string(FIND "${opcode_header}" "SMSG_MISSILE_CANCEL" wrong_direction_missile_cancel)
+if(NOT wrong_direction_missile_cancel EQUAL -1)
+    message(FATAL_ERROR "0x1203 is a binary-proved inbound empty CMSG and must not remain exposed as SMSG_MISSILE_CANCEL")
 endif()
 
 set(selection_tokens
