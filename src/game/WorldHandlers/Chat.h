@@ -106,6 +106,26 @@ typedef uint32 ChatTagFlags;
 
 namespace MopChatPackets
 {
+    inline bool ReadAfkMessageRequest(WorldPacket& in, std::string& message)
+    {
+        message.clear();
+        if (in.rpos() >= in.size())
+        {
+            in.rfinish();
+            return false;
+        }
+
+        uint8 const length = in.ReadUInt8();
+        if (length != in.size() - in.rpos())
+        {
+            in.rfinish();
+            return false;
+        }
+
+        message = in.ReadString(length);
+        return true;
+    }
+
     inline bool ReadAddonPrefixBatch(WorldPacket& in,
         std::vector<std::string>& prefixes)
     {

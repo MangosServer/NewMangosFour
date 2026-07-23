@@ -183,8 +183,38 @@ static void test_opcode()
 {
     CHECK(uint32(SMSG_MESSAGECHAT) == 0x1A9Au);
     CHECK(uint32(SMSG_MESSAGECHAT) < uint32(OPCODE_TABLE_SIZE));
+    CHECK(uint32(CMSG_MESSAGECHAT_AFK) == 0x0EABu);
+    CHECK(uint32(CMSG_MESSAGECHAT_AFK) < uint32(OPCODE_TABLE_SIZE));
     CHECK(uint32(CMSG_UNREGISTER_ALL_ADDON_PREFIXES) == 0x029Fu);
     CHECK(uint32(CMSG_ADDON_REGISTERED_PREFIXES) == 0x040Eu);
+}
+
+static void test_afk_message_request()
+{
+    struct Fixture
+    {
+        std::vector<uint8> body;
+        bool valid;
+        char const* expected;
+    };
+
+    Fixture const fixtures[] = {
+        { { 0x03, 'A', 'F', 'K' }, true, "AFK" },
+        { { 0x00 }, true, "" },
+        { { 0x03, 'A', 'F' }, false, "" },
+        { { 0x01, 'A', 'X' }, false, "" }
+    };
+
+    for (Fixture const& fixture : fixtures)
+    {
+        WorldPacket packet(CMSG_MESSAGECHAT_AFK, fixture.body.size());
+        packet.append(fixture.body.data(), fixture.body.size());
+        std::string message = "not cleared";
+
+        CHECK(MopChatPackets::ReadAfkMessageRequest(packet, message) == fixture.valid);
+        CHECK(message == fixture.expected);
+        CHECK(packet.rpos() == packet.size());
+    }
 }
 
 static void test_addon_prefix_batch()
@@ -275,6 +305,7 @@ int main(int /*argc*/, char** /*argv*/)
     test_guild_message();
     test_length_boundaries();
     test_opcode();
+    test_afk_message_request();
     test_addon_prefix_batch();
     test_addon_prefix_soft_cap();
     test_text_emote_response();

@@ -770,7 +770,10 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
         case CHAT_MSG_AFK:
         {
             std::string msg;
-            msg = recv_data.ReadString(recv_data.ReadBits(9));
+            if (!MopChatPackets::ReadAfkMessageRequest(recv_data, msg))
+            {
+                return;
+            }
 
             if (!_player->IsInCombat())
             {

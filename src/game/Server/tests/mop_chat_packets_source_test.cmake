@@ -127,6 +127,21 @@ elseif(MUTATION STREQUAL "addon_whisper_filter")
         "if (receiver->GetSession()->IsAddonRegistered(prefix))"
         "if (true /* removed addon whisper filter */)"
         chat_handler "${chat_handler}")
+elseif(MUTATION STREQUAL "afk_registration")
+    string(REPLACE
+        "DefC(CMSG_MESSAGECHAT_AFK, \"CMSG_MESSAGECHAT_AFK\""
+        "DefC(0xFFFF, \"removed CMSG_MESSAGECHAT_AFK\""
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "afk_parser_wiring")
+    string(REPLACE
+        "MopChatPackets::ReadAfkMessageRequest(recv_data, msg)"
+        "false /* removed AFK parser */"
+        chat_handler "${chat_handler}")
+elseif(MUTATION STREQUAL "afk_parser_layout")
+    string(REPLACE
+        "uint8 const length = in.ReadUInt8();"
+        "uint8 const length = uint8(in.ReadBits(9)); /* damaged AFK length */"
+        chat_header "${chat_header}")
 elseif(MUTATION STREQUAL "legacy_wrong_faction")
     string(APPEND opcode_header "\nWorldPacket legacy(SMSG_CHAT_WRONG_FACTION);\n")
 elseif(MUTATION STREQUAL "legacy_gm_chat")
@@ -248,6 +263,27 @@ require_once("${opcode_registry}"
 require_once("${opcode_registry}"
     "DefC(CMSG_ADDON_REGISTERED_PREFIXES, \"CMSG_ADDON_REGISTERED_PREFIXES\""
     "registered-addon-prefix opcode registration")
+require_once("${opcode_registry}"
+    "DefC(CMSG_MESSAGECHAT_AFK, \"CMSG_MESSAGECHAT_AFK\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleMessagechatOpcode);"
+    "AFK request registration")
+require_once("${chat_handler}"
+    "MopChatPackets::ReadAfkMessageRequest(recv_data, msg)"
+    "AFK request parser wiring")
+require_once("${chat_header}"
+    "uint8 const length = in.ReadUInt8();"
+    "AFK request uint8 length")
+require_once("${chat_header}"
+    "bool ReadAfkMessageRequest"
+    "AFK request parser")
+
+string(FIND "${chat_handler}" "case CHAT_MSG_AFK:" afk_case_position)
+string(FIND "${chat_handler}" "case CHAT_MSG_DND:" dnd_case_position)
+if(afk_case_position EQUAL -1 OR dnd_case_position EQUAL -1 OR NOT afk_case_position LESS dnd_case_position)
+    message(FATAL_ERROR "AFK/DND chat branches missing or reordered")
+endif()
+math(EXPR afk_length "${dnd_case_position} - ${afk_case_position}")
+string(SUBSTRING "${chat_handler}" ${afk_case_position} ${afk_length} afk_branch)
+forbid("${afk_branch}" "ReadBits(9)" "AFK branch must not use generic 9-bit length")
 require_once("${chat_handler}"
     "m_registeredAddonPrefixes.clear();"
     "unregister-addon-prefix state clear")
