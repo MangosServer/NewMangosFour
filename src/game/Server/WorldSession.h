@@ -1742,6 +1742,7 @@ class WorldSession
         void HandleDismissCritter(WorldPacket& recvData);
 
         void HandleSetActionBarTogglesOpcode(WorldPacket& recv_data);
+        void HandleViolenceLevelOpcode(WorldPacket& recv_data);
 
         void HandleCharRenameOpcode(WorldPacket& recv_data);
         static void HandleChangePlayerNameOpcodeCallBack(QueryResult* result, uint32 accountId, std::string newname);

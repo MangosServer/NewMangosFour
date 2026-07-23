@@ -284,6 +284,7 @@ void InitializeOpcodes()
     // Live-log client preference toggles. The 18414 writers emit one byte for
     // action bars and two bits for the voice/microphone flags.
     DefC(CMSG_SET_ACTIONBAR_TOGGLES, "CMSG_SET_ACTIONBAR_TOGGLES", STATUS_AUTHED, PROCESS_THREADUNSAFE, &WorldSession::HandleSetActionBarTogglesOpcode);
+    DefC(CMSG_VIOLENCE_LEVEL, "CMSG_VIOLENCE_LEVEL", STATUS_AUTHED, PROCESS_INPLACE, &WorldSession::HandleViolenceLevelOpcode);
     DefC(CMSG_VOICE_SESSION_ENABLE, "CMSG_VOICE_SESSION_ENABLE", STATUS_LOGGEDIN, PROCESS_INPLACE, &WorldSession::HandleVoiceSessionEnableOpcode);
 
     // Live-log player state requests. The 18414 client writers emit a uint32

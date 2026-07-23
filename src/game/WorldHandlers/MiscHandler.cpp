@@ -36,6 +36,7 @@
  * - CMSG_LOGOUT_CANCEL: Cancel logout
  * - CMSG_ZONE_UPDATE: Zone update
  * - CMSG_SET_ACTIONBAR_TOGGLES: Set action bar toggles
+ * - CMSG_VIOLENCE_LEVEL: Set the client-only violence rendering level
  * - CMSG_SET_ACTIONBAR_TEXT: Set action bar text
  * - CMSG_MOVE_TIME_SKIPPED: Movement time skipped
  * - CMSG_MOVE_FALL_RESET: Fall reset
@@ -1256,6 +1257,17 @@ void WorldSession::HandleSetActionBarTogglesOpcode(WorldPacket& recv_data)
     }
 
     GetPlayer()->SetByteValue(PLAYER_FIELD_BYTES, 2, ActionBar);
+}
+
+/**
+ * @brief Consumes the client's violence rendering preference.
+ *
+ * This setting changes only client-side presentation, so the server has no
+ * state to update after consuming the binary-verified one-byte body.
+ */
+void WorldSession::HandleViolenceLevelOpcode(WorldPacket& recv_data)
+{
+    recv_data.read_skip<uint8>();
 }
 
 /**

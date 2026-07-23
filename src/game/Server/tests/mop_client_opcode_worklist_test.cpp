@@ -156,6 +156,7 @@ static void test_opcode_values()
     CHECK(uint32(SMSG_UI_TIME) == 0x0027u);
     CHECK(uint32(SMSG_DB_REPLY) == 0x103Bu);
     CHECK(uint32(CMSG_SET_ACTIONBAR_TOGGLES) == 0x0672u);
+    CHECK(uint32(CMSG_VIOLENCE_LEVEL) == 0x0040u);
     CHECK(uint32(CMSG_VOICE_SESSION_ENABLE) == 0x15A9u);
     CHECK(uint32(CMSG_SETSHEATHED) == 0x0249u);
     CHECK(uint32(CMSG_SET_SELECTION) == 0x0740u);

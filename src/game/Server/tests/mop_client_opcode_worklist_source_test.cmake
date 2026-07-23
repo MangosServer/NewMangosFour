@@ -1,4 +1,5 @@
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcodes)
+file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.h" opcode_header)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/MiscHandler.cpp" misc)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/CombatHandler.cpp" combat)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/ChannelHandler.cpp" channel)
@@ -15,6 +16,14 @@ file(READ "${SOURCE_ROOT}/src/game/Object/UnitCombat.cpp" unit_combat)
 file(READ "${SOURCE_ROOT}/src/game/Object/Unit.h" unit_header)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/QuestHandler.cpp" quest)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/GossipDef.cpp" gossip)
+
+if(MUTATION STREQUAL "violence_registration")
+    string(REPLACE "DefC(CMSG_VIOLENCE_LEVEL," "DefC(CMSG_UNUSED_VIOLENCE_LEVEL," opcodes "${opcodes}")
+elseif(MUTATION STREQUAL "violence_handler")
+    string(REPLACE "recv_data.read_skip<uint8>();" "recv_data.rfinish();" misc "${misc}")
+elseif(MUTATION STREQUAL "violence_value")
+    string(REPLACE "CMSG_VIOLENCE_LEVEL                         = 0x0040" "CMSG_VIOLENCE_LEVEL                         = 0x0000" opcode_header "${opcode_header}")
+endif()
 
 foreach(route IN ITEMS
         "CMSG_REQUEST_HOTFIX;HandleRequestHotfix"
@@ -68,6 +77,7 @@ endforeach()
 
 foreach(route IN ITEMS
         "CMSG_SET_ACTIONBAR_TOGGLES;HandleSetActionBarTogglesOpcode"
+        "CMSG_VIOLENCE_LEVEL;HandleViolenceLevelOpcode"
         "CMSG_VOICE_SESSION_ENABLE;HandleVoiceSessionEnableOpcode")
     list(GET route 0 opcode)
     list(GET route 1 handler)
@@ -75,6 +85,22 @@ foreach(route IN ITEMS
         message(FATAL_ERROR "${opcode} is not registered to ${handler}")
     endif()
 endforeach()
+
+string(FIND "${misc}" "void WorldSession::HandleViolenceLevelOpcode" violence_start)
+string(FIND "${misc}" "void WorldSession::HandlePlayedTime" violence_end)
+if(violence_start EQUAL -1 OR violence_end LESS_EQUAL violence_start)
+    message(FATAL_ERROR "violence-level handler body is missing")
+endif()
+math(EXPR violence_length "${violence_end} - ${violence_start}")
+string(SUBSTRING "${misc}" ${violence_start} ${violence_length} violence_body)
+string(FIND "${violence_body}" "recv_data.read_skip<uint8>();" violence_reader)
+if(violence_reader EQUAL -1)
+    message(FATAL_ERROR "violence-level handler does not consume the binary-proven uint8 body")
+endif()
+string(FIND "${opcode_header}" "CMSG_VIOLENCE_LEVEL                         = 0x0040" violence_value)
+if(violence_value EQUAL -1)
+    message(FATAL_ERROR "CMSG_VIOLENCE_LEVEL value drifted")
+endif()
 
 foreach(route IN ITEMS
         "CMSG_SETSHEATHED;HandleSetSheathedOpcode"
