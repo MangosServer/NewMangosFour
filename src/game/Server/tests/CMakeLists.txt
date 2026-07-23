@@ -751,7 +751,9 @@ add_test(NAME mop_enter_world_gate_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_enter_world_gate_source_test.cmake)
 
-foreach(mutation IN ITEMS converted_packet transfer_registration)
+foreach(mutation IN ITEMS converted_packet transfer_registration
+        update_gate update_registration update_bypass
+        destroy_gate destroy_registration destroy_bypass)
     add_test(NAME mop_enter_world_gate_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

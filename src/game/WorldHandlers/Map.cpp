@@ -1924,10 +1924,8 @@ void Map::SendInitSelf(Player* player)
     }
     sp.level = uint8(player->getLevel());
     sp.faction = player->getFaction();
-    // Real unit flags: this MoP create-block is the only VALUES packet that bypasses
-    // enter-world suppression, so state already set by LoadFromDB/aura load (PVP-attackable,
-    // mount/stun/taxi, etc.) is lost if forced to zero -- the later Cata value-updates that
-    // would carry it are suppressed and never reach the client.
+    // The initial snapshot must preserve state already established by LoadFromDB/aura load
+    // (PVP-attackable, mount/stun/taxi, etc.); later converted VALUES updates carry changes.
     sp.unitFlags = player->GetUInt32Value(UNIT_FIELD_FLAGS);
     sp.scale = player->GetObjectScale();
     sp.boundingRadius = player->GetObjectBoundingRadius();
@@ -1937,7 +1935,7 @@ void Map::SendInitSelf(Player* player)
 
     WorldPacket packet;
     MopUpdateObject::BuildSelfCreate(packet, sp);
-    player->GetSession()->SendPacket(&packet, true);   // bypass enter-world suppression: this is the MoP create-block
+    player->GetSession()->SendPacket(&packet);
 
     // Inventory objects must exist client-side before the self player links to
     // them. Player's existing traversal emits top-level items/bags, while Bag's
@@ -1967,7 +1965,7 @@ void Map::SendInitSelf(Player* player)
     {
         WorldPacket inventoryPacket;
         inventoryData.BuildPacket(&inventoryPacket);
-        player->GetSession()->SendPacket(&inventoryPacket, true);
+        player->GetSession()->SendPacket(&inventoryPacket);
     }
 }
 
@@ -1998,6 +1996,11 @@ void Map::SendInitTransports(Player* player)
         {
             (*i)->BuildCreateUpdateBlockForPlayer(&transData, player);
         }
+    }
+
+    if (!transData.HasData())
+    {
+        return;
     }
 
     WorldPacket packet;
@@ -3290,7 +3293,7 @@ void Map::SendObjectUpdates()
     for (UpdateDataMapType::iterator iter = update_players.begin(); iter != update_players.end(); ++iter)
     {
         iter->second.BuildPacket(&packet);
-        iter->first->GetSession()->SendPacket(&packet, true);
+        iter->first->GetSession()->SendPacket(&packet);
         packet.clear();                                     // clean the string
     }
 }

@@ -328,7 +328,7 @@ void Object::SendForcedObjectUpdate()
     for (UpdateDataMapType::iterator iter = update_players.begin(); iter != update_players.end(); ++iter)
     {
         iter->second.BuildPacket(&packet);
-        iter->first->GetSession()->SendPacket(&packet, true);
+        iter->first->GetSession()->SendPacket(&packet);
         packet.clear();                                     // clean the string
     }
 }
@@ -512,7 +512,7 @@ bool Object::SendCreateUpdateToPlayer(Player* player)
         return false;
     }
     upd.BuildPacket(&packet);
-    player->GetSession()->SendPacket(&packet, true);
+    player->GetSession()->SendPacket(&packet);
     return true;
 }
 
@@ -712,7 +712,7 @@ void Object::DestroyForPlayer(Player* target, bool anim) const
 
     WorldPacket data;
     MopUpdateObject::BuildDestroyObject(data, GetObjectGuid().GetRawValue(), anim);
-    target->GetSession()->SendPacket(&data, true);
+    target->GetSession()->SendPacket(&data);
 }
 
 /**

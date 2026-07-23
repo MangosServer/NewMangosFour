@@ -360,6 +360,8 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_QUERY_TIME_RESPONSE:       // MopQueryPackets::BuildQueryTimeResponse
         case SMSG_PLAYED_TIME:               // MopQueryPackets::BuildPlayedTimeResponse
         case SMSG_REALM_NAME_QUERY_RESPONSE: // MopQueryPackets::BuildRealmNameQueryResponse (client fires the realm query from the name-cache path during login)
+        case SMSG_UPDATE_OBJECT:              // UpdateData/MopUpdateObject binary-proved 18414 outer grammar and eligible block serializers
+        case SMSG_DESTROY_OBJECT:             // MopUpdateObject::BuildDestroyObject
         case SMSG_AURA_UPDATE:                // MopAuraPackets::BuildAuraUpdate (full snapshots and incremental updates)
         case SMSG_GUILD_EVENT_MOTD:           // MopGuildPackets::BuildGuildMotd
         case SMSG_GUILD_EVENT_PLAYER_JOINED:  // MopGuildPackets::BuildGuildMemberJoined
@@ -444,21 +446,13 @@ void WorldSession::SendPacket(WorldPacket const* packet, bool bypassSuppress)
     }
 
     // PHASE 6c (MoP enter-world bring-up): once a player has entered the world, drop the
-    // remaining Cata-format sends. Two escape hatches pass a packet: bypassSuppress=true at
-    // the call site (the self create-block in Map::SendInitSelf), and IsEnterWorldConverted()
-    // for opcodes whose senders now emit a real 18414 body (the UI-init envelope, the in-world
-    // query replies, plus the logout/teleport control packets). Everything else -- Cata
-    // self-VALUES updates and nearby-object create-blocks that would corrupt the client -- is
-    // dropped. Stays active for the whole in-world session, including logout cleanup, and dies
-    // with the session; temporary port scaffold, lifted once the object-update/preamble paths
-    // convert.
-    //
-    // KNOWN LIMITATION (follow-up, tied to converting the object-update path): while suppression
-    // is active, nearby-object SMSG_UPDATE_OBJECT creates are dropped AFTER the visibility pass
-    // has already recorded those GUIDs in m_clientGUIDs, so HaveAtClient() reports them present.
-    // Objects in the starting cells therefore stay invisible until they leave and re-enter range.
-    // Harmless today (there is no converted create to send anyway); when the multi-object update
-    // path converts, either whitelist it here or skip the visibility-cache insert while suppressed.
+    // remaining Cata-format sends. IsEnterWorldConverted() admits opcodes whose reachable
+    // senders now emit genuine 18414 bodies, including UPDATE_OBJECT's guarded create/value
+    // subsets and DESTROY_OBJECT. bypassSuppress=true remains only for the
+    // SMSG_LOGIN_SETTIMESPEED bootstrap in CharacterHandler.cpp. Everything else is dropped.
+    // This stays active for the whole
+    // in-world session, including logout cleanup, and dies with the session; it is a temporary
+    // port scaffold until every live sender reaches 18414 parity.
     if (m_suppressWorldSends && !bypassSuppress && !IsEnterWorldConverted(uint16(packet->GetOpcode())))
     {
         return;

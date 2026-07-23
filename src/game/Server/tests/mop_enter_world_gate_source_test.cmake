@@ -1,5 +1,9 @@
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" session_source)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
+file(READ "${SOURCE_ROOT}/src/game/Object/ObjectUpdate.cpp" object_update_source)
+file(READ "${SOURCE_ROOT}/src/game/Object/PlayerQuest.cpp" player_quest_source)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/GridNotifiers.cpp" grid_notifiers_source)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/Map.cpp" map_source)
 
 if(MUTATION STREQUAL "converted_packet")
     string(REPLACE
@@ -11,6 +15,36 @@ elseif(MUTATION STREQUAL "transfer_registration")
         "DefS(SMSG_TRANSFER_PENDING, \"SMSG_TRANSFER_PENDING\");"
         "/* removed transfer-pending metadata */"
         opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "destroy_gate")
+    string(REPLACE
+        "case SMSG_DESTROY_OBJECT:"
+        "/* removed destroy-object gate row */"
+        session_source "${session_source}")
+elseif(MUTATION STREQUAL "destroy_registration")
+    string(REPLACE
+        "DefS(SMSG_DESTROY_OBJECT, \"SMSG_DESTROY_OBJECT\");"
+        "/* removed destroy-object metadata */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "destroy_bypass")
+    string(REPLACE
+        "SendPacket(&data);"
+        "SendPacket(&data, true);"
+        object_update_source "${object_update_source}")
+elseif(MUTATION STREQUAL "update_gate")
+    string(REPLACE
+        "case SMSG_UPDATE_OBJECT:"
+        "/* removed update-object gate row */"
+        session_source "${session_source}")
+elseif(MUTATION STREQUAL "update_registration")
+    string(REPLACE
+        "DefS(SMSG_UPDATE_OBJECT, \"SMSG_UPDATE_OBJECT\");"
+        "/* removed update-object metadata */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "update_bypass")
+    string(REPLACE
+        "SendPacket(&packet);"
+        "SendPacket(&packet, true);"
+        grid_notifiers_source "${grid_notifiers_source}")
 endif()
 
 function(require_once source token context)
@@ -71,21 +105,34 @@ set(converted_packets
     SMSG_BATTLEFIELD_RATED_INFO
     SMSG_CALENDAR_EVENT_INITIAL_INVITE
     SMSG_CALENDAR_EVENT_INVITE_STATUS
-    SMSG_CALENDAR_EVENT_MODERATOR_STATUS)
+    SMSG_CALENDAR_EVENT_MODERATOR_STATUS
+    SMSG_UPDATE_OBJECT
+    SMSG_DESTROY_OBJECT)
 
 foreach(opcode IN LISTS converted_packets)
     require_once("${session_source}" "case[ \\t]+${opcode}:" "${opcode} suppression gate")
 endforeach()
 
-foreach(opcode IN ITEMS SMSG_TRANSFER_PENDING SMSG_TRAINER_BUY_FAILED)
+foreach(opcode IN ITEMS SMSG_TRANSFER_PENDING SMSG_TRAINER_BUY_FAILED SMSG_UPDATE_OBJECT SMSG_DESTROY_OBJECT)
     require_once("${opcode_registry}"
         "DefS\\(${opcode},[ \\t]*\"${opcode}\"\\)"
         "${opcode} metadata")
 endforeach()
 
-# These tempting high-impact senders still use stale or only partly verified bodies.
-# Keeping them absent is deliberate until their complete 18414 readers are recovered.
-foreach(opcode IN ITEMS SMSG_UPDATE_OBJECT SMSG_UPDATE_ACCOUNT_DATA)
+# All UPDATE_OBJECT and DESTROY_OBJECT routes now use normal central admission.
+# These owning files deliberately permit no bypass at all: any future exceptional
+# bootstrap must stay isolated elsewhere with its own registration/gate policy.
+set(converted_update_sources
+    "${object_update_source}\n${player_quest_source}\n${grid_notifiers_source}\n${map_source}")
+string(REGEX MATCHALL "SendPacket\\([^;]*,[ \\t]*true\\);" update_bypass_matches "${converted_update_sources}")
+list(LENGTH update_bypass_matches update_bypass_count)
+if(NOT update_bypass_count EQUAL 0)
+    message(FATAL_ERROR "UPDATE_OBJECT/DESTROY_OBJECT routes must not bypass the central suppression gate")
+endif()
+
+# This tempting high-impact sender still uses a stale or only partly verified body.
+# Keeping it absent is deliberate until its complete 18414 reader is recovered.
+foreach(opcode IN ITEMS SMSG_UPDATE_ACCOUNT_DATA)
     string(REGEX MATCHALL "case[ \\t]+${opcode}:" unsafe_matches "${session_source}")
     list(LENGTH unsafe_matches unsafe_count)
     if(NOT unsafe_count EQUAL 0)

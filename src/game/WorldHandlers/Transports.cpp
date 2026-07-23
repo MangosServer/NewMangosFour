@@ -637,6 +637,10 @@ void Transport::UpdateForMap(Map const* targetMap)
             {
                 UpdateData transData(itr->getSource()->GetMapId());
                 BuildCreateUpdateBlockForPlayer(&transData, itr->getSource());
+                if (!transData.HasData())
+                {
+                    continue;
+                }
                 WorldPacket packet;
                 transData.BuildPacket(&packet);
 

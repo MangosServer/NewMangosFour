@@ -3211,7 +3211,7 @@ void Player::UpdateForQuestWorldObjects()
         return;
     }
     udata.BuildPacket(&packet);
-    GetSession()->SendPacket(&packet, true);
+    GetSession()->SendPacket(&packet);
 }
 
 void Player::SetDailyQuestStatus(uint32 quest_id)
