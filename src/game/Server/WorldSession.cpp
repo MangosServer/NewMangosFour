@@ -324,6 +324,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_ATTACKSTART:                     // MopCompactPackets::BuildAttackStart
         case SMSG_ATTACKSTOP:                      // MopCompactPackets::BuildAttackStop
         case SMSG_QUESTGIVER_STATUS:               // MopQuestStatusPackets::BuildStatus
+        case SMSG_GOSSIP_MESSAGE:                  // MopGossipPackets::BuildMessage
             return true;
 
         // In-world query replies. The core already emits genuine 18414 bodies for these

@@ -202,24 +202,23 @@ bool PlayerMenu::GossipOptionCoded(unsigned int Selection) const
 // Sends the gossip menu to the player
 void PlayerMenu::SendGossipMenu(uint32 TitleTextId, ObjectGuid objectGuid)
 {
-    WorldPacket data(SMSG_GOSSIP_MESSAGE, (100)); // guess size
-    data << ObjectGuid(objectGuid);
-    data << uint32(mGossipMenu.GetMenuId()); // new 2.4.0
-    data << uint32(TitleTextId);
-    data << uint32(mGossipMenu.MenuItemCount()); // max count 0x20
+    MopGossipPackets::Message message;
+    message.sourceGuid = objectGuid;
+    message.menuId = mGossipMenu.GetMenuId();
+    message.titleTextId = TitleTextId;
 
     for (uint32 iI = 0; iI < mGossipMenu.MenuItemCount(); ++iI)
     {
         GossipMenuItem const& gItem = mGossipMenu.GetItem(iI);
-        data << uint32(iI);
-        data << uint8(gItem.m_gIcon);
-        data << uint8(gItem.m_gCoded); // makes pop up box password
-        data << uint32(gItem.m_gBoxMoney); // money required to open menu, 2.0.3
-        data << gItem.m_gMessage; // text for gossip item, max 0x800
-        data << gItem.m_gBoxMessage; // accept text (related to money) pop up box, 2.0.3, max 0x800
+        MopGossipPackets::GossipItem item;
+        item.optionId = iI;
+        item.icon = gItem.m_gIcon;
+        item.coded = gItem.m_gCoded;
+        item.boxMoney = gItem.m_gBoxMoney;
+        item.message = gItem.m_gMessage;
+        item.boxMessage = gItem.m_gBoxMessage;
+        message.gossipItems.push_back(item);
     }
-
-    data << uint32(mQuestMenu.MenuItemCount()); // max count 0x20
 
     for (uint32 iI = 0; iI < mQuestMenu.MenuItemCount(); ++iI)
     {
@@ -227,19 +226,22 @@ void PlayerMenu::SendGossipMenu(uint32 TitleTextId, ObjectGuid objectGuid)
         uint32 questID = qItem.m_qId;
         Quest const* pQuest = sObjectMgr.GetQuestTemplate(questID);
 
-        data << uint32(questID);
-        data << uint32(qItem.m_qIcon);
-        data << int32(pQuest->GetQuestLevel());
-        data << uint32(pQuest->GetQuestFlags());            // 3.3.3 quest flags
-        data << uint8(0);                                   // 3.3.3 changes icon: blue question or yellow exclamation
-
         int loc_idx = GetMenuSession()->GetSessionDbLocaleIndex();
         std::string title = pQuest->GetTitle();
         sObjectMgr.GetQuestLocaleStrings(questID, loc_idx, &title);
 
-        data << title; // max 0x200
+        MopGossipPackets::QuestItem item;
+        item.questId = questID;
+        item.icon = qItem.m_qIcon;
+        item.level = pQuest->GetQuestLevel();
+        item.flags = pQuest->GetQuestFlags();
+        item.repeatable = pQuest->IsRepeatable();
+        item.title = title;
+        message.quests.push_back(item);
     }
 
+    WorldPacket data;
+    MopGossipPackets::BuildMessage(data, message);
     GetMenuSession()->SendPacket(&data);
     DEBUG_LOG("WORLD: Sent SMSG_GOSSIP_MESSAGE from %s", objectGuid.GetString().c_str());
 }

@@ -57,6 +57,117 @@ namespace MopQuestStatusPackets
     }
 }
 
+namespace MopGossipPackets
+{
+    struct GossipItem
+    {
+        uint32 optionId = 0;
+        uint8 icon = 0;
+        bool coded = false;
+        uint32 boxMoney = 0;
+        std::string message;
+        std::string boxMessage;
+    };
+
+    struct QuestItem
+    {
+        uint32 questId = 0;
+        uint32 icon = 0;
+        int32 level = 0;
+        uint32 flags = 0;
+        uint32 flags2 = 0;
+        bool repeatable = false;
+        std::string title;
+    };
+
+    struct Message
+    {
+        ObjectGuid sourceGuid;
+        uint32 menuId = 0;
+        uint32 titleTextId = 0;
+        std::vector<GossipItem> gossipItems;
+        std::vector<QuestItem> quests;
+    };
+
+    inline ObjectGuid ReadHello(WorldPacket& in)
+    {
+        ObjectGuid guid;
+        in.ReadGuidMask<2, 4, 0, 3, 6, 7, 5, 1>(guid);
+        in.ReadGuidBytes<4, 7, 1, 0, 5, 3, 6, 2>(guid);
+        return guid;
+    }
+
+    inline size_t BoundedLength(std::string const& value, size_t maximum)
+    {
+        return value.size() < maximum ? value.size() : maximum;
+    }
+
+    inline void AppendString(WorldPacket& out, std::string const& value,
+        size_t length)
+    {
+        out.append(value.data(), length);
+    }
+
+    inline void BuildMessage(WorldPacket& out, Message const& message)
+    {
+        size_t const questCount = message.quests.size() < 0x7FFFF
+            ? message.quests.size() : 0x7FFFF;
+        size_t const gossipCount = message.gossipItems.size() < 0xFFFFF
+            ? message.gossipItems.size() : 0xFFFFF;
+
+        out.Initialize(SMSG_GOSSIP_MESSAGE, 150);
+        out.WriteBits(uint32(questCount), 19);
+        for (size_t i = 0; i < questCount; ++i)
+        {
+            QuestItem const& quest = message.quests[i];
+            out.WriteBit(quest.repeatable);
+            out.WriteBits(uint32(BoundedLength(quest.title, 0x1FF)), 9);
+        }
+
+        out.WriteGuidMask<5, 7, 4, 0>(message.sourceGuid);
+        out.WriteBits(uint32(gossipCount), 20);
+        out.WriteGuidMask<6, 2>(message.sourceGuid);
+        for (size_t i = 0; i < gossipCount; ++i)
+        {
+            GossipItem const& item = message.gossipItems[i];
+            out.WriteBits(uint32(BoundedLength(item.boxMessage, 0xFFF)), 12);
+            out.WriteBits(uint32(BoundedLength(item.message, 0xFFF)), 12);
+        }
+        out.WriteGuidMask<3, 1>(message.sourceGuid);
+        out.FlushBits();
+
+        for (size_t i = 0; i < questCount; ++i)
+        {
+            QuestItem const& quest = message.quests[i];
+            AppendString(out, quest.title, BoundedLength(quest.title, 0x1FF));
+            out << quest.flags;
+            out << quest.level;
+            out << quest.icon;
+            out << quest.questId;
+            out << quest.flags2;
+        }
+
+        out.WriteGuidBytes<1, 0>(message.sourceGuid);
+        for (size_t i = 0; i < gossipCount; ++i)
+        {
+            GossipItem const& item = message.gossipItems[i];
+            out << item.boxMoney;
+            AppendString(out, item.boxMessage, BoundedLength(item.boxMessage, 0xFFF));
+            out << item.optionId;
+            out << uint8(item.coded);
+            AppendString(out, item.message, BoundedLength(item.message, 0xFFF));
+            out << item.icon;
+        }
+
+        out.WriteGuidBytes<5, 3>(message.sourceGuid);
+        out << message.menuId;
+        out.WriteGuidBytes<2, 6, 4>(message.sourceGuid);
+        out << uint32(0); // friendship faction ID
+        out.WriteGuidBytes<7>(message.sourceGuid);
+        out << message.titleTextId;
+    }
+}
+
 #define GOSSIP_MAX_MENU_ITEMS       32                      // client supports showing max 32 items
 #define DEFAULT_GOSSIP_MESSAGE      0xffffff
 

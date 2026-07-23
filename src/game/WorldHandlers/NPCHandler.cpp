@@ -462,8 +462,7 @@ void WorldSession::HandleGossipHelloOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: Received opcode CMSG_GOSSIP_HELLO");
 
-    ObjectGuid guid;
-    recv_data >> guid;
+    ObjectGuid guid = MopGossipPackets::ReadHello(recv_data);
 
     Creature* pCreature = GetPlayer()->GetNPCIfCanInteractWith(guid, UNIT_NPC_FLAG_NONE);
     if (!pCreature)
