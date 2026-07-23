@@ -61,8 +61,7 @@
 
 void WorldSession::HandleQuestgiverStatusQueryOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid guid;
-    recv_data >> guid;
+    ObjectGuid const guid = MopQuestStatusPackets::ReadStatusQuery(recv_data);
     uint32 dialogStatus = DIALOG_STATUS_NONE;
 
     Object* questgiver = _player->GetObjectByTypeMask(guid, TYPEMASK_CREATURE_OR_GAMEOBJECT);

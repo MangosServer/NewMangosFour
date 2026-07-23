@@ -28,6 +28,7 @@
  */
 
 #include "Channel.h"
+#include "GossipDef.h"
 #include "Player.h"
 #include "WorldSession.h"
 
@@ -160,11 +161,13 @@ static void test_opcode_values()
     CHECK(uint32(CMSG_SET_SELECTION) == 0x0740u);
     CHECK(uint32(CMSG_STANDSTATECHANGE) == 0x03E6u);
     CHECK(uint32(SMSG_STANDSTATE_UPDATE) == 0x1C12u);
+    CHECK(uint32(CMSG_QUESTGIVER_STATUS_QUERY) == 0x036Au);
+    CHECK(uint32(SMSG_QUESTGIVER_STATUS) == 0x1275u);
 }
 
 static void test_player_state_requests()
 {
-    ObjectGuid const expected(UI64LIT(0x0807060504030201));
+    ObjectGuid const expected(UI64LIT(0x0800060004000201));
     WorldPacket selection(CMSG_SET_SELECTION, 16);
     selection.WriteGuidMask<7, 6, 5, 4, 3, 2, 1, 0>(expected);
     selection.FlushBits();
@@ -211,6 +214,30 @@ static void test_player_state_requests()
     standUpdate << uint8(4);
     CHECK(standUpdate.read<uint8>() == 4u);
     CHECK(standUpdate.rpos() == standUpdate.size());
+}
+
+static void test_questgiver_status_packets()
+{
+    ObjectGuid const expected(UI64LIT(0x0800060004000201));
+    WorldPacket request(CMSG_QUESTGIVER_STATUS_QUERY, 9);
+    request.WriteGuidMask<4, 3, 2, 1, 0, 5, 7, 6>(expected);
+    request.FlushBits();
+    request.WriteGuidBytes<5, 7, 4, 0, 2, 1, 6, 3>(expected);
+    CHECK(MopQuestStatusPackets::ReadStatusQuery(request) == expected);
+    CHECK(request.rpos() == request.size());
+
+    WorldPacket response;
+    MopQuestStatusPackets::BuildStatus(response, 0x11223344u, expected);
+    CHECK(response.GetOpcode() == SMSG_QUESTGIVER_STATUS);
+    ObjectGuid decoded;
+    response.ReadGuidMask<1, 7, 4, 2, 5, 3, 6, 0>(decoded);
+    response.ReadByteSeq(decoded[7]);
+    uint32 status = 0;
+    response >> status;
+    response.ReadGuidBytes<4, 6, 1, 5, 2, 0, 3>(decoded);
+    CHECK(decoded == expected);
+    CHECK(status == 0x11223344u);
+    CHECK(response.rpos() == response.size());
 }
 
 static void test_raid_instance_info()
@@ -274,6 +301,7 @@ int main(int /*argc*/, char** /*argv*/)
     test_load_screen_request();
     test_opcode_values();
     test_player_state_requests();
+    test_questgiver_status_packets();
     test_raid_instance_info();
 
     if (g_fail)

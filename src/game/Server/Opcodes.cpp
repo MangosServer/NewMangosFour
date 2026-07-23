@@ -285,6 +285,10 @@ void InitializeOpcodes()
     DefC(CMSG_STANDSTATECHANGE, "CMSG_STANDSTATECHANGE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleStandStateChangeOpcode);
     DefS(SMSG_STANDSTATE_UPDATE, "SMSG_STANDSTATE_UPDATE");
 
+    // Single quest-giver marker query and its packed-GUID status response.
+    DefC(CMSG_QUESTGIVER_STATUS_QUERY, "CMSG_QUESTGIVER_STATUS_QUERY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestgiverStatusQueryOpcode);
+    DefS(SMSG_QUESTGIVER_STATUS, "SMSG_QUESTGIVER_STATUS");
+
     // Empty 18414 status refresh request. The handler replies through the
     // already-converted unified SMSG_LFG_UPDATE_STATUS body.
     DefC(CMSG_LFG_GET_STATUS, "CMSG_LFG_GET_STATUS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgGetStatusOpcode);

@@ -30,8 +30,32 @@
 #include "QuestDef.h"
 #include "NPCHandler.h"
 #include "ObjectGuid.h"
+#include "Opcodes.h"
+#include "WorldPacket.h"
 
 class WorldSession;
+
+namespace MopQuestStatusPackets
+{
+    inline ObjectGuid ReadStatusQuery(WorldPacket& in)
+    {
+        ObjectGuid guid;
+        in.ReadGuidMask<4, 3, 2, 1, 0, 5, 7, 6>(guid);
+        in.ReadGuidBytes<5, 7, 4, 0, 2, 1, 6, 3>(guid);
+        return guid;
+    }
+
+    inline void BuildStatus(WorldPacket& out, uint32 status,
+        ObjectGuid questGiverGuid)
+    {
+        out.Initialize(SMSG_QUESTGIVER_STATUS, 13);
+        out.WriteGuidMask<1, 7, 4, 2, 5, 3, 6, 0>(questGiverGuid);
+        out.FlushBits();
+        out.WriteGuidBytes<7>(questGiverGuid);
+        out << status;
+        out.WriteGuidBytes<4, 6, 1, 5, 2, 0, 3>(questGiverGuid);
+    }
+}
 
 #define GOSSIP_MAX_MENU_ITEMS       32                      // client supports showing max 32 items
 #define DEFAULT_GOSSIP_MESSAGE      0xffffff
