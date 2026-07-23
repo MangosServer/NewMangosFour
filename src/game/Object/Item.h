@@ -83,6 +83,82 @@ namespace MopItemPackets
             out.WriteByteSeq(GuidByte(guid, index));
     }
 
+    struct VendorItemRecord
+    {
+        int32 leftInStock = -1;
+        uint32 price = 0;
+        uint32 type = 0;
+        int32 maxDurability = 0;
+        uint32 displayId = 0;
+        uint32 buyCount = 0;
+        uint32 itemId = 0;
+        bool hasExtendedCost = false;
+        uint32 extendedCost = 0;
+        uint32 upgradeId = 0;
+        bool hasCondition = false;
+        uint32 condition = 0;
+        uint32 slot = 0;
+        bool doNotFilter = false;
+    };
+
+    struct VendorList
+    {
+        ObjectGuid vendorGuid;
+        uint8 reason = 0;
+        std::vector<VendorItemRecord> items;
+    };
+
+    inline ObjectGuid ReadListInventory(WorldPacket& in)
+    {
+        ObjectGuid guid;
+        in.ReadGuidMask<6, 7, 3, 1, 2, 0, 4, 5>(guid);
+        in.ReadGuidBytes<0, 7, 1, 6, 4, 3, 5, 2>(guid);
+        return guid;
+    }
+
+    inline void BuildVendorList(WorldPacket& out, VendorList const& list)
+    {
+        size_t const itemCount = list.items.size() < 0x3FFFF
+            ? list.items.size() : 0x3FFFF;
+        uint64 const vendorGuid = list.vendorGuid.GetRawValue();
+        uint8 const maskA[] = { 5, 7, 1, 3, 6 };
+        uint8 const maskB[] = { 4, 0, 2 };
+        uint8 const bytes[] = { 3, 7, 0, 6, 2, 1, 4, 5 };
+
+        out.Initialize(SMSG_LIST_INVENTORY, 13 + itemCount * 44);
+        WriteGuidMask(out, vendorGuid, maskA);
+        out.WriteBits(uint32(itemCount), 18);
+        for (size_t i = 0; i < itemCount; ++i)
+        {
+            VendorItemRecord const& item = list.items[i];
+            out.WriteBit(item.doNotFilter);
+            out.WriteBit(!item.hasExtendedCost);
+            out.WriteBit(!item.hasCondition);
+        }
+        WriteGuidMask(out, vendorGuid, maskB);
+        out.FlushBits();
+
+        out << list.reason;
+        for (size_t i = 0; i < itemCount; ++i)
+        {
+            VendorItemRecord const& item = list.items[i];
+            out << item.leftInStock;
+            out << item.price;
+            out << item.type;
+            out << item.maxDurability;
+            out << item.displayId;
+            out << item.buyCount;
+            out << item.itemId;
+            if (item.hasExtendedCost)
+                out << item.extendedCost;
+            out << item.upgradeId;
+            if (item.hasCondition)
+                out << item.condition;
+            out << item.slot;
+        }
+        WriteGuidBytes(out, vendorGuid, bytes);
+    }
+
     inline void BuildItemTimeUpdate(WorldPacket& out, uint64 itemGuid,
         uint32 duration)
     {

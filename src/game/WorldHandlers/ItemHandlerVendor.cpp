@@ -301,9 +301,7 @@ void WorldSession::HandleBuyItemOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleListInventoryOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid guid;
-
-    recv_data >> guid;
+    ObjectGuid guid = MopItemPackets::ReadListInventory(recv_data);
 
     if (!GetPlayer()->IsAlive())
     {
@@ -347,12 +345,12 @@ void WorldSession::SendListInventory(ObjectGuid vendorguid)
     uint8 customitems = vItems ? vItems->GetItemCount() : 0;
     uint8 numitems = customitems + (tItems ? tItems->GetItemCount() : 0);
 
-    std::vector<bool> bitFlags;
+    MopItemPackets::VendorList vendorList;
+    vendorList.vendorGuid = vendorguid;
 
     float discountMod = _player->GetReputationPriceDiscount(pCreature);
 
     uint16 count = 0;
-    ByteBuffer buffer;
     for (uint8 vendorslot = 0; vendorslot < numitems; ++vendorslot)
     {
         VendorItem const* crItem = vendorslot < customitems ? vItems->GetItem(vendorslot) : tItems->GetItem(vendorslot - customitems);
@@ -458,44 +456,24 @@ void WorldSession::SendListInventory(ObjectGuid vendorguid)
                 continue;
             }
 
-            bitFlags.push_back(crItem->ExtendedCost == 0);
-            bitFlags.push_back(true);                       // unk
-
-            buffer << uint32(vendorslot + 1);               // client size expected counting from 1
-            buffer << uint32(maxDurability);
-
-            if (crItem->ExtendedCost)
-            {
-                buffer << uint32(crItem->ExtendedCost);
-            }
-
-            buffer << uint32(crItem->item);
-            buffer << uint32(crItem->type);
-            buffer << uint32(price);
-            buffer << uint32(displayId);
-            buffer << int32(maxCount);
-            buffer << uint32(buyCount);
+            MopItemPackets::VendorItemRecord item;
+            item.leftInStock = maxCount;
+            item.price = price;
+            item.type = crItem->type;
+            item.maxDurability = int32(maxDurability);
+            item.displayId = displayId;
+            item.buyCount = buyCount;
+            item.itemId = crItem->item;
+            item.hasExtendedCost = crItem->ExtendedCost != 0;
+            item.extendedCost = crItem->ExtendedCost;
+            item.slot = vendorslot + 1;                     // client slots start at 1
+            vendorList.items.push_back(item);
         }
     }
 
-    WorldPacket data(SMSG_LIST_INVENTORY, (8 + 3 + 1 + 1 + numitems * 8 * 4));
-
-    data.WriteGuidMask<1, 0>(vendorguid);
-    data.WriteBits(count, 21);
-    data.WriteGuidMask<3, 6, 5, 2, 7>(vendorguid);
-
-    for (uint32 i = 0; i < bitFlags.size(); ++i)
-    {
-        data.WriteBit(bitFlags[i]);
-    }
-
-    data.WriteGuidMask<4>(vendorguid);
-    data.FlushBits();
-    data.append(buffer);
-
-    data.WriteGuidBytes<5, 4, 1, 0, 6>(vendorguid);
-    data << uint8(count == 0);
-    data.WriteGuidBytes<2, 3, 7>(vendorguid);
+    vendorList.reason = vendorList.items.empty() ? 1 : 0;
+    WorldPacket data;
+    MopItemPackets::BuildVendorList(data, vendorList);
 
     SendPacket(&data);
 }

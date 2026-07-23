@@ -298,6 +298,8 @@ void InitializeOpcodes()
     DefS(SMSG_QUESTGIVER_STATUS, "SMSG_QUESTGIVER_STATUS");
     DefC(CMSG_GOSSIP_HELLO, "CMSG_GOSSIP_HELLO", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGossipHelloOpcode);
     DefS(SMSG_GOSSIP_MESSAGE, "SMSG_GOSSIP_MESSAGE");
+    DefC(CMSG_LIST_INVENTORY, "CMSG_LIST_INVENTORY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleListInventoryOpcode);
+    DefS(SMSG_LIST_INVENTORY, "SMSG_LIST_INVENTORY");
 
     // Empty 18414 status refresh request. The handler replies through the
     // already-converted unified SMSG_LFG_UPDATE_STATUS body.
