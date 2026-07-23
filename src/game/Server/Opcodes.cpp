@@ -404,6 +404,8 @@ void InitializeOpcodes()
 
     // Binary-proven 18414 integrated spell-cast request.
     DefC(CMSG_CAST_SPELL, "CMSG_CAST_SPELL", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleCastSpellOpcode);
+    DefS(SMSG_CAST_FAILED, "SMSG_CAST_FAILED");
+    DefS(SMSG_PET_CAST_FAILED, "SMSG_PET_CAST_FAILED");
 
     // Guild event packets split from the pre-MoP generic guild-event packet.
     DefS(SMSG_GUILD_EVENT_MOTD, "SMSG_GUILD_EVENT_MOTD");

@@ -287,6 +287,14 @@ class SpellCastTargets
 
 namespace MopSpellPackets
 {
+    struct CastFailedArguments
+    {
+        bool hasArg10 = false;
+        uint32 arg10 = 0;
+        bool hasArg18 = false;
+        uint32 arg18 = 0;
+    };
+
     struct CastSpellRequest
     {
         uint8 castCount = 0;
@@ -309,6 +317,9 @@ namespace MopSpellPackets
         float elevation = 0.0f;
     };
 
+    uint32 ToClientCastResult(SpellCastResult result);
+    void BuildCastFailed(WorldPacket& out, uint32 spellId, SpellCastResult result,
+        uint8 castCount, bool isPetCastResult, CastFailedArguments const& arguments);
     bool ReadCastSpellRequest(WorldPacket& in, CastSpellRequest& request);
 }
 

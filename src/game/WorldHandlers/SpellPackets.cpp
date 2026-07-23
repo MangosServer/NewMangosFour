@@ -83,6 +83,73 @@
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
 
+namespace
+{
+    constexpr uint32 TranslateCastResultFor18414(uint32 result)
+    {
+        if (result <= 22)
+            return result;
+        if (result <= 118)
+            return result + 1;
+        if (result <= 162)
+            return result + 2;
+        if (result <= 164)
+            return result + 4;
+        if (result <= 202)
+            return result + 9;
+        return 254;
+    }
+
+    static_assert(TranslateCastResultFor18414(SPELL_FAILED_CANT_STEALTH) == 22);
+    static_assert(TranslateCastResultFor18414(SPELL_FAILED_CASTER_AURASTATE) == 24);
+    static_assert(TranslateCastResultFor18414(SPELL_FAILED_TARGET_IN_COMBAT) == 119);
+    static_assert(TranslateCastResultFor18414(SPELL_FAILED_TARGET_IS_PLAYER) == 121);
+    static_assert(TranslateCastResultFor18414(SPELL_FAILED_BM_OR_INVISGOD) == 164);
+    static_assert(TranslateCastResultFor18414(SPELL_FAILED_EXPERT_RIDING_REQUIREMENT) == 167);
+    static_assert(TranslateCastResultFor18414(SPELL_FAILED_ARTISAN_RIDING_REQUIREMENT) == 168);
+    static_assert(TranslateCastResultFor18414(SPELL_FAILED_NOT_IDLE) == 174);
+    static_assert(TranslateCastResultFor18414(SPELL_FAILED_NOT_IN_LFG_DUNGEON) == 211);
+    static_assert(TranslateCastResultFor18414(SPELL_FAILED_UNKNOWN) == 254);
+}
+
+uint32 MopSpellPackets::ToClientCastResult(SpellCastResult result)
+{
+    return TranslateCastResultFor18414(uint32(result));
+}
+
+void MopSpellPackets::BuildCastFailed(WorldPacket& out, uint32 spellId,
+    SpellCastResult result, uint8 castCount, bool isPetCastResult,
+    CastFailedArguments const& arguments)
+{
+    out.Initialize(isPetCastResult ? SMSG_PET_CAST_FAILED : SMSG_CAST_FAILED, 18);
+
+    uint32 const clientResult = ToClientCastResult(result);
+    if (isPetCastResult)
+        out << clientResult << spellId;
+    else
+        out << spellId << clientResult;
+    out << castCount;
+
+    // The pet reader stores the same two optional fields but consumes their
+    // absence bits in the opposite order from the player-cast reader.
+    if (isPetCastResult)
+    {
+        out.WriteBit(!arguments.hasArg18);
+        out.WriteBit(!arguments.hasArg10);
+    }
+    else
+    {
+        out.WriteBit(!arguments.hasArg10);
+        out.WriteBit(!arguments.hasArg18);
+    }
+    out.FlushBits();
+
+    if (arguments.hasArg10)
+        out << arguments.arg10;
+    if (arguments.hasArg18)
+        out << arguments.arg18;
+}
+
 /**
  * @brief Sends the cast result for this spell to the appropriate receiver.
  *
@@ -122,17 +189,35 @@ void Spell::SendCastResult(Player* caster, SpellEntry const* spellInfo, uint8 ca
         return;
     }
 
-    WorldPacket data(isPetCastResult ? SMSG_PET_CAST_FAILED : SMSG_CAST_FAILED, (4 + 1 + 2));
-    data << uint8(cast_count);                              // single cast or multi 2.3 (0/1)
-    data << uint32(spellInfo->ID);
-    data << uint8(!IsPassiveSpell(spellInfo) ? result : SPELL_FAILED_DONT_REPORT); // do not report failed passive spells
-    switch (result)
+    SpellCastResult const reportedResult =
+        !IsPassiveSpell(spellInfo) ? result : SPELL_FAILED_DONT_REPORT;
+    MopSpellPackets::CastFailedArguments arguments;
+    auto addPrimary = [&arguments](uint32 value)
+    {
+        if (!arguments.hasArg18)
+        {
+            arguments.hasArg18 = true;
+            arguments.arg18 = value;
+        }
+        else
+        {
+            arguments.hasArg10 = true;
+            arguments.arg10 = value;
+        }
+    };
+    auto setSecondary = [&arguments](uint32 value)
+    {
+        arguments.hasArg10 = true;
+        arguments.arg10 = value;
+    };
+
+    switch (reportedResult)
     {
         case SPELL_FAILED_NOT_READY:
-            data << uint32(0);                              // unknown, value 1 seen for 14177 (update cooldowns on client flag)
+            // The 18414 presenter does not consume the legacy cooldown flag.
             break;
         case SPELL_FAILED_REQUIRES_SPELL_FOCUS:
-            data << uint32(spellInfo->GetRequiresSpellFocus());
+            addPrimary(spellInfo->GetRequiresSpellFocus());
             break;
         case SPELL_FAILED_REQUIRES_AREA:                    // AreaTable.dbc id
             // hardcode areas limitation case
@@ -140,17 +225,17 @@ void Spell::SendCastResult(Player* caster, SpellEntry const* spellInfo, uint8 ca
             {
                 case 41617:                                 // Cenarion Mana Salve
                 case 41619:                                 // Cenarion Healing Salve
-                    data << uint32(3905);
+                    addPrimary(3905);
                     break;
                 case 41618:                                 // Bottled Nethergon Energy
                 case 41620:                                 // Bottled Nethergon Vapor
-                    data << uint32(3842);
+                    addPrimary(3842);
                     break;
                 case 45373:                                 // Bloodberry Elixir
-                    data << uint32(4075);
+                    addPrimary(4075);
                     break;
                 default:                                    // default case (don't must be)
-                    data << uint32(0);
+                    addPrimary(0);
                     break;
             }
             break;
@@ -160,7 +245,7 @@ void Spell::SendCastResult(Player* caster, SpellEntry const* spellInfo, uint8 ca
                 for(int i = 0; i < MAX_SPELL_TOTEMS; ++i)
                     if (totems && totems->Totem[i])
                     {
-                        data << uint32(totems->Totem[i]);
+                        addPrimary(totems->Totem[i]);
                     }
             }
             break;
@@ -170,58 +255,55 @@ void Spell::SendCastResult(Player* caster, SpellEntry const* spellInfo, uint8 ca
                 for(int i = 0; i < MAX_SPELL_TOTEM_CATEGORIES; ++i)
                     if (totems && totems->RequiredTotemCategoryID[i])
                     {
-                        data << uint32(totems->RequiredTotemCategoryID[i]);
+                        addPrimary(totems->RequiredTotemCategoryID[i]);
                     }
             }
             break;
         case SPELL_FAILED_EQUIPPED_ITEM_CLASS:
-            {
-                SpellEquippedItemsEntry const* eqItems = spellInfo->GetSpellEquippedItems();
-                data << uint32(eqItems ? eqItems->EquippedItemClass : -1);
-                data << uint32(eqItems ? eqItems->EquippedItemSubclass : 0);
-                //data << uint32(eqItems ? eqItems->EquippedItemInventoryTypeMask : 0);
-            }
-            break;
         case SPELL_FAILED_EQUIPPED_ITEM_CLASS_MAINHAND:
         case SPELL_FAILED_EQUIPPED_ITEM_CLASS_OFFHAND:
         {
             SpellEquippedItemsEntry const* eqItems = spellInfo->GetSpellEquippedItems();
-            data << uint32(eqItems ? eqItems->EquippedItemClass : -1);
-            data << uint32(eqItems ? eqItems->EquippedItemSubclass : 0);
+            addPrimary(uint32(eqItems ? eqItems->EquippedItemClass : -1));
+            setSecondary(uint32(eqItems ? eqItems->EquippedItemSubclass : 0));
             break;
         }
         case SPELL_FAILED_PREVENTED_BY_MECHANIC:
-            data << uint32(0);                              // SpellMechanic.dbc id
+            addPrimary(0);                                 // SpellMechanic.dbc id
             break;
         case SPELL_FAILED_CUSTOM_ERROR:
-            data << uint32(0);                              // custom error id (see enum SpellCastResultCustom)
+            addPrimary(0);                                 // custom error id (see enum SpellCastResultCustom)
             break;
         case SPELL_FAILED_NEED_EXOTIC_AMMO:
         {
             SpellEquippedItemsEntry const* eqItems = spellInfo->GetSpellEquippedItems();
-            data << uint32(eqItems ? eqItems->EquippedItemSubclass : 0);// seems correct...
+            addPrimary(uint32(eqItems ? eqItems->EquippedItemSubclass : 0));
             break;
         }
         case SPELL_FAILED_REAGENTS:
-            data << uint32(0);                              // item id
+            addPrimary(0);                                 // item id
             break;
         case SPELL_FAILED_NEED_MORE_ITEMS:
-            data << uint32(0);                              // item id
-            data << uint32(0);                              // item count?
+            addPrimary(0);                                 // item id
+            setSecondary(0);                               // item count
             break;
         case SPELL_FAILED_MIN_SKILL:
-            data << uint32(0);                              // SkillLine.dbc id
-            data << uint32(0);                              // required skill value
+            addPrimary(0);                                 // SkillLine.dbc id
+            setSecondary(0);                               // required skill value
             break;
         case SPELL_FAILED_TOO_MANY_OF_ITEM:
-            data << uint32(0);                              // ItemLimitCategory.dbc id
+            addPrimary(0);                                 // ItemLimitCategory.dbc id
             break;
         case SPELL_FAILED_FISHING_TOO_LOW:
-            data << uint32(0);                              // required fishing skill
+            addPrimary(0);                                 // required fishing skill
             break;
         default:
             break;
     }
+
+    WorldPacket data;
+    MopSpellPackets::BuildCastFailed(data, spellInfo->ID, reportedResult,
+        cast_count, isPetCastResult, arguments);
     caster->GetSession()->SendPacket(&data);
 }
 

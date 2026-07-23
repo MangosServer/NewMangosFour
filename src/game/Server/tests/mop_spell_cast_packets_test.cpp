@@ -18,6 +18,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 #include <vector>
 
 DatabaseType WorldDatabase;
@@ -30,6 +31,17 @@ static int g_fail = 0;
 
 namespace
 {
+    static void CheckBytes(WorldPacket const& packet, std::initializer_list<uint8> expected)
+    {
+        CHECK(packet.size() == expected.size());
+        if (packet.size() != expected.size())
+            return;
+
+        size_t index = 0;
+        for (uint8 byte : expected)
+            CHECK(packet.contents()[index++] == byte);
+    }
+
     struct MovementFixture
     {
         uint64 guid = UINT64_C(0x8070605040302010);
@@ -395,6 +407,90 @@ static void test_opcode_is_framable()
     CHECK(uint32(CMSG_CAST_SPELL) < uint32(OPCODE_TABLE_SIZE));
 }
 
+static void test_cast_failure_result_translation()
+{
+    CHECK(MopSpellPackets::ToClientCastResult(SPELL_FAILED_CANT_STEALTH) == 22u);
+    CHECK(MopSpellPackets::ToClientCastResult(SPELL_FAILED_CASTER_AURASTATE) == 24u);
+    CHECK(MopSpellPackets::ToClientCastResult(SPELL_FAILED_TARGET_IN_COMBAT) == 119u);
+    CHECK(MopSpellPackets::ToClientCastResult(SPELL_FAILED_TARGET_IS_PLAYER) == 121u);
+    CHECK(MopSpellPackets::ToClientCastResult(SPELL_FAILED_BM_OR_INVISGOD) == 164u);
+    CHECK(MopSpellPackets::ToClientCastResult(SPELL_FAILED_EXPERT_RIDING_REQUIREMENT) == 167u);
+    CHECK(MopSpellPackets::ToClientCastResult(SPELL_FAILED_ARTISAN_RIDING_REQUIREMENT) == 168u);
+    CHECK(MopSpellPackets::ToClientCastResult(SPELL_FAILED_NOT_IDLE) == 174u);
+    CHECK(MopSpellPackets::ToClientCastResult(SPELL_FAILED_NOT_IN_LFG_DUNGEON) == 211u);
+    CHECK(MopSpellPackets::ToClientCastResult(SPELL_FAILED_UNKNOWN) == 254u);
+}
+
+static void test_cast_failure_wire_layout()
+{
+    MopSpellPackets::CastFailedArguments arguments;
+    WorldPacket packet;
+
+    MopSpellPackets::BuildCastFailed(packet, 0x11223344u, SPELL_FAILED_CASTER_AURASTATE, 7, false, arguments);
+    CHECK(packet.GetOpcode() == SMSG_CAST_FAILED);
+    CheckBytes(packet, { 0x44, 0x33, 0x22, 0x11, 0x18, 0x00, 0x00, 0x00, 0x07, 0xC0 });
+
+    arguments.hasArg10 = true;
+    arguments.arg10 = 0x55667788u;
+    MopSpellPackets::BuildCastFailed(packet, 0x11223344u, SPELL_FAILED_CASTER_AURASTATE, 7, false, arguments);
+    CheckBytes(packet, {
+        0x44, 0x33, 0x22, 0x11, 0x18, 0x00, 0x00, 0x00, 0x07, 0x40,
+        0x88, 0x77, 0x66, 0x55
+    });
+
+    arguments.hasArg10 = false;
+    arguments.hasArg18 = true;
+    arguments.arg18 = 0x99AABBCCu;
+    MopSpellPackets::BuildCastFailed(packet, 0x11223344u, SPELL_FAILED_CASTER_AURASTATE, 7, false, arguments);
+    CheckBytes(packet, {
+        0x44, 0x33, 0x22, 0x11, 0x18, 0x00, 0x00, 0x00, 0x07, 0x80,
+        0xCC, 0xBB, 0xAA, 0x99
+    });
+
+    arguments.hasArg10 = true;
+    arguments.arg10 = 0x55667788u;
+    MopSpellPackets::BuildCastFailed(packet, 0x11223344u, SPELL_FAILED_CASTER_AURASTATE, 7, false, arguments);
+    CheckBytes(packet, {
+        0x44, 0x33, 0x22, 0x11, 0x18, 0x00, 0x00, 0x00, 0x07, 0x00,
+        0x88, 0x77, 0x66, 0x55, 0xCC, 0xBB, 0xAA, 0x99
+    });
+}
+
+static void test_pet_cast_failure_wire_layout()
+{
+    MopSpellPackets::CastFailedArguments arguments;
+    WorldPacket packet;
+
+    MopSpellPackets::BuildCastFailed(packet, 0x11223344u, SPELL_FAILED_CASTER_AURASTATE, 7, true, arguments);
+    CHECK(packet.GetOpcode() == SMSG_PET_CAST_FAILED);
+    CheckBytes(packet, { 0x18, 0x00, 0x00, 0x00, 0x44, 0x33, 0x22, 0x11, 0x07, 0xC0 });
+
+    arguments.hasArg10 = true;
+    arguments.arg10 = 0x55667788u;
+    MopSpellPackets::BuildCastFailed(packet, 0x11223344u, SPELL_FAILED_CASTER_AURASTATE, 7, true, arguments);
+    CheckBytes(packet, {
+        0x18, 0x00, 0x00, 0x00, 0x44, 0x33, 0x22, 0x11, 0x07, 0x80,
+        0x88, 0x77, 0x66, 0x55
+    });
+
+    arguments.hasArg10 = false;
+    arguments.hasArg18 = true;
+    arguments.arg18 = 0x99AABBCCu;
+    MopSpellPackets::BuildCastFailed(packet, 0x11223344u, SPELL_FAILED_CASTER_AURASTATE, 7, true, arguments);
+    CheckBytes(packet, {
+        0x18, 0x00, 0x00, 0x00, 0x44, 0x33, 0x22, 0x11, 0x07, 0x40,
+        0xCC, 0xBB, 0xAA, 0x99
+    });
+
+    arguments.hasArg10 = true;
+    arguments.arg10 = 0x55667788u;
+    MopSpellPackets::BuildCastFailed(packet, 0x11223344u, SPELL_FAILED_CASTER_AURASTATE, 7, true, arguments);
+    CheckBytes(packet, {
+        0x18, 0x00, 0x00, 0x00, 0x44, 0x33, 0x22, 0x11, 0x07, 0x00,
+        0x88, 0x77, 0x66, 0x55, 0xCC, 0xBB, 0xAA, 0x99
+    });
+}
+
 int main(int, char**)
 {
     test_dense_and_guid_permutations();
@@ -404,6 +500,9 @@ int main(int, char**)
     test_every_truncated_dense_prefix_and_trailing_byte_rejected();
     test_declared_string_larger_than_remaining_rejected();
     test_opcode_is_framable();
+    test_cast_failure_result_translation();
+    test_cast_failure_wire_layout();
+    test_pet_cast_failure_wire_layout();
 
     if (g_fail)
     {

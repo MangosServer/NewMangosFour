@@ -1,8 +1,11 @@
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/Spell.h" spell_header)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/Spell.cpp" spell_source)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/SpellPackets.cpp" spell_packets)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/SpellHandler.cpp" spell_handler)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.h" opcode_header)
+file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" world_session)
+file(READ "${SOURCE_ROOT}/src/game/ChatCommands/DebugCommands.cpp" debug_commands)
 
 if(MUTATION STREQUAL "reader")
     string(REPLACE
@@ -64,6 +67,46 @@ elseif(MUTATION STREQUAL "legacy_prefix")
         "if (!MopSpellPackets::ReadCastSpellRequest(recvPacket, request))"
         "uint8 cast_count; uint32 spellId, glyphIndex; uint8 cast_flags;\n    recvPacket >> cast_count;\n    recvPacket >> spellId >> glyphIndex;\n    recvPacket >> cast_flags;\n    if (!MopSpellPackets::ReadCastSpellRequest(recvPacket, request))"
         spell_handler "${spell_handler}")
+elseif(MUTATION STREQUAL "cast_failed_sender")
+    string(REPLACE
+        "MopSpellPackets::BuildCastFailed(data, spellInfo->ID, reportedResult,"
+        "/* removed 18414 cast-failure builder */"
+        spell_packets "${spell_packets}")
+elseif(MUTATION STREQUAL "cast_failed_registration")
+    string(REPLACE
+        "DefS(SMSG_CAST_FAILED, \"SMSG_CAST_FAILED\");"
+        "/* removed SMSG_CAST_FAILED registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "pet_cast_failed_registration")
+    string(REPLACE
+        "DefS(SMSG_PET_CAST_FAILED, \"SMSG_PET_CAST_FAILED\");"
+        "/* removed SMSG_PET_CAST_FAILED registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "cast_failed_gate")
+    string(REPLACE
+        "case SMSG_CAST_FAILED:"
+        "case SMSG_UNKNOWN_0:"
+        world_session "${world_session}")
+elseif(MUTATION STREQUAL "pet_cast_failed_gate")
+    string(REPLACE
+        "case SMSG_PET_CAST_FAILED:"
+        "case SMSG_UNKNOWN_0:"
+        world_session "${world_session}")
+elseif(MUTATION STREQUAL "cast_result_translation")
+    string(REPLACE
+        "if (result <= 118)"
+        "if (result <= 117)"
+        spell_packets "${spell_packets}")
+elseif(MUTATION STREQUAL "pet_presence_order")
+    string(REPLACE
+        "out.WriteBit(!arguments.hasArg18);\n        out.WriteBit(!arguments.hasArg10);"
+        "out.WriteBit(!arguments.hasArg10);\n        out.WriteBit(!arguments.hasArg18);"
+        spell_packets "${spell_packets}")
+elseif(MUTATION STREQUAL "debug_cast_failed_sender")
+    string(REPLACE
+        "MopSpellPackets::BuildCastFailed(data, 133, SpellCastResult(failnum), 0, false, arguments);"
+        "WorldPacket data(SMSG_CAST_FAILED, 5);"
+        debug_commands "${debug_commands}")
 endif()
 
 string(FIND "${spell_handler}" "void WorldSession::HandleCastSpellOpcode" cast_start)
@@ -141,6 +184,39 @@ require_once("${spell_source}"
 require_once("${spell_source}"
     "targetStringLength > in.size() - in.rpos()"
     "target-string allocation bound")
+require_once("${opcode_header}"
+    "SMSG_CAST_FAILED                             = 0x143A"
+    "SMSG_CAST_FAILED opcode value")
+require_once("${opcode_header}"
+    "SMSG_PET_CAST_FAILED                         = 0x149B"
+    "SMSG_PET_CAST_FAILED opcode value")
+require_once("${opcode_registry}"
+    "DefS(SMSG_CAST_FAILED, \"SMSG_CAST_FAILED\");"
+    "SMSG_CAST_FAILED registration")
+require_once("${opcode_registry}"
+    "DefS(SMSG_PET_CAST_FAILED, \"SMSG_PET_CAST_FAILED\");"
+    "SMSG_PET_CAST_FAILED registration")
+require_once("${world_session}"
+    "case SMSG_CAST_FAILED:"
+    "SMSG_CAST_FAILED suppression gate")
+require_once("${world_session}"
+    "case SMSG_PET_CAST_FAILED:"
+    "SMSG_PET_CAST_FAILED suppression gate")
+require_once("${spell_packets}"
+    "MopSpellPackets::BuildCastFailed(data, spellInfo->ID, reportedResult,"
+    "18414 cast-failure sender wiring")
+require_once("${spell_packets}"
+    "if (result <= 118)"
+    "18414 cast-result enum translation")
+require_once("${spell_packets}"
+    "out.WriteBit(!arguments.hasArg18);\n        out.WriteBit(!arguments.hasArg10);"
+    "pet cast-failure presence-bit order")
+require_once("${debug_commands}"
+    "MopSpellPackets::BuildCastFailed(data, 133, SpellCastResult(failnum), 0, false, arguments);"
+    "debug cast-failure sender wiring")
+forbid("${debug_commands}"
+    "WorldPacket data(SMSG_CAST_FAILED"
+    "legacy debug cast-failure body")
 
 string(FIND "${cast_handler}" "MopSpellPackets::ReadCastSpellRequest(recvPacket, request)" reader_position)
 string(FIND "${cast_handler}" "sSpellStore.LookupEntry(spellId)" lookup_position)

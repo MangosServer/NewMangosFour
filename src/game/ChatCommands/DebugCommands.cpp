@@ -48,6 +48,7 @@
 #include <fstream>
 #include "ObjectMgr.h"
 #include "ObjectGuid.h"
+#include "Spell.h"
 #include "SpellMgr.h"
 #include "vmap/VMapFactory.h"
 #include "vmap/IVMapManager.h"
@@ -152,7 +153,7 @@ bool ChatHandler::HandleDebugSendSpellFailCommand(char* args)
     }
 
     uint32 failnum;
-    if (!ExtractUInt32(&args, failnum) || failnum > 255)
+    if (!ExtractUInt32(&args, failnum) || failnum > SPELL_FAILED_UNKNOWN)
     {
         return false;
     }
@@ -169,19 +170,20 @@ bool ChatHandler::HandleDebugSendSpellFailCommand(char* args)
         return false;
     }
 
-    WorldPacket data(SMSG_CAST_FAILED, 5);
-    data << uint8(0);
-    data << uint32(133);
-    data << uint8(failnum);
-    if (failarg1 || failarg2)
+    MopSpellPackets::CastFailedArguments arguments;
+    if (failarg1)
     {
-        data << uint32(failarg1);
+        arguments.hasArg18 = true;
+        arguments.arg18 = failarg1;
     }
     if (failarg2)
     {
-        data << uint32(failarg2);
+        arguments.hasArg10 = true;
+        arguments.arg10 = failarg2;
     }
 
+    WorldPacket data;
+    MopSpellPackets::BuildCastFailed(data, 133, SpellCastResult(failnum), 0, false, arguments);
     m_session->SendPacket(&data);
 
     return true;
