@@ -273,8 +273,10 @@ void InitializeOpcodes()
     DefC(CMSG_CANCEL_TRADE, "CMSG_CANCEL_TRADE", STATUS_LOGGEDIN_OR_RECENTLY_LOGGEDOUT, PROCESS_THREADUNSAFE, &WorldSession::HandleCancelTradeOpcode);
     DefC(CMSG_UI_TIME_REQUEST, "CMSG_UI_TIME_REQUEST", STATUS_LOGGEDIN, PROCESS_INPLACE, &WorldSession::HandleUITimeRequestOpcode);
     DefC(CMSG_LOAD_SCREEN, "CMSG_LOAD_SCREEN", STATUS_AUTHED, PROCESS_THREADUNSAFE, &WorldSession::HandleLoadScreenOpcode);
+    DefC(CMSG_QUERY_COUNTDOWN_TIMER, "CMSG_QUERY_COUNTDOWN_TIMER", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQueryCountdownTimerOpcode);
     DefS(SMSG_UI_TIME, "SMSG_UI_TIME");
     DefS(SMSG_DB_REPLY, "SMSG_DB_REPLY");
+    DefS(SMSG_START_TIMER, "SMSG_START_TIMER");
 
     // Live-log movement control requests. Client writers were verified directly
     // in the IDA 9.4 18414 Wow.exe database.

@@ -716,6 +716,11 @@ void WorldSession::HandleBattlefieldStatusOpcode(WorldPacket & /*recv_data*/)
     }
 }
 
+void WorldSession::HandleQueryCountdownTimerOpcode(WorldPacket& recv_data)
+{
+    recv_data.read_skip<uint32>();
+}
+
 /**
  * @brief Handles the CMSG_AREA_SPIRIT_HEALER_QUERY opcode.
  *

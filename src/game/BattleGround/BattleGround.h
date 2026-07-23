@@ -52,6 +52,8 @@
 #include "Map.h"
 #include "ByteBuffer.h"
 #include "ObjectGuid.h"
+#include "Opcodes.h"
+#include "WorldPacket.h"
 
 // magic event-numbers
 #define BG_EVENT_NONE 255
@@ -66,8 +68,17 @@ class Creature;
 class GameObject;
 class Group;
 class Player;
-class WorldPacket;
 class BattleGroundMap;
+
+namespace MopBattleGroundPackets
+{
+    inline void BuildStartTimer(WorldPacket& out, uint32 maxTime,
+        uint32 timeRemaining, uint32 timerType)
+    {
+        out.Initialize(SMSG_START_TIMER, 12);
+        out << maxTime << timeRemaining << timerType;
+    }
+}
 
 struct PvPDifficultyEntry;
 struct WorldSafeLocsEntry;

@@ -478,10 +478,10 @@ void BattleGround::Update(uint32 diff)
         {
             uint32 countdownMaxForBGType = isArena() ? ARENA_COUNTDOWN_MAX : BATTLEGROUND_COUNTDOWN_MAX;
 
-            WorldPacket data(SMSG_START_TIMER, 4+4+4);
-            data << uint32(0);
-            data << uint32(countdownMaxForBGType - (m_StartTime / 1000));
-            data << uint32(countdownMaxForBGType);
+            WorldPacket data;
+            MopBattleGroundPackets::BuildStartTimer(data,
+                countdownMaxForBGType,
+                countdownMaxForBGType - (m_StartTime / 1000), 0);
 
             for (BattleGroundPlayerMap::const_iterator itr = GetPlayers().begin(); itr != GetPlayers().end(); ++itr)
                 if (Player* player = sObjectMgr.GetPlayer(itr->first))
@@ -1065,10 +1065,10 @@ void BattleGround::AddPlayer(Player* plr)
     if (GetStatus() == STATUS_WAIT_JOIN)                 // not started yet
     {
         int32 countdownMaxForBGType = isArena() ? ARENA_COUNTDOWN_MAX : BATTLEGROUND_COUNTDOWN_MAX;
-        WorldPacket data(SMSG_START_TIMER, 4+4+4);
-        data << uint32(0); // unk
-        data << uint32(countdownMaxForBGType - (m_StartTime / 1000));
-        data << uint32(countdownMaxForBGType);
+        WorldPacket data;
+        MopBattleGroundPackets::BuildStartTimer(data,
+            uint32(countdownMaxForBGType),
+            uint32(countdownMaxForBGType - (m_StartTime / 1000)), 0);
         plr->GetSession()->SendPacket(&data);
     }
 
