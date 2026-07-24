@@ -433,6 +433,27 @@ foreach(mutation IN ITEMS query_builder map_reader map_builder
     set_tests_properties(mop_corpse_query_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_executable(mop_quest_poi_query_test mop_quest_poi_query_test.cpp)
+target_include_directories(mop_quest_poi_query_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/game/Server
+    ${CMAKE_SOURCE_DIR}/src/game)
+set_target_properties(mop_quest_poi_query_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_quest_poi_query_test PRIVATE game)
+add_test(NAME mop_quest_poi_query COMMAND mop_quest_poi_query_test)
+
+add_test(NAME mop_quest_poi_query_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_quest_poi_query_source_test.cmake)
+foreach(mutation IN ITEMS request_parser response_builder inbound_registration outbound_registration allowlist)
+    add_test(NAME mop_quest_poi_query_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND}
+            -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_quest_poi_query_source_test.cmake)
+    set_tests_properties(mop_quest_poi_query_source_mutation_${mutation} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(mop_name_query_test mop_name_query_test.cpp)
 target_include_directories(mop_name_query_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..

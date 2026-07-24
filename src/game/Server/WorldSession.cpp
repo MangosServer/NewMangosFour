@@ -362,6 +362,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_QUESTGIVER_QUEST_COMPLETE:        // MopQuestGiverPackets::BuildQuestRewardSummary
         case SMSG_QUESTUPDATE_COMPLETE:             // MopQuestGiverPackets::BuildQuestUpdateComplete
         case SMSG_QUEST_QUERY_RESPONSE:              // MopQuestQueryPackets::BuildResponse / BuildAbsentResponse
+        case SMSG_QUEST_POI_QUERY_RESPONSE:          // MopQueryPackets::BuildQuestPoiQueryResponse
         case SMSG_NPC_TEXT_UPDATE:                  // MopNpcTextPackets::BuildResponse
         case SMSG_CHAR_CUSTOMIZE:                  // MopCharacterCustomizePackets::BuildResponse
             return true;

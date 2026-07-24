@@ -384,6 +384,8 @@ void InitializeOpcodes()
     // Clearing the player's quest slot supplies the client-visible object update;
     // the client action does not require a dedicated response packet.
     DefC(CMSG_QUESTLOG_REMOVE_QUEST, "CMSG_QUESTLOG_REMOVE_QUEST", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestLogRemoveQuest);
+    DefC(CMSG_QUEST_POI_QUERY, "CMSG_QUEST_POI_QUERY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestPOIQueryOpcode);
+    DefS(SMSG_QUEST_POI_QUERY_RESPONSE, "SMSG_QUEST_POI_QUERY_RESPONSE");
 
     // Directly verified 18414 quest turn-in and reward flow. The client sends
     // a reward item ID, which the handler resolves back to the configured

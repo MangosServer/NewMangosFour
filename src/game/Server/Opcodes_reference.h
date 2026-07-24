@@ -175,9 +175,9 @@
  *   TOTAL SMSG rows                   925
  *
  * SUBSYSTEM CONFIDENCE: high=359, low=223, medium=183, none=160
- * STATUS TOTALS: ACTIVE=314, DOC=436, DORMANT=770
- *   SMSG: ACTIVE=182, DOC=269, DORMANT=474
- *   CMSG: ACTIVE=132, DOC=167, DORMANT=296
+ * STATUS TOTALS: ACTIVE=316, DOC=436, DORMANT=768
+ *   SMSG: ACTIVE=183, DOC=269, DORMANT=473
+ *   CMSG: ACTIVE=133, DOC=167, DORMANT=295
  */
 
 // CAVEATS -- read before trusting any single row:
@@ -751,7 +751,7 @@ typedef uint16_t uint16;
  *   SMSG_CHAT_PLAYER_AMBIGUOUS                     0x061A  DORMANT  [medium-conf]
  *   SMSG_PLAY_TIME_WARNING                         0x062A  DORMANT  [medium-conf]
  *   SMSG_DISMOUNTRESULT                            0x062F  DORMANT  [medium-conf]
- *   SMSG_QUEST_POI_QUERY_RESPONSE                  0x067F  DORMANT  [medium-conf]
+ *   SMSG_QUEST_POI_QUERY_RESPONSE                  0x067F  ACTIVE   [medium-conf]
  *   SMSG_QUESTGIVER_STATUS_MULTIPLE                0x06CE  ACTIVE   [high-conf]
  *   SMSG_QUESTUPDATE_FAILEDTIMER                   0x06FF  DORMANT 
  *   SMSG_QUEST_PUSH_RESULT                         0x074D  ACTIVE   [medium-conf]
@@ -1694,7 +1694,7 @@ typedef uint16_t uint16;
  *   CMSG_LOG_DISCONNECT                            0x10B3  ACTIVE  
  *   CMSG_RESET_FACTION_CHEAT                       0x10B6  DORMANT 
  *   CMSG_UNKNOWN_0x10BB                            0x10BB  DOC     
- *   CMSG_QUEST_POI_QUERY                           0x10C2  DORMANT 
+ *   CMSG_QUEST_POI_QUERY                           0x10C2  ACTIVE
  *   CMSG_GUILD_REQUEST_PARTY_STATE                 0x10C3  DOC     
  *   CMSG_FORCE_SWIM_BACK_SPEED_CHANGE_ACK          0x10D1  DORMANT 
  *   MSG_MOVE_SET_SWIM_SPEED_CHEAT                  0x10D3  ACTIVE   server-binding=CMSG_TIME_SYNC_RESPONSE_DROPPED

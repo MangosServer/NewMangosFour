@@ -139,6 +139,8 @@ namespace MopClientRequestPackets
 
 namespace MopQueryPackets
 {
+    constexpr uint32 MaximumQuestPoiQueries = 25;
+
     struct NameQueryRequest
     {
         uint64 guid = 0;
@@ -290,6 +292,39 @@ namespace MopQueryPackets
         CorpseQueryResponse const& response);
     void BuildCorpseMapPositionQueryResponse(WorldPacket& out,
         float x, float y, float z, float orientation);
+
+    struct QuestPoiPoint
+    {
+        int32 x = 0;
+        int32 y = 0;
+    };
+
+    struct QuestPoiRecord
+    {
+        uint32 poiId = 0;
+        int32 objectiveIndex = 0;
+        uint32 unknown2 = 0;
+        uint32 mapId = 0;
+        uint32 mapAreaId = 0;
+        uint32 worldEffectId = 0;
+        uint32 playerConditionId = 0;
+        uint32 unknown1 = 0;
+        uint32 unknown3 = 0;
+        uint32 unknown4 = 0;
+        uint32 floorId = 0;
+        std::vector<QuestPoiPoint> points;
+    };
+
+    struct QuestPoiResponse
+    {
+        uint32 questId = 0;
+        std::vector<QuestPoiRecord> pois;
+    };
+
+    bool ParseQuestPoiQueryRequest(WorldPacket& in,
+        std::vector<uint32>& questIds);
+    bool BuildQuestPoiQueryResponse(WorldPacket& out,
+        std::vector<QuestPoiResponse> const& response);
 }
 
 namespace MopStablePackets
@@ -816,6 +851,101 @@ inline void MopQueryPackets::BuildCorpseMapPositionQueryResponse(
     WorldPacket& out, float x, float y, float z, float orientation)
 {
     out << x << orientation << z << y;
+}
+
+inline bool MopQueryPackets::ParseQuestPoiQueryRequest(WorldPacket& in,
+    std::vector<uint32>& questIds)
+{
+    if (in.size() - in.rpos() < 3)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    uint32 const count = in.ReadBits(22);
+    in.ResetBitReader();
+    size_t const remaining = in.size() - in.rpos();
+    if (count > MaximumQuestPoiQueries ||
+        remaining != size_t(count) * sizeof(uint32))
+    {
+        in.rfinish();
+        return false;
+    }
+
+    std::vector<uint32> parsed;
+    parsed.reserve(count);
+    for (uint32 i = 0; i < count; ++i)
+    {
+        uint32 questId = 0;
+        in >> questId;
+        parsed.push_back(questId);
+    }
+
+    if (in.rpos() != in.size())
+    {
+        in.rfinish();
+        return false;
+    }
+
+    questIds = parsed;
+    return true;
+}
+
+inline bool MopQueryPackets::BuildQuestPoiQueryResponse(WorldPacket& out,
+    std::vector<QuestPoiResponse> const& response)
+{
+    if (response.size() >= (size_t(1) << 20))
+        return false;
+
+    for (QuestPoiResponse const& quest : response)
+    {
+        if (quest.pois.size() >= (size_t(1) << 18))
+            return false;
+        for (QuestPoiRecord const& poi : quest.pois)
+        {
+            if (poi.points.size() >= (size_t(1) << 21))
+                return false;
+        }
+    }
+
+    WorldPacket built(SMSG_QUEST_POI_QUERY_RESPONSE, 4);
+    built.WriteBits(uint32(response.size()), 20);
+    for (QuestPoiResponse const& quest : response)
+    {
+        built.WriteBits(uint32(quest.pois.size()), 18);
+        for (QuestPoiRecord const& poi : quest.pois)
+            built.WriteBits(uint32(poi.points.size()), 21);
+    }
+    built.FlushBits();
+
+    // Build 18414 reads this byte phase only after all nested counts. The
+    // trailing per-quest and top-level counts are deliberately duplicated:
+    // the client stores and uses both the bit-phase and byte-phase values.
+    for (QuestPoiResponse const& quest : response)
+    {
+        for (QuestPoiRecord const& poi : quest.pois)
+        {
+            built << poi.worldEffectId;
+            for (QuestPoiPoint const& point : poi.points)
+                built << point.x << point.y;
+            built << poi.objectiveIndex;
+            built << poi.poiId;
+            built << poi.unknown2;
+            built << poi.unknown4;
+            built << poi.mapId;
+            built << poi.floorId;
+            built << poi.mapAreaId;
+            built << poi.unknown3;
+            built << poi.unknown1;
+            built << poi.playerConditionId;
+        }
+        built << quest.questId;
+        built << uint32(quest.pois.size());
+    }
+    built << uint32(response.size());
+
+    out = built;
+    return true;
 }
 
 inline uint64 MopStablePackets::ReadStableListRequest(WorldPacket& in)

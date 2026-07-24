@@ -550,72 +550,63 @@ void WorldSession::HandleCorpseMapPositionQueryOpcode(WorldPacket& recv_data)
 
 void WorldSession::HandleQuestPOIQueryOpcode(WorldPacket& recv_data)
 {
-    uint32 count;
-    recv_data >> count;                                     // quest count, max=25
-
-    if (count > MAX_QUEST_LOG_SIZE)
+    std::vector<uint32> questIds;
+    if (!MopQueryPackets::ParseQuestPoiQueryRequest(recv_data, questIds))
     {
-        recv_data.rpos(recv_data.wpos());                   // set to end to avoid warnings spam
+        DEBUG_LOG("WORLD: Rejected malformed CMSG_QUEST_POI_QUERY");
         return;
     }
 
-    WorldPacket data(SMSG_QUEST_POI_QUERY_RESPONSE, 4 + (4 + 4)*count);
-    data << uint32(count);                                  // count
-
-    for (uint32 i = 0; i < count; ++i)
+    std::vector<MopQueryPackets::QuestPoiResponse> response;
+    response.reserve(questIds.size());
+    for (uint32 questId : questIds)
     {
-        uint32 questId;
-        recv_data >> questId;                               // quest id
-
-        bool questOk = false;
-
+        MopQueryPackets::QuestPoiResponse quest;
+        quest.questId = questId;
         uint16 questSlot = _player->FindQuestSlot(questId);
-
-        if (questSlot != MAX_QUEST_LOG_SIZE)
-        {
-            questOk = _player->GetQuestSlotQuestId(questSlot) == questId;
-        }
-
+        bool const questOk = questSlot != MAX_QUEST_LOG_SIZE &&
+            _player->GetQuestSlotQuestId(questSlot) == questId;
         if (questOk)
         {
-            QuestPOIVector const* POI = sObjectMgr.GetQuestPOIVector(questId);
-
-            if (POI)
+            if (QuestPOIVector const* pois =
+                sObjectMgr.GetQuestPOIVector(questId))
             {
-                data << uint32(questId);                    // quest ID
-                data << uint32(POI->size());                // POI count
-
-                for (QuestPOIVector::const_iterator itr = POI->begin(); itr != POI->end(); ++itr)
+                quest.pois.reserve(pois->size());
+                for (QuestPOI const& source : *pois)
                 {
-                    data << uint32(itr->PoiId);             // POI index
-                    data << int32(itr->ObjectiveIndex);     // objective index
-                    data << uint32(itr->MapId);             // mapid
-                    data << uint32(itr->MapAreaId);         // world map area id
-                    data << uint32(itr->FloorId);           // floor id
-                    data << uint32(itr->Unk3);              // unknown
-                    data << uint32(itr->Unk4);              // unknown
-                    data << uint32(itr->points.size());     // POI points count
+                    MopQueryPackets::QuestPoiRecord poi;
+                    poi.poiId = source.PoiId;
+                    poi.objectiveIndex = source.ObjectiveIndex;
+                    poi.mapId = source.MapId;
+                    poi.mapAreaId = source.MapAreaId;
+                    poi.floorId = source.FloorId;
+                    poi.unknown3 = source.Unk3;
+                    poi.unknown4 = source.Unk4;
 
-                    for (std::vector<QuestPOIPoint>::const_iterator itr2 = itr->points.begin(); itr2 != itr->points.end(); ++itr2)
-                    {
-                        data << int32(itr2->x);             // POI point x
-                        data << int32(itr2->y);             // POI point y
-                    }
+                    // The 18414 reader has four additional scalar fields.
+                    // The current quest_poi schema has no values for them, so
+                    // send neutral zeros rather than inventing database data.
+                    poi.unknown2 = 0;
+                    poi.worldEffectId = 0;
+                    poi.playerConditionId = 0;
+                    poi.unknown1 = 0;
+
+                    poi.points.reserve(source.points.size());
+                    for (QuestPOIPoint const& point : source.points)
+                        poi.points.push_back({ point.x, point.y });
+                    quest.pois.push_back(poi);
                 }
             }
-            else
-            {
-                data << uint32(questId);                    // quest ID
-                data << uint32(0);                          // POI count
-            }
         }
-        else
-        {
-            data << uint32(questId);                        // quest ID
-            data << uint32(0);                              // POI count
-        }
+        response.push_back(quest);
     }
 
+    WorldPacket data;
+    if (!MopQueryPackets::BuildQuestPoiQueryResponse(data, response))
+    {
+        sLog.outError("WORLD: Quest POI response exceeds 5.4.8 wire limits");
+        return;
+    }
     SendPacket(&data);
 }
 
