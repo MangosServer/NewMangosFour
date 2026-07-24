@@ -226,10 +226,11 @@ add_library(shared STATIC
     ${CMAKE_CURRENT_BINARY_DIR/SystemConfig.h}
 )
 
+# Prefer generated revision/configuration headers to ignored stale source copies.
 target_include_directories(shared
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_BINARY_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}
         ${OPENSSL_INCLUDE_DIR}
         ${TGT_INCL}
 )
