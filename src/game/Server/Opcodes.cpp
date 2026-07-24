@@ -364,6 +364,8 @@ void InitializeOpcodes()
     DefC(CMSG_QUESTGIVER_QUERY_QUEST, "CMSG_QUESTGIVER_QUERY_QUEST", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestgiverQueryQuestOpcode);
     DefS(SMSG_QUESTGIVER_QUEST_DETAILS, "SMSG_QUESTGIVER_QUEST_DETAILS");
     DefC(CMSG_QUESTGIVER_ACCEPT_QUEST, "CMSG_QUESTGIVER_ACCEPT_QUEST", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestgiverAcceptQuestOpcode);
+    // The direct 18414 empty response closes the quest/gossip frame after acceptance.
+    DefS(SMSG_GOSSIP_COMPLETE, "SMSG_GOSSIP_COMPLETE");
 
     // Quest log metadata is fetched through the client questcache.wdb path
     // after acquisition. The 18414 request and success/absent reply bodies

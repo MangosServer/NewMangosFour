@@ -68,6 +68,11 @@ if(DEFINED MUTATION)
         string(REPLACE "DefC(CMSG_QUEST_QUERY,"
             "DefC(CMSG_UNUSED_QUEST_QUERY,"
             opcode_registry "${opcode_registry}")
+    elseif(MUTATION STREQUAL "gossip_complete_registration")
+        string(REPLACE
+            "DefS(SMSG_GOSSIP_COMPLETE, \"SMSG_GOSSIP_COMPLETE\");"
+            "/* removed SMSG_GOSSIP_COMPLETE registration */"
+            opcode_registry "${opcode_registry}")
     elseif(MUTATION STREQUAL "list_admission")
         string(REPLACE "case SMSG_QUESTGIVER_QUEST_LIST:"
             "case SMSG_UNUSED_QUESTGIVER_QUEST_LIST:"
@@ -156,6 +161,7 @@ foreach(line IN ITEMS
         "DefS(SMSG_QUESTGIVER_QUEST_LIST, \"SMSG_QUESTGIVER_QUEST_LIST\");"
         "DefC(CMSG_QUESTGIVER_QUERY_QUEST, \"CMSG_QUESTGIVER_QUERY_QUEST\""
         "DefS(SMSG_QUESTGIVER_QUEST_DETAILS, \"SMSG_QUESTGIVER_QUEST_DETAILS\");"
+        "DefS(SMSG_GOSSIP_COMPLETE, \"SMSG_GOSSIP_COMPLETE\");"
         "DefC(CMSG_QUESTGIVER_ACCEPT_QUEST, \"CMSG_QUESTGIVER_ACCEPT_QUEST\"")
     string(FIND "${opcode_registry}" "${line}" position)
     if(position EQUAL -1)

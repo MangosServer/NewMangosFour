@@ -1102,6 +1102,7 @@ foreach(mutation IN ITEMS hello_parser query_parser accept_parser
         list_builder details_builder
         details_auto_launch_zero gossip_complete_empty_body
         hello_registration accept_registration quest_cache_registration
+        gossip_complete_registration
         list_admission quest_cache_admission details_admission
         gossip_complete_admission opcode_value reference_status
         quest_cache_reference_status gossip_complete_reference_status)
