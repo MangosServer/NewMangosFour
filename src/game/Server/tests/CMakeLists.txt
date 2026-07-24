@@ -1094,11 +1094,14 @@ add_test(NAME mop_questgiver_acquisition_packets_source
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_questgiver_acquisition_packets_source_test.cmake)
 
 foreach(mutation IN ITEMS hello_parser query_parser accept_parser
-        query_interaction_gate list_builder details_builder
+        quest_cache_query_parser quest_cache_response_builder
+        quest_cache_absent_response query_interaction_gate
+        list_builder details_builder
         details_auto_launch_zero gossip_complete_empty_body
-        hello_registration accept_registration list_admission
-        details_admission gossip_complete_admission opcode_value
-        reference_status gossip_complete_reference_status)
+        hello_registration accept_registration quest_cache_registration
+        list_admission quest_cache_admission details_admission
+        gossip_complete_admission opcode_value reference_status
+        quest_cache_reference_status gossip_complete_reference_status)
     add_test(NAME mop_questgiver_acquisition_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

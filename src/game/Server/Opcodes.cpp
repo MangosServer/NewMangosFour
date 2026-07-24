@@ -363,6 +363,12 @@ void InitializeOpcodes()
     DefS(SMSG_QUESTGIVER_QUEST_DETAILS, "SMSG_QUESTGIVER_QUEST_DETAILS");
     DefC(CMSG_QUESTGIVER_ACCEPT_QUEST, "CMSG_QUESTGIVER_ACCEPT_QUEST", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestgiverAcceptQuestOpcode);
 
+    // Quest log metadata is fetched through the client questcache.wdb path
+    // after acquisition. The 18414 request and success/absent reply bodies
+    // are independently reconstructed from the Wow.exe writer and reader.
+    DefC(CMSG_QUEST_QUERY, "CMSG_QUEST_QUERY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestQueryOpcode);
+    DefS(SMSG_QUEST_QUERY_RESPONSE, "SMSG_QUEST_QUERY_RESPONSE");
+
     // CMSG_NPC_TEXT_QUERY is intentionally still dormant. Its 18414 response
     // requires BroadcastText.db2 IDs, which the current npc_text backend does
     // not retain; registering it would replace real gossip with a fabricated

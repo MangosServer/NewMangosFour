@@ -24,6 +24,19 @@ if(DEFINED MUTATION)
         string(REPLACE
             "MopQuestGiverPackets::ParseAcceptQuest(recv_data, request)"
             "false" quest_handler "${quest_handler}")
+    elseif(MUTATION STREQUAL "quest_cache_query_parser")
+        string(REPLACE
+            "MopQuestQueryPackets::ParseRequest(recv_data, request)"
+            "false" quest_handler "${quest_handler}")
+    elseif(MUTATION STREQUAL "quest_cache_response_builder")
+        string(REPLACE
+            "MopQuestQueryPackets::BuildResponse(data, response)"
+            "false" gossip_sender "${gossip_sender}")
+    elseif(MUTATION STREQUAL "quest_cache_absent_response")
+        string(REPLACE
+            "MopQuestQueryPackets::BuildAbsentResponse(data, questId)"
+            "data.Initialize(SMSG_QUEST_QUERY_RESPONSE, 0)"
+            gossip_sender "${gossip_sender}")
     elseif(MUTATION STREQUAL "query_interaction_gate")
         string(REPLACE
             "CanInteractWithQuestGiver(guid, \"CMSG_QUESTGIVER_QUERY_QUEST\")"
@@ -51,9 +64,17 @@ if(DEFINED MUTATION)
         string(REPLACE "DefC(CMSG_QUESTGIVER_ACCEPT_QUEST,"
             "DefC(CMSG_UNUSED_QUESTGIVER_ACCEPT_QUEST,"
             opcode_registry "${opcode_registry}")
+    elseif(MUTATION STREQUAL "quest_cache_registration")
+        string(REPLACE "DefC(CMSG_QUEST_QUERY,"
+            "DefC(CMSG_UNUSED_QUEST_QUERY,"
+            opcode_registry "${opcode_registry}")
     elseif(MUTATION STREQUAL "list_admission")
         string(REPLACE "case SMSG_QUESTGIVER_QUEST_LIST:"
             "case SMSG_UNUSED_QUESTGIVER_QUEST_LIST:"
+            world_session "${world_session}")
+    elseif(MUTATION STREQUAL "quest_cache_admission")
+        string(REPLACE "case SMSG_QUEST_QUERY_RESPONSE:"
+            "case SMSG_UNUSED_QUEST_QUERY_RESPONSE:"
             world_session "${world_session}")
     elseif(MUTATION STREQUAL "details_admission")
         string(REPLACE "case SMSG_QUESTGIVER_QUEST_DETAILS:"
@@ -71,6 +92,11 @@ if(DEFINED MUTATION)
         string(REPLACE
             "SMSG_QUESTGIVER_QUEST_DETAILS                  0x134C  ACTIVE"
             "SMSG_QUESTGIVER_QUEST_DETAILS                  0x134C  DORMANT"
+            opcode_reference "${opcode_reference}")
+    elseif(MUTATION STREQUAL "quest_cache_reference_status")
+        string(REPLACE
+            "SMSG_QUEST_QUERY_RESPONSE                      0x0276  ACTIVE"
+            "SMSG_QUEST_QUERY_RESPONSE                      0x0276  DORMANT"
             opcode_reference "${opcode_reference}")
     elseif(MUTATION STREQUAL "gossip_complete_reference_status")
         string(REPLACE
@@ -101,6 +127,9 @@ require_once("${quest_handler}"
     "MopQuestGiverPackets::ParseAcceptQuest\\(recv_data, request\\)"
     "questgiver accept parser")
 require_once("${quest_handler}"
+    "MopQuestQueryPackets::ParseRequest\\(recv_data, request\\)"
+    "quest-template cache query parser")
+require_once("${quest_handler}"
     "CanInteractWithQuestGiver\\(guid, \"CMSG_QUESTGIVER_QUERY_QUEST\"\\)"
     "questgiver query interaction gate")
 require_once("${gossip_sender}"
@@ -109,6 +138,12 @@ require_once("${gossip_sender}"
 require_once("${gossip_sender}"
     "MopQuestGiverPackets::BuildQuestDetails\\(data, details\\)"
     "questgiver details builder")
+require_once("${gossip_sender}"
+    "MopQuestQueryPackets::BuildResponse\\(data, response\\)"
+    "quest-template cache response builder")
+require_once("${gossip_sender}"
+    "MopQuestQueryPackets::BuildAbsentResponse\\(data, questId\\)"
+    "quest-template cache absent response")
 require_once("${gossip_sender}"
     "details.questDetailsAcceptFlag = false"
     "unproven quest-details auto-launch bit stays clear")
@@ -128,9 +163,19 @@ foreach(line IN ITEMS
     endif()
 endforeach()
 
+foreach(line IN ITEMS
+        "DefC(CMSG_QUEST_QUERY, \"CMSG_QUEST_QUERY\""
+        "DefS(SMSG_QUEST_QUERY_RESPONSE, \"SMSG_QUEST_QUERY_RESPONSE\");")
+    string(FIND "${opcode_registry}" "${line}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "missing quest-cache registration: ${line}")
+    endif()
+endforeach()
+
 foreach(opcode IN ITEMS
         SMSG_QUESTGIVER_QUEST_LIST
         SMSG_QUESTGIVER_QUEST_DETAILS
+        SMSG_QUEST_QUERY_RESPONSE
         SMSG_GOSSIP_COMPLETE)
     string(FIND "${world_session}" "case ${opcode}:" position)
     if(position EQUAL -1)
@@ -151,6 +196,15 @@ foreach(value IN ITEMS
     endif()
 endforeach()
 
+foreach(value IN ITEMS
+        "CMSG_QUEST_QUERY                             = 0x02D5"
+        "SMSG_QUEST_QUERY_RESPONSE                    = 0x0276")
+    string(FIND "${opcode_header}" "${value}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "quest-cache opcode value drifted: ${value}")
+    endif()
+endforeach()
+
 foreach(reference IN ITEMS
         "SMSG_GOSSIP_COMPLETE                           0x034E  ACTIVE"
         "SMSG_QUESTGIVER_QUEST_LIST                     0x02D4  ACTIVE"
@@ -161,6 +215,16 @@ foreach(reference IN ITEMS
     string(FIND "${opcode_reference}" "${reference}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR "reference state drifted: ${reference}")
+    endif()
+endforeach()
+
+foreach(reference IN ITEMS
+        "SMSG_QUEST_QUERY_RESPONSE                      0x0276  ACTIVE"
+        "CMSG_QUEST_QUERY                               0x02D5  ACTIVE")
+    string(FIND "${opcode_reference}" "${reference}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR
+            "quest-cache reference state drifted: ${reference}")
     endif()
 endforeach()
 
@@ -175,4 +239,11 @@ string(FIND "${gossip_sender}"
     stale_details_sender)
 if(NOT stale_details_sender EQUAL -1)
     message(FATAL_ERROR "legacy quest-details body remains")
+endif()
+
+string(FIND "${gossip_sender}"
+    "WorldPacket data(SMSG_QUEST_QUERY_RESPONSE, 100)"
+    stale_query_response)
+if(NOT stale_query_response EQUAL -1)
+    message(FATAL_ERROR "legacy quest-query response body remains")
 endif()

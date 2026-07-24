@@ -503,6 +503,337 @@ namespace MopQuestGiverPackets
     }
 }
 
+namespace MopQuestQueryPackets
+{
+    struct Request
+    {
+        uint32 questId = 0;
+        uint64 sourceGuid = 0;
+    };
+
+    struct Objective
+    {
+        int32 amount = 0;
+        uint32 id = 0;
+        std::string text;
+        uint32 flags = 0;
+        uint8 index = 0;
+        uint8 type = 0;
+        uint32 objectId = 0;
+        std::vector<uint32> visualEffects;
+    };
+
+    struct Response
+    {
+        uint32 questId = 0;
+        std::array<uint32, QUEST_SOURCE_ITEM_IDS_COUNT>
+            requiredSourceItemIds = {};
+        std::array<uint32, QUEST_SOURCE_ITEM_IDS_COUNT>
+            requiredSourceItemCounts = {};
+        std::array<uint32, QUEST_REWARDS_COUNT> rewardItemIds = {};
+        std::array<uint32, QUEST_REWARDS_COUNT> rewardItemCounts = {};
+        std::array<uint32, QUEST_REWARD_CHOICES_COUNT>
+            rewardChoiceItemIds = {};
+        std::array<uint32, QUEST_REWARD_CHOICES_COUNT>
+            rewardChoiceItemCounts = {};
+        std::array<uint32, QUEST_REWARD_CURRENCY_COUNT>
+            rewardCurrencyIds = {};
+        std::array<uint32, QUEST_REWARD_CURRENCY_COUNT>
+            rewardCurrencyCounts = {};
+        std::array<uint32, QUEST_REPUTATIONS_COUNT> rewardFactionIds = {};
+        std::array<uint32, QUEST_REPUTATIONS_COUNT>
+            rewardFactionValueIds = {};
+        std::array<uint32, QUEST_REPUTATIONS_COUNT>
+            rewardFactionValueOverrides = {};
+        uint32 characterTitleId = 0;
+        float pointY = 0.0f;
+        uint32 soundTurnIn = 0;
+        int32 rewardMoney = 0;
+        uint32 minimapTargetMark = 0;
+        uint32 rewardMoneyMaxLevel = 0;
+        uint32 rewardHonorAddition = 0;
+        uint32 obsoleteArenaPoints = 0;
+        uint32 suggestedPlayers = 0;
+        uint32 repObjectiveFaction = 0;
+        int32 minLevel = 0;
+        uint32 rewardReputationMask = 0;
+        uint32 pointOpt = 0;
+        int32 questLevel = 0;
+        uint32 requiredOppositeRepFaction = 0;
+        uint32 rewardXpId = 0;
+        uint32 rewardSpellCast = 0;
+        uint32 rewardSkillPoints = 0;
+        uint32 questType = 0;
+        int32 requiredOppositeRepValue = 0;
+        uint32 playersSlain = 0;
+        uint32 pointMapId = 0;
+        uint32 nextQuestInChain = 0;
+        float pointX = 0.0f;
+        uint32 soundAccept = 0;
+        float rewardHonorMultiplier = 0.0f;
+        uint32 requiredSpell = 0;
+        int32 zoneOrSort = 0;
+        uint32 bonusTalents = 0;
+        uint32 rewardSpell = 0;
+        uint32 rewardSkillId = 0;
+        uint32 questFlags = 0;
+        uint32 questMethod = 0;
+        uint32 sourceItemId = 0;
+        std::string title;
+        std::string details;
+        std::string objectivesText;
+        std::string endText;
+        std::string completedText;
+        std::string portraitGiverText;
+        std::string portraitGiverName;
+        std::string portraitTurnInText;
+        std::string portraitTurnInName;
+        std::vector<Objective> objectives;
+    };
+
+    inline size_t PresentByteCount(uint8 mask)
+    {
+        size_t count = 0;
+        for (; mask != 0; mask >>= 1)
+        {
+            count += mask & 1;
+        }
+        return count;
+    }
+
+    inline bool HasCanonicalGuidBytes(WorldPacket const& in,
+        size_t offset, size_t count)
+    {
+        for (size_t index = 0; index < count; ++index)
+        {
+            if (in[offset + index] == 1)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    inline bool RejectRequest(WorldPacket& in)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    inline bool ParseRequest(WorldPacket& in, Request& request)
+    {
+        if (in.size() - in.rpos() < 5)
+        {
+            return RejectRequest(in);
+        }
+
+        Request parsed;
+        in >> parsed.questId;
+        uint8 const mask = in[in.rpos()];
+        size_t const byteCount = PresentByteCount(mask);
+        if (in.size() - in.rpos() != 1 + byteCount ||
+            !HasCanonicalGuidBytes(in, in.rpos() + 1, byteCount))
+        {
+            return RejectRequest(in);
+        }
+
+        ObjectGuid sourceGuid;
+        in.ReadGuidMask<0, 5, 2, 7, 6, 4, 1, 3>(sourceGuid);
+        in.ReadGuidBytes<4, 1, 7, 5, 2, 3, 6, 0>(sourceGuid);
+        if (in.rpos() != in.size())
+        {
+            return RejectRequest(in);
+        }
+
+        parsed.sourceGuid = sourceGuid.GetRawValue();
+        request = parsed;
+        return true;
+    }
+
+    inline size_t BoundedLength(std::string const& value, size_t maximum)
+    {
+        return value.size() < maximum ? value.size() : maximum;
+    }
+
+    inline void AppendString(WorldPacket& out, std::string const& value,
+        size_t length)
+    {
+        out.append(value.data(), length);
+    }
+
+    inline void BuildAbsentResponse(WorldPacket& out, uint32 questId)
+    {
+        out.Initialize(SMSG_QUEST_QUERY_RESPONSE, 5);
+        out << questId;
+        out.WriteBit(false);
+        out.FlushBits();
+    }
+
+    inline bool BuildResponse(WorldPacket& out, Response const& response)
+    {
+        if (response.objectives.size() >= (size_t(1) << 19))
+        {
+            return false;
+        }
+        for (Objective const& objective : response.objectives)
+        {
+            if (objective.visualEffects.size() >= (size_t(1) << 22))
+            {
+                return false;
+            }
+        }
+
+        size_t const turnTextLength =
+            BoundedLength(response.portraitTurnInText, 0x3FF);
+        size_t const titleLength = BoundedLength(response.title, 0x1FF);
+        size_t const completedLength =
+            BoundedLength(response.completedText, 0x7FF);
+        size_t const detailsLength =
+            BoundedLength(response.details, 0xFFF);
+        size_t const turnNameLength =
+            BoundedLength(response.portraitTurnInName, 0xFF);
+        size_t const giverNameLength =
+            BoundedLength(response.portraitGiverName, 0xFF);
+        size_t const giverTextLength =
+            BoundedLength(response.portraitGiverText, 0x3FF);
+        size_t const endTextLength =
+            BoundedLength(response.endText, 0x1FF);
+        size_t const objectivesTextLength =
+            BoundedLength(response.objectivesText, 0xFFF);
+
+        WorldPacket built(SMSG_QUEST_QUERY_RESPONSE, 512);
+        built << response.questId;
+        built.WriteBit(true);
+        built.WriteBits(uint32(turnTextLength), 10);
+        built.WriteBits(uint32(titleLength), 9);
+        built.WriteBits(uint32(completedLength), 11);
+        built.WriteBits(uint32(detailsLength), 12);
+        built.WriteBits(uint32(turnNameLength), 8);
+        built.WriteBits(uint32(giverNameLength), 8);
+        built.WriteBits(uint32(giverTextLength), 10);
+        built.WriteBits(uint32(endTextLength), 9);
+        built.WriteBits(uint32(response.objectives.size()), 19);
+        built.WriteBits(uint32(objectivesTextLength), 12);
+        for (Objective const& objective : response.objectives)
+        {
+            built.WriteBits(uint32(BoundedLength(objective.text, 0xFF)), 8);
+            built.WriteBits(uint32(objective.visualEffects.size()), 22);
+        }
+        built.FlushBits();
+
+        for (Objective const& objective : response.objectives)
+        {
+            built << objective.amount << objective.id;
+            AppendString(built, objective.text,
+                BoundedLength(objective.text, 0xFF));
+            built << objective.flags << objective.index << objective.type <<
+                objective.objectId;
+            for (uint32 visualEffect : objective.visualEffects)
+            {
+                built << visualEffect;
+            }
+        }
+
+        // sub_6B73C9 consumes the record in this non-semantic order. Fields
+        // without an authoritative MaNGOS backend remain explicit zeroes.
+        built << response.requiredSourceItemIds[0];
+        built << response.rewardChoiceItemIds[4];
+        built << response.rewardItemIds[3];
+        built << response.rewardItemCounts[1];
+        built << response.rewardChoiceItemCounts[2];
+        for (size_t index = 0; index < QUEST_REWARD_CURRENCY_COUNT; ++index)
+        {
+            built << response.rewardCurrencyIds[index];
+            built << response.rewardCurrencyCounts[index];
+        }
+        built << response.characterTitleId;
+        built << response.pointY;
+        built << response.soundTurnIn;
+        for (size_t index = 0; index < QUEST_REPUTATIONS_COUNT; ++index)
+        {
+            built << response.rewardFactionValueIds[index];
+            built << response.rewardFactionValueOverrides[index];
+            built << response.rewardFactionIds[index];
+        }
+        built << response.rewardMoney;
+        built << response.rewardChoiceItemCounts[4];
+        built << response.rewardChoiceItemCounts[1];
+        built << response.minimapTargetMark;
+        AppendString(built, response.endText, endTextLength);
+        built << response.rewardChoiceItemIds[1];
+        built << response.rewardMoneyMaxLevel;
+        built << response.rewardItemIds[0];
+        AppendString(built, response.completedText, completedLength);
+        built << response.rewardChoiceItemIds[3];
+        built << response.rewardHonorAddition;
+        AppendString(built, response.portraitGiverText, giverTextLength);
+        AppendString(built, response.objectivesText, objectivesTextLength);
+        built << response.obsoleteArenaPoints;
+        built << response.rewardChoiceItemIds[5];
+        built << response.suggestedPlayers;
+        built << response.repObjectiveFaction;
+        built << response.requiredSourceItemIds[1];
+        built << response.rewardItemIds[1];
+        built << response.minLevel;
+        built << response.rewardReputationMask;
+        built << response.pointOpt;
+        built << response.questLevel;
+        built << response.requiredOppositeRepFaction;
+        built << response.requiredSourceItemCounts[2];
+        built << response.rewardXpId;
+        AppendString(built, response.details, detailsLength);
+        built << response.rewardItemCounts[0];
+        built << response.rewardChoiceItemCounts[5];
+        built << response.rewardItemCounts[2];
+        built << response.rewardSpellCast;
+        built << uint32(0);
+        AppendString(built, response.portraitTurnInName, turnNameLength);
+        built << uint32(0);
+        built << response.requiredSourceItemCounts[1];
+        built << response.requiredSourceItemIds[2];
+        built << response.rewardSkillPoints;
+        AppendString(built, response.title, titleLength);
+        built << response.questType;
+        built << response.requiredOppositeRepValue;
+        built << uint32(0);
+        built << response.playersSlain;
+        built << response.pointMapId;
+        built << response.nextQuestInChain;
+        built << response.rewardChoiceItemIds[0];
+        AppendString(built, response.portraitGiverName, giverNameLength);
+        built << uint32(0);
+        built << response.requiredSourceItemIds[3];
+        built << response.pointX;
+        built << response.rewardChoiceItemIds[2];
+        built << uint32(0);
+        built << response.rewardItemCounts[3];
+        built << response.soundAccept;
+        built << response.rewardItemIds[2];
+        built << response.rewardHonorMultiplier;
+        built << response.requiredSpell;
+        AppendString(built, response.portraitTurnInText, turnTextLength);
+        built << response.rewardChoiceItemCounts[3];
+        built << response.requiredSourceItemCounts[0];
+        built << response.zoneOrSort;
+        built << response.bonusTalents;
+        built << response.rewardChoiceItemCounts[0];
+        built << response.rewardSpell;
+        built << response.rewardSkillId;
+        built << uint32(0);
+        built << uint32(0);
+        built << response.questFlags;
+        built << response.questMethod;
+        built << response.sourceItemId;
+
+        if (built.size() > 0x7FFFF)
+        {
+            return false;
+        }
+        out = built;
+        return true;
+    }
+}
+
 namespace MopQuestStatusPackets
 {
     struct StatusEntry
@@ -984,7 +1315,8 @@ class PlayerMenu
 
         void SendQuestGiverQuestList(QEmote eEmote, const std::string& Title, ObjectGuid npcGUID);
 
-        void SendQuestQueryResponse(Quest const* pQuest) const;
+        void SendQuestQueryResponse(uint32 questId,
+            Quest const* pQuest) const;
         void SendQuestGiverQuestDetails(Quest const* pQuest, ObjectGuid npcGUID, bool ActivateAccept) const;
 
         void SendQuestGiverOfferReward(Quest const* pQuest, ObjectGuid npcGUID, bool EnbleNext) const;

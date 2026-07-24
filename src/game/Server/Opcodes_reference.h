@@ -413,7 +413,7 @@ typedef uint16_t uint16;
  *   SMSG_OPEN_CONTAINER                            0x14BB  DORMANT  [medium-conf]
  *
  *  -- DBCacheInstances.cpp (12) --
- *   SMSG_QUEST_QUERY_RESPONSE                      0x0276  DORMANT  [low-conf]
+ *   SMSG_QUEST_QUERY_RESPONSE                      0x0276  ACTIVE   [high-conf]
  *   SMSG_CREATURE_QUERY_RESPONSE                   0x048B  DORMANT  [low-conf]
  *   SMSG_REALM_NAME_QUERY_RESPONSE                 0x063E  DOC      [low-conf]
  *   SMSG_GAMEOBJECT_QUERY_RESPONSE                 0x06BF  DORMANT  [low-conf]
@@ -1391,7 +1391,7 @@ typedef uint16_t uint16;
  *   CMSG_SOCKET_GEMS                               0x02CB  DORMANT 
  *   CMSG_AUTOSTORE_BANK_ITEM                       0x02CF  DORMANT 
  *   CMSG_BATTLEMASTER_JOIN_ARENA                   0x02D2  DORMANT 
- *   CMSG_QUEST_QUERY                               0x02D5  DORMANT 
+ *   CMSG_QUEST_QUERY                               0x02D5  ACTIVE   [high-conf]
  *   CMSG_UNKNOWN_0x02D6                            0x02D6  DOC     
  *   CMSG_LIST_INVENTORY                            0x02D8  DORMANT 
  *   CMSG_AUCTION_LIST_PENDING_SALES                0x02DA  DORMANT 

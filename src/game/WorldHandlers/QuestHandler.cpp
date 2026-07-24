@@ -304,15 +304,18 @@ void WorldSession::HandleQuestgiverQueryQuestOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleQuestQueryOpcode(WorldPacket& recv_data)
 {
-    uint32 quest;
-    recv_data >> quest;
-    DEBUG_LOG("WORLD: Received opcode CMSG_QUEST_QUERY quest = %u", quest);
-
-    Quest const* pQuest = sObjectMgr.GetQuestTemplate(quest);
-    if (pQuest)
+    MopQuestQueryPackets::Request request;
+    if (!MopQuestQueryPackets::ParseRequest(recv_data, request))
     {
-        _player->PlayerTalkClass->SendQuestQueryResponse(pQuest);
+        sLog.outError("WORLD: Malformed CMSG_QUEST_QUERY");
+        return;
     }
+
+    DEBUG_LOG("WORLD: Received opcode CMSG_QUEST_QUERY quest = %u",
+        request.questId);
+    Quest const* pQuest = sObjectMgr.GetQuestTemplate(request.questId);
+    _player->PlayerTalkClass->SendQuestQueryResponse(request.questId,
+        pQuest);
 }
 
 /**

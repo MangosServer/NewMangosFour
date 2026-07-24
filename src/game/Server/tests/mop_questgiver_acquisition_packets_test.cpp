@@ -16,6 +16,7 @@
 #include "WorldPacket.h"
 
 #include <cstdint>
+#include <cstring>
 #include <cstdio>
 #include <initializer_list>
 #include <vector>
@@ -389,6 +390,228 @@ static void TestQuestDetailsVariableRecords()
     CHECK(packet.rpos() == packet.size());
 }
 
+static uint32_t FloatBits(float value)
+{
+    uint32_t bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+static void TestQuestQueryRequest()
+{
+    MopQuestQueryPackets::Request request;
+    WorldPacket dense = MakePacket(CMSG_QUEST_QUERY,
+        { 0x78, 0x56, 0x34, 0x12, 0xFF, 0x04, 0x03, 0x09,
+          0x07, 0x02, 0x05, 0x06, 0x00 });
+    CHECK(MopQuestQueryPackets::ParseRequest(dense, request));
+    CHECK(request.questId == 0x12345678u);
+    CHECK(request.sourceGuid == UINT64_C(0x0807060504030201));
+
+    WorldPacket sparse = MakePacket(CMSG_QUEST_QUERY,
+        { 0x78, 0x56, 0x34, 0x12, 0x80, 0x03 });
+    CHECK(MopQuestQueryPackets::ParseRequest(sparse, request));
+    CHECK(request.sourceGuid == UINT64_C(0x0000000000000002));
+
+    WorldPacket truncated = MakePacket(CMSG_QUEST_QUERY,
+        { 0x78, 0x56, 0x34, 0x12, 0xFF, 0x05 });
+    CHECK(!MopQuestQueryPackets::ParseRequest(truncated, request));
+    CHECK(truncated.rpos() == truncated.size());
+
+    WorldPacket trailing = MakePacket(CMSG_QUEST_QUERY,
+        { 0x78, 0x56, 0x34, 0x12, 0x00, 0x00 });
+    CHECK(!MopQuestQueryPackets::ParseRequest(trailing, request));
+    CHECK(trailing.rpos() == trailing.size());
+
+    WorldPacket noncanonical = MakePacket(CMSG_QUEST_QUERY,
+        { 0x78, 0x56, 0x34, 0x12, 0x01, 0x01 });
+    CHECK(!MopQuestQueryPackets::ParseRequest(noncanonical, request));
+    CHECK(noncanonical.rpos() == noncanonical.size());
+}
+
+static void TestQuestQueryAbsentResponse()
+{
+    WorldPacket packet;
+    MopQuestQueryPackets::BuildAbsentResponse(packet, 0x12345678u);
+    CHECK(packet.GetOpcode() == SMSG_QUEST_QUERY_RESPONSE);
+    CheckBytes(packet, BytesFromHex("7856341200"));
+}
+
+static void TestQuestQueryResponseFixedOrder()
+{
+    MopQuestQueryPackets::Response response;
+    response.questId = 1000;
+    for (size_t index = 0; index < response.requiredSourceItemIds.size();
+        ++index)
+    {
+        response.requiredSourceItemIds[index] = uint32_t(1100 + index);
+        response.requiredSourceItemCounts[index] = uint32_t(1200 + index);
+    }
+    for (size_t index = 0; index < response.rewardItemIds.size(); ++index)
+    {
+        response.rewardItemIds[index] = uint32_t(1300 + index);
+        response.rewardItemCounts[index] = uint32_t(1400 + index);
+    }
+    for (size_t index = 0; index < response.rewardChoiceItemIds.size();
+        ++index)
+    {
+        response.rewardChoiceItemIds[index] = uint32_t(1500 + index);
+        response.rewardChoiceItemCounts[index] = uint32_t(1600 + index);
+    }
+    for (size_t index = 0; index < response.rewardCurrencyIds.size();
+        ++index)
+    {
+        response.rewardCurrencyIds[index] = uint32_t(1700 + index);
+        response.rewardCurrencyCounts[index] = uint32_t(1800 + index);
+    }
+    for (size_t index = 0; index < response.rewardFactionIds.size();
+        ++index)
+    {
+        response.rewardFactionIds[index] = uint32_t(1900 + index);
+        response.rewardFactionValueIds[index] = uint32_t(2000 + index);
+        response.rewardFactionValueOverrides[index] =
+            uint32_t(2100 + index);
+    }
+    response.characterTitleId = 2200;
+    response.pointY = 22.25f;
+    response.soundTurnIn = 2201;
+    response.rewardMoney = -2202;
+    response.minimapTargetMark = 2203;
+    response.rewardMoneyMaxLevel = 2204;
+    response.rewardHonorAddition = 2205;
+    response.obsoleteArenaPoints = 2206;
+    response.suggestedPlayers = 2207;
+    response.repObjectiveFaction = 2208;
+    response.minLevel = 2209;
+    response.rewardReputationMask = 2210;
+    response.pointOpt = 2211;
+    response.questLevel = -2212;
+    response.requiredOppositeRepFaction = 2213;
+    response.rewardXpId = 2214;
+    response.rewardSpellCast = 2215;
+    response.rewardSkillPoints = 2216;
+    response.questType = 2217;
+    response.requiredOppositeRepValue = -2218;
+    response.playersSlain = 2219;
+    response.pointMapId = 2220;
+    response.nextQuestInChain = 2221;
+    response.pointX = 22.5f;
+    response.soundAccept = 2222;
+    response.rewardHonorMultiplier = 22.75f;
+    response.requiredSpell = 2223;
+    response.zoneOrSort = -2224;
+    response.bonusTalents = 2225;
+    response.rewardSpell = 2226;
+    response.rewardSkillId = 2227;
+    response.questFlags = 2228;
+    response.questMethod = 2229;
+    response.sourceItemId = 2230;
+
+    WorldPacket packet;
+    CHECK(MopQuestQueryPackets::BuildResponse(packet, response));
+    CHECK(packet.GetOpcode() == SMSG_QUEST_QUERY_RESPONSE);
+
+    packet.rpos(4);
+    CHECK(packet.ReadBit());
+    CHECK(packet.ReadBits(10) == 0);
+    CHECK(packet.ReadBits(9) == 0);
+    CHECK(packet.ReadBits(11) == 0);
+    CHECK(packet.ReadBits(12) == 0);
+    CHECK(packet.ReadBits(8) == 0);
+    CHECK(packet.ReadBits(8) == 0);
+    CHECK(packet.ReadBits(10) == 0);
+    CHECK(packet.ReadBits(9) == 0);
+    CHECK(packet.ReadBits(19) == 0);
+    CHECK(packet.ReadBits(12) == 0);
+    CHECK(packet.rpos() == 18);
+
+    std::vector<uint32_t> const expected =
+    {
+        1100, 1504, 1303, 1401, 1602,
+        1700, 1800, 1701, 1801, 1702, 1802, 1703, 1803,
+        2200, FloatBits(22.25f), 2201,
+        2000, 2100, 1900, 2001, 2101, 1901, 2002, 2102,
+        1902, 2003, 2103, 1903, 2004, 2104, 1904,
+        uint32_t(-2202), 1604, 1601, 2203, 1501, 2204, 1300,
+        1503, 2205, 2206, 1505, 2207, 2208, 1101, 1301, 2209,
+        2210, 2211, uint32_t(-2212), 2213, 1202, 2214, 1400,
+        1605, 1402, 2215, 0, 0, 1201, 1102, 2216, 2217,
+        uint32_t(-2218), 0, 2219, 2220, 2221, 1500, 0, 1103,
+        FloatBits(22.5f), 1502, 0, 1403, 2222, 1302,
+        FloatBits(22.75f), 2223, 1603, 1200, uint32_t(-2224),
+        2225, 1600, 2226, 2227, 0, 0, 2228, 2229, 2230
+    };
+    for (uint32_t value : expected)
+    {
+        uint32_t actual = 0;
+        packet >> actual;
+        CHECK(actual == value);
+    }
+    CHECK(packet.rpos() == packet.size());
+}
+
+static void TestQuestQueryResponseStringsAndObjective()
+{
+    MopQuestQueryPackets::Response response;
+    response.questId = 0x11223344;
+    response.title = "Title";
+    response.details = "Details";
+    response.objectivesText = "Objectives";
+    response.endText = "End";
+    response.completedText = "Done";
+    response.portraitGiverText = "Giver";
+    response.portraitGiverName = "NPC";
+    response.portraitTurnInText = "Turn";
+    response.portraitTurnInName = "Target";
+
+    MopQuestQueryPackets::Objective objective;
+    objective.amount = -5;
+    objective.id = 0x55667788;
+    objective.text = "Kill";
+    objective.flags = 0x99AABBCC;
+    objective.index = 3;
+    objective.type = 1;
+    objective.objectId = 0x12345678;
+    objective.visualEffects.push_back(0xCAFEBABE);
+    response.objectives.push_back(objective);
+
+    WorldPacket packet;
+    CHECK(MopQuestQueryPackets::BuildResponse(packet, response));
+    packet.rpos(4);
+    CHECK(packet.ReadBit());
+    CHECK(packet.ReadBits(10) == 4);
+    CHECK(packet.ReadBits(9) == 5);
+    CHECK(packet.ReadBits(11) == 4);
+    CHECK(packet.ReadBits(12) == 7);
+    CHECK(packet.ReadBits(8) == 6);
+    CHECK(packet.ReadBits(8) == 3);
+    CHECK(packet.ReadBits(10) == 5);
+    CHECK(packet.ReadBits(9) == 3);
+    CHECK(packet.ReadBits(19) == 1);
+    CHECK(packet.ReadBits(12) == 10);
+    CHECK(packet.ReadBits(8) == 4);
+    CHECK(packet.ReadBits(22) == 1);
+    CHECK(packet.rpos() == 22);
+
+    int32_t amount = 0;
+    uint32_t id = 0;
+    packet >> amount >> id;
+    CHECK(amount == -5);
+    CHECK(id == objective.id);
+    CHECK(std::memcmp(&packet[packet.rpos()], "Kill", 4) == 0);
+    packet.rpos(packet.rpos() + 4);
+    uint32_t flags = 0;
+    uint8_t index = 0;
+    uint8_t type = 0;
+    uint32_t objectId = 0;
+    uint32_t visual = 0;
+    packet >> flags >> index >> type >> objectId >> visual;
+    CHECK(flags == objective.flags);
+    CHECK(index == objective.index);
+    CHECK(type == objective.type);
+    CHECK(objectId == objective.objectId);
+    CHECK(visual == objective.visualEffects[0]);
+}
+
 static void TestOpcodeValues()
 {
     CHECK(uint32_t(CMSG_QUESTGIVER_HELLO) == 0x02DBu);
@@ -396,6 +619,8 @@ static void TestOpcodeValues()
     CHECK(uint32_t(CMSG_QUESTGIVER_QUERY_QUEST) == 0x12F0u);
     CHECK(uint32_t(SMSG_QUESTGIVER_QUEST_DETAILS) == 0x134Cu);
     CHECK(uint32_t(CMSG_QUESTGIVER_ACCEPT_QUEST) == 0x06D1u);
+    CHECK(uint32_t(CMSG_QUEST_QUERY) == 0x02D5u);
+    CHECK(uint32_t(SMSG_QUEST_QUERY_RESPONSE) == 0x0276u);
 }
 
 int main(int /*argc*/, char** /*argv*/)
@@ -407,6 +632,10 @@ int main(int /*argc*/, char** /*argv*/)
     TestQuestgiverQuestDetails();
     TestQuestDetailsFixedFieldOrder();
     TestQuestDetailsVariableRecords();
+    TestQuestQueryRequest();
+    TestQuestQueryAbsentResponse();
+    TestQuestQueryResponseFixedOrder();
+    TestQuestQueryResponseStringsAndObjective();
     TestOpcodeValues();
 
     if (g_fail != 0)
