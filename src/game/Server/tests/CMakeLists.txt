@@ -1032,7 +1032,10 @@ add_test(NAME mop_gossip_packets_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_gossip_packets_source_test.cmake)
 
-foreach(mutation IN ITEMS request_reader response_builder client_registration server_registration whitelist)
+foreach(mutation IN ITEMS request_reader response_builder
+        select_reader select_validation source_binding source_clear poi_builder
+        client_registration server_registration select_registration
+        poi_registration whitelist poi_whitelist select_opcode poi_opcode)
     add_test(NAME mop_gossip_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

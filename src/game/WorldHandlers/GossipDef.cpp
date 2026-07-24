@@ -179,6 +179,7 @@ void PlayerMenu::ClearMenus()
 {
     mGossipMenu.ClearMenu();
     mQuestMenu.ClearMenu();
+    mGossipSourceGuid.Clear();
 }
 
 // Returns the sender ID of a gossip option
@@ -199,9 +200,27 @@ bool PlayerMenu::GossipOptionCoded(unsigned int Selection) const
     return mGossipMenu.MenuItemCoded(Selection);
 }
 
+bool PlayerMenu::CanSelectGossipOption(uint32 menuId, uint32 selection,
+    ObjectGuid sourceGuid, bool hasCode) const
+{
+    // The client echoes the menu source and option record selected from the
+    // last SMSG_GOSSIP_MESSAGE. Validate all three before exposing action
+    // metadata to script hooks.
+    if (sourceGuid != mGossipSourceGuid ||
+        menuId != mGossipMenu.GetMenuId() ||
+        selection >= mGossipMenu.MenuItemCount())
+    {
+        return false;
+    }
+
+    return mGossipMenu.MenuItemCoded(selection) == hasCode;
+}
+
 // Sends the gossip menu to the player
 void PlayerMenu::SendGossipMenu(uint32 TitleTextId, ObjectGuid objectGuid)
 {
+    mGossipSourceGuid = objectGuid;
+
     MopGossipPackets::Message message;
     message.sourceGuid = objectGuid;
     message.menuId = mGossipMenu.GetMenuId();
@@ -247,27 +266,31 @@ void PlayerMenu::SendGossipMenu(uint32 TitleTextId, ObjectGuid objectGuid)
 }
 
 // Closes the gossip menu
-void PlayerMenu::CloseGossip() const
+void PlayerMenu::CloseGossip()
 {
     WorldPacket data(SMSG_GOSSIP_COMPLETE, 0);
     GetMenuSession()->SendPacket(&data);
+    mGossipSourceGuid.Clear();
 
     // DEBUG_LOG("WORLD: Sent SMSG_GOSSIP_COMPLETE");
 }
 
-// Sends a point of interest to the player (outdated method)
+// Sends a point of interest to the player.
 void PlayerMenu::SendPointOfInterest(float X, float Y, uint32 Icon, uint32 Flags, uint32 Data, char const* locName) const
 {
-    WorldPacket data(SMSG_GOSSIP_POI, (4 + 4 + 4 + 4 + 4 + 10)); // guess size
-    data << uint32(Flags);
-    data << float(X);
-    data << float(Y);
-    data << uint32(Icon);
-    data << uint32(Data);
-    data << locName;
+    MopGossipPackets::PointOfInterest point;
+    point.flags = Flags;
+    point.x = X;
+    point.y = Y;
+    point.icon = Icon;
+    point.data = Data;
+    point.name = locName ? locName : "";
 
-    GetMenuSession()->SendPacket(&data);
-    // DEBUG_LOG("WORLD: Sent SMSG_GOSSIP_POI");
+    WorldPacket data;
+    if (MopGossipPackets::BuildPointOfInterest(data, point))
+        GetMenuSession()->SendPacket(&data);
+    else
+        sLog.outError("Gossip POI name exceeds the 18414 client limit.");
 }
 
 // Sends a point of interest to the player by ID
@@ -294,16 +317,19 @@ void PlayerMenu::SendPointOfInterest(uint32 poi_id) const
         }
     }
 
-    WorldPacket data(SMSG_GOSSIP_POI, (4 + 4 + 4 + 4 + 4 + 10)); // guess size
-    data << uint32(poi->flags);
-    data << float(poi->x);
-    data << float(poi->y);
-    data << uint32(poi->icon);
-    data << uint32(poi->data);
-    data << icon_name;
+    MopGossipPackets::PointOfInterest point;
+    point.flags = poi->flags;
+    point.x = poi->x;
+    point.y = poi->y;
+    point.icon = poi->icon;
+    point.data = poi->data;
+    point.name = icon_name;
 
-    GetMenuSession()->SendPacket(&data);
-    // DEBUG_LOG("WORLD: Sent SMSG_GOSSIP_POI");
+    WorldPacket data;
+    if (MopGossipPackets::BuildPointOfInterest(data, point))
+        GetMenuSession()->SendPacket(&data);
+    else
+        sLog.outErrorDb("Point of interest %u has an icon name longer than 63 bytes.", poi_id);
 }
 
 // Sends a talking message to the player by text ID

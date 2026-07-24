@@ -567,7 +567,7 @@ enum OpcodesList
     CMSG_SPIRIT_HEALER_ACTIVATE                  = 0x0340, // 5.4.8 18414 (Wow.exe binary)
     SMSG_QUEST_FORCE_REMOVED                     = 0x121F,    // 5.4.8 18414 (Wow.exe leaf; name legacy)
     SMSG_SPIRIT_HEALER_CONFIRM                   = 0x1EAA,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
-    SMSG_GOSSIP_POI                              = 0x0785,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
+    SMSG_GOSSIP_POI                              = 0x0785,    // 5.4.8 18414 (Wow.exe dynamic slot 229; handler 0x9639BC)
     CMSG_CHAT_IGNORED                            = 0x048A, // 5.4.8 18414 (Wow.exe binary)
     SMSG_GM_PLAYER_INFO                          = 0x102B,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     CMSG_GUILD_RANK                              = 0x1024, // not in 5.4.8 (legacy)

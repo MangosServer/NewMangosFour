@@ -1359,6 +1359,24 @@ namespace MopQuestStatusPackets
 
 namespace MopGossipPackets
 {
+    struct SelectOptionRequest
+    {
+        ObjectGuid sourceGuid;
+        uint32 optionId = 0;
+        uint32 menuId = 0;
+        std::string code;
+    };
+
+    struct PointOfInterest
+    {
+        uint32 flags = 0;
+        float x = 0.0f;
+        float y = 0.0f;
+        uint32 icon = 0;
+        uint32 data = 0;
+        std::string name;
+    };
+
     struct GossipItem
     {
         uint32 optionId = 0;
@@ -1389,12 +1407,112 @@ namespace MopGossipPackets
         std::vector<QuestItem> quests;
     };
 
+    inline bool RejectRequest(WorldPacket& in)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    inline size_t PresentByteCount(uint8 mask)
+    {
+        size_t count = 0;
+        for (; mask != 0; mask >>= 1)
+            count += mask & 1;
+        return count;
+    }
+
+    inline bool HasCanonicalGuidBytes(WorldPacket const& in,
+        size_t offset, size_t count)
+    {
+        for (size_t index = 0; index < count; ++index)
+        {
+            // Packed GUID bytes are XORed with one. A present wire byte of
+            // one therefore decodes to zero and contradicts its mask bit.
+            if (in[offset + index] == 1)
+                return false;
+        }
+        return true;
+    }
+
+    inline bool ParseSelectOption(WorldPacket& in,
+        SelectOptionRequest& request)
+    {
+        size_t const start = in.rpos();
+        size_t const remaining = in.size() - start;
+        if (remaining < 10)
+            return RejectRequest(in);
+
+        uint8 const firstBits = in[start + 8];
+        uint8 const secondBits = in[start + 9];
+        uint8 const guidMask =
+            ((firstBits & 0x40) ? 0x01 : 0) |
+            ((firstBits & 0x20) ? 0x02 : 0) |
+            ((secondBits & 0x01) ? 0x04 : 0) |
+            ((firstBits & 0x80) ? 0x08 : 0) |
+            ((firstBits & 0x10) ? 0x10 : 0) |
+            ((firstBits & 0x04) ? 0x20 : 0) |
+            ((firstBits & 0x02) ? 0x40 : 0) |
+            ((firstBits & 0x08) ? 0x80 : 0);
+        uint8 const codeLength =
+            uint8(((firstBits & 0x01) << 7) |
+                ((secondBits & 0xFE) >> 1));
+        size_t const firstGuidByteCount =
+            ((guidMask & 0x80) != 0) + ((guidMask & 0x08) != 0) +
+            ((guidMask & 0x10) != 0) + ((guidMask & 0x40) != 0) +
+            ((guidMask & 0x01) != 0) + ((guidMask & 0x20) != 0);
+        size_t const finalGuidByteCount =
+            ((guidMask & 0x04) != 0) + ((guidMask & 0x02) != 0);
+        size_t const firstGuidOffset = start + 10;
+        size_t const finalGuidOffset =
+            firstGuidOffset + firstGuidByteCount + codeLength;
+
+        if (remaining != 10 + PresentByteCount(guidMask) + codeLength ||
+            !HasCanonicalGuidBytes(in, firstGuidOffset,
+                firstGuidByteCount) ||
+            !HasCanonicalGuidBytes(in, finalGuidOffset,
+                finalGuidByteCount))
+        {
+            return RejectRequest(in);
+        }
+
+        SelectOptionRequest parsed;
+        in >> parsed.optionId >> parsed.menuId;
+        in.ReadGuidMask<3, 0, 1, 4, 7, 5, 6>(parsed.sourceGuid);
+        uint8 const parsedCodeLength = uint8(in.ReadBits(8));
+        in.ReadGuidMask<2>(parsed.sourceGuid);
+        in.ReadGuidBytes<7, 3, 4, 6, 0, 5>(parsed.sourceGuid);
+        parsed.code = in.ReadString(parsedCodeLength);
+        in.ReadGuidBytes<2, 1>(parsed.sourceGuid);
+        if (parsed.code.find('\0') != std::string::npos ||
+            in.rpos() != in.size())
+        {
+            return RejectRequest(in);
+        }
+
+        request = parsed;
+        return true;
+    }
+
     inline ObjectGuid ReadHello(WorldPacket& in)
     {
         ObjectGuid guid;
         in.ReadGuidMask<2, 4, 0, 3, 6, 7, 5, 1>(guid);
         in.ReadGuidBytes<4, 7, 1, 0, 5, 3, 6, 2>(guid);
         return guid;
+    }
+
+    inline bool BuildPointOfInterest(WorldPacket& out,
+        PointOfInterest const& point)
+    {
+        // The 18414 dynamic reader copies into a 64-byte C-string buffer.
+        if (point.name.size() > 63)
+            return false;
+
+        WorldPacket built(SMSG_GOSSIP_POI, 21 + point.name.size());
+        built << point.flags << point.x << point.y << point.icon << point.data;
+        built << point.name;
+        out = built;
+        return true;
     }
 
     inline size_t BoundedLength(std::string const& value, size_t maximum)
@@ -1726,6 +1844,7 @@ class PlayerMenu
     private:
         GossipMenu mGossipMenu;                     // Gossip menu
         QuestMenu  mQuestMenu;                      // Quest menu
+        ObjectGuid mGossipSourceGuid;                // Source bound to the active client menu
 
     public:
         explicit PlayerMenu(WorldSession* Session);
@@ -1742,9 +1861,11 @@ class PlayerMenu
         uint32 GossipOptionSender(unsigned int Selection) const;
         uint32 GossipOptionAction(unsigned int Selection) const;
         bool GossipOptionCoded(unsigned int Selection) const;
+        bool CanSelectGossipOption(uint32 menuId, uint32 selection,
+            ObjectGuid sourceGuid, bool hasCode) const;
 
         void SendGossipMenu(uint32 titleTextId, ObjectGuid objectGuid);
-        void CloseGossip() const;
+        void CloseGossip();
         void SendPointOfInterest(float X, float Y, uint32 Icon, uint32 Flags, uint32 Data, const char* locName) const;
         void SendPointOfInterest(uint32 poi_id) const;
         void SendTalking(uint32 textID) const;

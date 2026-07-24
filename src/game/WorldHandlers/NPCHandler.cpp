@@ -498,19 +498,21 @@ void WorldSession::HandleGossipHelloOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleGossipSelectOptionOpcode(WorldPacket& recv_data)
 {
-    DEBUG_LOG("WORLD: CMSG_GOSSIP_SELECT_OPTION");
+    DEBUG_LOG("WORLD: Received opcode CMSG_GOSSIP_SELECT_OPTION");
 
-    uint32 gossipListId;
-    uint32 menuId;
-    ObjectGuid guid;
-    std::string code;
-
-    recv_data >> guid >> menuId >> gossipListId;
-
-    if (_player->PlayerTalkClass->GossipOptionCoded(gossipListId))
+    MopGossipPackets::SelectOptionRequest request;
+    if (!MopGossipPackets::ParseSelectOption(recv_data, request))
     {
-        recv_data >> code;
-        DEBUG_LOG("Gossip code: %s", code.c_str());
+        sLog.outError("WORLD: Malformed CMSG_GOSSIP_SELECT_OPTION");
+        return;
+    }
+
+    if (!_player->PlayerTalkClass->CanSelectGossipOption(
+            request.menuId, request.optionId, request.sourceGuid,
+            !request.code.empty()))
+    {
+        DEBUG_LOG("WORLD: Rejected stale or invalid gossip selection");
+        return;
     }
 
     // remove fake death
@@ -519,37 +521,46 @@ void WorldSession::HandleGossipSelectOptionOpcode(WorldPacket& recv_data)
         GetPlayer()->RemoveSpellsCausingAura(SPELL_AURA_FEIGN_DEATH);
     }
 
-    uint32 sender = _player->PlayerTalkClass->GossipOptionSender(gossipListId);
-    uint32 action = _player->PlayerTalkClass->GossipOptionAction(gossipListId);
+    uint32 const sender =
+        _player->PlayerTalkClass->GossipOptionSender(request.optionId);
+    uint32 const action =
+        _player->PlayerTalkClass->GossipOptionAction(request.optionId);
 
-    if (guid.IsAnyTypeCreature())
+    if (request.sourceGuid.IsAnyTypeCreature())
     {
-        Creature* pCreature = GetPlayer()->GetNPCIfCanInteractWith(guid, UNIT_NPC_FLAG_NONE);
+        Creature* pCreature = GetPlayer()->GetNPCIfCanInteractWith(
+            request.sourceGuid, UNIT_NPC_FLAG_NONE);
 
         if (!pCreature)
         {
-            DEBUG_LOG("WORLD: HandleGossipSelectOptionOpcode - %s not found or you can't interact with it.", guid.GetString().c_str());
+            DEBUG_LOG("WORLD: HandleGossipSelectOptionOpcode - %s not found or you can't interact with it.",
+                request.sourceGuid.GetString().c_str());
             return;
         }
 
-        if (!sScriptMgr.OnGossipSelect(_player, pCreature, sender, action, code.empty() ? NULL : code.c_str()))
+        if (!sScriptMgr.OnGossipSelect(_player, pCreature, sender, action,
+                request.code.empty() ? NULL : request.code.c_str()))
         {
-            _player->OnGossipSelect(pCreature, gossipListId, menuId);
+            _player->OnGossipSelect(
+                pCreature, request.optionId, request.menuId);
         }
     }
-    else if (guid.IsGameObject())
+    else if (request.sourceGuid.IsGameObject())
     {
-        GameObject* pGo = GetPlayer()->GetGameObjectIfCanInteractWith(guid);
+        GameObject* pGo =
+            GetPlayer()->GetGameObjectIfCanInteractWith(request.sourceGuid);
 
         if (!pGo)
         {
-            DEBUG_LOG("WORLD: HandleGossipSelectOptionOpcode - %s not found or you can't interact with it.", guid.GetString().c_str());
+            DEBUG_LOG("WORLD: HandleGossipSelectOptionOpcode - %s not found or you can't interact with it.",
+                request.sourceGuid.GetString().c_str());
             return;
         }
 
-        if (!sScriptMgr.OnGossipSelect(_player, pGo, sender, action, code.empty() ? NULL : code.c_str()))
+        if (!sScriptMgr.OnGossipSelect(_player, pGo, sender, action,
+                request.code.empty() ? NULL : request.code.c_str()))
         {
-            _player->OnGossipSelect(pGo, gossipListId, menuId);
+            _player->OnGossipSelect(pGo, request.optionId, request.menuId);
         }
     }
 }

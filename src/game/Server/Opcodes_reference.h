@@ -175,9 +175,9 @@
  *   TOTAL SMSG rows                   925
  *
  * SUBSYSTEM CONFIDENCE: high=359, low=223, medium=183, none=160
- * STATUS TOTALS: ACTIVE=311, DOC=435, DORMANT=774
- *   SMSG: ACTIVE=181, DOC=268, DORMANT=476
- *   CMSG: ACTIVE=130, DOC=167, DORMANT=298
+ * STATUS TOTALS: ACTIVE=313, DOC=435, DORMANT=772
+ *   SMSG: ACTIVE=182, DOC=268, DORMANT=475
+ *   CMSG: ACTIVE=131, DOC=167, DORMANT=297
  */
 
 // CAVEATS -- read before trusting any single row:
@@ -1187,7 +1187,7 @@ typedef uint16_t uint16;
  *   SMSG_UNKNOWN_0x062E                            0x062E  DOC      [unattributed]  handler never installed in this build
  *   SMSG_UNKNOWN_0x0633                            0x0633  DOC      [unattributed]  handler never installed in this build
  *   SMSG_UNKNOWN_0x069E                            0x069E  DOC      [unattributed]  handler never installed in this build
- *   SMSG_GOSSIP_POI                                0x0785  DORMANT  [unattributed]  dynamic slot 229 installed by 0x964A6D
+ *   SMSG_GOSSIP_POI                                0x0785  ACTIVE   [unattributed]  dynamic slot 229 installed by 0x964A6D
  *   SMSG_PET_BATTLE_FINALIZE_LOCATION              0x082E  DORMANT  [unattributed]
  *   SMSG_UNKNOWN_0x08AE                            0x08AE  DOC      [unattributed]  handler never installed in this build
  *   SMSG_UNKNOWN_0x08BB                            0x08BB  DOC      [unattributed]  handler never installed in this build
@@ -1539,7 +1539,7 @@ typedef uint16_t uint16;
  *   CMSG_SET_SELECTION                             0x0740  ACTIVE
  *   CMSG_ENABLETAXI                                0x0741  DORMANT 
  *   CMSG_UNKNOWN_0x0743                            0x0743  DOC     
- *   CMSG_MOVE_SET_RUN_MODE                         0x0748  DORMANT 
+ *   CMSG_MOVE_SET_RUN_MODE                         0x0748  ACTIVE   server-binding=CMSG_GOSSIP_SELECT_OPTION
  *   CMSG_ITEM_PURCHASE_REFUND                      0x074B  DORMANT 
  *   CMSG_BLACKMARKET_HELLO                         0x075A  DOC     
  *   CMSG_SET_TAXI_BENCHMARK_MODE                   0x0762  DORMANT 

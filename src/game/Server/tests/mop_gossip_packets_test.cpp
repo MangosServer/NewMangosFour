@@ -38,6 +38,87 @@ static void TestHelloRequest()
     CHECK(MopGossipPackets::ReadHello(packet) == ObjectGuid(UINT64_C(0x0007060004030001)));
 }
 
+static WorldPacket MakePacket(OpcodesList opcode,
+    std::vector<uint8> const& body)
+{
+    WorldPacket packet(opcode, body.size());
+    if (!body.empty())
+        packet.append(body.data(), body.size());
+    return packet;
+}
+
+static void TestSelectOptionRequest()
+{
+    std::vector<uint8> const body = {
+        0xD4, 0xC3, 0xB2, 0xA1, 0x78, 0x56, 0x34, 0x12,
+        0xFE, 0x05, 0x09, 0x05, 0x04, 0x06, 0x00, 0x07,
+        0x58, 0x59, 0x02, 0x03
+    };
+    WorldPacket packet = MakePacket(CMSG_GOSSIP_SELECT_OPTION, body);
+    MopGossipPackets::SelectOptionRequest request;
+    CHECK(MopGossipPackets::ParseSelectOption(packet, request));
+    CHECK(request.optionId == 0xA1B2C3D4);
+    CHECK(request.menuId == 0x12345678);
+    CHECK(request.sourceGuid == ObjectGuid(UINT64_C(0x0807060504030201)));
+    CHECK(request.code == "XY");
+    CHECK(packet.rpos() == packet.size());
+
+    std::vector<uint8> const sparseBody = {
+        0x04, 0x03, 0x02, 0x01, 0xDD, 0xCC, 0xBB, 0xAA,
+        0x40, 0x01, 0x10, 0x32
+    };
+    WorldPacket sparse = MakePacket(CMSG_GOSSIP_SELECT_OPTION, sparseBody);
+    CHECK(MopGossipPackets::ParseSelectOption(sparse, request));
+    CHECK(request.optionId == 0x01020304);
+    CHECK(request.menuId == 0xAABBCCDD);
+    CHECK(request.sourceGuid == ObjectGuid(UINT64_C(0x0000000000330011)));
+    CHECK(request.code.empty());
+
+    std::vector<uint8> const zeroBody = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00
+    };
+    WorldPacket zero = MakePacket(CMSG_GOSSIP_SELECT_OPTION, zeroBody);
+    CHECK(MopGossipPackets::ParseSelectOption(zero, request));
+    CHECK(request.sourceGuid.IsEmpty());
+    CHECK(request.code.empty());
+
+    for (size_t length = 0; length < body.size(); ++length)
+    {
+        WorldPacket truncated(CMSG_GOSSIP_SELECT_OPTION, length);
+        if (length != 0)
+            truncated.append(body.data(), length);
+        CHECK(!MopGossipPackets::ParseSelectOption(truncated, request));
+        CHECK(truncated.rpos() == truncated.size());
+    }
+
+    std::vector<uint8> trailingBody = body;
+    trailingBody.push_back(0);
+    WorldPacket trailing = MakePacket(CMSG_GOSSIP_SELECT_OPTION, trailingBody);
+    CHECK(!MopGossipPackets::ParseSelectOption(trailing, request));
+    CHECK(trailing.rpos() == trailing.size());
+
+    std::vector<uint8> badLengthBody = body;
+    badLengthBody[9] = 0x07; // declares three code bytes, but carries two
+    WorldPacket badLength = MakePacket(CMSG_GOSSIP_SELECT_OPTION, badLengthBody);
+    CHECK(!MopGossipPackets::ParseSelectOption(badLength, request));
+    CHECK(badLength.rpos() == badLength.size());
+
+    std::vector<uint8> noncanonicalBody = body;
+    noncanonicalBody[10] = 1; // a present byte must not decode to zero
+    WorldPacket noncanonical =
+        MakePacket(CMSG_GOSSIP_SELECT_OPTION, noncanonicalBody);
+    CHECK(!MopGossipPackets::ParseSelectOption(noncanonical, request));
+    CHECK(noncanonical.rpos() == noncanonical.size());
+
+    std::vector<uint8> embeddedNullBody = body;
+    embeddedNullBody[16] = 0;
+    WorldPacket embeddedNull =
+        MakePacket(CMSG_GOSSIP_SELECT_OPTION, embeddedNullBody);
+    CHECK(!MopGossipPackets::ParseSelectOption(embeddedNull, request));
+    CHECK(embeddedNull.rpos() == embeddedNull.size());
+}
+
 static void TestGossipMessage()
 {
     MopGossipPackets::Message message;
@@ -78,9 +159,42 @@ static void TestGossipMessage()
     }));
 }
 
+static void TestPointOfInterest()
+{
+    MopGossipPackets::PointOfInterest point;
+    point.flags = 0x11223344;
+    point.x = 1.5f;
+    point.y = -2.25f;
+    point.icon = 0x55667788;
+    point.data = 0xAABBCCDD;
+    point.name = "P";
+
+    WorldPacket packet;
+    CHECK(MopGossipPackets::BuildPointOfInterest(packet, point));
+    CHECK(packet.GetOpcode() == SMSG_GOSSIP_POI);
+    CHECK(BytesEqual(packet, {
+        0x44, 0x33, 0x22, 0x11,
+        0x00, 0x00, 0xC0, 0x3F,
+        0x00, 0x00, 0x10, 0xC0,
+        0x88, 0x77, 0x66, 0x55,
+        0xDD, 0xCC, 0xBB, 0xAA,
+        0x50, 0x00
+    }));
+
+    point.name.assign(63, 'N');
+    CHECK(MopGossipPackets::BuildPointOfInterest(packet, point));
+    CHECK(packet.size() == 84);
+    CHECK(packet.contents()[83] == 0);
+
+    point.name.push_back('N');
+    CHECK(!MopGossipPackets::BuildPointOfInterest(packet, point));
+}
+
 int main(int /*argc*/, char** /*argv*/)
 {
     TestHelloRequest();
+    TestSelectOptionRequest();
     TestGossipMessage();
+    TestPointOfInterest();
     return g_fail ? 1 : 0;
 }

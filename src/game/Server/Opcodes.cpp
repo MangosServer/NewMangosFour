@@ -320,6 +320,10 @@ void InitializeOpcodes()
     DefS(SMSG_QUESTGIVER_STATUS, "SMSG_QUESTGIVER_STATUS");
     DefC(CMSG_GOSSIP_HELLO, "CMSG_GOSSIP_HELLO", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGossipHelloOpcode);
     DefS(SMSG_GOSSIP_MESSAGE, "SMSG_GOSSIP_MESSAGE");
+    // The 18414 client echoes the selected option, active menu and packed
+    // source GUID; POI uses the dynamic gossip reader installed at slot 229.
+    DefC(CMSG_GOSSIP_SELECT_OPTION, "CMSG_GOSSIP_SELECT_OPTION", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGossipSelectOptionOpcode);
+    DefS(SMSG_GOSSIP_POI, "SMSG_GOSSIP_POI");
     DefC(CMSG_LIST_INVENTORY, "CMSG_LIST_INVENTORY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleListInventoryOpcode);
     DefS(SMSG_LIST_INVENTORY, "SMSG_LIST_INVENTORY");
 
