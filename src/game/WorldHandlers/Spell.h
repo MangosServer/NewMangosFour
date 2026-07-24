@@ -297,6 +297,36 @@ class SpellCastTargets
 
 namespace MopSpellPackets
 {
+    struct CategoryCooldown
+    {
+        int32 cooldownModifier = 0;
+        uint32 category = 0;
+    };
+
+    inline bool ReadCategoryCooldownRequest(WorldPacket& in)
+    {
+        if (in.rpos() != in.size())
+        {
+            in.rpos(in.size());
+            return false;
+        }
+        return true;
+    }
+
+    inline void BuildCategoryCooldown(WorldPacket& out,
+        std::vector<CategoryCooldown> const& records)
+    {
+        MANGOS_ASSERT(records.size() < (size_t(1) << 21));
+        out.Initialize(SMSG_CATEGORY_COOLDOWN, 3 + 8 * records.size());
+        out.WriteBits(uint32(records.size()), 21);
+        out.FlushBits();
+
+        // The 18414 reader reverses the two fields before inserting them into
+        // CATEGORYCOOLDOWN state: modifier is first on wire, category second.
+        for (CategoryCooldown const& record : records)
+            out << record.cooldownModifier << record.category;
+    }
+
     struct CastFailedArguments
     {
         bool hasArg10 = false;

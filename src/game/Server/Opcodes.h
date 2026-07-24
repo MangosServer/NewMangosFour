@@ -337,6 +337,8 @@ enum OpcodesList
     CMSG_SET_ACTION_BUTTON                       = 0x1F8C, // 5.4.8 18414 (Wow.exe binary)
     SMSG_ACTION_BUTTONS                          = 0x081A,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
     SMSG_INITIAL_SPELLS                          = 0x045A,    // 5.4.8 18414 (Wow.exe leaf; name single-source fork)
+    CMSG_REQUEST_CATEGORY_COOLDOWNS               = 0x1203, // 5.4.8 18414 (Wow.exe empty writer; local-player initialization path)
+    SMSG_CATEGORY_COOLDOWN                        = 0x01DB, // 5.4.8 18414 (Wow.exe JamCategoryCooldown reader and player-state handler)
     SMSG_LEARNED_SPELL                           = 0x129A,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_SUPERCEDED_SPELL                        = 0x1943,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     CMSG_CAST_SPELL                              = 0x0206, // 5.4.8 18414 (Wow.exe binary)

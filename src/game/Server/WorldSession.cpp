@@ -249,6 +249,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         // (MopInitialPackets), so they pass suppression and populate the client's in-world
         // UI/input state (spells, action bar, factions, account data, tutorials, weather, etc.).
         case SMSG_INITIAL_SPELLS:
+        case SMSG_CATEGORY_COOLDOWN:              // 21-bit JamCategoryCooldown records; client reader sub_C7C233
         case SMSG_SEND_UNLEARN_SPELLS:
         case SMSG_ACTION_BUTTONS:
         case SMSG_INITIALIZE_FACTIONS:

@@ -172,6 +172,36 @@ elseif(MUTATION STREQUAL "spell_go_trajectory")
         "if (m_targets.GetSpeed() > 0.0f)"
         "if (false /* removed trajectory flag */)"
         spell_packets "${spell_packets}")
+elseif(MUTATION STREQUAL "category_request_registration")
+    string(REPLACE
+        "DefC(CMSG_REQUEST_CATEGORY_COOLDOWNS, \"CMSG_REQUEST_CATEGORY_COOLDOWNS\""
+        "DefC(0xFFFF, \"removed CMSG_REQUEST_CATEGORY_COOLDOWNS\""
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "category_response_registration")
+    string(REPLACE
+        "DefS(SMSG_CATEGORY_COOLDOWN, \"SMSG_CATEGORY_COOLDOWN\");"
+        "/* removed SMSG_CATEGORY_COOLDOWN registration */"
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "category_response_gate")
+    string(REPLACE
+        "case SMSG_CATEGORY_COOLDOWN:"
+        "case SMSG_UNKNOWN_0:"
+        world_session "${world_session}")
+elseif(MUTATION STREQUAL "category_request_reader")
+    string(REPLACE
+        "MopSpellPackets::ReadCategoryCooldownRequest(recvPacket)"
+        "false /* removed empty-request validation */"
+        spell_handler "${spell_handler}")
+elseif(MUTATION STREQUAL "category_response_layout")
+    string(REPLACE
+        "out.WriteBits(uint32(records.size()), 21);"
+        "out.WriteBits(uint32(records.size()), 20);"
+        spell_header "${spell_header}")
+elseif(MUTATION STREQUAL "category_aura_aggregation")
+    string(REPLACE
+        "GetAurasByType(SPELL_AURA_MOD_SPELL_CATEGORY_COOLDOWN)"
+        "GetAurasByType(SPELL_AURA_DUMMY)"
+        spell_handler "${spell_handler}")
 endif()
 
 string(FIND "${spell_handler}" "void WorldSession::HandleCastSpellOpcode" cast_start)
@@ -368,6 +398,39 @@ forbid("${spell_go_sender_body}"
 forbid("${spell_go_sender_body}"
     "WriteSpellGoTargets"
     "legacy spell-go hit/miss serializer")
+require_once("${opcode_header}"
+    "CMSG_REQUEST_CATEGORY_COOLDOWNS               = 0x1203"
+    "CMSG_REQUEST_CATEGORY_COOLDOWNS opcode value")
+require_once("${opcode_header}"
+    "SMSG_CATEGORY_COOLDOWN                        = 0x01DB"
+    "SMSG_CATEGORY_COOLDOWN opcode value")
+require_once("${opcode_registry}"
+    "DefC(CMSG_REQUEST_CATEGORY_COOLDOWNS, \"CMSG_REQUEST_CATEGORY_COOLDOWNS\""
+    "category-cooldown request registration")
+require_once("${opcode_registry}"
+    "DefS(SMSG_CATEGORY_COOLDOWN, \"SMSG_CATEGORY_COOLDOWN\");"
+    "category-cooldown response registration")
+require_once("${world_session}"
+    "case SMSG_CATEGORY_COOLDOWN:"
+    "category-cooldown sender admission")
+require_once("${spell_handler}"
+    "void WorldSession::HandleRequestCategoryCooldowns(WorldPacket& recvPacket)"
+    "category-cooldown gameplay handler")
+require_once("${spell_handler}"
+    "MopSpellPackets::ReadCategoryCooldownRequest(recvPacket)"
+    "empty category-cooldown request validation")
+require_once("${spell_handler}"
+    "GetAurasByType(SPELL_AURA_MOD_SPELL_CATEGORY_COOLDOWN)"
+    "category-cooldown aura aggregation")
+require_once("${spell_handler}"
+    "MopSpellPackets::BuildCategoryCooldown(data, records);"
+    "18414 category-cooldown response sender")
+require_once("${spell_header}"
+    "out.WriteBits(uint32(records.size()), 21);"
+    "category-cooldown 21-bit record count")
+require_once("${spell_header}"
+    "out << record.cooldownModifier << record.category;"
+    "category-cooldown record wire order")
 
 string(FIND "${cast_handler}" "MopSpellPackets::ReadCastSpellRequest(recvPacket, request)" reader_position)
 string(FIND "${cast_handler}" "sSpellStore.LookupEntry(spellId)" lookup_position)

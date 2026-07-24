@@ -940,6 +940,42 @@ static void test_spell_go_wire_layout()
     CHECK(!MopSpellPackets::BuildSpellGo(actual, sparse));
 }
 
+static void test_category_cooldown_request_and_response()
+{
+    WorldPacket emptyRequest(CMSG_REQUEST_CATEGORY_COOLDOWNS, 0);
+    CHECK(MopSpellPackets::ReadCategoryCooldownRequest(emptyRequest));
+    CHECK(emptyRequest.rpos() == emptyRequest.size());
+
+    WorldPacket trailingRequest(CMSG_REQUEST_CATEGORY_COOLDOWNS, 1);
+    trailingRequest << uint8(0xAA);
+    CHECK(!MopSpellPackets::ReadCategoryCooldownRequest(trailingRequest));
+    CHECK(trailingRequest.rpos() == trailingRequest.size());
+
+    WorldPacket emptyResponse;
+    std::vector<MopSpellPackets::CategoryCooldown> emptyRecords;
+    MopSpellPackets::BuildCategoryCooldown(emptyResponse, emptyRecords);
+    CHECK(emptyResponse.GetOpcode() == SMSG_CATEGORY_COOLDOWN);
+    CheckBytes(emptyResponse, { 0x00, 0x00, 0x00 });
+
+    WorldPacket response;
+    std::vector<MopSpellPackets::CategoryCooldown> records = {
+        { -25, 0x11223344u },
+        { 1000, 0xAABBCCDDu },
+    };
+    MopSpellPackets::BuildCategoryCooldown(response, records);
+    CHECK(response.GetOpcode() == SMSG_CATEGORY_COOLDOWN);
+    CheckBytes(response, {
+        0x00, 0x00, 0x10,
+        0xE7, 0xFF, 0xFF, 0xFF, 0x44, 0x33, 0x22, 0x11,
+        0xE8, 0x03, 0x00, 0x00, 0xDD, 0xCC, 0xBB, 0xAA,
+    });
+
+    CHECK(uint32(CMSG_REQUEST_CATEGORY_COOLDOWNS) == 0x1203u);
+    CHECK(uint32(SMSG_CATEGORY_COOLDOWN) == 0x01DBu);
+    CHECK(uint32(CMSG_REQUEST_CATEGORY_COOLDOWNS) < uint32(OPCODE_TABLE_SIZE));
+    CHECK(uint32(SMSG_CATEGORY_COOLDOWN) < uint32(OPCODE_TABLE_SIZE));
+}
+
 int main(int, char**)
 {
     test_dense_and_guid_permutations();
@@ -954,6 +990,7 @@ int main(int, char**)
     test_pet_cast_failure_wire_layout();
     test_spell_start_wire_layout();
     test_spell_go_wire_layout();
+    test_category_cooldown_request_and_response();
 
     if (g_fail)
     {

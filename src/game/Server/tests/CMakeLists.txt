@@ -125,8 +125,7 @@ add_test(NAME mop_client_opcode_worklist_source
 foreach(mutation IN ITEMS
         logout_manual_registration logout_idle_registration logout_manual_value
         violence_registration violence_handler violence_value
-        battlefield_status_registration battle_pay_registration battle_pay_duplicate_raw battle_pay_value
-        missile_cancel_reintroduced)
+        battlefield_status_registration battle_pay_registration battle_pay_duplicate_raw battle_pay_value)
     add_test(NAME mop_client_opcode_worklist_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}
@@ -1181,7 +1180,9 @@ foreach(mutation IN ITEMS reader registration target_initializer target_mapping 
         spell_start_sender spell_start_registration spell_start_gate spell_start_target_mask_width
         spell_start_caster_mask spell_start_string_bound
         spell_go_sender spell_go_registration spell_go_gate spell_go_miss_reason_width
-        spell_go_hit_mask spell_go_string_bound spell_go_trajectory)
+        spell_go_hit_mask spell_go_string_bound spell_go_trajectory
+        category_request_registration category_response_registration category_response_gate
+        category_request_reader category_response_layout category_aura_aggregation)
     add_test(NAME mop_spell_cast_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

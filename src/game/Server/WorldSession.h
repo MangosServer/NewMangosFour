@@ -1766,6 +1766,7 @@ class WorldSession
         void HandleUseItemOpcode(WorldPacket& recvPacket);
         void HandleOpenItemOpcode(WorldPacket& recvPacket);
         void HandleCastSpellOpcode(WorldPacket& recvPacket);
+        void HandleRequestCategoryCooldowns(WorldPacket& recvPacket);
         void HandleCancelCastOpcode(WorldPacket& recvPacket);
         void HandleCancelAuraOpcode(WorldPacket& recvPacket);
         void HandleCancelGrowthAuraOpcode(WorldPacket& recvPacket);

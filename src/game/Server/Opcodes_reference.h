@@ -718,7 +718,7 @@ typedef uint16_t uint16;
  *   SMSG_INSTANCE_LOCK_WARNING_QUERY               0x00A7  DOC      [medium-conf]
  *   SMSG_SPELL_EXECUTE_LOG                         0x00D8  DORMANT  [medium-conf]
  *   SMSG_UNKNOWN_0x0170                            0x0170  DOC     
- *   SMSG_CATEGORY_COOLDOWN                         0x01DB  DOC      [medium-conf]
+ *   SMSG_CATEGORY_COOLDOWN                         0x01DB  ACTIVE   [high-conf]
  *   SMSG_FISH_ESCAPED                              0x0227  DORMANT 
  *   SMSG_QUESTUPDATE_ADD_PVP_KILL                  0x0256  DORMANT 
  *   SMSG_QUESTGIVER_REQUEST_ITEMS                  0x0277  DORMANT 
@@ -1711,7 +1711,7 @@ typedef uint16_t uint16;
  *   CMSG_MOVE_SPLINE_DONE                          0x11D9  DORMANT 
  *   CMSG_MOVE_SET_CAN_TRANSITION_BETWEEN_SWIM_AND_FLY_ACK 0x11DB  DORMANT 
  *   CMSG_MOVE_START_ASCEND                         0x11FA  DORMANT 
- *   CMSG_REQUEST_CATEGORY_COOLDOWNS                0x1203  DOC     
+ *   CMSG_REQUEST_CATEGORY_COOLDOWNS                0x1203  ACTIVE   [high-conf]
  *   CMSG_UNKNOWN_0x1207                            0x1207  DOC     
  *   CMSG_MESSAGECHAT_WHISPER                       0x123E  DORMANT 
  *   CMSG_BINDER_ACTIVATE                           0x1248  DORMANT 

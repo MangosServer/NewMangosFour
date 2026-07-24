@@ -53,6 +53,10 @@
 #include "SpellAuras.h"
 #include "GameObject.h"
 
+#include <algorithm>
+#include <limits>
+#include <map>
+
 /**
  * @brief Handles use-item requests and casts the item's use spell.
  *
@@ -515,6 +519,48 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
     spell->m_cast_count = request.castCount;               // set count of casts
     spell->m_glyphIndex = request.glyphIndex;
     spell->SpellStart(&targets, triggeredByAura);
+}
+
+/**
+ * @brief Sends the local player's category-wide spell cooldown modifiers.
+ *
+ * The 18414 client requests this empty-body snapshot after creating the local
+ * player. Auras stack by spell category; the wire value is the inverse of the
+ * aggregate aura amount, followed by the category identifier.
+ */
+void WorldSession::HandleRequestCategoryCooldowns(WorldPacket& recvPacket)
+{
+    if (!MopSpellPackets::ReadCategoryCooldownRequest(recvPacket))
+    {
+        sLog.outError("WORLD: malformed CMSG_REQUEST_CATEGORY_COOLDOWNS from %s",
+            GetPlayerName());
+        return;
+    }
+
+    std::map<uint32, int64> categoryModifiers;
+    Unit::AuraList const& auras =
+        _player->GetAurasByType(SPELL_AURA_MOD_SPELL_CATEGORY_COOLDOWN);
+    for (Unit::AuraList::const_iterator itr = auras.begin(); itr != auras.end(); ++itr)
+    {
+        Modifier const* modifier = (*itr)->GetModifier();
+        categoryModifiers[uint32(modifier->m_miscvalue)] += modifier->m_amount;
+    }
+
+    std::vector<MopSpellPackets::CategoryCooldown> records;
+    records.reserve(categoryModifiers.size());
+    for (std::map<uint32, int64>::const_iterator itr = categoryModifiers.begin();
+         itr != categoryModifiers.end(); ++itr)
+    {
+        int64 const inverseAmount = -itr->second;
+        int64 const boundedAmount = std::max<int64>(
+            std::numeric_limits<int32>::min(),
+            std::min<int64>(std::numeric_limits<int32>::max(), inverseAmount));
+        records.push_back({ int32(boundedAmount), itr->first });
+    }
+
+    WorldPacket data;
+    MopSpellPackets::BuildCategoryCooldown(data, records);
+    SendPacket(&data);
 }
 
 /**
