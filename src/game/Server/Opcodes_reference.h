@@ -175,9 +175,9 @@
  *   TOTAL SMSG rows                   925
  *
  * SUBSYSTEM CONFIDENCE: high=359, low=223, medium=183, none=160
- * STATUS TOTALS: ACTIVE=313, DOC=435, DORMANT=772
- *   SMSG: ACTIVE=182, DOC=268, DORMANT=475
- *   CMSG: ACTIVE=131, DOC=167, DORMANT=297
+ * STATUS TOTALS: ACTIVE=314, DOC=436, DORMANT=770
+ *   SMSG: ACTIVE=182, DOC=269, DORMANT=474
+ *   CMSG: ACTIVE=132, DOC=167, DORMANT=296
  */
 
 // CAVEATS -- read before trusting any single row:
@@ -630,7 +630,7 @@ typedef uint16_t uint16;
  *   SMSG_AE_LOOT_TARGETS                           0x0C32  DORMANT
  *   SMSG_LOOT_REMOVED                              0x0C3E  ACTIVE   [medium-conf]
  *   SMSG_PET_UPDATE_COMBO_POINTS                   0x1206  DORMANT  [low-conf]
- *   SMSG_QUEST_FORCE_REMOVED                       0x121F  DORMANT 
+ *   SMSG_QUEST_FORCE_REMOVED                       0x121F  DOC
  *   SMSG_LOOT_RELEASE_RESPONSE                     0x123F  ACTIVE   [medium-conf]
  *   SMSG_LOOT_RESPONSE                             0x128A  ACTIVE
  *   SMSG_LOOT_MONEY_NOTIFY                         0x14C0  ACTIVE   [medium-conf]
@@ -1546,7 +1546,7 @@ typedef uint16_t uint16;
  *   CMSG_BATTLEMASTER_JOIN                         0x0769  DORMANT 
  *   CMSG_GUILD_BANK_DEPOSIT_MONEY                  0x0770  DORMANT 
  *   CMSG_SET_FACTION_INACTIVE                      0x0778  DORMANT 
- *   CMSG_QUESTLOG_REMOVE_QUEST                     0x0779  DORMANT 
+ *   CMSG_QUESTLOG_REMOVE_QUEST                     0x0779  ACTIVE
  *   CMSG_GET_MAIL_LIST                             0x077A  DORMANT 
  *   CMSG_MAIL_QUERY_NEXT_TIME                      0x077B  ACTIVE
  *   CMSG_GUILD_BANK_UPDATE_TAB                     0x07C2  DORMANT 

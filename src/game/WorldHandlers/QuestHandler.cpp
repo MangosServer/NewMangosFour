@@ -490,8 +490,12 @@ void WorldSession::HandleQuestLogSwapQuest(WorldPacket& recv_data)
  */
 void WorldSession::HandleQuestLogRemoveQuest(WorldPacket& recv_data)
 {
-    uint8 slot;
-    recv_data >> slot;
+    uint8 slot = 0;
+    if (!MopQuestPackets::ParseQuestLogRemoveRequest(recv_data, slot))
+    {
+        DEBUG_LOG("WORLD: Malformed CMSG_QUESTLOG_REMOVE_QUEST");
+        return;
+    }
 
     DEBUG_LOG("WORLD: Received opcode CMSG_QUESTLOG_REMOVE_QUEST slot = %u", slot);
 

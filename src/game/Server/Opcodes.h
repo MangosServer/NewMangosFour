@@ -565,7 +565,6 @@ enum OpcodesList
     CMSG_GMTICKET_SYSTEMSTATUS                   = 0x0A82, // 5.4.8 18414 (Wow.exe binary, via CMSG_GM_TICKET_SYSTEM_STATUS)
     SMSG_GMTICKET_SYSTEMSTATUS                   = 0x163B,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus; via SMSG_GM_TICKET_SYSTEM_STATUS)
     CMSG_SPIRIT_HEALER_ACTIVATE                  = 0x0340, // 5.4.8 18414 (Wow.exe binary)
-    SMSG_QUEST_FORCE_REMOVED                     = 0x121F,    // 5.4.8 18414 (Wow.exe leaf; name legacy)
     SMSG_SPIRIT_HEALER_CONFIRM                   = 0x1EAA,    // 5.4.8 18414 (Wow.exe leaf; name reference-consensus)
     SMSG_GOSSIP_POI                              = 0x0785,    // 5.4.8 18414 (Wow.exe dynamic slot 229; handler 0x9639BC)
     CMSG_CHAT_IGNORED                            = 0x048A, // 5.4.8 18414 (Wow.exe binary)

@@ -380,6 +380,11 @@ void InitializeOpcodes()
     // The direct 18414 empty response closes the quest/gossip frame after acceptance.
     DefS(SMSG_GOSSIP_COMPLETE, "SMSG_GOSSIP_COMPLETE");
 
+    // The 18414 abandon action carries exactly one quest-log slot byte.
+    // Clearing the player's quest slot supplies the client-visible object update;
+    // the client action does not require a dedicated response packet.
+    DefC(CMSG_QUESTLOG_REMOVE_QUEST, "CMSG_QUESTLOG_REMOVE_QUEST", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestLogRemoveQuest);
+
     // Directly verified 18414 quest turn-in and reward flow. The client sends
     // a reward item ID, which the handler resolves back to the configured
     // reward-choice slot before applying the existing quest gameplay logic.

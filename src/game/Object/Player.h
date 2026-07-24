@@ -757,6 +757,19 @@ namespace MopQuestPackets
     static uint32 const MAX_COMPLETED_QUEST_BIT = COMPLETED_QUEST_BYTES * 8;
     typedef std::array<uint8, COMPLETED_QUEST_BYTES> CompletedQuestBits;
 
+    inline bool ParseQuestLogRemoveRequest(WorldPacket& in, uint8& slot)
+    {
+        slot = 0;
+        if (in.size() - in.rpos() != sizeof(slot))
+        {
+            in.rpos(in.size());
+            return false;
+        }
+
+        in >> slot;
+        return true;
+    }
+
     inline bool SetCompletedQuestBit(CompletedQuestBits& bits,
         uint32 uniqueBit)
     {
