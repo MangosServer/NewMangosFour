@@ -33,7 +33,475 @@
 #include "Opcodes.h"
 #include "WorldPacket.h"
 
+#include <array>
+
 class WorldSession;
+
+namespace MopQuestGiverPackets
+{
+    struct QueryQuestRequest
+    {
+        uint64 questGiverGuid = 0;
+        uint32 questId = 0;
+    };
+
+    struct AcceptQuestRequest
+    {
+        uint64 questGiverGuid = 0;
+        uint32 questId = 0;
+        bool questDetailsAcceptFlag = false;
+    };
+
+    struct QuestListEntry
+    {
+        uint32 questId = 0;
+        uint32 icon = 0;
+        int32 level = 0;
+        uint32 flags = 0;
+        uint32 flags2 = 0;
+        bool repeatable = false;
+        std::string title;
+    };
+
+    struct QuestList
+    {
+        ObjectGuid questGiverGuid;
+        uint32 emote = 0;
+        uint32 emoteDelay = 0;
+        std::string greeting;
+        std::vector<QuestListEntry> quests;
+    };
+
+    struct QuestObjective
+    {
+        uint8 type = 0;
+        uint32 id = 0;
+        int32 amount = 0;
+        uint32 objectId = 0;
+    };
+
+    struct QuestEmote
+    {
+        uint32 delay = 0;
+        uint32 emote = 0;
+    };
+
+    struct QuestDetails
+    {
+        ObjectGuid dividerGuid;
+        ObjectGuid questGiverGuid;
+        std::array<uint32, QUEST_REWARDS_COUNT> rewardItemIds = {};
+        std::array<uint32, QUEST_REWARDS_COUNT> rewardItemCounts = {};
+        std::array<uint32, QUEST_REWARDS_COUNT> rewardItemDisplayIds = {};
+        std::array<uint32, QUEST_REWARD_CHOICES_COUNT>
+            rewardChoiceItemIds = {};
+        std::array<uint32, QUEST_REWARD_CHOICES_COUNT>
+            rewardChoiceItemCounts = {};
+        std::array<uint32, QUEST_REWARD_CHOICES_COUNT>
+            rewardChoiceItemDisplayIds = {};
+        std::array<uint32, QUEST_REWARD_CURRENCY_COUNT>
+            rewardCurrencyIds = {};
+        std::array<uint32, QUEST_REWARD_CURRENCY_COUNT>
+            rewardCurrencyCounts = {};
+        std::array<uint32, QUEST_REPUTATIONS_COUNT> rewardFactionIds = {};
+        std::array<uint32, QUEST_REPUTATIONS_COUNT>
+            rewardFactionValueIds = {};
+        std::array<uint32, QUEST_REPUTATIONS_COUNT>
+            rewardFactionValueOverrides = {};
+        uint32 rewardChoiceItemCount = 0;
+        uint32 questGiverPortrait = 0;
+        uint32 questId = 0;
+        uint32 suggestedPlayers = 0;
+        uint32 bonusTalents = 0;
+        uint32 rewardSkillId = 0;
+        uint32 rewardXp = 0;
+        uint32 rewardReputationMask = 0;
+        uint32 rewardSpell = 0;
+        uint32 questFlags = 0;
+        uint32 characterTitleId = 0;
+        uint32 rewardOrRequiredMoney = 0;
+        uint32 questFlags2 = 0;
+        uint32 rewardSpellCastOrUnknown = 0;
+        uint32 rewardItemCount = 0;
+        uint32 rewardSkillPoints = 0;
+        uint32 rewardPackageItemId = 0;
+        uint32 questTurnInPortrait = 0;
+        bool startedByAreaTrigger = false;
+        bool startQuestCheat = false;
+        bool questDetailsAcceptFlag = false;
+        std::string questTurnTargetName;
+        std::string questGiverTextWindow;
+        std::string questTitle;
+        std::string questGiverTargetName;
+        std::string questTurnTextWindow;
+        std::string questDetails;
+        std::string questObjectives;
+        std::vector<QuestObjective> objectives;
+        std::vector<QuestEmote> emotes;
+        std::vector<uint32> learnSpells;
+    };
+
+    inline bool RejectRequest(WorldPacket& in)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    inline size_t PresentByteCount(uint8 mask)
+    {
+        size_t count = 0;
+        for (; mask != 0; mask >>= 1)
+        {
+            count += mask & 1;
+        }
+        return count;
+    }
+
+    inline bool HasCanonicalGuidBytes(WorldPacket const& in,
+        size_t offset, size_t count)
+    {
+        for (size_t index = 0; index < count; ++index)
+        {
+            // A present packed-GUID byte is XORed with 1 on the wire. Wire
+            // value 1 therefore decodes to zero and has a non-canonical mask.
+            if (in[offset + index] == 1)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    inline uint64 RawGuid(ObjectGuid const& guid)
+    {
+        return guid.GetRawValue();
+    }
+
+    inline bool ParseHello(WorldPacket& in, uint64& guid)
+    {
+        if (in.size() - in.rpos() < 1)
+        {
+            return RejectRequest(in);
+        }
+
+        uint8 const mask = in[in.rpos()];
+        size_t const byteCount = PresentByteCount(mask);
+        if (in.size() - in.rpos() != 1 + byteCount ||
+            !HasCanonicalGuidBytes(in, in.rpos() + 1, byteCount))
+        {
+            return RejectRequest(in);
+        }
+
+        ObjectGuid parsed;
+        in.ReadGuidMask<5, 6, 7, 3, 4, 2, 1, 0>(parsed);
+        in.ReadGuidBytes<4, 1, 7, 3, 6, 0, 5, 2>(parsed);
+        guid = RawGuid(parsed);
+        return in.rpos() == in.size();
+    }
+
+    inline bool ParseQueryQuest(WorldPacket& in, QueryQuestRequest& request)
+    {
+        if (in.size() - in.rpos() < 6)
+        {
+            return RejectRequest(in);
+        }
+
+        QueryQuestRequest parsed;
+        in >> parsed.questId;
+
+        uint8 const mask = in[in.rpos()];
+        size_t const byteCount = PresentByteCount(mask);
+        if (in.size() - in.rpos() != 2 + byteCount ||
+            in[in.rpos() + 1] != 0x80 ||
+            !HasCanonicalGuidBytes(in, in.rpos() + 2, byteCount))
+        {
+            return RejectRequest(in);
+        }
+
+        ObjectGuid questGiverGuid;
+        in.ReadGuidMask<2, 6, 5, 0, 4, 3, 1, 7>(questGiverGuid);
+        bool const questDetailsRequest = in.ReadBit();
+        uint32 const padding = in.ReadBits(7);
+        in.ReadGuidBytes<2, 0, 4, 7, 5, 1, 3, 6>(questGiverGuid);
+        if (!questDetailsRequest || padding != 0 ||
+            in.rpos() != in.size())
+        {
+            return RejectRequest(in);
+        }
+
+        parsed.questGiverGuid = RawGuid(questGiverGuid);
+        request = parsed;
+        return true;
+    }
+
+    inline bool ParseAcceptQuest(WorldPacket& in, AcceptQuestRequest& request)
+    {
+        if (in.size() - in.rpos() < 6)
+        {
+            return RejectRequest(in);
+        }
+
+        AcceptQuestRequest parsed;
+        in >> parsed.questId;
+
+        uint8 const mask = in[in.rpos()];
+        uint8 const trailingBits = in[in.rpos() + 1];
+        size_t const byteCount = PresentByteCount(mask & 0xDF) +
+            ((trailingBits & 0x80) != 0);
+        if (in.size() - in.rpos() != 2 + byteCount ||
+            (trailingBits & 0x7F) != 0 ||
+            !HasCanonicalGuidBytes(in, in.rpos() + 2, byteCount))
+        {
+            return RejectRequest(in);
+        }
+
+        ObjectGuid questGiverGuid;
+        in.ReadGuidMask<6, 0>(questGiverGuid);
+        parsed.questDetailsAcceptFlag = in.ReadBit();
+        in.ReadGuidMask<2, 7, 5, 4, 3, 1>(questGiverGuid);
+        uint32 const padding = in.ReadBits(7);
+        in.ReadGuidBytes<5, 4, 0, 1, 6, 2, 3, 7>(questGiverGuid);
+        if (padding != 0 || in.rpos() != in.size())
+        {
+            return RejectRequest(in);
+        }
+
+        parsed.questGiverGuid = RawGuid(questGiverGuid);
+        request = parsed;
+        return true;
+    }
+
+    inline size_t BoundedLength(std::string const& value, size_t maximum)
+    {
+        return value.size() < maximum ? value.size() : maximum;
+    }
+
+    inline size_t GuidByteCount(ObjectGuid const& guid)
+    {
+        size_t count = 0;
+        uint64 raw = guid.GetRawValue();
+        for (size_t index = 0; index < 8; ++index)
+        {
+            count += uint8(raw >> (index * 8)) != 0;
+        }
+        return count;
+    }
+
+    inline void AppendString(WorldPacket& out, std::string const& value,
+        size_t length)
+    {
+        out.append(value.data(), length);
+    }
+
+    inline bool BuildQuestList(WorldPacket& out, QuestList const& list)
+    {
+        if (list.quests.size() >= (size_t(1) << 19))
+        {
+            return false;
+        }
+
+        size_t const greetingLength = BoundedLength(list.greeting, 0x7FF);
+        size_t payloadSize = 8 + (38 + 10 * list.quests.size() + 7) / 8 +
+            GuidByteCount(list.questGiverGuid) + greetingLength +
+            20 * list.quests.size();
+        for (QuestListEntry const& quest : list.quests)
+        {
+            payloadSize += BoundedLength(quest.title, 0x1FF);
+        }
+        if (payloadSize > 0x7FFFF)
+        {
+            return false;
+        }
+
+        out.Initialize(SMSG_QUESTGIVER_QUEST_LIST, payloadSize);
+        out << list.emote << list.emoteDelay;
+        out.WriteGuidMask<2>(list.questGiverGuid);
+        out.WriteBits(uint32(greetingLength), 11);
+        out.WriteGuidMask<6, 0>(list.questGiverGuid);
+        out.WriteBits(uint32(list.quests.size()), 19);
+        for (QuestListEntry const& quest : list.quests)
+        {
+            out.WriteBit(quest.repeatable);
+            out.WriteBits(uint32(BoundedLength(quest.title, 0x1FF)), 9);
+        }
+        out.WriteGuidMask<1, 3, 4, 5, 7>(list.questGiverGuid);
+        out.FlushBits();
+
+        out.WriteGuidBytes<1, 0, 6, 7>(list.questGiverGuid);
+        for (QuestListEntry const& quest : list.quests)
+        {
+            out << quest.flags << quest.questId;
+            AppendString(out, quest.title,
+                BoundedLength(quest.title, 0x1FF));
+            out << quest.flags2 << quest.icon << uint32(quest.level);
+        }
+        out.WriteGuidBytes<5, 3, 2>(list.questGiverGuid);
+        AppendString(out, list.greeting, greetingLength);
+        out.WriteGuidBytes<4>(list.questGiverGuid);
+        return true;
+    }
+
+    inline bool BuildQuestDetails(WorldPacket& out,
+        QuestDetails const& details)
+    {
+        if (details.objectives.size() >= (size_t(1) << 20) ||
+            details.emotes.size() >= (size_t(1) << 21) ||
+            details.learnSpells.size() >= (size_t(1) << 22))
+        {
+            return false;
+        }
+
+        size_t const turnTargetLength =
+            BoundedLength(details.questTurnTargetName, 0xFF);
+        size_t const giverWindowLength =
+            BoundedLength(details.questGiverTextWindow, 0x3FF);
+        size_t const titleLength =
+            BoundedLength(details.questTitle, 0x1FF);
+        size_t const giverTargetLength =
+            BoundedLength(details.questGiverTargetName, 0xFF);
+        size_t const turnWindowLength =
+            BoundedLength(details.questTurnTextWindow, 0x3FF);
+        size_t const detailsLength =
+            BoundedLength(details.questDetails, 0xFFF);
+        size_t const objectivesLength =
+            BoundedLength(details.questObjectives, 0xFFF);
+
+        size_t const payloadSize = 303 +
+            GuidByteCount(details.dividerGuid) +
+            GuidByteCount(details.questGiverGuid) + turnTargetLength +
+            giverWindowLength + titleLength + giverTargetLength +
+            turnWindowLength + detailsLength + objectivesLength +
+            13 * details.objectives.size() + 8 * details.emotes.size() +
+            4 * details.learnSpells.size();
+        if (payloadSize > 0x7FFFF)
+        {
+            return false;
+        }
+
+        out.Initialize(SMSG_QUESTGIVER_QUEST_DETAILS, payloadSize);
+
+        // The 18414 reader consumes these 71 u32 values in this exact
+        // non-semantic order before its bit section.
+        out << details.rewardItemCounts[3];
+        out << details.rewardChoiceItemDisplayIds[4];
+        out << details.rewardChoiceItemIds[2];
+        for (size_t index = 0; index < QUEST_REWARD_CURRENCY_COUNT; ++index)
+        {
+            out << details.rewardCurrencyCounts[index];
+            out << details.rewardCurrencyIds[index];
+        }
+        out << details.rewardChoiceItemCount;
+        out << details.rewardChoiceItemCounts[2];
+        out << details.rewardItemCounts[1];
+        out << details.rewardChoiceItemDisplayIds[5];
+        out << details.rewardItemCounts[0];
+        out << details.rewardItemDisplayIds[3];
+        out << details.rewardChoiceItemIds[0];
+        out << details.rewardChoiceItemCounts[3];
+        out << details.questGiverPortrait;
+        out << details.rewardChoiceItemDisplayIds[3];
+        out << details.rewardItemIds[0];
+        out << details.questId;
+        out << details.suggestedPlayers;
+        out << details.rewardChoiceItemDisplayIds[0];
+        out << details.rewardChoiceItemCounts[4];
+        out << details.rewardChoiceItemCounts[5];
+        out << details.bonusTalents;
+        out << details.rewardChoiceItemCounts[1];
+        out << details.rewardChoiceItemDisplayIds[2];
+        for (size_t index = 0; index < QUEST_REPUTATIONS_COUNT; ++index)
+        {
+            out << details.rewardFactionValueIds[index];
+            out << details.rewardFactionValueOverrides[index];
+            out << details.rewardFactionIds[index];
+        }
+        out << details.rewardItemIds[3];
+        out << details.rewardSkillId;
+        out << details.rewardXp;
+        out << details.rewardReputationMask;
+        out << details.rewardItemDisplayIds[2];
+        out << details.rewardItemIds[1];
+        out << details.rewardChoiceItemIds[1];
+        out << details.rewardChoiceItemIds[5];
+        out << details.rewardSpell;
+        out << details.questFlags;
+        out << details.characterTitleId;
+        out << details.rewardItemIds[2];
+        out << details.rewardOrRequiredMoney;
+        out << details.rewardItemCounts[2];
+        out << details.questFlags2;
+        out << details.rewardSpellCastOrUnknown;
+        out << details.rewardChoiceItemIds[3];
+        out << details.rewardItemCount;
+        out << details.rewardSkillPoints;
+        out << details.rewardItemDisplayIds[0];
+        out << details.rewardChoiceItemIds[4];
+        out << details.rewardPackageItemId;
+        out << details.rewardChoiceItemCounts[0];
+        out << details.rewardItemDisplayIds[1];
+        out << details.rewardChoiceItemDisplayIds[1];
+        out << details.questTurnInPortrait;
+
+        out.WriteGuidMask<7>(details.dividerGuid);
+        out.WriteGuidMask<1>(details.questGiverGuid);
+        out.WriteBits(uint32(turnTargetLength), 8);
+        out.WriteGuidMask<2>(details.questGiverGuid);
+        out.WriteBits(uint32(giverWindowLength), 10);
+        out.WriteBit(details.startedByAreaTrigger);
+        out.WriteGuidMask<2>(details.dividerGuid);
+        out.WriteBits(uint32(titleLength), 9);
+        out.WriteBits(uint32(details.emotes.size()), 21);
+        out.WriteGuidMask<0>(details.dividerGuid);
+        out.WriteGuidMask<6, 5>(details.questGiverGuid);
+        out.WriteBits(uint32(giverTargetLength), 8);
+        out.WriteGuidMask<3>(details.questGiverGuid);
+        out.WriteGuidMask<1>(details.dividerGuid);
+        out.WriteGuidMask<0>(details.questGiverGuid);
+        out.WriteBit(details.startQuestCheat);
+        out.WriteGuidMask<4>(details.questGiverGuid);
+        out.WriteGuidMask<3, 5, 4>(details.dividerGuid);
+        out.WriteBits(uint32(turnWindowLength), 10);
+        out.WriteBit(details.questDetailsAcceptFlag);
+        out.WriteGuidMask<6>(details.dividerGuid);
+        out.WriteGuidMask<7>(details.questGiverGuid);
+        out.WriteBits(uint32(detailsLength), 12);
+        out.WriteBits(uint32(details.learnSpells.size()), 22);
+        out.WriteBits(uint32(details.objectives.size()), 20);
+        out.WriteBits(uint32(objectivesLength), 12);
+        out.FlushBits();
+
+        out.WriteGuidBytes<0>(details.dividerGuid);
+        AppendString(out, details.questGiverTargetName, giverTargetLength);
+        AppendString(out, details.questTurnTextWindow, turnWindowLength);
+        AppendString(out, details.questTitle, titleLength);
+        out.WriteGuidBytes<6>(details.questGiverGuid);
+        AppendString(out, details.questObjectives, objectivesLength);
+        out.WriteGuidBytes<2>(details.dividerGuid);
+        AppendString(out, details.questGiverTextWindow, giverWindowLength);
+        for (QuestObjective const& objective : details.objectives)
+        {
+            out << objective.type << objective.id << objective.amount <<
+                objective.objectId;
+        }
+        AppendString(out, details.questTurnTargetName, turnTargetLength);
+        AppendString(out, details.questDetails, detailsLength);
+        out.WriteGuidBytes<5, 7>(details.dividerGuid);
+        out.WriteGuidBytes<7, 3, 0>(details.questGiverGuid);
+        for (QuestEmote const& emote : details.emotes)
+        {
+            out << emote.delay << emote.emote;
+        }
+        out.WriteGuidBytes<4, 3>(details.dividerGuid);
+        out.WriteGuidBytes<5, 1, 2>(details.questGiverGuid);
+        out.WriteGuidBytes<1, 6>(details.dividerGuid);
+        out.WriteGuidBytes<4>(details.questGiverGuid);
+        for (uint32 spellId : details.learnSpells)
+        {
+            out << spellId;
+        }
+        return true;
+    }
+}
 
 namespace MopQuestStatusPackets
 {

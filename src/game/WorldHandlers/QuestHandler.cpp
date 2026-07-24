@@ -119,8 +119,13 @@ void WorldSession::HandleQuestgiverStatusQueryOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleQuestgiverHelloOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid guid;
-    recv_data >> guid;
+    uint64 rawGuid = 0;
+    if (!MopQuestGiverPackets::ParseHello(recv_data, rawGuid))
+    {
+        sLog.outError("WORLD: Malformed CMSG_QUESTGIVER_HELLO");
+        return;
+    }
+    ObjectGuid guid(rawGuid);
 
     DEBUG_LOG("WORLD: Received opcode CMSG_QUESTGIVER_HELLO - for %s to %s", _player->GetGuidStr().c_str(), guid.GetString().c_str());
 
@@ -156,17 +161,21 @@ void WorldSession::HandleQuestgiverHelloOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleQuestgiverAcceptQuestOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid guid;
-    uint32 quest;
-    uint32 unk1;
-    recv_data >> guid >> quest >> unk1;
+    MopQuestGiverPackets::AcceptQuestRequest request;
+    if (!MopQuestGiverPackets::ParseAcceptQuest(recv_data, request))
+    {
+        sLog.outError("WORLD: Malformed CMSG_QUESTGIVER_ACCEPT_QUEST");
+        return;
+    }
+    ObjectGuid guid(request.questGiverGuid);
+    uint32 const quest = request.questId;
 
     if (!CanInteractWithQuestGiver(guid, "CMSG_QUESTGIVER_ACCEPT_QUEST"))
     {
         return;
     }
 
-    DEBUG_LOG("WORLD: Received opcode CMSG_QUESTGIVER_ACCEPT_QUEST - for %s to %s, quest = %u, unk1 = %u", _player->GetGuidStr().c_str(), guid.GetString().c_str(), quest, unk1);
+    DEBUG_LOG("WORLD: Received opcode CMSG_QUESTGIVER_ACCEPT_QUEST - for %s to %s, quest = %u, details flag = %u", _player->GetGuidStr().c_str(), guid.GetString().c_str(), quest, uint32(request.questDetailsAcceptFlag));
 
     Object* pObject = _player->GetObjectByTypeMask(guid, TYPEMASK_CREATURE_GAMEOBJECT_PLAYER_OR_ITEM);
 
@@ -256,12 +265,23 @@ void WorldSession::HandleQuestgiverAcceptQuestOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleQuestgiverQueryQuestOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid guid;
-    uint32 quest;
-    uint8 unk1;
-    recv_data >> guid >> quest >> unk1;
+    MopQuestGiverPackets::QueryQuestRequest request;
+    if (!MopQuestGiverPackets::ParseQueryQuest(recv_data, request))
+    {
+        sLog.outError("WORLD: Malformed CMSG_QUESTGIVER_QUERY_QUEST");
+        return;
+    }
+    ObjectGuid guid(request.questGiverGuid);
+    uint32 const quest = request.questId;
 
-    DEBUG_LOG("WORLD: Received opcode CMSG_QUESTGIVER_QUERY_QUEST - for %s to %s, quest = %u, unk1 = %u", _player->GetGuidStr().c_str(), guid.GetString().c_str(), quest, unk1);
+    // Do not disclose quest details for a remotely addressed creature or game
+    // object. Item-backed quests retain the existing alive-player exception.
+    if (!CanInteractWithQuestGiver(guid, "CMSG_QUESTGIVER_QUERY_QUEST"))
+    {
+        return;
+    }
+
+    DEBUG_LOG("WORLD: Received opcode CMSG_QUESTGIVER_QUERY_QUEST - for %s to %s, quest = %u", _player->GetGuidStr().c_str(), guid.GetString().c_str(), quest);
 
     // Verify that the guid is valid and is a questgiver or involved in the requested quest
     Object* pObject = _player->GetObjectByTypeMask(guid, TYPEMASK_CREATURE_GAMEOBJECT_OR_ITEM);

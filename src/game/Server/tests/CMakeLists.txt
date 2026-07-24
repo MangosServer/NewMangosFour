@@ -1078,6 +1078,36 @@ set_target_properties(mop_quest_completed_packets_test PROPERTIES CXX_STANDARD 1
 target_link_libraries(mop_quest_completed_packets_test PRIVATE game)
 add_test(NAME mop_quest_completed_packets COMMAND mop_quest_completed_packets_test)
 
+add_executable(mop_questgiver_acquisition_packets_test
+    mop_questgiver_acquisition_packets_test.cpp)
+target_include_directories(mop_questgiver_acquisition_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_questgiver_acquisition_packets_test
+    PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_questgiver_acquisition_packets_test PRIVATE game)
+add_test(NAME mop_questgiver_acquisition_packets
+    COMMAND mop_questgiver_acquisition_packets_test)
+
+add_test(NAME mop_questgiver_acquisition_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_questgiver_acquisition_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS hello_parser query_parser accept_parser
+        query_interaction_gate list_builder details_builder
+        details_auto_launch_zero gossip_complete_empty_body
+        hello_registration accept_registration list_admission
+        details_admission gossip_complete_admission opcode_value
+        reference_status gossip_complete_reference_status)
+    add_test(NAME mop_questgiver_acquisition_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_questgiver_acquisition_packets_source_test.cmake)
+    set_tests_properties(
+        mop_questgiver_acquisition_packets_source_mutation_${mutation}
+        PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_test(NAME mop_quest_completed_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_quest_completed_source_test.cmake)

@@ -336,6 +336,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_ATTACKSTOP:                      // MopCompactPackets::BuildAttackStop
         case SMSG_QUESTGIVER_STATUS:               // MopQuestStatusPackets::BuildStatus
         case SMSG_GOSSIP_MESSAGE:                  // MopGossipPackets::BuildMessage
+        case SMSG_GOSSIP_COMPLETE:                 // Direct 18414 empty reader; closes the gossip frame
         case SMSG_LIST_INVENTORY:                  // MopItemPackets::BuildVendorList
         case SMSG_INVENTORY_CHANGE_FAILURE:        // MopItemPackets::BuildInventoryChangeFailure
         case SMSG_LOOT_RESPONSE:                   // MopLootPackets::BuildLootResponse
@@ -348,6 +349,8 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_GAMEOBJECT_PAGETEXT:             // MopGameObjectPackets::BuildPageText
         case SMSG_AREA_TRIGGER_NO_CORPSE:           // MopAreaTriggerPackets::BuildNoCorpse
         case SMSG_QUESTGIVER_STATUS_MULTIPLE:       // MopQuestStatusPackets::BuildMultipleStatus
+        case SMSG_QUESTGIVER_QUEST_LIST:            // MopQuestGiverPackets::BuildQuestList
+        case SMSG_QUESTGIVER_QUEST_DETAILS:         // MopQuestGiverPackets::BuildQuestDetails
         case SMSG_CHAR_CUSTOMIZE:                  // MopCharacterCustomizePackets::BuildResponse
             return true;
 

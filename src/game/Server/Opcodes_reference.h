@@ -536,7 +536,7 @@ typedef uint16_t uint16;
  *  -- GossipInfo.cpp (10) --
  *   SMSG_PETITION_SHOW_SIGNATURES                  0x00AA  DORMANT  [low-conf]
  *   SMSG_GOSSIP_MESSAGE                            0x0244  DORMANT 
- *   SMSG_GOSSIP_COMPLETE                           0x034E  DORMANT 
+ *   SMSG_GOSSIP_COMPLETE                           0x034E  ACTIVE   [high-conf]
  *   SMSG_PETITION_SIGN_RESULTS                     0x06AE  DORMANT  [low-conf]
  *   SMSG_GUILD_MOVE_STARTING                       0x0AE1  DOC      [low-conf]  [name: binary-derived]
  *   SMSG_GUILD_MOVE_COMPLETE                       0x0BE8  DOC      [low-conf]  [name: binary-derived]
@@ -729,7 +729,7 @@ typedef uint16_t uint16;
  *   SMSG_PET_NAME_INVALID                          0x028E  DORMANT 
  *   SMSG_AVAILABLE_VOICE_CHANNEL                   0x029A  DORMANT  [medium-conf]
  *   SMSG_RESPEC_WIPE_CONFIRM                       0x02AB  DOC     
- *   SMSG_QUESTGIVER_QUEST_LIST                     0x02D4  DORMANT  [medium-conf]
+ *   SMSG_QUESTGIVER_QUEST_LIST                     0x02D4  ACTIVE   [high-conf]
  *   SMSG_UNKNOWN_0x02EF                            0x02EF  DOC     
  *   SMSG_QUESTGIVER_QUEST_COMPLETE                 0x0346  DORMANT 
  *   SMSG_QUEST_NPC_QUERY_RESPONSE                  0x036D  DOC      [medium-conf]
@@ -807,7 +807,7 @@ typedef uint16_t uint16;
  *   SMSG_LEARNED_SPELL                             0x129A  DORMANT  [medium-conf]
  *   SMSG_SOCKET_GEMS                               0x12A6  DORMANT 
  *   SMSG_QUESTGIVER_QUEST_FAILED                   0x12DE  DORMANT 
- *   SMSG_QUESTGIVER_QUEST_DETAILS                  0x134C  DORMANT 
+ *   SMSG_QUESTGIVER_QUEST_DETAILS                  0x134C  ACTIVE   [high-conf]
  *   SMSG_QUEST_CONFIRM_ACCEPT                      0x13C7  DORMANT 
  *   SMSG_RANDOM_ROLL                               0x141A  DORMANT
  *   SMSG_UNKNOWN_0x1441                            0x1441  DOC     
@@ -1395,7 +1395,7 @@ typedef uint16_t uint16;
  *   CMSG_UNKNOWN_0x02D6                            0x02D6  DOC     
  *   CMSG_LIST_INVENTORY                            0x02D8  DORMANT 
  *   CMSG_AUCTION_LIST_PENDING_SALES                0x02DA  DORMANT 
- *   CMSG_QUESTGIVER_HELLO                          0x02DB  DORMANT 
+ *   CMSG_QUESTGIVER_HELLO                          0x02DB  ACTIVE   [high-conf]
  *   CMSG_WRAP_ITEM                                 0x02DF  DORMANT 
  *   CMSG_TAXINODE_STATUS_QUERY                     0x02E1  DORMANT 
  *   CMSG_BUY_ITEM                                  0x02E2  DORMANT 
@@ -1510,7 +1510,7 @@ typedef uint16_t uint16;
  *   CMSG_SET_PRIMARY_TALENT_TREE                   0x06C6  DOC     
  *   CMSG_SET_WATCHED_FACTION                       0x06C9  DORMANT 
  *   CMSG_GUILD_AUTO_DECLINE                        0x06CB  DORMANT 
- *   CMSG_QUESTGIVER_ACCEPT_QUEST                   0x06D1  DORMANT 
+ *   CMSG_QUESTGIVER_ACCEPT_QUEST                   0x06D1  ACTIVE   [high-conf]
  *   CMSG_JOIN_PET_BATTLE_QUEUE                     0x06D4  DOC     
  *   CMSG_ON_MISSILE_TRAJECTORY_COLLISION           0x06D6  DORMANT 
  *   CMSG_TRANSMOGRIFY_ITEMS                        0x06D7  DOC     
@@ -1737,7 +1737,7 @@ typedef uint16_t uint16;
  *   CMSG_DISMISS_CRITTER                           0x12DB  DORMANT 
  *   CMSG_PET_SET_ACTION                            0x12E9  DORMANT 
  *   CMSG_RETURN_TO_GRAVEYARD                       0x12EA  DORMANT 
- *   CMSG_QUESTGIVER_QUERY_QUEST                    0x12F0  DORMANT 
+ *   CMSG_QUESTGIVER_QUERY_QUEST                    0x12F0  ACTIVE   [high-conf]
  *   CMSG_BUY_BANK_SLOT                             0x12F2  DORMANT 
  *   CMSG_GOSSIP_HELLO                              0x12F3  DORMANT 
  *   CMSG_FAR_SIGHT                                 0x1341  DORMANT 

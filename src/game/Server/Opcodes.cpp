@@ -355,6 +355,14 @@ void InitializeOpcodes()
     DefC(CMSG_QUESTGIVER_STATUS_MULTIPLE_QUERY, "CMSG_QUESTGIVER_STATUS_MULTIPLE_QUERY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestgiverStatusMultipleQuery);
     DefS(SMSG_QUESTGIVER_STATUS_MULTIPLE, "SMSG_QUESTGIVER_STATUS_MULTIPLE");
 
+    // Directly verified 18414 quest acquisition flow. These three packed
+    // requests drive the exact list and details readers used by QuestFrame.
+    DefC(CMSG_QUESTGIVER_HELLO, "CMSG_QUESTGIVER_HELLO", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestgiverHelloOpcode);
+    DefS(SMSG_QUESTGIVER_QUEST_LIST, "SMSG_QUESTGIVER_QUEST_LIST");
+    DefC(CMSG_QUESTGIVER_QUERY_QUEST, "CMSG_QUESTGIVER_QUERY_QUEST", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestgiverQueryQuestOpcode);
+    DefS(SMSG_QUESTGIVER_QUEST_DETAILS, "SMSG_QUESTGIVER_QUEST_DETAILS");
+    DefC(CMSG_QUESTGIVER_ACCEPT_QUEST, "CMSG_QUESTGIVER_ACCEPT_QUEST", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestgiverAcceptQuestOpcode);
+
     // CMSG_NPC_TEXT_QUERY is intentionally still dormant. Its 18414 response
     // requires BroadcastText.db2 IDs, which the current npc_text backend does
     // not retain; registering it would replace real gossip with a fabricated
