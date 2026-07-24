@@ -732,21 +732,34 @@ void Group::Disband(bool hideDestroy)
 /***                   LOOT SYSTEM                     ***/
 /*********************************************************/
 
+static bool BuildMopGroupLootItem(Roll const& roll,
+    MopLootPackets::LootItem& item)
+{
+    ItemPrototype const* prototype = ObjectMgr::GetItemPrototype(roll.itemid);
+    if (!prototype)
+        return false;
+
+    item.itemId = roll.itemid;
+    item.displayInfoId = prototype->DisplayInfoID;
+    item.count = roll.itemCount;
+    item.randomPropertyId = roll.itemRandomPropId;
+    item.randomSuffix = int32(roll.itemRandomSuffix);
+    item.lootListId = roll.itemSlot;
+    item.hasLootListId = true;
+    item.slotType = LOOT_SLOT_NORMAL;
+    item.situ.assign(4, 0); // Client-compatible empty item-modifier block.
+    return true;
+}
+
 void Group::SendLootStartRoll(uint32 CountDown, uint32 mapid, const Roll& r)
 {
-    WorldPacket data(SMSG_LOOT_START_ROLL, (8 + 4 + 4 + 4 + 4 + 4 + 4 + 1));
-    data << r.lootedTargetGUID;                             // creature guid what we're looting
-    data << uint32(mapid);                                  // 3.3.3 mapid
-    data << uint32(r.itemSlot);                             // item slot in loot
-    data << uint32(r.itemid);                               // the itemEntryId for the item that shall be rolled for
-    data << uint32(r.itemRandomSuffix);                     // randomSuffix
-    data << uint32(r.itemRandomPropId);                     // item random property ID
-    data << uint32(r.itemCount);                            // items in stack
-    data << uint32(CountDown);                              // the countdown time to choose "need" or "greed"
-
-    size_t voteMaskPos = data.wpos();
-    data << uint8(0);                                       // roll type mask, allowed choices (placeholder)
-    data << uint8(r.totalPlayersRolling);
+    MopGroupLootPackets::StartRoll packet;
+    packet.lootGuid = r.lootedTargetGUID.GetRawValue();
+    packet.mapId = mapid;
+    packet.durationMs = CountDown;
+    packet.itemSlot = r.itemSlot;
+    if (!BuildMopGroupLootItem(r, packet.item))
+        return;
 
     for (Roll::PlayerVote::const_iterator itr = r.playerVote.begin(); itr != r.playerVote.end(); ++itr)
     {
@@ -761,11 +774,11 @@ void Group::SendLootStartRoll(uint32 CountDown, uint32 mapid, const Roll& r)
             continue;
         }
 
-        // dependent from player
-        RollVoteMask mask = r.GetVoteMaskFor(p);
-        data.put<uint8>(voteMaskPos, uint8(mask));
-
-        p->GetSession()->SendPacket(&data);
+        // The offered need/greed/disenchant mask is recipient-specific.
+        packet.offeredVoteMask = uint8(r.GetVoteMaskFor(p));
+        WorldPacket data;
+        if (MopGroupLootPackets::BuildStartRoll(data, packet))
+            p->GetSession()->SendPacket(&data);
     }
 }
 
@@ -779,16 +792,18 @@ void Group::SendLootStartRoll(uint32 CountDown, uint32 mapid, const Roll& r)
  */
 void Group::SendLootRoll(ObjectGuid const& targetGuid, uint32 rollNumber, uint8 rollType, const Roll& r)
 {
-    WorldPacket data(SMSG_LOOT_ROLL, (8 + 4 + 8 + 4 + 4 + 4 + 1 + 1 + 1));
-    data << r.lootedTargetGUID;                             // creature guid what we're looting
-    data << uint32(r.itemSlot);                             // unknown, maybe amount of players, or item slot in loot
-    data << targetGuid;
-    data << uint32(r.itemid);                               // the itemEntryId for the item that shall be rolled for
-    data << uint32(r.itemRandomSuffix);                     // randomSuffix
-    data << uint32(r.itemRandomPropId);                     // Item random property ID
-    data << uint32(rollNumber);                             // 0: "Need for: [item name]", -1: "you passed on: [item name]"      Roll number
-    data << uint8(rollType);                                // 0: "Need for: [item name]" 0: "You have selected need for [item name] 1: need roll 2: greed roll
-    data << uint8(0);                                       // auto pass on loot
+    MopGroupLootPackets::RollUpdate packet;
+    packet.lootGuid = r.lootedTargetGUID.GetRawValue();
+    packet.participantGuid = targetGuid.GetRawValue();
+    packet.rollNumber = rollNumber;
+    packet.itemSlot = r.itemSlot;
+    packet.rollType = rollType;
+    if (!BuildMopGroupLootItem(r, packet.item))
+        return;
+
+    WorldPacket data;
+    if (!MopGroupLootPackets::BuildRollUpdate(data, packet))
+        return;
 
     for (Roll::PlayerVote::const_iterator itr = r.playerVote.begin(); itr != r.playerVote.end(); ++itr)
     {
@@ -815,15 +830,18 @@ void Group::SendLootRoll(ObjectGuid const& targetGuid, uint32 rollNumber, uint8 
  */
 void Group::SendLootRollWon(ObjectGuid const& targetGuid, uint32 rollNumber, RollVote rollType, const Roll& r)
 {
-    WorldPacket data(SMSG_LOOT_ROLL_WON, (8 + 4 + 4 + 4 + 4 + 8 + 1 + 1));
-    data << r.lootedTargetGUID;                             // creature guid what we're looting
-    data << uint32(r.itemSlot);                             // item slot in loot
-    data << uint32(r.itemid);                               // the itemEntryId for the item that shall be rolled for
-    data << uint32(r.itemRandomSuffix);                     // randomSuffix
-    data << uint32(r.itemRandomPropId);                     // Item random property
-    data << targetGuid;                                     // guid of the player who won.
-    data << uint32(rollNumber);                             // rollnumber related to SMSG_LOOT_ROLL
-    data << uint8(rollType);                                // Rolltype related to SMSG_LOOT_ROLL
+    MopGroupLootPackets::RollWinner packet;
+    packet.lootGuid = r.lootedTargetGUID.GetRawValue();
+    packet.winnerGuid = targetGuid.GetRawValue();
+    packet.rollNumber = rollNumber;
+    packet.itemSlot = r.itemSlot;
+    packet.rollType = uint8(rollType);
+    if (!BuildMopGroupLootItem(r, packet.item))
+        return;
+
+    WorldPacket data;
+    if (!MopGroupLootPackets::BuildRollWinner(data, packet))
+        return;
 
     for (Roll::PlayerVote::const_iterator itr = r.playerVote.begin(); itr != r.playerVote.end(); ++itr)
     {
@@ -847,12 +865,15 @@ void Group::SendLootRollWon(ObjectGuid const& targetGuid, uint32 rollNumber, Rol
  */
 void Group::SendLootAllPassed(Roll const& r)
 {
-    WorldPacket data(SMSG_LOOT_ALL_PASSED, (8 + 4 + 4 + 4 + 4));
-    data << r.lootedTargetGUID;                             // creature guid what we're looting
-    data << uint32(r.itemSlot);                             // item slot in loot
-    data << uint32(r.itemid);                               // The itemEntryId for the item that shall be rolled for
-    data << uint32(r.itemRandomPropId);                     // Item random property ID
-    data << uint32(r.itemRandomSuffix);                     // Item random suffix ID
+    MopGroupLootPackets::AllPassed packet;
+    packet.lootGuid = r.lootedTargetGUID.GetRawValue();
+    packet.itemSlot = r.itemSlot;
+    if (!BuildMopGroupLootItem(r, packet.item))
+        return;
+
+    WorldPacket data;
+    if (!MopGroupLootPackets::BuildAllPassed(data, packet))
+        return;
 
     for (Roll::PlayerVote::const_iterator itr = r.playerVote.begin(); itr != r.playerVote.end(); ++itr)
     {
@@ -1071,7 +1092,7 @@ bool Group::CountRollVote(ObjectGuid const& playerGUID, Rolls::iterator& rollI, 
         }
         case ROLL_NEED:                                     // player choose Need
         {
-            SendLootRoll(playerGUID, 0, 0, *roll);
+            SendLootRoll(playerGUID, 0, ROLL_NEED, *roll);
             ++roll->totalNeed;
             itr->second = ROLL_NEED;
             break;

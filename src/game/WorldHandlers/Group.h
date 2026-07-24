@@ -193,6 +193,63 @@ namespace MopGroupMarkerPackets
         std::vector<TargetIcon> const& targets, uint8 context);
 }
 
+namespace MopGroupLootPackets
+{
+    struct VoteRequest
+    {
+        uint64 lootGuid = 0;
+        uint8 lootListId = 0;
+        uint8 rollType = 0;
+    };
+
+    struct StartRoll
+    {
+        uint64 lootGuid = 0;
+        uint32 mapId = 0;
+        uint32 durationMs = 0;
+        uint8 itemSlot = 0;
+        uint8 offeredVoteMask = 0;
+        MopLootPackets::LootItem item;
+    };
+
+    struct RollUpdate
+    {
+        uint64 lootGuid = 0;
+        uint64 participantGuid = 0;
+        uint32 rollNumber = 0;
+        uint8 itemSlot = 0;
+        uint8 rollType = 0;
+        bool hasItemSlot = true;
+        bool autoPass = false;
+        MopLootPackets::LootItem item;
+    };
+
+    struct RollWinner
+    {
+        uint64 lootGuid = 0;
+        uint64 winnerGuid = 0;
+        uint32 rollNumber = 0;
+        uint8 itemSlot = 0;
+        uint8 rollType = 0;
+        bool hasItemSlot = true;
+        MopLootPackets::LootItem item;
+    };
+
+    struct AllPassed
+    {
+        uint64 lootGuid = 0;
+        uint8 itemSlot = 0;
+        bool hasItemSlot = true;
+        MopLootPackets::LootItem item;
+    };
+
+    bool ParseVoteRequest(WorldPacket& in, VoteRequest& request);
+    bool BuildStartRoll(WorldPacket& out, StartRoll const& start);
+    bool BuildRollUpdate(WorldPacket& out, RollUpdate const& update);
+    bool BuildRollWinner(WorldPacket& out, RollWinner const& winner);
+    bool BuildAllPassed(WorldPacket& out, AllPassed const& passed);
+}
+
 namespace MopGroupPacketDetail
 {
     inline uint8 GuidByte(uint64 guid, uint8 index)
@@ -208,6 +265,20 @@ namespace MopGroupPacketDetail
         return guid;
     }
 
+    inline bool IsValidLootItem(MopLootPackets::LootItem const& item)
+    {
+        return item.slotType <= 7 && item.unknown <= 3 &&
+            item.situ.size() <= MopLootPackets::MAX_SITU_BYTES;
+    }
+
+    inline void WriteLootSitu(WorldPacket& out,
+        MopLootPackets::LootItem const& item)
+    {
+        out << uint32(item.situ.size());
+        if (!item.situ.empty())
+            out.append(item.situ.data(), item.situ.size());
+    }
+
     inline bool Validate(MopPartyUpdatePackets::PartyUpdate const& update)
     {
         if (update.members.size() >= (size_t(1) << 21))
@@ -219,6 +290,227 @@ namespace MopGroupPacketDetail
 
         return true;
     }
+}
+
+inline bool MopGroupLootPackets::ParseVoteRequest(WorldPacket& in,
+    VoteRequest& request)
+{
+    if (in.size() - in.rpos() < 3)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    VoteRequest parsed;
+    in >> parsed.lootListId;
+    in >> parsed.rollType;
+
+    uint8 const mask = in[in.rpos()];
+    size_t presentBytes = 0;
+    for (uint8 remaining = mask; remaining != 0; remaining >>= 1)
+        presentBytes += remaining & 1;
+
+    if (in.size() - in.rpos() != 1 + presentBytes)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    // Wow.exe 18414 writer 0x00693911 emits the two scalar bytes before
+    // this packed loot-source GUID. The Lua roll ID is client-local only.
+    uint8 guidBytes[8] = {};
+    uint8 const maskOrder[] = { 7, 1, 2, 0, 6, 3, 4, 5 };
+    uint8 const byteOrder[] = { 0, 2, 7, 3, 1, 5, 4, 6 };
+    for (uint8 index : maskOrder)
+        guidBytes[index] = in.ReadBit();
+    in.ResetBitReader();
+    for (uint8 index : byteOrder)
+        in.ReadByteSeq(guidBytes[index]);
+
+    parsed.lootGuid = MopGroupPacketDetail::AssembleGuid(guidBytes);
+    request = parsed;
+    return in.rpos() == in.size();
+}
+
+inline bool MopGroupLootPackets::BuildStartRoll(WorldPacket& out,
+    StartRoll const& start)
+{
+    if (!MopGroupPacketDetail::IsValidLootItem(start.item))
+        return false;
+
+    MopLootPackets::LootItem const& item = start.item;
+    out.Initialize(SMSG_LOOT_START_ROLL, 64);
+
+    // Wow.exe 18414 reader 0x006EEDED consumes the whole item bit record
+    // before the loot-source GUID and scalar byte phase.
+    out.WriteBits(item.slotType, 3);
+    out.WriteBit(!item.hasLootListId);
+    MopLootPackets::WriteGuidMask(out, start.lootGuid,
+        { 3, 1, 7, 6, 2, 4, 5, 0 });
+    out.WriteBit(!item.hasOptionalByte);
+    out.WriteBits(item.unknown, 2);
+    out.FlushBits();
+
+    MopLootPackets::WriteGuidBytes(out, start.lootGuid, { 7 });
+    out << item.randomSuffix;
+    MopLootPackets::WriteGuidBytes(out, start.lootGuid, { 5 });
+    out << start.mapId << item.randomPropertyId;
+    if (item.hasLootListId)
+        out << item.lootListId;
+    MopLootPackets::WriteGuidBytes(out, start.lootGuid, { 4, 0, 3, 2 });
+    MopGroupPacketDetail::WriteLootSitu(out, item);
+    out << item.itemId << start.offeredVoteMask << item.count <<
+        start.itemSlot << start.durationMs;
+    if (item.hasOptionalByte)
+        out << item.optionalByte;
+    MopLootPackets::WriteGuidBytes(out, start.lootGuid, { 6 });
+    out << item.displayInfoId;
+    MopLootPackets::WriteGuidBytes(out, start.lootGuid, { 1 });
+    return true;
+}
+
+inline bool MopGroupLootPackets::BuildRollUpdate(WorldPacket& out,
+    RollUpdate const& update)
+{
+    if (!MopGroupPacketDetail::IsValidLootItem(update.item))
+        return false;
+
+    MopLootPackets::LootItem const& item = update.item;
+    out.Initialize(SMSG_LOOT_ROLL, 72);
+
+    // Reader 0x006E8B26 interleaves two GUID masks with the item options.
+    // Keeping the bit phase contiguous is required before any XOR GUID byte.
+    MopLootPackets::WriteGuidMask(out, update.lootGuid, { 6 });
+    MopLootPackets::WriteGuidMask(out, update.participantGuid, { 6 });
+    MopLootPackets::WriteGuidMask(out, update.lootGuid, { 5, 7 });
+    out.WriteBit(!item.hasOptionalByte);
+    MopLootPackets::WriteGuidMask(out, update.participantGuid, { 3, 7 });
+    MopLootPackets::WriteGuidMask(out, update.lootGuid, { 4 });
+    out.WriteBit(!update.hasItemSlot);
+    MopLootPackets::WriteGuidMask(out, update.lootGuid, { 0, 2 });
+    MopLootPackets::WriteGuidMask(out, update.participantGuid, { 1, 0 });
+    out.WriteBit(item.canTradeToTapList);
+    out.WriteBits(item.unknown, 2);
+    MopLootPackets::WriteGuidMask(out, update.lootGuid, { 3 });
+    out.WriteBit(update.autoPass);
+    MopLootPackets::WriteGuidMask(out, update.participantGuid, { 5 });
+    out.WriteBits(item.slotType, 3);
+    MopLootPackets::WriteGuidMask(out, update.participantGuid, { 4, 2 });
+    MopLootPackets::WriteGuidMask(out, update.lootGuid, { 1 });
+    out.FlushBits();
+
+    MopLootPackets::WriteGuidBytes(out, update.lootGuid, { 7 });
+    MopLootPackets::WriteGuidBytes(out, update.participantGuid, { 6 });
+    MopLootPackets::WriteGuidBytes(out, update.lootGuid, { 0, 5, 3 });
+    if (update.hasItemSlot)
+        out << update.itemSlot;
+    out << item.displayInfoId << item.randomSuffix << item.randomPropertyId;
+    MopGroupPacketDetail::WriteLootSitu(out, item);
+    MopLootPackets::WriteGuidBytes(out, update.lootGuid, { 1, 4 });
+    MopLootPackets::WriteGuidBytes(out, update.participantGuid, { 2 });
+    MopLootPackets::WriteGuidBytes(out, update.lootGuid, { 2 });
+    out << item.itemId;
+    MopLootPackets::WriteGuidBytes(out, update.participantGuid, { 4 });
+    out << update.rollNumber;
+    if (item.hasOptionalByte)
+        out << item.optionalByte;
+    MopLootPackets::WriteGuidBytes(out, update.lootGuid, { 6 });
+    MopLootPackets::WriteGuidBytes(out, update.participantGuid, { 1, 0 });
+    out << update.rollType;
+    MopLootPackets::WriteGuidBytes(out, update.participantGuid, { 7 });
+    out << item.count;
+    MopLootPackets::WriteGuidBytes(out, update.participantGuid, { 5, 3 });
+    return true;
+}
+
+inline bool MopGroupLootPackets::BuildRollWinner(WorldPacket& out,
+    RollWinner const& winner)
+{
+    if (!MopGroupPacketDetail::IsValidLootItem(winner.item))
+        return false;
+
+    MopLootPackets::LootItem const& item = winner.item;
+    out.Initialize(SMSG_LOOT_ROLL_WON, 72);
+
+    // Reader 0x006D9F83 uses the participant as the winner identity and the
+    // second packed GUID as the loot source whose active roll is finalized.
+    MopLootPackets::WriteGuidMask(out, winner.winnerGuid, { 0 });
+    MopLootPackets::WriteGuidMask(out, winner.lootGuid, { 3 });
+    out.WriteBits(item.unknown, 2);
+    MopLootPackets::WriteGuidMask(out, winner.winnerGuid, { 3, 2, 6, 7 });
+    out.WriteBit(!item.hasOptionalByte);
+    MopLootPackets::WriteGuidMask(out, winner.lootGuid, { 7, 1 });
+    MopLootPackets::WriteGuidMask(out, winner.winnerGuid, { 4, 1 });
+    MopLootPackets::WriteGuidMask(out, winner.lootGuid, { 4 });
+    MopLootPackets::WriteGuidMask(out, winner.winnerGuid, { 5 });
+    out.WriteBits(item.slotType, 3);
+    MopLootPackets::WriteGuidMask(out, winner.lootGuid, { 0, 2 });
+    out.WriteBit(!winner.hasItemSlot);
+    out.WriteBit(item.canTradeToTapList);
+    MopLootPackets::WriteGuidMask(out, winner.lootGuid, { 6, 5 });
+    out.FlushBits();
+
+    MopGroupPacketDetail::WriteLootSitu(out, item);
+    out << item.displayInfoId;
+    MopLootPackets::WriteGuidBytes(out, winner.winnerGuid, { 2 });
+    MopLootPackets::WriteGuidBytes(out, winner.lootGuid, { 7 });
+    out << item.randomSuffix;
+    MopLootPackets::WriteGuidBytes(out, winner.winnerGuid, { 5 });
+    MopLootPackets::WriteGuidBytes(out, winner.lootGuid, { 3 });
+    MopLootPackets::WriteGuidBytes(out, winner.winnerGuid, { 7 });
+    MopLootPackets::WriteGuidBytes(out, winner.lootGuid, { 1, 2, 0 });
+    MopLootPackets::WriteGuidBytes(out, winner.winnerGuid, { 3 });
+    out << winner.rollNumber << item.randomPropertyId;
+    MopLootPackets::WriteGuidBytes(out, winner.lootGuid, { 6 });
+    MopLootPackets::WriteGuidBytes(out, winner.winnerGuid, { 1, 4 });
+    out << winner.rollType;
+    MopLootPackets::WriteGuidBytes(out, winner.winnerGuid, { 6 });
+    if (winner.hasItemSlot)
+        out << winner.itemSlot;
+    MopLootPackets::WriteGuidBytes(out, winner.lootGuid, { 4 });
+    out << item.itemId;
+    MopLootPackets::WriteGuidBytes(out, winner.lootGuid, { 5 });
+    MopLootPackets::WriteGuidBytes(out, winner.winnerGuid, { 0 });
+    out << item.count;
+    if (item.hasOptionalByte)
+        out << item.optionalByte;
+    return true;
+}
+
+inline bool MopGroupLootPackets::BuildAllPassed(WorldPacket& out,
+    AllPassed const& passed)
+{
+    if (!MopGroupPacketDetail::IsValidLootItem(passed.item))
+        return false;
+
+    MopLootPackets::LootItem const& item = passed.item;
+    out.Initialize(SMSG_LOOT_ALL_PASSED, 56);
+
+    // Reader 0x006E334B closes the active roll without a participant GUID.
+    out.WriteBit(!passed.hasItemSlot);
+    out.WriteBit(!item.hasOptionalByte);
+    MopLootPackets::WriteGuidMask(out, passed.lootGuid, { 2, 4, 3, 1 });
+    out.WriteBit(item.canTradeToTapList);
+    out.WriteBits(item.unknown, 2);
+    out.WriteBits(item.slotType, 3);
+    MopLootPackets::WriteGuidMask(out, passed.lootGuid, { 6, 5, 7, 0 });
+    out.FlushBits();
+
+    MopLootPackets::WriteGuidBytes(out, passed.lootGuid, { 6, 5, 0 });
+    out << item.count;
+    MopLootPackets::WriteGuidBytes(out, passed.lootGuid, { 3, 2 });
+    if (item.hasOptionalByte)
+        out << item.optionalByte;
+    out << item.displayInfoId;
+    MopLootPackets::WriteGuidBytes(out, passed.lootGuid, { 1 });
+    out << item.randomSuffix;
+    MopGroupPacketDetail::WriteLootSitu(out, item);
+    MopLootPackets::WriteGuidBytes(out, passed.lootGuid, { 4 });
+    out << item.itemId << item.randomPropertyId;
+    if (passed.hasItemSlot)
+        out << passed.itemSlot;
+    MopLootPackets::WriteGuidBytes(out, passed.lootGuid, { 7 });
+    return true;
 }
 
 inline MopGroupMarkerPackets::MinimapPingRequest

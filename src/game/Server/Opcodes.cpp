@@ -343,6 +343,13 @@ void InitializeOpcodes()
     DefS(SMSG_LOOT_REMOVED, "SMSG_LOOT_REMOVED");
     DefS(SMSG_LOOT_MONEY_NOTIFY, "SMSG_LOOT_MONEY_NOTIFY");
     DefS(SMSG_LOOT_CLEAR_MONEY, "SMSG_LOOT_CLEAR_MONEY");
+    // The shipped FrameXML group-roll state machine uses this five-packet
+    // handshake; every body is direct-reader/writer verified for 18414.
+    DefC(CMSG_LOOT_ROLL, "CMSG_LOOT_ROLL", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLootRoll);
+    DefS(SMSG_LOOT_START_ROLL, "SMSG_LOOT_START_ROLL");
+    DefS(SMSG_LOOT_ROLL, "SMSG_LOOT_ROLL");
+    DefS(SMSG_LOOT_ROLL_WON, "SMSG_LOOT_ROLL_WON");
+    DefS(SMSG_LOOT_ALL_PASSED, "SMSG_LOOT_ALL_PASSED");
 
     // Directly verified 18414 GameObject use/report requests and the
     // type-dependent animation/page packets sent by established gameplay.

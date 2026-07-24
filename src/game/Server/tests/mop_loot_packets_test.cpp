@@ -7,6 +7,7 @@
  * Copyright (C) 2026 MaNGOS <https://www.getmangos.eu>
  */
 
+#include "Group.h"
 #include "LootMgr.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
@@ -157,6 +158,152 @@ static void TestAutostoreLootItemRejectsMalformedBodies()
             0x11, 0x51, 0x21, 0x81, 0x71, 0x61, 0x41, 0x31, 0x05, 0x99
         });
     CHECK(!MopLootPackets::ParseAutostoreLootItemRequest(trailing, entries));
+}
+
+static void TestGroupLootVoteRequest()
+{
+    MopGroupLootPackets::VoteRequest request;
+    WorldPacket dense = Packet(CMSG_LOOT_ROLL,
+        {
+            0x05, 0x02, 0xFF,
+            0x00, 0x02, 0x09, 0x05, 0x03, 0x07, 0x04, 0x06
+        });
+    CHECK(MopGroupLootPackets::ParseVoteRequest(dense, request));
+    CHECK(request.lootGuid == UINT64_C(0x0807060504030201));
+    CHECK(request.lootListId == 5);
+    CHECK(request.rollType == 2);
+    CHECK(dense.rpos() == dense.size());
+
+    WorldPacket sparse = Packet(CMSG_LOOT_ROLL,
+        { 0x07, 0x01, 0x90, 0x10, 0x89 });
+    CHECK(MopGroupLootPackets::ParseVoteRequest(sparse, request));
+    CHECK(request.lootGuid == UINT64_C(0x8800000000000011));
+    CHECK(request.lootListId == 7);
+    CHECK(request.rollType == 1);
+}
+
+static void TestGroupLootVoteRejectsMalformedBodies()
+{
+    MopGroupLootPackets::VoteRequest request;
+
+    WorldPacket truncated = Packet(CMSG_LOOT_ROLL,
+        { 0x05, 0x02, 0xFF, 0x00 });
+    CHECK(!MopGroupLootPackets::ParseVoteRequest(truncated, request));
+
+    WorldPacket trailing = Packet(CMSG_LOOT_ROLL,
+        { 0x05, 0x02, 0x00, 0x99 });
+    CHECK(!MopGroupLootPackets::ParseVoteRequest(trailing, request));
+}
+
+static MopLootPackets::LootItem DenseGroupLootItem()
+{
+    MopLootPackets::LootItem item;
+    item.itemId = 0x55667788;
+    item.displayInfoId = 0xDDEEFF00;
+    item.count = 2;
+    item.randomPropertyId = int32(0x99AABBCC);
+    item.randomSuffix = 0x11223344;
+    item.optionalByte = 5;
+    item.hasOptionalByte = true;
+    item.lootListId = 7;
+    item.hasLootListId = true;
+    item.unknown = 3;
+    item.slotType = 4;
+    item.canTradeToTapList = true;
+    item.situ = { 0xDD, 0xCC, 0xBB, 0xAA };
+    return item;
+}
+
+static void TestGroupLootStartRoll()
+{
+    MopGroupLootPackets::StartRoll start;
+    start.lootGuid = UINT64_C(0x0807060504030201);
+    start.mapId = 0x0A0B0C0D;
+    start.itemSlot = 7;
+    start.offeredVoteMask = 0x0F;
+    start.durationMs = 60000;
+    start.item = DenseGroupLootItem();
+
+    WorldPacket packet;
+    CHECK(MopGroupLootPackets::BuildStartRoll(packet, start));
+    CheckPacket(packet, SMSG_LOOT_START_ROLL,
+        {
+            0x8F, 0xF6, 0x09, 0x44, 0x33, 0x22, 0x11, 0x07,
+            0x0D, 0x0C, 0x0B, 0x0A, 0xCC, 0xBB, 0xAA, 0x99,
+            0x07, 0x04, 0x00, 0x05, 0x02, 0x04, 0x00, 0x00,
+            0x00, 0xDD, 0xCC, 0xBB, 0xAA, 0x88, 0x77, 0x66,
+            0x55, 0x0F, 0x02, 0x00, 0x00, 0x00, 0x07, 0x60,
+            0xEA, 0x00, 0x00, 0x05, 0x06, 0x00, 0xFF, 0xEE,
+            0xDD, 0x03
+        });
+}
+
+static void TestGroupLootRollUpdate()
+{
+    MopGroupLootPackets::RollUpdate update;
+    update.lootGuid = UINT64_C(0x0807060504030201);
+    update.participantGuid = UINT64_C(0x1817161514131211);
+    update.rollNumber = 100;
+    update.itemSlot = 7;
+    update.rollType = 1;
+    update.autoPass = true;
+    update.item = DenseGroupLootItem();
+
+    WorldPacket packet;
+    CHECK(MopGroupLootPackets::BuildRollUpdate(packet, update));
+    CheckPacket(packet, SMSG_LOOT_ROLL,
+        {
+            0xF7, 0x7F, 0xF3, 0x80, 0x09, 0x16, 0x00, 0x07,
+            0x05, 0x07, 0x00, 0xFF, 0xEE, 0xDD, 0x44, 0x33,
+            0x22, 0x11, 0xCC, 0xBB, 0xAA, 0x99, 0x04, 0x00,
+            0x00, 0x00, 0xDD, 0xCC, 0xBB, 0xAA, 0x03, 0x04,
+            0x12, 0x02, 0x88, 0x77, 0x66, 0x55, 0x14, 0x64,
+            0x00, 0x00, 0x00, 0x05, 0x06, 0x13, 0x10, 0x01,
+            0x19, 0x02, 0x00, 0x00, 0x00, 0x17, 0x15
+        });
+}
+
+static void TestGroupLootRollWinner()
+{
+    MopGroupLootPackets::RollWinner winner;
+    winner.lootGuid = UINT64_C(0x0807060504030201);
+    winner.winnerGuid = UINT64_C(0x1817161514131211);
+    winner.rollNumber = 100;
+    winner.itemSlot = 7;
+    winner.rollType = 1;
+    winner.item = DenseGroupLootItem();
+
+    WorldPacket packet;
+    CHECK(MopGroupLootPackets::BuildRollWinner(packet, winner));
+    CheckPacket(packet, SMSG_LOOT_ROLL_WON,
+        {
+            0xFF, 0x7F, 0x37, 0x04, 0x00, 0x00, 0x00, 0xDD,
+            0xCC, 0xBB, 0xAA, 0x00, 0xFF, 0xEE, 0xDD, 0x12,
+            0x09, 0x44, 0x33, 0x22, 0x11, 0x17, 0x05, 0x19,
+            0x03, 0x02, 0x00, 0x15, 0x64, 0x00, 0x00, 0x00,
+            0xCC, 0xBB, 0xAA, 0x99, 0x06, 0x13, 0x14, 0x01,
+            0x16, 0x07, 0x04, 0x88, 0x77, 0x66, 0x55, 0x07,
+            0x10, 0x02, 0x00, 0x00, 0x00, 0x05
+        });
+}
+
+static void TestGroupLootAllPassed()
+{
+    MopGroupLootPackets::AllPassed passed;
+    passed.lootGuid = UINT64_C(0x0807060504030201);
+    passed.itemSlot = 7;
+    passed.item = DenseGroupLootItem();
+
+    WorldPacket packet;
+    CHECK(MopGroupLootPackets::BuildAllPassed(packet, passed));
+    CheckPacket(packet, SMSG_LOOT_ALL_PASSED,
+        {
+            0x3F, 0xCF, 0x06, 0x07, 0x00, 0x02, 0x00, 0x00,
+            0x00, 0x05, 0x02, 0x05, 0x00, 0xFF, 0xEE, 0xDD,
+            0x03, 0x44, 0x33, 0x22, 0x11, 0x04, 0x00, 0x00,
+            0x00, 0xDD, 0xCC, 0xBB, 0xAA, 0x04, 0x88, 0x77,
+            0x66, 0x55, 0xCC, 0xBB, 0xAA, 0x99, 0x07, 0x09
+        });
 }
 
 static MopLootPackets::LootResponse BaseLootResponse()
@@ -355,6 +502,12 @@ int main(int /*argc*/, char** /*argv*/)
     TestLootMoneyRequest();
     TestAutostoreLootItemRequest();
     TestAutostoreLootItemRejectsMalformedBodies();
+    TestGroupLootVoteRequest();
+    TestGroupLootVoteRejectsMalformedBodies();
+    TestGroupLootStartRoll();
+    TestGroupLootRollUpdate();
+    TestGroupLootRollWinner();
+    TestGroupLootAllPassed();
     TestEmptyLootResponse();
     TestDenseItemLootResponse();
     TestDenseCurrencyLootResponse();

@@ -541,14 +541,9 @@ void WorldSession::HandleLootMethodOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleLootRoll(WorldPacket& recv_data)
 {
-    ObjectGuid lootedTarget;
-    uint32 itemSlot;
-    uint8  rollType;
-    recv_data >> lootedTarget;                              // guid of the item rolled
-    recv_data >> itemSlot;
-    recv_data >> rollType;
-
-    // DEBUG_LOG("WORLD RECIEVE CMSG_LOOT_ROLL, From:%u, Numberofplayers:%u, rollType:%u", (uint32)Guid, NumberOfPlayers, rollType);
+    MopGroupLootPackets::VoteRequest request;
+    if (!MopGroupLootPackets::ParseVoteRequest(recv_data, request))
+        return;
 
     Group* group = GetPlayer()->GetGroup();
     if (!group)
@@ -556,18 +551,20 @@ void WorldSession::HandleLootRoll(WorldPacket& recv_data)
         return;
     }
 
-    if (rollType >= MAX_ROLL_FROM_CLIENT)
+    if (request.rollType >= MAX_ROLL_FROM_CLIENT)
     {
         return;
     }
 
-    // everything is fine, do it, if false then some cheating problem found
-    if (!group->CountRollVote(GetPlayer(), lootedTarget, itemSlot, RollVote(rollType)))
+    // The client-local Lua roll ID is not on the wire; the server resolves the
+    // vote by the packed loot-source GUID and the raw loot-list slot.
+    if (!group->CountRollVote(GetPlayer(), ObjectGuid(request.lootGuid),
+            request.lootListId, RollVote(request.rollType)))
     {
         return;
     }
 
-    switch (rollType)
+    switch (request.rollType)
     {
         case ROLL_NEED:
             GetPlayer()->GetAchievementMgr().UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_ROLL_NEED, 1);

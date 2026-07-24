@@ -898,7 +898,11 @@ add_test(NAME mop_loot_packets_source
 foreach(mutation IN ITEMS open_parser take_parser money_parser release_parser
         response_sender release_sender removed_sender money_sender situ_model
         registration_cmsg registration_smsg admission opcode_values unknown_name
-        legacy_reader legacy_sender)
+        legacy_reader legacy_sender
+        group_vote_parser group_start_sender group_update_sender
+        group_winner_sender group_passed_sender group_need_vote
+        group_item_model
+        group_registration_cmsg group_registration_smsg group_admission)
     add_test(NAME mop_loot_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

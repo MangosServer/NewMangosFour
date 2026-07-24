@@ -345,6 +345,10 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_LOOT_REMOVED:                    // MopLootPackets::BuildLootRemoved
         case SMSG_LOOT_MONEY_NOTIFY:               // MopLootPackets::BuildLootMoneyNotify
         case SMSG_LOOT_CLEAR_MONEY:                // MopLootPackets::BuildLootClearMoney
+        case SMSG_LOOT_START_ROLL:                 // MopGroupLootPackets::BuildStartRoll
+        case SMSG_LOOT_ROLL:                       // MopGroupLootPackets::BuildRollUpdate
+        case SMSG_LOOT_ROLL_WON:                   // MopGroupLootPackets::BuildRollWinner
+        case SMSG_LOOT_ALL_PASSED:                 // MopGroupLootPackets::BuildAllPassed
         case SMSG_GAMEOBJECT_CUSTOM_ANIM:          // MopGameObjectPackets::BuildCustomAnimation
         case SMSG_GAMEOBJECT_DESPAWN_ANIM:         // MopGameObjectPackets::BuildDespawnAnimation
         case SMSG_GAMEOBJECT_PAGETEXT:             // MopGameObjectPackets::BuildPageText

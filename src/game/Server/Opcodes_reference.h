@@ -175,9 +175,9 @@
  *   TOTAL SMSG rows                   925
  *
  * SUBSYSTEM CONFIDENCE: high=359, low=223, medium=183, none=160
- * STATUS TOTALS: ACTIVE=299, DOC=435, DORMANT=786
- *   SMSG: ACTIVE=173, DOC=268, DORMANT=484
- *   CMSG: ACTIVE=126, DOC=167, DORMANT=302
+ * STATUS TOTALS: ACTIVE=304, DOC=435, DORMANT=781
+ *   SMSG: ACTIVE=177, DOC=268, DORMANT=480
+ *   CMSG: ACTIVE=127, DOC=167, DORMANT=301
  */
 
 // CAVEATS -- read before trusting any single row:
@@ -646,11 +646,11 @@ typedef uint16_t uint16;
  *  -- LootRoll.cpp (7) --
  *   SMSG_LOOT_MASTER_LIST                          0x02BF  DORMANT  [low-conf]
  *   SMSG_UNKNOWN_080F                              0x080F  DORMANT  [direct reader: loot-roll batch; exact name unresolved]
- *   SMSG_LOOT_ROLL_WON                             0x0A3A  DORMANT 
- *   SMSG_LOOT_START_ROLL                           0x0EAA  DORMANT 
- *   SMSG_LOOT_ALL_PASSED                           0x0EBB  DORMANT 
+ *   SMSG_LOOT_ROLL_WON                             0x0A3A  ACTIVE
+ *   SMSG_LOOT_START_ROLL                           0x0EAA  ACTIVE
+ *   SMSG_LOOT_ALL_PASSED                           0x0EBB  ACTIVE
  *   SMSG_LOOT_ROLLS_COMPLETE                       0x101B  DORMANT  [low-conf]
- *   SMSG_LOOT_ROLL                                 0x1840  DORMANT  [medium-conf]
+ *   SMSG_LOOT_ROLL                                 0x1840  ACTIVE   [medium-conf]
  *
  *  -- LossOfControlUI.cpp (8) --
  *   SMSG_UNKNOWN_0x021F                            0x021F  DOC      [low-conf]
@@ -1797,7 +1797,7 @@ typedef uint16_t uint16;
  *   CMSG_UNKNOWN_0x15BA                            0x15BA  DOC     
  *   CMSG_GROUP_SET_LEADER                          0x15BB  DORMANT 
  *   CMSG_OFFER_PETITION                            0x15BE  DORMANT 
- *   CMSG_LOOT_ROLL                                 0x15C2  DORMANT 
+ *   CMSG_LOOT_ROLL                                 0x15C2  ACTIVE
  *   CMSG_GUILD_EVENT_LOG_QUERY                     0x15D9  DORMANT 
  *   CMSG_CHALLENGE_MODE_REQUEST_LEADERS            0x15DB  DOC     
  *   CMSG_REQUEST_RESEARCH_HISTORY                  0x15E2  DOC     
