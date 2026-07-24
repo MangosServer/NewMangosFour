@@ -248,6 +248,16 @@ void MopUpdateObject::AppendSelfPlayerValuesBlock(ByteBuffer& out, uint64 guid,
         const uint16 sourceIndex = sourceFields[i].index;
         const uint32 value = sourceFields[i].value;
 
+        if (sourceIndex >= ObserverVisibleItemSourceStart &&
+            sourceIndex < ObserverVisibleItemSourceStart + ObserverVisibleItemFieldCount)
+        {
+            uint16 targetIndex = 0;
+            const bool translated = TranslateObserverPlayerIndex(sourceIndex, targetIndex);
+            MANGOS_ASSERT(translated);
+            fields.push_back({ targetIndex, value });
+            continue;
+        }
+
         if (sourceIndex >= SelfInventorySourceStart &&
             sourceIndex < SelfInventorySourceStart + SelfInventoryFieldCount)
         {

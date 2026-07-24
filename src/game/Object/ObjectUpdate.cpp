@@ -563,7 +563,8 @@ void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player* target) c
         std::vector<MopUpdateObject::StaticField> fields;
         if (target == static_cast<Player const*>(this))
         {
-            fields.reserve(25 + MopUpdateObject::SelfInventoryFieldCount);
+            fields.reserve(25 + MopUpdateObject::ObserverVisibleItemFieldCount +
+                MopUpdateObject::SelfInventoryFieldCount);
             auto addIfChanged = [this, &fields](uint16 sourceIndex)
             {
                 if (m_changedValues[sourceIndex])
@@ -591,6 +592,15 @@ void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player* target) c
             addIfChanged(UNIT_FIELD_COMBATREACH);
             addIfChanged(UNIT_FIELD_DISPLAYID);
             addIfChanged(UNIT_FIELD_NATIVEDISPLAYID);
+
+            // Local equipment changes use the same public 18414 visible-item
+            // projection as updates sent to nearby observers.
+            for (uint16 i = MopUpdateObject::ObserverVisibleItemSourceStart;
+                 i < MopUpdateObject::ObserverVisibleItemSourceStart +
+                     MopUpdateObject::ObserverVisibleItemFieldCount; ++i)
+            {
+                addIfChanged(i);
+            }
 
             for (uint16 i = MopUpdateObject::SelfInventorySourceStart;
                  i < MopUpdateObject::SelfInventorySourceStart + MopUpdateObject::SelfInventoryFieldCount; ++i)

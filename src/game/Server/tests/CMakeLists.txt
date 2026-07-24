@@ -87,7 +87,7 @@ add_test(NAME mop_self_values_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_self_values_source_test.cmake)
 
-foreach(mutation IN ITEMS inventory_only health_feed progression_feed)
+foreach(mutation IN ITEMS inventory_only health_feed progression_feed visible_item_feed)
     add_test(NAME mop_self_values_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

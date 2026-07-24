@@ -12,6 +12,11 @@ elseif(MUTATION STREQUAL "progression_feed")
     string(REPLACE "addIfChanged(PLAYER_XP);"
         "/* removed self XP feed */"
         object_update "${object_update}")
+elseif(MUTATION STREQUAL "visible_item_feed")
+    string(REPLACE
+        "for (uint16 i = MopUpdateObject::ObserverVisibleItemSourceStart;"
+        "for (uint16 i = 0; /* removed self visible-item feed */"
+        object_update "${object_update}")
 endif()
 
 string(FIND "${object_update}"
@@ -49,6 +54,8 @@ require_once("addIfChanged\\(UNIT_FIELD_LEVEL\\)"
     "self level feed")
 require_once("for \\(uint16 i = MopUpdateObject::SelfInventorySourceStart"
     "self inventory feed")
+require_once("for \\(uint16 i = MopUpdateObject::ObserverVisibleItemSourceStart"
+    "self visible-item feed")
 require_once("addIfChanged\\(PLAYER_FIELD_COINAGE\\)"
     "self coinage low-word feed")
 require_once("addIfChanged\\(PLAYER_FIELD_COINAGE \\+ 1\\)"
