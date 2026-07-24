@@ -310,97 +310,15 @@ void PlayerMenu::SendPointOfInterest(uint32 poi_id) const
 void PlayerMenu::SendTalking(uint32 textID) const
 {
     GossipText const* pGossip = sObjectMgr.GetGossipText(textID);
+    MopNpcTextPackets::Response const response =
+        MopNpcTextPackets::MakeResponse(textID, pGossip);
 
-    WorldPacket data(SMSG_NPC_TEXT_UPDATE, 100); // guess size
-    data << textID; // can be < 0
-
-    if (!pGossip)
-    {
-        for (uint32 i = 0; i < 8; ++i)
-        {
-            data << float(0);
-            data << "Greetings $N";
-            data << "Greetings $N";
-            data << uint32(0);
-            data << uint32(0);
-            data << uint32(0);
-            data << uint32(0);
-            data << uint32(0);
-            data << uint32(0);
-            data << uint32(0);
-        }
-    }
-    else
-    {
-        std::string Text_0[MAX_GOSSIP_TEXT_OPTIONS], Text_1[MAX_GOSSIP_TEXT_OPTIONS];
-        for (int i = 0; i < MAX_GOSSIP_TEXT_OPTIONS; ++i)
-        {
-            Text_0[i] = pGossip->Options[i].Text_0;
-            Text_1[i] = pGossip->Options[i].Text_1;
-        }
-
-        int loc_idx = GetMenuSession()->GetSessionDbLocaleIndex();
-
-        sObjectMgr.GetNpcTextLocaleStringsAll(textID, loc_idx, &Text_0, &Text_1);
-
-        for (int i = 0; i < MAX_GOSSIP_TEXT_OPTIONS; ++i)
-        {
-            data << pGossip->Options[i].Probability;
-
-            if (Text_0[i].empty())
-            {
-                data << Text_1[i];
-            }
-            else
-            {
-                data << Text_0[i];
-            }
-
-            if (Text_1[i].empty())
-            {
-                data << Text_0[i];
-            }
-            else
-            {
-                data << Text_1[i];
-            }
-
-            data << pGossip->Options[i].Language;
-
-            for (int j = 0; j < 3; ++j)
-            {
-                data << pGossip->Options[i].Emotes[j]._Delay;
-                data << pGossip->Options[i].Emotes[j]._Emote;
-            }
-        }
-    }
+    WorldPacket data;
+    MopNpcTextPackets::BuildResponse(data, response);
     GetMenuSession()->SendPacket(&data);
 
-    DEBUG_LOG("WORLD: Sent SMSG_NPC_TEXT_UPDATE ");
-}
-
-// Sends a talking message to the player by title and text
-void PlayerMenu::SendTalking(char const* title, char const* text) const
-{
-    WorldPacket data(SMSG_NPC_TEXT_UPDATE, 50); // guess size
-    data << uint32(0);
-    for (uint32 i = 0; i < 8; ++i)
-    {
-        data << float(0);
-        data << title;
-        data << text;
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-        data << uint32(0);
-    }
-
-    GetMenuSession()->SendPacket(&data);
-
-    DEBUG_LOG("WORLD: Sent SMSG_NPC_TEXT_UPDATE ");
+    DEBUG_LOG("WORLD: Sent SMSG_NPC_TEXT_UPDATE ID '%u' mapped=%u",
+        textID, response.found ? 1u : 0u);
 }
 
 /*********************************************************/

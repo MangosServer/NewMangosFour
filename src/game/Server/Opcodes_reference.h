@@ -421,7 +421,7 @@ typedef uint16_t uint16;
  *   SMSG_PET_NAME_QUERY_RESPONSE                   0x0ABE  DORMANT 
  *   SMSG_INVALIDATE_PLAYER                         0x102E  DORMANT  [medium-conf]
  *   SMSG_PETITION_QUERY_RESPONSE                   0x1083  DORMANT  [medium-conf]
- *   SMSG_NPC_TEXT_UPDATE                           0x140A  DORMANT  [high-conf]
+ *   SMSG_NPC_TEXT_UPDATE                           0x140A  ACTIVE   [high-conf]
  *   SMSG_BATTLE_PET_QUERY_NAME_RESPONSE            0x1540  DOC     
  *   SMSG_NAME_QUERY_RESPONSE                       0x169B  DORMANT 
  *   SMSG_GUILD_QUERY_RESPONSE                      0x1B79  DORMANT 
@@ -1377,7 +1377,7 @@ typedef uint16_t uint16;
  *   CMSG_IGNORE_TRADE                              0x0276  DORMANT 
  *   CMSG_RIDE_VEHICLE_INTERACT                     0x0277  DORMANT 
  *   CMSG_SET_FACTION_ATWAR                         0x027B  DORMANT 
- *   CMSG_NPC_TEXT_QUERY                            0x0287  DORMANT  [high-conf]
+ *   CMSG_NPC_TEXT_QUERY                            0x0287  ACTIVE   [high-conf]
  *   CMSG_MESSAGECHAT_ADDON_PARTY                   0x028E  DORMANT 
  *   CMSG_SUSPEND_TOKEN_RESPONSE                    0x0292  DOC     
  *   CMSG_UNREGISTER_ALL_ADDON_PREFIXES             0x029F  DOC     

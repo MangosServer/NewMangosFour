@@ -410,85 +410,28 @@ void WorldSession::HandleCorpseQueryOpcode(WorldPacket & /*recv_data*/)
  */
 void WorldSession::HandleNpcTextQueryOpcode(WorldPacket& recv_data)
 {
-    uint32 textID;
-    ObjectGuid guid;
-
-    recv_data >> textID;
-    recv_data >> guid;
-
-    DETAIL_LOG("WORLD: CMSG_NPC_TEXT_QUERY ID '%u'", textID);
-
-    _player->SetTargetGuid(guid);
-
-    GossipText const* pGossip = sObjectMgr.GetGossipText(textID);
-
-    WorldPacket data(SMSG_NPC_TEXT_UPDATE, 100);            // guess size
-    data << textID;
-
-    if (!pGossip)
+    MopNpcTextPackets::Request request;
+    if (!MopNpcTextPackets::ParseRequest(recv_data, request))
     {
-        for (uint32 i = 0; i < MAX_GOSSIP_TEXT_OPTIONS; ++i)
-        {
-            data << float(0);
-            data << "Greetings $N";
-            data << "Greetings $N";
-            data << uint32(0);
-            data << uint32(0);
-            data << uint32(0);
-            data << uint32(0);
-            data << uint32(0);
-            data << uint32(0);
-            data << uint32(0);
-        }
-    }
-    else
-    {
-        std::string Text_0[MAX_GOSSIP_TEXT_OPTIONS], Text_1[MAX_GOSSIP_TEXT_OPTIONS];
-        for (int i = 0; i < MAX_GOSSIP_TEXT_OPTIONS; ++i)
-        {
-            Text_0[i] = pGossip->Options[i].Text_0;
-            Text_1[i] = pGossip->Options[i].Text_1;
-        }
-
-        int loc_idx = GetSessionDbLocaleIndex();
-
-        sObjectMgr.GetNpcTextLocaleStringsAll(textID, loc_idx, &Text_0, &Text_1);
-
-        for (int i = 0; i < MAX_GOSSIP_TEXT_OPTIONS; ++i)
-        {
-            data << pGossip->Options[i].Probability;
-
-            if (Text_0[i].empty())
-            {
-                data << Text_1[i];
-            }
-            else
-            {
-                data << Text_0[i];
-            }
-
-            if (Text_1[i].empty())
-            {
-                data << Text_0[i];
-            }
-            else
-            {
-                data << Text_1[i];
-            }
-
-            data << pGossip->Options[i].Language;
-
-            for (int j = 0; j < 3; ++j)
-            {
-                data << pGossip->Options[i].Emotes[j]._Delay;
-                data << pGossip->Options[i].Emotes[j]._Emote;
-            }
-        }
+        sLog.outError("WORLD: Malformed CMSG_NPC_TEXT_QUERY");
+        return;
     }
 
+    DETAIL_LOG("WORLD: CMSG_NPC_TEXT_QUERY ID '%u'", request.textId);
+    _player->SetTargetGuid(request.sourceGuid);
+
+    GossipText const* pGossip = sObjectMgr.GetGossipText(request.textId);
+    MopNpcTextPackets::Response const response =
+        MopNpcTextPackets::MakeResponse(request.textId, pGossip);
+
+    // A missing mapping is an honest client cache miss. The 18414 leaf cannot
+    // consume the legacy inline strings retained for older gameplay code.
+    WorldPacket data;
+    MopNpcTextPackets::BuildResponse(data, response);
     SendPacket(&data);
 
-    DEBUG_LOG("WORLD: Sent SMSG_NPC_TEXT_UPDATE");
+    DEBUG_LOG("WORLD: Sent SMSG_NPC_TEXT_UPDATE ID '%u' mapped=%u",
+        request.textId, response.found ? 1u : 0u);
 }
 
 /**

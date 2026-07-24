@@ -373,10 +373,10 @@ void InitializeOpcodes()
     DefC(CMSG_QUEST_QUERY, "CMSG_QUEST_QUERY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestQueryOpcode);
     DefS(SMSG_QUEST_QUERY_RESPONSE, "SMSG_QUEST_QUERY_RESPONSE");
 
-    // CMSG_NPC_TEXT_QUERY is intentionally still dormant. Its 18414 response
-    // requires BroadcastText.db2 IDs, which the current npc_text backend does
-    // not retain; registering it would replace real gossip with a fabricated
-    // empty response.
+    // Build 18414 resolves NPC text through BroadcastText.db2. Rel23.02 stores
+    // those IDs explicitly; unmapped legacy rows return an honest cache miss.
+    DefC(CMSG_NPC_TEXT_QUERY, "CMSG_NPC_TEXT_QUERY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleNpcTextQueryOpcode);
+    DefS(SMSG_NPC_TEXT_UPDATE, "SMSG_NPC_TEXT_UPDATE");
 
     // Empty 18414 status refresh request. The handler replies through the
     // already-converted unified SMSG_LFG_UPDATE_STATUS body.

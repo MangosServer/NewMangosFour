@@ -99,6 +99,7 @@ void ObjectMgr::LoadGossipText()
     QueryResult* result = WorldDatabase.Query("SELECT * FROM `npc_text`");
 
     int count = 0;
+    uint32 mappedOptions = 0;
     if (!result)
     {
         BarGoLink bar(1);
@@ -134,6 +135,14 @@ void ObjectMgr::LoadGossipText()
             gText.Options[i].Text_0           = fields[cic++].GetCppString();
             gText.Options[i].Text_1           = fields[cic++].GetCppString();
 
+            // SELECT * makes the Rel23.02 column position part of this loader
+            // contract; the server version gate rejects older world schemas.
+            gText.Options[i].BroadcastTextId = fields[cic++].GetUInt32();
+            if (gText.Options[i].BroadcastTextId)
+            {
+                ++mappedOptions;
+            }
+
             gText.Options[i].Language         = fields[cic++].GetUInt32();
             gText.Options[i].Probability      = fields[cic++].GetFloat();
 
@@ -146,7 +155,8 @@ void ObjectMgr::LoadGossipText()
     }
     while (result->NextRow());
 
-    sLog.outString(">> Loaded %u npc texts", count);
+    sLog.outString(">> Loaded %u npc texts (%u BroadcastText mappings)",
+        count, mappedOptions);
     sLog.outString();
     delete result;
 }

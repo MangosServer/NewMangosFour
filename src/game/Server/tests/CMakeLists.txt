@@ -922,7 +922,10 @@ add_test(NAME mop_world_quest_interaction_packets_source
 
 foreach(mutation IN ITEMS area_parser area_leave no_corpse_builder
         quest_parser quest_builder client_registration server_registration
-        sender_admission opcode_values npc_dormant)
+        sender_admission opcode_values
+        npc_parser npc_mapping npc_loader
+        npc_client_registration npc_server_registration npc_admission
+        npc_legacy_sender npc_db_structure npc_reference_status)
     add_test(NAME mop_world_quest_interaction_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

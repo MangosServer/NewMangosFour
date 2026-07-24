@@ -5,9 +5,16 @@ endif()
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/MiscHandler.cpp" misc_handler)
 file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/QuestHandler.cpp" quest_handler)
 file(READ "${SOURCE_ROOT}/src/game/Object/PlayerQuest.cpp" player_quest)
+file(READ "${SOURCE_ROOT}/src/game/Object/ObjectMgrText.cpp" object_mgr_text)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/NPCHandler.h" npc_handler)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/QueryHandler.cpp" query_handler)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/GossipDef.cpp" gossip_def)
+file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/GossipDef.h" gossip_header)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.h" opcode_header)
+file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes_reference.h" opcode_reference)
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" world_session)
+file(READ "${SOURCE_ROOT}/src/shared/revision_data.h.in" revision_data)
 
 if(DEFINED MUTATION)
     if(MUTATION STREQUAL "area_parser")
@@ -51,11 +58,51 @@ if(DEFINED MUTATION)
             "CMSG_AREATRIGGER                             = 0x1C44"
             "CMSG_AREATRIGGER                             = 0x1C45"
             opcode_header "${opcode_header}")
-    elseif(MUTATION STREQUAL "npc_dormant")
+    elseif(MUTATION STREQUAL "npc_parser")
         string(REPLACE
-            "not retain; registering it would replace real gossip"
-            "not retain; DefC(CMSG_NPC_TEXT_QUERY, would replace real gossip"
+            "MopNpcTextPackets::ParseRequest(recv_data, request)"
+            "false"
+            query_handler "${query_handler}")
+    elseif(MUTATION STREQUAL "npc_mapping")
+        string(REPLACE
+            "MopNpcTextPackets::MakeResponse(request.textId, pGossip)"
+            "MopNpcTextPackets::Response()"
+            query_handler "${query_handler}")
+    elseif(MUTATION STREQUAL "npc_loader")
+        string(REPLACE
+            "BroadcastTextId = fields[cic++].GetUInt32()"
+            "BroadcastTextId = 0"
+            object_mgr_text "${object_mgr_text}")
+    elseif(MUTATION STREQUAL "npc_client_registration")
+        string(REPLACE
+            "DefC(CMSG_NPC_TEXT_QUERY,"
+            "DefC(CMSG_UNUSED_NPC_TEXT_QUERY,"
             opcode_registry "${opcode_registry}")
+    elseif(MUTATION STREQUAL "npc_server_registration")
+        string(REPLACE
+            "DefS(SMSG_NPC_TEXT_UPDATE,"
+            "DefS(SMSG_UNUSED_NPC_TEXT_UPDATE,"
+            opcode_registry "${opcode_registry}")
+    elseif(MUTATION STREQUAL "npc_admission")
+        string(REPLACE
+            "case SMSG_NPC_TEXT_UPDATE:"
+            "case SMSG_UNUSED_NPC_TEXT_UPDATE:"
+            world_session "${world_session}")
+    elseif(MUTATION STREQUAL "npc_legacy_sender")
+        string(REPLACE
+            "MopNpcTextPackets::BuildResponse(data, response)"
+            "data << \"Greetings $N\""
+            gossip_def "${gossip_def}")
+    elseif(MUTATION STREQUAL "npc_db_structure")
+        string(REPLACE
+            "WORLD_DB_STRUCTURE_NR       \"2\""
+            "WORLD_DB_STRUCTURE_NR       \"1\""
+            revision_data "${revision_data}")
+    elseif(MUTATION STREQUAL "npc_reference_status")
+        string(REPLACE
+            "CMSG_NPC_TEXT_QUERY                            0x0287  ACTIVE"
+            "CMSG_NPC_TEXT_QUERY                            0x0287  DORMANT"
+            opcode_reference "${opcode_reference}")
     else()
         message(FATAL_ERROR "unknown MUTATION=${MUTATION}")
     endif()
@@ -118,16 +165,60 @@ foreach(value IN ITEMS
     endif()
 endforeach()
 
-# NPC text is binary-identified and codec-tested, but activation must wait for
-# a backend that preserves the eight BroadcastText.db2 IDs required by 18414.
-string(FIND "${opcode_registry}" "DefC(CMSG_NPC_TEXT_QUERY," npc_registration)
-if(NOT npc_registration EQUAL -1)
-    message(FATAL_ERROR "backend-blocked CMSG_NPC_TEXT_QUERY was registered")
-endif()
+# NPC text must use the directly verified 18414 request/response codec and an
+# explicit backend field. Inline legacy strings cannot be framed for this leaf.
+require_once("${query_handler}"
+    "MopNpcTextPackets::ParseRequest\\(recv_data, request\\)"
+    "18414 NPC-text request parser")
+require_once("${query_handler}"
+    "MopNpcTextPackets::MakeResponse\\(request\\.textId, pGossip\\)"
+    "NPC-text query response mapping")
+require_once("${gossip_def}"
+    "MopNpcTextPackets::MakeResponse\\(textID, pGossip\\)"
+    "NPC-text direct response mapping")
+require_once("${object_mgr_text}"
+    "BroadcastTextId = fields\\[cic\\+\\+\\]\\.GetUInt32\\(\\)"
+    "BroadcastText database field loader")
+
+foreach(line IN ITEMS
+        "DefC(CMSG_NPC_TEXT_QUERY, \"CMSG_NPC_TEXT_QUERY\""
+        "DefS(SMSG_NPC_TEXT_UPDATE, \"SMSG_NPC_TEXT_UPDATE\");")
+    string(FIND "${opcode_registry}" "${line}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "missing NPC-text opcode registration: ${line}")
+    endif()
+endforeach()
+
 string(FIND "${world_session}" "case SMSG_NPC_TEXT_UPDATE:" npc_admission)
-if(NOT npc_admission EQUAL -1)
-    message(FATAL_ERROR "backend-blocked SMSG_NPC_TEXT_UPDATE was admitted")
+if(npc_admission EQUAL -1)
+    message(FATAL_ERROR "SMSG_NPC_TEXT_UPDATE is not admitted through send suppression")
 endif()
+
+foreach(legacy_source IN ITEMS query_handler gossip_def)
+    string(FIND "${${legacy_source}}" "Greetings $N" legacy_greeting)
+    if(NOT legacy_greeting EQUAL -1)
+        message(FATAL_ERROR "legacy inline NPC-text body remains in ${legacy_source}")
+    endif()
+endforeach()
+
+string(FIND "${gossip_header}"
+    "SendTalking(char const* title, char const* text)" dynamic_sender)
+if(NOT dynamic_sender EQUAL -1)
+    message(FATAL_ERROR "unframable arbitrary-string NPC-text sender remains")
+endif()
+
+foreach(reference IN ITEMS
+        "SMSG_NPC_TEXT_UPDATE                           0x140A  ACTIVE"
+        "CMSG_NPC_TEXT_QUERY                            0x0287  ACTIVE")
+    string(FIND "${opcode_reference}" "${reference}" reference_position)
+    if(reference_position EQUAL -1)
+        message(FATAL_ERROR "NPC-text reference status is not active: ${reference}")
+    endif()
+endforeach()
+
+require_once("${revision_data}"
+    "WORLD_DB_STRUCTURE_NR[ \t]+\"2\""
+    "BroadcastText-aware world schema requirement")
 
 string(FIND "${misc_handler}" "recv_data >> Trigger_ID;" stale_area_reader)
 if(NOT stale_area_reader EQUAL -1)

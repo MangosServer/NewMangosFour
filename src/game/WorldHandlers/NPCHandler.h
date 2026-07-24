@@ -158,6 +158,8 @@ struct GossipTextOption
 {
     std::string Text_0;
     std::string Text_1;
+    // Build 18414 resolves NPC text client-side through BroadcastText.db2.
+    uint32 BroadcastTextId = 0;
     uint32 Language;
     float Probability;
     QEmote Emotes[3];
@@ -169,5 +171,34 @@ struct GossipText
 {
     GossipTextOption Options[MAX_GOSSIP_TEXT_OPTIONS];
 };
+
+namespace MopNpcTextPackets
+{
+    inline Response MakeResponse(uint32 textId, GossipText const* gossip)
+    {
+        Response response;
+        response.textId = textId;
+        if (!gossip)
+        {
+            return response;
+        }
+
+        for (size_t index = 0; index < MAX_GOSSIP_TEXT_OPTIONS; ++index)
+        {
+            uint32 const broadcastTextId =
+                gossip->Options[index].BroadcastTextId;
+            response.broadcastTextIds[index] = broadcastTextId;
+
+            // A probability without a resolvable ID lets the client select a
+            // blank record, so unmapped alternatives must not participate.
+            response.probabilities[index] = broadcastTextId
+                ? gossip->Options[index].Probability
+                : 0.0f;
+            response.found = response.found || broadcastTextId != 0;
+        }
+
+        return response;
+    }
+}
 
 #endif

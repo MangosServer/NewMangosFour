@@ -200,6 +200,28 @@ static void TestNpcTextResponse()
         CHECK(found[index] == 0x00);
     }
     CHECK(found[72] == 0x80);
+
+    GossipText gossip = {};
+    gossip.Options[0].Probability = 0.75f;
+    gossip.Options[0].BroadcastTextId = 50471;
+
+    MopNpcTextPackets::Response mapped =
+        MopNpcTextPackets::MakeResponse(1234, &gossip);
+    CHECK(mapped.textId == 1234);
+    CHECK(mapped.found);
+    CHECK(mapped.probabilities[0] == 0.75f);
+    CHECK(mapped.broadcastTextIds[0] == 50471);
+
+    // Unmapped alternatives must not retain a probability: otherwise the
+    // client can randomly select BroadcastText ID zero and display no text.
+    gossip.Options[1].Probability = 0.25f;
+    MopNpcTextPackets::Response partiallyMapped =
+        MopNpcTextPackets::MakeResponse(1234, &gossip);
+    CHECK(partiallyMapped.probabilities[1] == 0.0f);
+
+    MopNpcTextPackets::Response unmapped =
+        MopNpcTextPackets::MakeResponse(1234, nullptr);
+    CHECK(!unmapped.found);
 }
 
 static void TestOpcodeValues()
