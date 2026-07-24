@@ -1216,7 +1216,8 @@ namespace MopCompactPackets
 typedef std::deque<Mail*> PlayerMails;
 
 // Max skill LINES a character can hold, NOT the number of skill UpdateFields.
-// The MoP skill block is 6 parallel arrays (LINEID/STEP/RANK/MAX_RANK/MODIFIER/TALENT),
+// The MoP skill block is 7 parallel arrays
+// (LINEID/STEP/RANK/STARTING_RANK/MAX_RANK/MODIFIER/TALENT),
 // each Size 64 uint32 of TWO_SHORT => 128 skills per array. The load/zero-fill/SetSkill
 // loops index skills as (field = i/2), so this MUST be the per-array skill capacity (128).
 // It was 448 (the total field count across 7 blocks), which made the zero-fill loop index

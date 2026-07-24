@@ -271,6 +271,18 @@ void MopUpdateObject::AppendSelfPlayerValuesBlock(ByteBuffer& out, uint64 guid,
             fields.push_back({ uint16(sourceIndex + 7), value });
             continue;
         }
+        // IDA 9.4 18414 CGPlayerData metadata places local.skill at
+        // 1153..1600 (448 fields). Four stores the same seven parallel
+        // 64-word arrays at 1146..1593.
+        if (sourceIndex >= SelfSkillSourceStart &&
+            sourceIndex < SelfSkillSourceStart + SelfSkillFieldCount)
+        {
+            fields.push_back({
+                uint16(SelfSkillTargetStart + sourceIndex - SelfSkillSourceStart),
+                value
+            });
+            continue;
+        }
 
         if (sourceIndex >= 29 && sourceIndex <= 33)
         {

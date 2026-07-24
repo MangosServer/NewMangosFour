@@ -87,7 +87,7 @@ add_test(NAME mop_self_values_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_self_values_source_test.cmake)
 
-foreach(mutation IN ITEMS inventory_only health_feed progression_feed visible_item_feed)
+foreach(mutation IN ITEMS inventory_only health_feed progression_feed visible_item_feed skill_feed)
     add_test(NAME mop_self_values_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}
@@ -100,7 +100,7 @@ add_test(NAME mop_initial_self_appearance_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_initial_self_appearance_source_test.cmake)
 
-foreach(mutation IN ITEMS visible_item_feed combined_builder)
+foreach(mutation IN ITEMS visible_item_feed combined_builder skill_feed)
     add_test(NAME mop_initial_self_appearance_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}
@@ -565,6 +565,20 @@ target_include_directories(mop_chat_packets_test PRIVATE
 set_target_properties(mop_chat_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 target_link_libraries(mop_chat_packets_test PRIVATE game)
 add_test(NAME mop_chat_packets COMMAND mop_chat_packets_test)
+
+add_test(NAME mop_language_descriptors_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_language_descriptors_source_test.cmake)
+
+add_test(NAME mop_default_language_skill_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_default_language_skill_source_test.cmake)
+add_test(NAME mop_default_language_skill_source_mutation_repair
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -DMUTATION=repair
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_default_language_skill_source_test.cmake)
+set_tests_properties(mop_default_language_skill_source_mutation_repair
+    PROPERTIES WILL_FAIL TRUE)
 
 add_test(NAME mop_chat_packets_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}

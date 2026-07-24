@@ -49,6 +49,9 @@ namespace MopUpdateObject
 {
     static constexpr uint16 SelfInventorySourceStart = 960;
     static constexpr uint16 SelfInventoryFieldCount = 172;
+    static constexpr uint16 SelfSkillSourceStart = 1146;
+    static constexpr uint16 SelfSkillTargetStart = 1153;
+    static constexpr uint16 SelfSkillFieldCount = 448;
     static constexpr uint16 ObserverVisibleItemSourceStart = 916;
     static constexpr uint16 ObserverVisibleItemTargetStart = 921;
     static constexpr uint16 ObserverVisibleItemFieldCount = 38;
@@ -107,8 +110,8 @@ namespace MopUpdateObject
         StaticField const* sourceFields, uint32 fieldCount);
 
     /// Translate the binary-proved self-player Unit and visible-item
-    /// projections, existing inventory range, and directly recovered
-    /// coinage/XP fields into one ordered 18414 VALUES block.
+    /// projections, existing inventory range, coinage/XP fields, and local
+    /// skill block into one ordered 18414 VALUES block.
     /// Changed-to-zero values are retained.
     void AppendSelfPlayerValuesBlock(ByteBuffer& out, uint64 guid,
         StaticField const* sourceFields, uint32 fieldCount);

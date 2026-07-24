@@ -124,6 +124,19 @@ void Player::learnDefaultSpells()
         {
             learnSpell(tspell, true);
         }
+
+        // A persisted default spell can make addSpell return before rebuilding
+        // its dependent language skill. The 18414 client authorizes chat from
+        // the skill block, so repair only known default language spells here.
+        for (LanguageDesc const& language : lang_description)
+        {
+            if (language.spell_id == tspell && language.skill_id != 0 &&
+                    HasSpell(tspell) && !HasSkill(language.skill_id))
+            {
+                SetSkill(language.skill_id, 300, 300, GetSkillStep(language.skill_id));
+                break;
+            }
+        }
     }
 }
 

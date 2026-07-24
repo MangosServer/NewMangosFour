@@ -359,6 +359,55 @@ int main(int /*argc*/, char** /*argv*/)
         CHECK(values.rpos() == values.size());
     }
 
+    // The 18414 client gates language selection on CGPlayerData::local.skill,
+    // not on SMSG_INITIAL_SPELLS. Preserve all seven 64-word skill arrays.
+    {
+        const MopUpdateObject::StaticField sourceFields[] =
+        {
+            { 1146, 0x00000389u },       // first skill line -> 1153
+            { 1210, 0x00000001u },       // first skill step -> 1217
+            { 1274, 0x0000012Cu },       // first skill rank -> 1281
+            { 1338, 0x00000001u },       // first starting rank -> 1345
+            { 1402, 0x0000012Cu },       // first max rank -> 1409
+            { 1466, 0 },                 // first modifier clear -> 1473
+            { 1530, 0 },                 // first talent clear -> 1537
+            { 1593, 0xAABBCCDDu },       // final skill word -> 1600
+        };
+        ByteBuffer values;
+        MopUpdateObject::AppendSelfPlayerValuesBlock(values, 0x10, sourceFields,
+            sizeof(sourceFields) / sizeof(sourceFields[0]));
+        values.rpos(3); // VALUES + packed GUID
+        uint8 blockCount;
+        values >> blockCount;
+        CHECK(blockCount == 51);
+        uint32 masks[51];
+        for (uint32& mask : masks) values >> mask;
+        auto hasBit = [&masks](uint16 index)
+        {
+            return (masks[index / 32] & (uint32(1) << (index % 32))) != 0;
+        };
+        for (uint16 index : { uint16(1153), uint16(1217), uint16(1281),
+                uint16(1345), uint16(1409), uint16(1473), uint16(1537),
+                uint16(1600) })
+        {
+            CHECK(hasBit(index));
+        }
+        CHECK(!hasBit(1146));
+
+        for (uint32 expectedValue : { 0x00000389u, 0x00000001u,
+                0x0000012Cu, 0x00000001u, 0x0000012Cu, 0u, 0u,
+                0xAABBCCDDu })
+        {
+            uint32 actualValue;
+            values >> actualValue;
+            CHECK(actualValue == expectedValue);
+        }
+        uint8 dynamicCount;
+        values >> dynamicCount;
+        CHECK(dynamicCount == 0);
+        CHECK(values.rpos() == values.size());
+    }
+
     CHECK(MopUpdateObject::RepackUnitBytes0(0x04030201u) == 0x03040201u);
     CHECK(MopUpdateObject::TranslateUnitDynamicFlags(0x000000A5u) == 0x0000014Au);
     CHECK(MopUpdateObject::TranslateUnitDynamicFlags(0xFFFF01A5u) == 0x0000014Au);

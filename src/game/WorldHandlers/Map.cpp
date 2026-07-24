@@ -1949,7 +1949,8 @@ void Map::SendInitSelf(Player* player)
     // login-time model displayed until a later nonzero equip update.
     std::vector<MopUpdateObject::StaticField> selfFields;
     selfFields.reserve(MopUpdateObject::ObserverVisibleItemFieldCount +
-        MopUpdateObject::SelfInventoryFieldCount);
+        MopUpdateObject::SelfInventoryFieldCount +
+        MopUpdateObject::SelfSkillFieldCount);
     for (uint16 i = 0; i < MopUpdateObject::ObserverVisibleItemFieldCount; ++i)
     {
         const uint16 sourceIndex =
@@ -1963,6 +1964,17 @@ void Map::SendInitSelf(Player* player)
     for (uint16 i = 0; i < MopUpdateObject::SelfInventoryFieldCount; ++i)
     {
         const uint16 sourceIndex = uint16(MopUpdateObject::SelfInventorySourceStart + i);
+        const uint32 value = player->GetUInt32Value(sourceIndex);
+        if (value != 0)
+        {
+            selfFields.push_back({ sourceIndex, value });
+        }
+    }
+    // The client authorizes selectable chat languages from its local skill
+    // block. SMSG_INITIAL_SPELLS alone does not populate that state.
+    for (uint16 i = 0; i < MopUpdateObject::SelfSkillFieldCount; ++i)
+    {
+        const uint16 sourceIndex = uint16(MopUpdateObject::SelfSkillSourceStart + i);
         const uint32 value = player->GetUInt32Value(sourceIndex);
         if (value != 0)
         {

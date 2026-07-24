@@ -10,6 +10,11 @@ elseif(MUTATION STREQUAL "combined_builder")
         "MopUpdateObject::AppendSelfPlayerValuesBlock"
         "MopUpdateObject::AppendSelfInventoryValuesBlock"
         map_source "${map_source}")
+elseif(MUTATION STREQUAL "skill_feed")
+    string(REPLACE
+        "MopUpdateObject::SelfSkillSourceStart + i"
+        "MopUpdateObject::SelfInventorySourceStart + i"
+        map_source "${map_source}")
 endif()
 
 string(FIND "${map_source}" "void Map::SendInitSelf(Player* player)" self_start)
@@ -35,6 +40,9 @@ require_once(
 require_once(
     "MopUpdateObject::SelfInventorySourceStart \\+ i"
     "initial self inventory snapshot")
+require_once(
+    "MopUpdateObject::SelfSkillSourceStart \\+ i"
+    "initial self skill snapshot")
 require_once(
     "MopUpdateObject::AppendSelfPlayerValuesBlock"
     "combined initial self VALUES builder")

@@ -102,6 +102,10 @@ namespace
     static_assert(PLAYER_FIELD_COINAGE == 1142 && PLAYER_XP == 1144 &&
         PLAYER_NEXT_LEVEL_XP == 1145,
         "self progression projection assumes the legacy 17538 Player indices");
+    static_assert(PLAYER_SKILL_LINEID_0 == MopUpdateObject::SelfSkillSourceStart &&
+        PLAYER_SKILL_TALENT_0 + 64 ==
+            MopUpdateObject::SelfSkillSourceStart + MopUpdateObject::SelfSkillFieldCount,
+        "self skill translation must cover all seven legacy 64-word arrays");
 
     bool CanBuildMopInventoryObject(Object const& object, Player* target)
     {
@@ -564,7 +568,8 @@ void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player* target) c
         if (target == static_cast<Player const*>(this))
         {
             fields.reserve(25 + MopUpdateObject::ObserverVisibleItemFieldCount +
-                MopUpdateObject::SelfInventoryFieldCount);
+                MopUpdateObject::SelfInventoryFieldCount +
+                MopUpdateObject::SelfSkillFieldCount);
             auto addIfChanged = [this, &fields](uint16 sourceIndex)
             {
                 if (m_changedValues[sourceIndex])
@@ -614,6 +619,14 @@ void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player* target) c
             addIfChanged(PLAYER_FIELD_COINAGE + 1);
             addIfChanged(PLAYER_XP);
             addIfChanged(PLAYER_NEXT_LEVEL_XP);
+            // The 18414 client checks local skill-line/rank state before it
+            // permits a language-selecting chat packet to leave the client.
+            for (uint16 i = MopUpdateObject::SelfSkillSourceStart;
+                 i < MopUpdateObject::SelfSkillSourceStart +
+                     MopUpdateObject::SelfSkillFieldCount; ++i)
+            {
+                addIfChanged(i);
+            }
             if (!fields.empty())
             {
                 MopUpdateObject::AppendSelfPlayerValuesBlock(data->GetBuffer(),
