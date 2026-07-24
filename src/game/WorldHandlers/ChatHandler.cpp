@@ -240,7 +240,17 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
         case CHAT_MSG_YELL:
         {
             std::string msg;
-            msg = recv_data.ReadString(recv_data.ReadBits(9));
+            if (type == CHAT_MSG_SAY)
+            {
+                if (!MopChatPackets::ReadSayMessageRequest(recv_data, msg))
+                {
+                    return;
+                }
+            }
+            else
+            {
+                msg = recv_data.ReadString(recv_data.ReadBits(9));
+            }
 
             if (msg.empty())
             {

@@ -9,6 +9,7 @@ file(READ "${SOURCE_ROOT}/src/game/WorldHandlers/Group.cpp" group_chat)
 file(READ "${SOURCE_ROOT}/src/game/Object/Unit.cpp" unit_emote)
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.h" session_header)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.h" opcode_header)
+file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes_reference.h" opcode_reference)
 file(READ "${SOURCE_ROOT}/src/game/Server/Opcodes.cpp" opcode_registry)
 file(READ "${SOURCE_ROOT}/src/game/Server/WorldSession.cpp" world_session)
 
@@ -127,6 +128,26 @@ elseif(MUTATION STREQUAL "addon_whisper_filter")
         "if (receiver->GetSession()->IsAddonRegistered(prefix))"
         "if (true /* removed addon whisper filter */)"
         chat_handler "${chat_handler}")
+elseif(MUTATION STREQUAL "say_registration")
+    string(REPLACE
+        "DefC(CMSG_MESSAGECHAT_SAY, \"CMSG_MESSAGECHAT_SAY\""
+        "DefC(0xFFFF, \"removed CMSG_MESSAGECHAT_SAY\""
+        opcode_registry "${opcode_registry}")
+elseif(MUTATION STREQUAL "say_parser_wiring")
+    string(REPLACE
+        "MopChatPackets::ReadSayMessageRequest(recv_data, msg)"
+        "false /* removed SAY parser */"
+        chat_handler "${chat_handler}")
+elseif(MUTATION STREQUAL "say_parser_layout")
+    string(REPLACE
+        "uint8 const length = uint8(in.ReadBits(8));"
+        "uint8 const length = uint8(in.ReadBits(9)); /* damaged SAY length */"
+        chat_header "${chat_header}")
+elseif(MUTATION STREQUAL "say_reference_status")
+    string(REPLACE
+        "CMSG_MESSAGECHAT_SAY                           0x0A9A  ACTIVE"
+        "CMSG_MESSAGECHAT_SAY                           0x0A9A  DORMANT"
+        opcode_reference "${opcode_reference}")
 elseif(MUTATION STREQUAL "afk_registration")
     string(REPLACE
         "DefC(CMSG_MESSAGECHAT_AFK, \"CMSG_MESSAGECHAT_AFK\""
@@ -266,6 +287,18 @@ require_once("${opcode_registry}"
 require_once("${opcode_registry}"
     "DefC(CMSG_MESSAGECHAT_AFK, \"CMSG_MESSAGECHAT_AFK\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleMessagechatOpcode);"
     "AFK request registration")
+require_once("${opcode_registry}"
+    "DefC(CMSG_MESSAGECHAT_SAY, \"CMSG_MESSAGECHAT_SAY\", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleMessagechatOpcode);"
+    "SAY request registration")
+require_once("${opcode_reference}"
+    "CMSG_MESSAGECHAT_SAY                           0x0A9A  ACTIVE"
+    "SAY opcode reference status")
+require_once("${chat_handler}"
+    "MopChatPackets::ReadSayMessageRequest(recv_data, msg)"
+    "SAY request parser wiring")
+require_once("${chat_header}"
+    "uint8 const length = uint8(in.ReadBits(8));"
+    "SAY request 8-bit message length")
 require_once("${chat_handler}"
     "MopChatPackets::ReadAfkMessageRequest(recv_data, msg)"
     "AFK request parser wiring")
@@ -284,6 +317,13 @@ endif()
 math(EXPR afk_length "${dnd_case_position} - ${afk_case_position}")
 string(SUBSTRING "${chat_handler}" ${afk_case_position} ${afk_length} afk_branch)
 forbid("${afk_branch}" "ReadBits(9)" "AFK branch must not use generic 9-bit length")
+
+string(FIND "${chat_handler}" "case CHAT_MSG_SAY:" say_case_position)
+string(FIND "${chat_handler}" "case CHAT_MSG_WHISPER:" whisper_case_position)
+if(say_case_position EQUAL -1 OR whisper_case_position EQUAL -1 OR
+        NOT say_case_position LESS whisper_case_position)
+    message(FATAL_ERROR "SAY/WHISPER chat branches missing or reordered")
+endif()
 require_once("${chat_handler}"
     "m_registeredAddonPrefixes.clear();"
     "unregister-addon-prefix state clear")

@@ -559,7 +559,9 @@ add_test(NAME mop_chat_packets_source
 
 foreach(mutation IN ITEMS builder registration allowlist emote_builder emote_reader emote_registration emote_allowlist emote_body cross_faction_denial text_bound receiver_identity addon_identity
         addon_count_width addon_length_width addon_softcap addon_unregister_registration addon_batch_registration addon_unregister_handler addon_batch_handler addon_group_filter addon_group_delivery addon_guild_filter addon_whisper_filter
-        afk_registration afk_parser_wiring afk_parser_layout legacy_wrong_faction legacy_gm_chat legacy_member_count)
+        say_registration say_parser_wiring say_parser_layout say_reference_status
+        afk_registration afk_parser_wiring afk_parser_layout
+        legacy_wrong_faction legacy_gm_chat legacy_member_count)
     add_test(NAME mop_chat_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}

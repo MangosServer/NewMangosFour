@@ -1622,7 +1622,7 @@ typedef uint16_t uint16;
  *   CMSG_REQUEST_RAID_INFO                         0x0A87  DORMANT 
  *   CMSG_UNKNOWN_0x0A8F                            0x0A8F  DOC     
  *   CMSG_BATTLEFIELD_MANAGER_QUEUE_INVITE_RESPONSE 0x0A97  DORMANT 
- *   CMSG_MESSAGECHAT_SAY                           0x0A9A  DORMANT 
+ *   CMSG_MESSAGECHAT_SAY                           0x0A9A  ACTIVE
  *   CMSG_UNKNOWN_0x0AB2                            0x0AB2  DOC     
  *   CMSG_UNKNOWN_0x0AB6                            0x0AB6  DOC     
  *   CMSG_UNKNOWN_0x0ABA                            0x0ABA  DOC     

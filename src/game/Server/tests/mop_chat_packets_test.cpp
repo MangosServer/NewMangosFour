@@ -183,10 +183,38 @@ static void test_opcode()
 {
     CHECK(uint32(SMSG_MESSAGECHAT) == 0x1A9Au);
     CHECK(uint32(SMSG_MESSAGECHAT) < uint32(OPCODE_TABLE_SIZE));
+    CHECK(uint32(CMSG_MESSAGECHAT_SAY) == 0x0A9Au);
+    CHECK(uint32(CMSG_MESSAGECHAT_SAY) < uint32(OPCODE_TABLE_SIZE));
     CHECK(uint32(CMSG_MESSAGECHAT_AFK) == 0x0EABu);
     CHECK(uint32(CMSG_MESSAGECHAT_AFK) < uint32(OPCODE_TABLE_SIZE));
     CHECK(uint32(CMSG_UNREGISTER_ALL_ADDON_PREFIXES) == 0x029Fu);
     CHECK(uint32(CMSG_ADDON_REGISTERED_PREFIXES) == 0x040Eu);
+}
+
+static void test_say_message_request()
+{
+    uint8 const body[] = {
+        0x07, 0x00, 0x00, 0x00, // LANG_COMMON
+        0x05,                   // 8-bit message length
+        'H', 'e', 'l', 'l', 'o'
+    };
+    WorldPacket packet(CMSG_MESSAGECHAT_SAY, sizeof(body));
+    packet.append(body, sizeof(body));
+
+    uint32 language = 0;
+    packet >> language;
+    std::string message;
+    CHECK(language == LANG_COMMON);
+    CHECK(MopChatPackets::ReadSayMessageRequest(packet, message));
+    CHECK(message == "Hello");
+    CHECK(packet.rpos() == packet.size());
+
+    uint8 const truncatedBody[] = { 0x05, 'H', 'i' };
+    WorldPacket truncated(CMSG_MESSAGECHAT_SAY, sizeof(truncatedBody));
+    truncated.append(truncatedBody, sizeof(truncatedBody));
+    CHECK(!MopChatPackets::ReadSayMessageRequest(truncated, message));
+    CHECK(message.empty());
+    CHECK(truncated.rpos() == truncated.size());
 }
 
 static void test_afk_message_request()
@@ -305,6 +333,7 @@ int main(int /*argc*/, char** /*argv*/)
     test_guild_message();
     test_length_boundaries();
     test_opcode();
+    test_say_message_request();
     test_afk_message_request();
     test_addon_prefix_batch();
     test_addon_prefix_soft_cap();
