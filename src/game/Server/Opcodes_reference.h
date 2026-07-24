@@ -417,7 +417,7 @@ typedef uint16_t uint16;
  *   SMSG_CREATURE_QUERY_RESPONSE                   0x048B  DORMANT  [low-conf]
  *   SMSG_REALM_NAME_QUERY_RESPONSE                 0x063E  DOC      [low-conf]
  *   SMSG_GAMEOBJECT_QUERY_RESPONSE                 0x06BF  DORMANT  [low-conf]
- *   SMSG_PAGE_TEXT_QUERY_RESPONSE                  0x081E  DORMANT 
+ *   SMSG_PAGE_TEXT_QUERY_RESPONSE                  0x081E  ACTIVE   [high-conf]
  *   SMSG_PET_NAME_QUERY_RESPONSE                   0x0ABE  DORMANT 
  *   SMSG_INVALIDATE_PLAYER                         0x102E  DORMANT  [medium-conf]
  *   SMSG_PETITION_QUERY_RESPONSE                   0x1083  DORMANT  [medium-conf]
@@ -1667,7 +1667,7 @@ typedef uint16_t uint16;
  *   CMSG_CHAR_CREATE                               0x0F1D  ACTIVE  
  *   CMSG_TUTORIAL_CLEAR                            0x0F23  DORMANT 
  *   CMSG_AUTH_CONTINUED_SESSION                    0x0F49  DORMANT 
- *   CMSG_PAGE_TEXT_QUERY                           0x1022  DORMANT 
+ *   CMSG_PAGE_TEXT_QUERY                           0x1022  ACTIVE   [high-conf]
  *   CMSG_MESSAGECHAT_EMOTE                         0x103E  DORMANT 
  *   CMSG_ITEM_UPGRADE                              0x1042  DOC     
  *   CMSG_MOVE_SET_FACING                           0x1050  DORMANT 

@@ -498,50 +498,75 @@ void WorldSession::HandleNpcTextQueryOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandlePageTextQueryOpcode(WorldPacket& recv_data)
 {
-    DETAIL_LOG("WORLD: Received opcode CMSG_PAGE_TEXT_QUERY");
-    recv_data.hexlike();
-
-    uint32 pageID;
-    recv_data >> pageID;
-    recv_data.read_skip<uint64>();                          // guid
-
-    while (pageID)
+    MopQueryPackets::PageTextQueryRequest request;
+    if (!MopQueryPackets::ParsePageTextQueryRequest(recv_data, request))
     {
-        PageText const* pPage = sPageTextStore.LookupEntry<PageText>(pageID);
-        // guess size
-        WorldPacket data(SMSG_PAGE_TEXT_QUERY_RESPONSE, 50);
-        data << pageID;
+        sLog.outError("WORLD: Malformed CMSG_PAGE_TEXT_QUERY");
+        return;
+    }
 
-        if (!pPage)
+    DETAIL_LOG("WORLD: Received CMSG_PAGE_TEXT_QUERY page=%u source=%s",
+        request.pageId, ObjectGuid(request.sourceGuid).GetString().c_str());
+
+    // GameObjects and readable items share this cache request, so the source
+    // GUID is decoded for framing integrity but is not restricted to one type.
+    uint32 pageId = request.pageId;
+    while (pageId)
+    {
+        PageText const* page = sPageTextStore.LookupEntry<PageText>(pageId);
+        MopQueryPackets::PageTextQueryResponse response;
+        response.pageId = pageId;
+
+        if (!page)
         {
-            data << "Item page missing.";
-            data << uint32(0);
-            pageID = 0;
+            response.hasData = false;
         }
         else
         {
-            std::string Text = pPage->Text;
+            response.hasData = true;
+            response.nextPageId = page->Next_Page;
+            response.text = page->Text;
 
             int loc_idx = GetSessionDbLocaleIndex();
             if (loc_idx >= 0)
             {
-                PageTextLocale const* pl = sObjectMgr.GetPageTextLocale(pageID);
-                if (pl)
+                if (PageTextLocale const* locale =
+                    sObjectMgr.GetPageTextLocale(pageId))
                 {
-                    if (pl->Text.size() > size_t(loc_idx) && !pl->Text[loc_idx].empty())
+                    if (locale->Text.size() > size_t(loc_idx) &&
+                        !locale->Text[loc_idx].empty())
                     {
-                        Text = pl->Text[loc_idx];
+                        response.text = locale->Text[loc_idx];
                     }
                 }
             }
-
-            data << Text;
-            data << uint32(pPage->Next_Page);
-            pageID = pPage->Next_Page;
         }
-        SendPacket(&data);
 
-        DEBUG_LOG("WORLD: Sent SMSG_PAGE_TEXT_QUERY_RESPONSE");
+        if (response.hasData && response.text.size() > 4000)
+        {
+            sLog.outError("WORLD: Page text %u exceeds the 18414 4000-byte "
+                "client limit", pageId);
+            response.hasData = false;
+            response.nextPageId = 0;
+            response.text.clear();
+        }
+
+        WorldPacket data;
+        if (!MopQueryPackets::BuildPageTextQueryResponse(data, response))
+        {
+            sLog.outError("WORLD: Could not build SMSG_PAGE_TEXT_QUERY_RESPONSE");
+            return;
+        }
+
+        SendPacket(&data);
+        DEBUG_LOG("WORLD: Sent SMSG_PAGE_TEXT_QUERY_RESPONSE page=%u "
+            "present=%u", pageId, response.hasData ? 1 : 0);
+
+        if (!page)
+        {
+            break;
+        }
+        pageId = page->Next_Page;
     }
 }
 

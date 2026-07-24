@@ -15,6 +15,7 @@
 #include "GameObject.h"
 #include "Opcodes.h"
 #include "WorldPacket.h"
+#include "WorldSession.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -152,6 +153,77 @@ static void TestDespawnAndPageText()
     CHECK(ExpectBytes(pageText, { 0xD0, 0x76, 0x10, 0x45 }));
 }
 
+static void TestPageTextQueryRequest()
+{
+    MopQueryPackets::PageTextQueryRequest request;
+    WorldPacket dense = MakePacket(CMSG_PAGE_TEXT_QUERY,
+        { 0x78, 0x56, 0x34, 0x12, 0xFF,
+          0x10, 0x76, 0x45, 0x67, 0x23, 0x89, 0x54, 0x32 });
+    CHECK(MopQueryPackets::ParsePageTextQueryRequest(dense, request));
+    CHECK(request.pageId == 0x12345678u);
+    CHECK(request.sourceGuid == UINT64_C(0x8877665544332211));
+
+    WorldPacket sparse = MakePacket(CMSG_PAGE_TEXT_QUERY,
+        { 0x78, 0x56, 0x34, 0x12, 0x12, 0x10, 0x89 });
+    CHECK(MopQueryPackets::ParsePageTextQueryRequest(sparse, request));
+    CHECK(request.sourceGuid == UINT64_C(0x8800000000000011));
+
+    WorldPacket truncated = MakePacket(CMSG_PAGE_TEXT_QUERY,
+        { 0x78, 0x56, 0x34, 0x12, 0xFF, 0x10 });
+    CHECK(!MopQueryPackets::ParsePageTextQueryRequest(truncated, request));
+    CHECK(truncated.rpos() == truncated.size());
+
+    WorldPacket trailing = MakePacket(CMSG_PAGE_TEXT_QUERY,
+        { 0x78, 0x56, 0x34, 0x12, 0x00, 0xAA });
+    CHECK(!MopQueryPackets::ParsePageTextQueryRequest(trailing, request));
+    CHECK(trailing.rpos() == trailing.size());
+
+    WorldPacket noncanonical = MakePacket(CMSG_PAGE_TEXT_QUERY,
+        { 0x78, 0x56, 0x34, 0x12, 0x80, 0x01 });
+    CHECK(!MopQueryPackets::ParsePageTextQueryRequest(noncanonical, request));
+    CHECK(noncanonical.rpos() == noncanonical.size());
+}
+
+static void TestPageTextQueryResponse()
+{
+    MopQueryPackets::PageTextQueryResponse response;
+    response.hasData = true;
+    response.pageId = 0x12345678u;
+    response.nextPageId = 0x9ABCDEF0u;
+    response.text = "Hi";
+
+    WorldPacket packet;
+    CHECK(MopQueryPackets::BuildPageTextQueryResponse(packet, response));
+    CHECK(packet.GetOpcode() == SMSG_PAGE_TEXT_QUERY_RESPONSE);
+    CHECK(ExpectBytes(packet,
+        { 0x80, 0x10, 0xF0, 0xDE, 0xBC, 0x9A,
+          0x78, 0x56, 0x34, 0x12, 0x48, 0x69,
+          0x78, 0x56, 0x34, 0x12 }));
+
+    response.text.clear();
+    response.nextPageId = 0;
+    CHECK(MopQueryPackets::BuildPageTextQueryResponse(packet, response));
+    CHECK(ExpectBytes(packet,
+        { 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x78, 0x56, 0x34, 0x12,
+          0x78, 0x56, 0x34, 0x12 }));
+
+    response.hasData = false;
+    response.text = "ignored";
+    response.nextPageId = 0xFFFFFFFFu;
+    CHECK(MopQueryPackets::BuildPageTextQueryResponse(packet, response));
+    CHECK(ExpectBytes(packet,
+        { 0x00, 0x78, 0x56, 0x34, 0x12 }));
+
+    response.hasData = true;
+    response.text.assign(4000, 'A');
+    CHECK(MopQueryPackets::BuildPageTextQueryResponse(packet, response));
+    CHECK(packet.size() == 4014);
+
+    response.text.push_back('B');
+    CHECK(!MopQueryPackets::BuildPageTextQueryResponse(packet, response));
+}
+
 static void TestOpcodeValues()
 {
     CHECK(uint32_t(CMSG_GAMEOBJ_USE) == 0x06D8u);
@@ -159,6 +231,8 @@ static void TestOpcodeValues()
     CHECK(uint32_t(SMSG_GAMEOBJECT_CUSTOM_ANIM) == 0x001Fu);
     CHECK(uint32_t(SMSG_GAMEOBJECT_DESPAWN_ANIM) == 0x108Bu);
     CHECK(uint32_t(SMSG_GAMEOBJECT_PAGETEXT) == 0x14AFu);
+    CHECK(uint32_t(CMSG_PAGE_TEXT_QUERY) == 0x1022u);
+    CHECK(uint32_t(SMSG_PAGE_TEXT_QUERY_RESPONSE) == 0x081Eu);
 }
 
 int main(int /*argc*/, char** /*argv*/)
@@ -167,6 +241,8 @@ int main(int /*argc*/, char** /*argv*/)
     TestReportUseRequest();
     TestCustomAnimation();
     TestDespawnAndPageText();
+    TestPageTextQueryRequest();
+    TestPageTextQueryResponse();
     TestOpcodeValues();
 
     if (g_fail != 0)

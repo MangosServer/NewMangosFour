@@ -255,6 +255,25 @@ namespace MopQueryPackets
     void BuildGameObjectQueryResponse(WorldPacket& out,
         GameObjectQueryResponse const& record);
 
+    struct PageTextQueryRequest
+    {
+        uint32 pageId = 0;
+        uint64 sourceGuid = 0;
+    };
+
+    struct PageTextQueryResponse
+    {
+        bool hasData = false;
+        uint32 pageId = 0;
+        uint32 nextPageId = 0;
+        std::string text;
+    };
+
+    bool ParsePageTextQueryRequest(WorldPacket& in,
+        PageTextQueryRequest& request);
+    bool BuildPageTextQueryResponse(WorldPacket& out,
+        PageTextQueryResponse const& response);
+
     struct CorpseQueryResponse
     {
         bool found = false;
@@ -663,6 +682,90 @@ inline void MopQueryPackets::BuildGameObjectQueryResponse(WorldPacket& out,
     out << record.entry;
     out << uint32(blob.size());
     out.append(blob);
+}
+
+inline bool MopQueryPackets::ParsePageTextQueryRequest(WorldPacket& in,
+    PageTextQueryRequest& request)
+{
+    if (in.size() - in.rpos() < 5)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    PageTextQueryRequest parsed;
+    in >> parsed.pageId;
+
+    uint8 const mask = in[in.rpos()];
+    size_t byteCount = 0;
+    for (uint8 remainingMask = mask; remainingMask != 0;
+        remainingMask >>= 1)
+    {
+        byteCount += remainingMask & 1;
+    }
+
+    if (in.size() - in.rpos() != 1 + byteCount)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    // A present packed-GUID byte is XORed with one on the wire. The client
+    // never emits encoded 1 because that would decode to an absent zero byte.
+    for (size_t index = 0; index < byteCount; ++index)
+    {
+        if (in[in.rpos() + 1 + index] == 1)
+        {
+            in.rfinish();
+            return false;
+        }
+    }
+
+    ObjectGuid sourceGuid;
+    in.ReadGuidMask<2, 1, 3, 7, 6, 4, 0, 5>(sourceGuid);
+    in.ReadGuidBytes<0, 6, 3, 5, 1, 7, 4, 2>(sourceGuid);
+    if (in.rpos() != in.size())
+    {
+        in.rfinish();
+        return false;
+    }
+
+    parsed.sourceGuid = sourceGuid.GetRawValue();
+    request = parsed;
+    return true;
+}
+
+inline bool MopQueryPackets::BuildPageTextQueryResponse(WorldPacket& out,
+    PageTextQueryResponse const& response)
+{
+    // The active sub_70F012 record has 4000-byte text storage; the alternate
+    // validating reader sub_706F6F explicitly rejects 4001 and above.
+    if (response.hasData && response.text.size() > 4000)
+    {
+        return false;
+    }
+
+    WorldPacket built(SMSG_PAGE_TEXT_QUERY_RESPONSE,
+        response.hasData ? 14 + response.text.size() : 5);
+    built.WriteBit(response.hasData);
+    if (response.hasData)
+    {
+        built.WriteBits(uint32(response.text.size()), 12);
+    }
+    built.FlushBits();
+
+    if (response.hasData)
+    {
+        built << response.nextPageId;
+        built << response.pageId;
+        built.append(response.text.data(), response.text.size());
+    }
+
+    // This key is present on both success and failure and drives the client's
+    // pagetextcache.wdb insert/miss callback.
+    built << response.pageId;
+    out = built;
+    return true;
 }
 
 inline uint64 MopQueryPackets::ReadCorpseMapPositionQuery(WorldPacket& in)
@@ -1733,7 +1836,6 @@ class WorldSession
         void HandleCompleteCinematic(WorldPacket& recvPacket);
         void HandleNextCinematicCamera(WorldPacket& recvPacket);
 
-        void HandlePageQuerySkippedOpcode(WorldPacket& recvPacket);
         void HandlePageTextQueryOpcode(WorldPacket& recvPacket);
 
         void HandleTutorialFlagOpcode(WorldPacket& recv_data);

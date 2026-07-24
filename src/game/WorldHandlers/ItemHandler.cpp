@@ -433,23 +433,6 @@ void WorldSession::HandleReadItemOpcode(WorldPacket& recv_data)
     }
 }
 
-/**
- * @brief Logs a skipped page text query packet.
- *
- * @param recv_data The received opcode packet.
- */
-void WorldSession::HandlePageQuerySkippedOpcode(WorldPacket& recv_data)
-{
-    DEBUG_LOG("WORLD: Received opcode CMSG_PAGE_TEXT_QUERY");
-
-    uint32 itemid;
-    ObjectGuid guid;
-
-    recv_data >> itemid >> guid;
-
-    DETAIL_LOG("Packet Info: itemid: %u guid: %s", itemid, guid.GetString().c_str());
-}
-
 void WorldSession::HandleItemRefundInfoRequest(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: CMSG_ITEM_REFUND_INFO_REQUEST");

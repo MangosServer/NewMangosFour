@@ -892,7 +892,11 @@ add_test(NAME mop_gameobject_interaction_packets_source
 foreach(mutation IN ITEMS use_parser report_parser guid_type_guard
         custom_sender despawn_sender pagetext_sender
         client_registration report_registration server_registration
-        sender_admission opcode_values legacy_reader)
+        sender_admission opcode_values legacy_reader
+        page_query_parser page_query_builder page_query_client_registration
+        page_query_server_registration page_query_admission
+        page_query_reference_status page_query_duplicate_handler
+        page_query_legacy_sender)
     add_test(NAME mop_gameobject_interaction_packets_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}
