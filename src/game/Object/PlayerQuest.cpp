@@ -2879,8 +2879,8 @@ void Player::SendQuestCompleteEvent(uint32 quest_id)
 {
     if (quest_id)
     {
-        WorldPacket data(SMSG_QUESTUPDATE_COMPLETE, 4);
-        data << uint32(quest_id);
+        WorldPacket data;
+        MopQuestGiverPackets::BuildQuestUpdateComplete(data, quest_id);
         GetSession()->SendPacket(&data);
         DEBUG_LOG("WORLD: Sent SMSG_QUESTUPDATE_COMPLETE quest = %u", quest_id);
     }
@@ -2896,23 +2896,24 @@ void Player::SendQuestReward(Quest const* pQuest, uint32 XP)
 {
     uint32 questid = pQuest->GetQuestId();
     DEBUG_LOG("WORLD: Sent SMSG_QUESTGIVER_QUEST_COMPLETE quest = %u", questid);
-    WorldPacket data(SMSG_QUESTGIVER_QUEST_COMPLETE, (4 + 4 + 4 + 4 + 4));
-    data << uint32(questid);
+    MopQuestGiverPackets::QuestRewardSummary summary;
+    summary.questId = questid;
+    summary.bonusTalents = pQuest->GetBonusTalents();
 
     if (getLevel() < sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL))
     {
-        data << uint32(XP);
-        data << uint32(pQuest->GetRewOrReqMoney());
+        summary.experience = XP;
+        summary.money = uint32(pQuest->GetRewOrReqMoney());
     }
     else
     {
-        data << uint32(0);
-        data << uint32(pQuest->GetRewOrReqMoney() + int32(pQuest->GetRewMoneyMaxLevel() * sWorld.getConfig(CONFIG_FLOAT_RATE_DROP_MONEY)));
+        summary.money = uint32(pQuest->GetRewOrReqMoney() +
+            int32(pQuest->GetRewMoneyMaxLevel() *
+                sWorld.getConfig(CONFIG_FLOAT_RATE_DROP_MONEY)));
     }
 
-    data << uint32(10 * MaNGOS::Honor::hk_honor_at_level(getLevel(), pQuest->GetRewHonorAddition()));
-    data << uint32(pQuest->GetBonusTalents());              // bonus talents
-    data << uint32(0);                                      // arena points
+    WorldPacket data;
+    MopQuestGiverPackets::BuildQuestRewardSummary(data, summary);
     GetSession()->SendPacket(&data);
 }
 

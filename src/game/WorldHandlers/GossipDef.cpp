@@ -754,7 +754,6 @@ void PlayerMenu::SendQuestQueryResponse(uint32 questId,
  */
 void PlayerMenu::SendQuestGiverOfferReward(Quest const* pQuest, ObjectGuid npcGUID, bool EnableNext) const
 {
-    // Retrieve the quest title and offer reward text
     std::string Title = pQuest->GetTitle();
     std::string OfferRewardText = pQuest->GetOfferRewardText();
     std::string PortraitGiverName = pQuest->GetPortraitGiverName();
@@ -762,11 +761,9 @@ void PlayerMenu::SendQuestGiverOfferReward(Quest const* pQuest, ObjectGuid npcGU
     std::string PortraitTurnInName = pQuest->GetPortraitTurnInName();
     std::string PortraitTurnInText = pQuest->GetPortraitTurnInText();
 
-    // Get the locale index for the session
     int loc_idx = GetMenuSession()->GetSessionDbLocaleIndex();
     if (loc_idx >= 0)
     {
-        // Retrieve localized quest strings if available
         if (QuestLocale const* ql = sObjectMgr.GetQuestLocale(pQuest->GetQuestId()))
         {
             if (ql->Title.size() > (size_t)loc_idx && !ql->Title[loc_idx].empty())
@@ -796,138 +793,104 @@ void PlayerMenu::SendQuestGiverOfferReward(Quest const* pQuest, ObjectGuid npcGU
         }
     }
 
-    // Prepare the packet to send quest offer reward
-    WorldPacket data(SMSG_QUESTGIVER_OFFER_REWARD, 50);     // guess size
+    MopQuestGiverPackets::QuestRewardOffer response;
+    response.questGiverGuid = npcGUID;
+    response.questId = pQuest->GetQuestId();
+    response.suggestedPlayers = pQuest->GetSuggestedPlayers();
+    response.bonusTalents = pQuest->GetBonusTalents();
+    response.rewardSkillId = pQuest->GetRewSkill();
+    response.rewardXp = pQuest->XPValue(GetMenuSession()->GetPlayer());
+    response.rewardSpell = pQuest->GetRewSpell();
+    response.rewardSpellCast = pQuest->GetRewSpellCast();
+    response.questFlags = pQuest->GetQuestFlags();
+    response.characterTitleId = pQuest->GetCharTitleId();
+    response.rewardItemCount = pQuest->GetRewItemsCount();
+    response.rewardChoiceItemCount = pQuest->GetRewChoiceItemsCount();
+    response.rewardSkillPoints = pQuest->GetRewSkillValue();
+    response.questGiverPortrait = pQuest->GetPortraitGiver();
+    response.questTurnInPortrait = pQuest->GetPortraitTurnIn();
+    response.autoLaunch = EnableNext;
+    response.questTitle = Title;
+    response.offerRewardText = OfferRewardText;
+    response.questGiverTextWindow = PortraitGiverText;
+    response.questGiverTargetName = PortraitGiverName;
+    response.questTurnTextWindow = PortraitTurnInText;
+    response.questTurnTargetName = PortraitTurnInName;
 
-    // Add NPC GUID, quest ID, title, and offer reward text to the packet
-    data << ObjectGuid(npcGUID);
-    data << uint32(pQuest->GetQuestId());
-    data << Title;
-    data << OfferRewardText;
+    for (size_t index = 0; index < QUEST_REWARD_CHOICES_COUNT; ++index)
+    {
+        response.rewardChoiceItemIds[index] =
+            pQuest->RewChoiceItemId[index];
+        response.rewardChoiceItemCounts[index] =
+            pQuest->RewChoiceItemCount[index];
+        if (ItemPrototype const* item = ObjectMgr::GetItemPrototype(
+                pQuest->RewChoiceItemId[index]))
+        {
+            response.rewardChoiceItemDisplayIds[index] =
+                item->DisplayInfoID;
+        }
+    }
+    for (size_t index = 0; index < QUEST_REWARDS_COUNT; ++index)
+    {
+        response.rewardItemIds[index] = pQuest->RewItemId[index];
+        response.rewardItemCounts[index] = pQuest->RewItemCount[index];
+        if (ItemPrototype const* item = ObjectMgr::GetItemPrototype(
+                pQuest->RewItemId[index]))
+        {
+            response.rewardItemDisplayIds[index] = item->DisplayInfoID;
+        }
+    }
+    for (size_t index = 0; index < QUEST_REWARD_CURRENCY_COUNT; ++index)
+    {
+        response.rewardCurrencyIds[index] =
+            pQuest->RewCurrencyId[index];
+        response.rewardCurrencyCounts[index] =
+            pQuest->RewCurrencyCount[index];
+    }
+    for (size_t index = 0; index < QUEST_REPUTATIONS_COUNT; ++index)
+    {
+        response.rewardFactionIds[index] = pQuest->RewRepFaction[index];
+        response.rewardFactionValueIds[index] =
+            uint32(pQuest->RewRepValueId[index]);
+        // The current quest schema has no separate 18414 override field.
+        response.rewardFactionValueOverrides[index] = 0;
+    }
 
-    data << PortraitGiverText;
-    data << PortraitGiverName;
-    data << PortraitTurnInText;
-    data << PortraitTurnInName;
-    data << uint32(pQuest->GetPortraitGiver());
-    data << uint32(pQuest->GetPortraitTurnIn());
+    if (GetMenuSession()->GetPlayer()->getLevel() >=
+        sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL))
+    {
+        response.rewardMoney = pQuest->GetRewMoneyMaxLevel();
+        response.rewardXp = 0;
+    }
+    else
+    {
+        response.rewardMoney = uint32(std::max(
+            pQuest->GetRewOrReqMoney(), int32(0)));
+    }
 
-    data << uint8(EnableNext ? 1 : 0);                      // Auto Finish
-    data << uint32(pQuest->GetQuestFlags());                // 3.3.3 questFlags
-    data << uint32(pQuest->GetSuggestedPlayers());          // SuggestedGroupNum
-
-    // Add quest emotes to the packet
-    uint32 EmoteCount = 0;
     for (uint32 i = 0; i < QUEST_EMOTE_COUNT; ++i)
     {
         if (pQuest->OfferRewardEmote[i] <= 0)
         {
             break;
         }
-        ++EmoteCount;
+        MopQuestGiverPackets::QuestEmote emote;
+        emote.delay = pQuest->OfferRewardEmoteDelay[i];
+        emote.emote = pQuest->OfferRewardEmote[i];
+        response.emotes.push_back(emote);
     }
 
-    data << EmoteCount;                                     // Emote Count
-    for (uint32 i = 0; i < EmoteCount; ++i)
+    // Flags2, reward-package ID, reputation mask, and quest-taker entry are
+    // explicit zeroes because the legacy quest backend cannot authoritatively
+    // supply their 18414 meanings.
+    WorldPacket data;
+    if (!MopQuestGiverPackets::BuildQuestOfferReward(data, response))
     {
-        data << uint32(pQuest->OfferRewardEmoteDelay[i]);   // Delay Emote
-        data << uint32(pQuest->OfferRewardEmote[i]);
+        sLog.outError("WORLD: SMSG_QUESTGIVER_OFFER_REWARD exceeds the "
+            "18414 payload bounds");
+        return;
     }
-
-    data << uint32(pQuest->GetRewChoiceItemsCount());
-    for (uint32 i = 0; i < QUEST_REWARD_CHOICES_COUNT; ++i)
-    {
-        data << uint32(pQuest->RewChoiceItemId[i]);
-    }
-    for (uint32 i = 0; i < QUEST_REWARD_CHOICES_COUNT; ++i)
-    {
-        data << uint32(pQuest->RewChoiceItemCount[i]);
-    }
-    for (uint32 i = 0; i < QUEST_REWARD_CHOICES_COUNT; ++i)
-        if (ItemPrototype const* pItem = ObjectMgr::GetItemPrototype(pQuest->RewChoiceItemId[i]))
-        {
-            data << uint32(pItem->DisplayInfoID);
-        }
-        else
-        {
-            data << uint32(0);
-        }
-
-    // Add reward items to the packet
-    data << uint32(pQuest->GetRewItemsCount());
-    for (uint32 i = 0; i < QUEST_REWARDS_COUNT; ++i)
-    {
-        data << uint32(pQuest->RewItemId[i]);
-    }
-    for (uint32 i = 0; i < QUEST_REWARDS_COUNT; ++i)
-    {
-        data << uint32(pQuest->RewItemCount[i]);
-    }
-    for (uint32 i = 0; i < QUEST_REWARDS_COUNT; ++i)
-        if (ItemPrototype const* pItem = ObjectMgr::GetItemPrototype(pQuest->RewItemId[i]))
-        {
-            data << uint32(pItem->DisplayInfoID);
-        }
-        else
-        {
-            data << uint32(0);
-        }
-
-    // send rewMoneyMaxLevel explicit for max player level, else send RewOrReqMoney
-    if (GetMenuSession()->GetPlayer()->getLevel() >= sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL))
-    {
-        data << uint32(pQuest->GetRewMoneyMaxLevel());
-    }
-    else
-    {
-        data << uint32(pQuest->GetRewOrReqMoney());
-    }
-
-    // xp
-    data << uint32(pQuest->XPValue(GetMenuSession()->GetPlayer()));
-
-    data << uint32(pQuest->GetCharTitleId());   // character title
-    data << uint32(0);                          // unk, unused 10 * GetRewHonorAddition ?
-    data << float(0);                           // unk, unused GetRewHonorMultiplier ?
-    data << uint32(pQuest->GetBonusTalents());  // bonus talents
-    data << uint32(0);                          // unk, unused bonus arena points?
-    data << uint32(0);                          // rep reward show mask?
-
-    for (int i = 0; i < QUEST_REPUTATIONS_COUNT; ++i)       // reward factions ids
-    {
-        data << uint32(pQuest->RewRepFaction[i]);
-    }
-
-    for (int i = 0; i < QUEST_REPUTATIONS_COUNT; ++i)       // columnid in QuestFactionReward.dbc (if negative, from second row)
-    {
-        data << int32(pQuest->RewRepValueId[i]);
-    }
-
-    for (int i = 0; i < QUEST_REPUTATIONS_COUNT; ++i)       // reward reputation override. No diplomacy bonus is expected given, reward also does not display in chat window
-    {
-        data << int32(0);
-    }
-    // data << int32(pQuest->RewRepValue[i]);
-
-    data << uint32(pQuest->GetRewSpell());                  // reward spell, this spell will display (icon) (casted if RewSpellCast==0)
-    data << uint32(pQuest->GetRewSpellCast());              // casted spell
-
-    for (uint32 i = 0; i < QUEST_REWARD_CURRENCY_COUNT; ++i)
-    {
-        data << uint32(pQuest->RewCurrencyId[i]);
-    }
-
-    for (uint32 i = 0; i < QUEST_REWARD_CURRENCY_COUNT; ++i)
-    {
-        data << uint32(pQuest->RewCurrencyCount[i]);
-    }
-
-    data << uint32(pQuest->GetRewSkill());
-    data << uint32(pQuest->GetRewSkillValue());
-
     GetMenuSession()->SendPacket(&data);
-
-    // Log the sent packet
     DEBUG_LOG("WORLD: Sent SMSG_QUESTGIVER_OFFER_REWARD NPCGuid = %s, questid = %u", npcGUID.GetString().c_str(), pQuest->GetQuestId());
 }
 
@@ -937,13 +900,12 @@ void PlayerMenu::SendQuestGiverOfferReward(Quest const* pQuest, ObjectGuid npcGU
  * @param pQuest The quest being turned in.
  * @param npcGUID The quest giver guid.
  * @param Completable True if the player currently meets the quest completion requirements.
- * @param CloseOnCancel True if canceling should close the gossip window.
+ * @param AutoLaunch True when the client should automatically advance the
+ * quest frame.
  */
-void PlayerMenu::SendQuestGiverRequestItems(Quest const* pQuest, ObjectGuid npcGUID, bool Completable, bool CloseOnCancel) const
+void PlayerMenu::SendQuestGiverRequestItems(Quest const* pQuest,
+    ObjectGuid npcGUID, bool Completable, bool AutoLaunch) const
 {
-    // We can always call to RequestItems, but this packet only goes out if there are actually
-    // items.  Otherwise, we'll skip straight to the OfferReward
-
     if (!pQuest->GetReqItemsCount() && !pQuest->GetReqCurrencyCount() && Completable)
     {
         SendQuestGiverOfferReward(pQuest, npcGUID, true);
@@ -953,11 +915,9 @@ void PlayerMenu::SendQuestGiverRequestItems(Quest const* pQuest, ObjectGuid npcG
     std::string Title = pQuest->GetTitle();
     std::string RequestItemsText = pQuest->GetRequestItemsText();
 
-    // Get the locale index for the session
     int loc_idx = GetMenuSession()->GetSessionDbLocaleIndex();
     if (loc_idx >= 0)
     {
-        // Retrieve localized quest strings if available
         if (QuestLocale const* ql = sObjectMgr.GetQuestLocale(pQuest->GetQuestId()))
         {
             if (ql->Title.size() > (size_t)loc_idx && !ql->Title[loc_idx].empty())
@@ -971,90 +931,47 @@ void PlayerMenu::SendQuestGiverRequestItems(Quest const* pQuest, ObjectGuid npcG
         }
     }
 
-    WorldPacket data(SMSG_QUESTGIVER_REQUEST_ITEMS, 50);    // guess size
-    data << ObjectGuid(npcGUID);                            // NPC GUID
-    data << uint32(pQuest->GetQuestId());                   // Quest ID
-    data << Title;                                          // Quest title
-    data << RequestItemsText;                               // Request items text
+    MopQuestGiverPackets::QuestRequestItems response;
+    response.questGiverGuid = npcGUID;
+    response.suggestedPlayers = pQuest->GetSuggestedPlayers();
+    response.questFlags = pQuest->GetQuestFlags();
+    response.statusFlags = Completable ? 0x5F : 0x5B;
+    response.requiredMoney = pQuest->GetRewOrReqMoney() < 0 ?
+        uint32(-pQuest->GetRewOrReqMoney()) : 0;
+    response.emote = Completable ? pQuest->GetCompleteEmote() :
+        pQuest->GetIncompleteEmote();
+    response.questId = pQuest->GetQuestId();
+    response.autoLaunch = AutoLaunch;
+    response.title = Title;
+    response.requestText = RequestItemsText;
 
-    data << uint32(0x00);                                   // emote delay
-
-    // Add the appropriate emote based on whether the quest is completable
-    if (Completable)
+    for (size_t index = 0; index < QUEST_ITEM_OBJECTIVES_COUNT; ++index)
     {
-        data << pQuest->GetCompleteEmote();                 // emote id
-    }
-    else
-    {
-        data << pQuest->GetIncompleteEmote();
-    }
-
-    // Add the close on cancel flag
-    if (CloseOnCancel)
-    {
-        data << uint32(0x01);                               // auto finish
-    }
-    else
-    {
-        data << uint32(0x00);
-    }
-
-    data << uint32(pQuest->GetQuestFlags());                // 3.3.3 questFlags
-    data << uint32(pQuest->GetSuggestedPlayers());          // SuggestedGroupNum
-
-    // Add the required money
-    data << uint32(pQuest->GetRewOrReqMoney() < 0 ? -pQuest->GetRewOrReqMoney() : 0);
-
-    // Add the required items
-    data << uint32(pQuest->GetReqItemsCount());
-    ItemPrototype const* pItem;
-    for (int i = 0; i < QUEST_ITEM_OBJECTIVES_COUNT; ++i)
-    {
-        if (!pQuest->ReqItemId[i])
+        response.requiredItemIds[index] = pQuest->ReqItemId[index];
+        response.requiredItemCounts[index] = pQuest->ReqItemCount[index];
+        if (ItemPrototype const* item =
+            ObjectMgr::GetItemPrototype(pQuest->ReqItemId[index]))
         {
-            continue;
-        }
-        pItem = ObjectMgr::GetItemPrototype(pQuest->ReqItemId[i]);
-        data << uint32(pQuest->ReqItemId[i]);
-        data << uint32(pQuest->ReqItemCount[i]);
-
-        if (pItem)
-        {
-            data << uint32(pItem->DisplayInfoID);
-        }
-        else
-        {
-            data << uint32(0);
+            response.requiredItemDisplayIds[index] = item->DisplayInfoID;
         }
     }
-
-    data << uint32(pQuest->GetReqCurrencyCount());
-    for (int i = 0; i < QUEST_REQUIRED_CURRENCY_COUNT; ++i)
+    for (size_t index = 0; index < QUEST_REQUIRED_CURRENCY_COUNT; ++index)
     {
-        if (!pQuest->ReqCurrencyId[i])
-        {
-            continue;
-        }
-
-        data << uint32(pQuest->ReqCurrencyId[i]);
-        data << uint32(pQuest->ReqCurrencyCount[i]);
+        response.requiredCurrencyIds[index] =
+            pQuest->ReqCurrencyId[index];
+        response.requiredCurrencyCounts[index] =
+            pQuest->ReqCurrencyCount[index];
     }
 
-    if (!Completable)                                       // Completable = flags1 && flags2 && flags3 && flags4
+    // The legacy schema has no QuestFlags2 and no separate completion-emote
+    // delay. Both remain zero rather than inheriting fork-only guesses.
+    WorldPacket data;
+    if (!MopQuestGiverPackets::BuildQuestRequestItems(data, response))
     {
-        data << uint32(0x00);                               // flags1
+        sLog.outError("WORLD: SMSG_QUESTGIVER_REQUEST_ITEMS exceeds the "
+            "18414 payload bounds");
+        return;
     }
-    else
-    {
-        data << uint32(0x03);
-    }
-
-    data << uint32(0x04);                                   // flags2
-    data << uint32(0x08);                                   // flags3
-    data << uint32(0x10);                                   // flags4
-    data << uint32(0x40);                                   // flags5
-
-    // Send the packet to the player
     GetMenuSession()->SendPacket(&data);
     DEBUG_LOG("WORLD: Sent SMSG_QUESTGIVER_REQUEST_ITEMS NPCGuid = %s, questid = %u", npcGUID.GetString().c_str(), pQuest->GetQuestId());
 }

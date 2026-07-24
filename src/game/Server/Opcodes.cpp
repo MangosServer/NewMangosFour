@@ -376,6 +376,17 @@ void InitializeOpcodes()
     // The direct 18414 empty response closes the quest/gossip frame after acceptance.
     DefS(SMSG_GOSSIP_COMPLETE, "SMSG_GOSSIP_COMPLETE");
 
+    // Directly verified 18414 quest turn-in and reward flow. The client sends
+    // a reward item ID, which the handler resolves back to the configured
+    // reward-choice slot before applying the existing quest gameplay logic.
+    DefC(CMSG_QUESTGIVER_COMPLETE_QUEST, "CMSG_QUESTGIVER_COMPLETE_QUEST", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestgiverCompleteQuest);
+    DefS(SMSG_QUESTGIVER_REQUEST_ITEMS, "SMSG_QUESTGIVER_REQUEST_ITEMS");
+    DefC(CMSG_QUESTGIVER_REQUEST_REWARD, "CMSG_QUESTGIVER_REQUEST_REWARD", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestgiverRequestRewardOpcode);
+    DefS(SMSG_QUESTGIVER_OFFER_REWARD, "SMSG_QUESTGIVER_OFFER_REWARD");
+    DefC(CMSG_QUESTGIVER_CHOOSE_REWARD, "CMSG_QUESTGIVER_CHOOSE_REWARD", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleQuestgiverChooseRewardOpcode);
+    DefS(SMSG_QUESTGIVER_QUEST_COMPLETE, "SMSG_QUESTGIVER_QUEST_COMPLETE");
+    DefS(SMSG_QUESTUPDATE_COMPLETE, "SMSG_QUESTUPDATE_COMPLETE");
+
     // Quest log metadata is fetched through the client questcache.wdb path
     // after acquisition. The 18414 request and success/absent reply bodies
     // are independently reconstructed from the Wow.exe writer and reader.

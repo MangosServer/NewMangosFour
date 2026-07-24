@@ -325,22 +325,19 @@ void WorldSession::HandleQuestQueryOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleQuestgiverChooseRewardOpcode(WorldPacket& recv_data)
 {
-    uint32 quest, reward;
-    ObjectGuid guid;
-    recv_data >> guid >> quest >> reward;
-
-    if (reward >= QUEST_REWARD_CHOICES_COUNT)
+    MopQuestGiverPackets::ChooseRewardRequest request;
+    if (!MopQuestGiverPackets::ParseChooseReward(recv_data, request))
     {
-        sLog.outError("Error in CMSG_QUESTGIVER_CHOOSE_REWARD - %s tried to get invalid reward (%u) (probably packet hacking)", _player->GetGuidStr().c_str(), reward);
+        sLog.outError("WORLD: Malformed CMSG_QUESTGIVER_CHOOSE_REWARD");
         return;
     }
+    ObjectGuid const guid(request.questGiverGuid);
+    uint32 const quest = request.questId;
 
     if (!CanInteractWithQuestGiver(guid, "CMSG_QUESTGIVER_CHOOSE_REWARD"))
     {
         return;
     }
-
-    DEBUG_LOG("WORLD: Received opcode CMSG_QUESTGIVER_CHOOSE_REWARD - for %s to %s, quest = %u, reward = %u", _player->GetGuidStr().c_str(), guid.GetString().c_str(), quest, reward);
 
     Object* pObject = _player->GetObjectByTypeMask(guid, TYPEMASK_CREATURE_OR_GAMEOBJECT);
     if (!pObject)
@@ -356,6 +353,27 @@ void WorldSession::HandleQuestgiverChooseRewardOpcode(WorldPacket& recv_data)
     Quest const* pQuest = sObjectMgr.GetQuestTemplate(quest);
     if (pQuest)
     {
+        uint32 reward = 0;
+        std::array<uint32, QUEST_REWARD_CHOICES_COUNT> rewardItemIds;
+        std::copy(pQuest->RewChoiceItemId,
+            pQuest->RewChoiceItemId + QUEST_REWARD_CHOICES_COUNT,
+            rewardItemIds.begin());
+        if (!MopQuestGiverPackets::ResolveRewardChoice(
+                rewardItemIds, pQuest->GetRewChoiceItemsCount(),
+                request.rewardItemId, reward))
+        {
+            sLog.outError("Error in CMSG_QUESTGIVER_CHOOSE_REWARD - %s "
+                "tried to get invalid reward item %u",
+                _player->GetGuidStr().c_str(), request.rewardItemId);
+            return;
+        }
+
+        DEBUG_LOG("WORLD: Received opcode "
+            "CMSG_QUESTGIVER_CHOOSE_REWARD - for %s to %s, quest = %u, "
+            "reward item = %u, choice = %u",
+            _player->GetGuidStr().c_str(), guid.GetString().c_str(), quest,
+            request.rewardItemId, reward);
+
         if (_player->CanRewardQuest(pQuest, reward, true))
         {
             _player->RewardQuest(pQuest, reward, pObject, false);
@@ -395,9 +413,14 @@ void WorldSession::HandleQuestgiverChooseRewardOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleQuestgiverRequestRewardOpcode(WorldPacket& recv_data)
 {
-    uint32 quest;
-    ObjectGuid guid;
-    recv_data >> guid >> quest;
+    MopQuestGiverPackets::RequestRewardRequest request;
+    if (!MopQuestGiverPackets::ParseRequestReward(recv_data, request))
+    {
+        sLog.outError("WORLD: Malformed CMSG_QUESTGIVER_REQUEST_REWARD");
+        return;
+    }
+    ObjectGuid const guid(request.questGiverGuid);
+    uint32 const quest = request.questId;
 
     if (!CanInteractWithQuestGiver(guid, "CMSG_QUESTGIVER_REQUEST_REWARD"))
     {
@@ -588,10 +611,14 @@ void WorldSession::HandleQuestConfirmAccept(WorldPacket& recv_data)
  */
 void WorldSession::HandleQuestgiverCompleteQuest(WorldPacket& recv_data)
 {
-    uint32 quest;
-    ObjectGuid guid;
-    uint8 unk;
-    recv_data >> guid >> quest >> unk;
+    MopQuestGiverPackets::CompleteQuestRequest request;
+    if (!MopQuestGiverPackets::ParseCompleteQuest(recv_data, request))
+    {
+        sLog.outError("WORLD: Malformed CMSG_QUESTGIVER_COMPLETE_QUEST");
+        return;
+    }
+    ObjectGuid const guid(request.questGiverGuid);
+    uint32 const quest = request.questId;
 
     if (!CanInteractWithQuestGiver(guid, "CMSG_QUESTGIVER_COMPLETE_QUEST"))
     {
@@ -599,7 +626,10 @@ void WorldSession::HandleQuestgiverCompleteQuest(WorldPacket& recv_data)
     }
 
     // All ok, continue
-    DEBUG_LOG("WORLD: Received opcode CMSG_QUESTGIVER_COMPLETE_QUEST - for %s to %s, quest = %u, unk = %u", _player->GetGuidStr().c_str(), guid.GetString().c_str(), quest, unk);
+    DEBUG_LOG("WORLD: Received opcode CMSG_QUESTGIVER_COMPLETE_QUEST - "
+        "for %s to %s, quest = %u, completion context = %u",
+        _player->GetGuidStr().c_str(), guid.GetString().c_str(), quest,
+        request.completionContext);
 
     if (Quest const* pQuest = sObjectMgr.GetQuestTemplate(quest))
     {

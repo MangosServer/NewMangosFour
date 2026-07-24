@@ -1137,6 +1137,36 @@ add_test(NAME mop_questgiver_acquisition_packets_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_questgiver_acquisition_packets_source_test.cmake)
 
+add_executable(mop_questgiver_turnin_packets_test
+    mop_questgiver_turnin_packets_test.cpp)
+target_include_directories(mop_questgiver_turnin_packets_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/src/shared)
+set_target_properties(mop_questgiver_turnin_packets_test
+    PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(mop_questgiver_turnin_packets_test PRIVATE game)
+add_test(NAME mop_questgiver_turnin_packets
+    COMMAND mop_questgiver_turnin_packets_test)
+
+add_test(NAME mop_questgiver_turnin_packets_source
+    COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_questgiver_turnin_packets_source_test.cmake)
+
+foreach(mutation IN ITEMS complete_parser request_reward_parser
+        choose_reward_parser reward_item_resolution request_items_builder
+        offer_reward_builder reward_summary_builder quest_update_builder
+        complete_registration request_reward_registration
+        choose_reward_registration response_registration response_admission
+        reference_status)
+    add_test(NAME mop_questgiver_turnin_packets_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_questgiver_turnin_packets_source_test.cmake)
+    set_tests_properties(
+        mop_questgiver_turnin_packets_source_mutation_${mutation}
+        PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 foreach(mutation IN ITEMS hello_parser query_parser accept_parser
         quest_cache_query_parser quest_cache_response_builder
         quest_cache_absent_response query_interaction_gate

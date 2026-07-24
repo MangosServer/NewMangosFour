@@ -175,9 +175,9 @@
  *   TOTAL SMSG rows                   925
  *
  * SUBSYSTEM CONFIDENCE: high=359, low=223, medium=183, none=160
- * STATUS TOTALS: ACTIVE=304, DOC=435, DORMANT=781
- *   SMSG: ACTIVE=177, DOC=268, DORMANT=480
- *   CMSG: ACTIVE=127, DOC=167, DORMANT=301
+ * STATUS TOTALS: ACTIVE=311, DOC=435, DORMANT=774
+ *   SMSG: ACTIVE=181, DOC=268, DORMANT=476
+ *   CMSG: ACTIVE=130, DOC=167, DORMANT=298
  */
 
 // CAVEATS -- read before trusting any single row:
@@ -725,7 +725,7 @@ typedef uint16_t uint16;
  *   SMSG_CATEGORY_COOLDOWN                         0x01DB  ACTIVE   [high-conf]
  *   SMSG_FISH_ESCAPED                              0x0227  DORMANT 
  *   SMSG_QUESTUPDATE_ADD_PVP_KILL                  0x0256  DORMANT 
- *   SMSG_QUESTGIVER_REQUEST_ITEMS                  0x0277  DORMANT 
+ *   SMSG_QUESTGIVER_REQUEST_ITEMS                  0x0277  ACTIVE
  *   SMSG_QUESTGIVER_QUEST_INVALID                  0x027D  DORMANT 
  *   SMSG_PET_LEARNED_SPELL                         0x0282  DORMANT  [medium-conf]
  *   SMSG_PETITION_ALREADY_SIGNED                   0x0286  DORMANT  [medium-conf]
@@ -735,7 +735,7 @@ typedef uint16_t uint16;
  *   SMSG_RESPEC_WIPE_CONFIRM                       0x02AB  ACTIVE
  *   SMSG_QUESTGIVER_QUEST_LIST                     0x02D4  ACTIVE   [high-conf]
  *   SMSG_UNKNOWN_0x02EF                            0x02EF  DOC     
- *   SMSG_QUESTGIVER_QUEST_COMPLETE                 0x0346  DORMANT 
+ *   SMSG_QUESTGIVER_QUEST_COMPLETE                 0x0346  ACTIVE
  *   SMSG_QUEST_NPC_QUERY_RESPONSE                  0x036D  DORMANT  [medium-conf]
  *   SMSG_UNKNOWN_0x040F                            0x040F  DOC     
  *   SMSG_UNKNOWN_0x041E                            0x041E  DOC      [medium-conf]
@@ -755,8 +755,8 @@ typedef uint16_t uint16;
  *   SMSG_QUESTGIVER_STATUS_MULTIPLE                0x06CE  ACTIVE   [high-conf]
  *   SMSG_QUESTUPDATE_FAILEDTIMER                   0x06FF  DORMANT 
  *   SMSG_QUEST_PUSH_RESULT                         0x074D  ACTIVE   [medium-conf]
- *   SMSG_QUESTGIVER_OFFER_REWARD                   0x074F  DORMANT 
- *   SMSG_QUESTUPDATE_COMPLETE                      0x0776  DORMANT 
+ *   SMSG_QUESTGIVER_OFFER_REWARD                   0x074F  ACTIVE
+ *   SMSG_QUESTUPDATE_COMPLETE                      0x0776  ACTIVE
  *   SMSG_UNKNOWN_0x07C5                            0x07C5  DOC      [medium-conf]
  *   SMSG_QUESTUPDATE_FAILED                        0x07DD  DORMANT 
  *   SMSG_UNKNOWN_0x07F5                            0x07F5  DOC     
@@ -1443,7 +1443,7 @@ typedef uint16_t uint16;
  *   CMSG_USED_FOLLOW                               0x0374  DOC     
  *   CMSG_REQUEST_PVP_REWARDS                       0x0375  DORMANT 
  *   CMSG_PET_BATTLE_REQUEST_UPDATE                 0x0377  DOC     
- *   CMSG_QUESTGIVER_REQUEST_REWARD                 0x0378  DORMANT 
+ *   CMSG_QUESTGIVER_REQUEST_REWARD                 0x0378  ACTIVE
  *   CMSG_AUCTION_HELLO                             0x0379  ACTIVE
  *   CMSG_PETITION_SHOWLIST                         0x037B  DORMANT 
  *   CMSG_REQUEST_VEHICLE_PREV_SEAT                 0x03C4  DORMANT 
@@ -1495,7 +1495,7 @@ typedef uint16_t uint16;
  *   CMSG_SET_FACTION_NOTATWAR                      0x064B  DOC     
  *   CMSG_SWAP_VOID_ITEM                            0x0655  DOC     
  *   CMSG_UNKNOWN_0x0656                            0x0656  DOC     
- *   CMSG_QUESTGIVER_COMPLETE_QUEST                 0x0659  DORMANT 
+ *   CMSG_QUESTGIVER_COMPLETE_QUEST                 0x0659  ACTIVE
  *   CMSG_PET_STOP_ATTACK                           0x065B  DORMANT 
  *   CMSG_BUYBACK_ITEM                              0x0661  DORMANT 
  *   CMSG_GRANT_LEVEL                               0x0662  DORMANT 
@@ -1550,7 +1550,7 @@ typedef uint16_t uint16;
  *   CMSG_GET_MAIL_LIST                             0x077A  DORMANT 
  *   CMSG_MAIL_QUERY_NEXT_TIME                      0x077B  ACTIVE
  *   CMSG_GUILD_BANK_UPDATE_TAB                     0x07C2  DORMANT 
- *   CMSG_QUESTGIVER_CHOOSE_REWARD                  0x07CB  DORMANT 
+ *   CMSG_QUESTGIVER_CHOOSE_REWARD                  0x07CB  ACTIVE
  *   CMSG_PET_ABANDON                               0x07D0  DORMANT 
  *   CMSG_TEXT_EMOTE                                0x07E9  ACTIVE
  *   CMSG_GUILD_BANK_WITHDRAW_MONEY                 0x07EA  DORMANT 
