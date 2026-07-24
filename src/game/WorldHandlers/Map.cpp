@@ -1943,21 +1943,36 @@ void Map::SendInitSelf(Player* player)
     UpdateData inventoryData(player->GetMapId());
     player->BuildCreateUpdateBlockForPlayer(&inventoryData, player);
 
-    std::vector<MopUpdateObject::StaticField> inventoryFields;
-    inventoryFields.reserve(MopUpdateObject::SelfInventoryFieldCount);
+    // BuildSelfCreate carries only the fixed login core, so seed the client's
+    // visible equipment here as well as its inventory links. Otherwise the
+    // first unequip sends a zero the client already assumes and leaves the
+    // login-time model displayed until a later nonzero equip update.
+    std::vector<MopUpdateObject::StaticField> selfFields;
+    selfFields.reserve(MopUpdateObject::ObserverVisibleItemFieldCount +
+        MopUpdateObject::SelfInventoryFieldCount);
+    for (uint16 i = 0; i < MopUpdateObject::ObserverVisibleItemFieldCount; ++i)
+    {
+        const uint16 sourceIndex =
+            uint16(MopUpdateObject::ObserverVisibleItemSourceStart + i);
+        const uint32 value = player->GetUInt32Value(sourceIndex);
+        if (value != 0)
+        {
+            selfFields.push_back({ sourceIndex, value });
+        }
+    }
     for (uint16 i = 0; i < MopUpdateObject::SelfInventoryFieldCount; ++i)
     {
         const uint16 sourceIndex = uint16(MopUpdateObject::SelfInventorySourceStart + i);
         const uint32 value = player->GetUInt32Value(sourceIndex);
         if (value != 0)
         {
-            inventoryFields.push_back({ sourceIndex, value });
+            selfFields.push_back({ sourceIndex, value });
         }
     }
-    if (!inventoryFields.empty())
+    if (!selfFields.empty())
     {
-        MopUpdateObject::AppendSelfInventoryValuesBlock(inventoryData.GetBuffer(), sp.guid,
-            inventoryFields.data(), uint32(inventoryFields.size()));
+        MopUpdateObject::AppendSelfPlayerValuesBlock(inventoryData.GetBuffer(), sp.guid,
+            selfFields.data(), uint32(selfFields.size()));
         inventoryData.AddUpdateBlock();
     }
 
