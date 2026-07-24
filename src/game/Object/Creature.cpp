@@ -1417,7 +1417,7 @@ void Creature::PrepareBodyLootState()
             // and Player::isAllowedToLoot), so hide the visual cue too.
             if (HasLootRecipient())
             {
-                //SetFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE);
+                SetFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE);
             }
             return;
         }
@@ -1428,12 +1428,12 @@ void Creature::PrepareBodyLootState()
     // if not have normal loot allow skinning if need
     if (!lootForSkin && GetCreatureInfo()->SkinningLootId)
     {
-        //RemoveFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE);
+        RemoveFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE);
       SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SKINNABLE);
       return;
     }
 
-    //RemoveFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE);
+    RemoveFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE);
     RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SKINNABLE);
 }
 
@@ -2218,7 +2218,7 @@ void Creature::SetLootStatus(CreatureLootStatus status)
             RemoveFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE);
             break;
         case CREATURE_LOOT_STATUS_SKIN_AVAILABLE:
-            SetFlag(UNIT_FIELD_FLAGS, UNIT_DYNFLAG_LOOTABLE);
+            SetFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE);
             RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_SKINNABLE);
             break;
         default:
