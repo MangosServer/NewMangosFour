@@ -139,14 +139,15 @@ namespace
             creature->SetFlag(UNIT_DYNAMIC_FLAGS, UNIT_DYNFLAG_LOOTABLE);
             dynamicFlags |= UNIT_DYNFLAG_LOOTABLE;
         }
-        if (!target->isAllowedToLoot(creature))
-        {
-            dynamicFlags &= ~UNIT_DYNFLAG_LOOTABLE;
-        }
-        if ((dynamicFlags & UNIT_DYNFLAG_TAPPED) && target->IsTappedByMeOrMyGroup(creature))
-        {
-            dynamicFlags &= ~UNIT_DYNFLAG_TAPPED;
-        }
+
+        static_assert(UNIT_DYNFLAG_LOOTABLE == 0x0001 &&
+            UNIT_DYNFLAG_TAPPED == 0x0004 &&
+            UNIT_DYNFLAG_TAPPED_BY_PLAYER == 0x0008,
+            "18414 observer projection assumes the inherited dynamic-flag bits");
+        MopUpdateObject::UnitDynamicFlagView dynamicFlagView{};
+        dynamicFlagView.hasLootRecipient = creature->HasLootRecipient();
+        dynamicFlagView.tappedByViewer = creature->IsTappedBy(target);
+        dynamicFlagView.allowedToLoot = target->isAllowedToLoot(creature);
 
         uint32 bytes0 = object.GetUInt32Value(UNIT_FIELD_BYTES_0);
         uint32 unitFlags = object.GetUInt32Value(UNIT_FIELD_FLAGS);
@@ -182,7 +183,8 @@ namespace
         add(3, object.GetUInt32Value(OBJECT_FIELD_DATA + 1));
         add(4, object.GetUInt32Value(OBJECT_FIELD_TYPE));
         add(5, object.GetUInt32Value(OBJECT_FIELD_ENTRY));
-        add(6, MopUpdateObject::TranslateUnitDynamicFlags(dynamicFlags));
+        add(6, MopUpdateObject::TranslateUnitDynamicFlagsForViewer(
+            dynamicFlags, dynamicFlagView));
         add(7, object.GetUInt32Value(OBJECT_FIELD_SCALE_X));
         add(30, MopUpdateObject::RepackUnitBytes0(bytes0));
         add(31, (bytes0 >> 24) & 0xFFu);

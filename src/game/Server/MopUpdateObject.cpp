@@ -111,6 +111,34 @@ uint32 MopUpdateObject::TranslateUnitDynamicFlags(uint32 legacyFlags)
     return (legacyFlags & 0x000000FFu) << 1;
 }
 
+uint32 MopUpdateObject::TranslateUnitDynamicFlagsForViewer(uint32 legacyFlags,
+    UnitDynamicFlagView const& view)
+{
+    constexpr uint32 LegacyLootable = 0x00000001u;
+    constexpr uint32 LegacyTapped = 0x00000004u;
+    constexpr uint32 LegacyTappedByPlayer = 0x00000008u;
+
+    // Tap ownership is server state, but TAPPED_BY_PLAYER is observer-relative
+    // on 18414. Rebuild both bits for this viewer instead of leaking the
+    // recipient's private cue to every client.
+    uint32 projectedFlags = legacyFlags & ~(LegacyTapped | LegacyTappedByPlayer);
+    if (view.hasLootRecipient)
+    {
+        projectedFlags |= LegacyTapped;
+        if (view.tappedByViewer)
+        {
+            projectedFlags |= LegacyTappedByPlayer;
+        }
+    }
+
+    if (!view.allowedToLoot)
+    {
+        projectedFlags &= ~LegacyLootable;
+    }
+
+    return TranslateUnitDynamicFlags(projectedFlags);
+}
+
 uint32 MopUpdateObject::TranslateGameObjectDynamic(uint32 legacyDynamic)
 {
     return (legacyDynamic & 0xFFFF0000u) | ((legacyDynamic & 0x0000000Fu) << 1);

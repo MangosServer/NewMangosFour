@@ -411,6 +411,28 @@ int main(int /*argc*/, char** /*argv*/)
     CHECK(MopUpdateObject::RepackUnitBytes0(0x04030201u) == 0x03040201u);
     CHECK(MopUpdateObject::TranslateUnitDynamicFlags(0x000000A5u) == 0x0000014Au);
     CHECK(MopUpdateObject::TranslateUnitDynamicFlags(0xFFFF01A5u) == 0x0000014Au);
+    {
+        MopUpdateObject::UnitDynamicFlagView view{};
+        view.hasLootRecipient = true;
+
+        // Another player sees the tap, but not the private loot cue or
+        // TAPPED_BY_PLAYER state.
+        CHECK(MopUpdateObject::TranslateUnitDynamicFlagsForViewer(
+            0x0000000Du, view) == 0x00000008u);
+
+        // The recipient sees all three 18414 states: lootable, tapped and
+        // tapped-by-player.
+        view.tappedByViewer = true;
+        view.allowedToLoot = true;
+        CHECK(MopUpdateObject::TranslateUnitDynamicFlagsForViewer(
+            0x0000000Du, view) == 0x0000001Au);
+
+        // Stale legacy tap bits must disappear once ownership is cleared.
+        view.hasLootRecipient = false;
+        view.tappedByViewer = false;
+        CHECK(MopUpdateObject::TranslateUnitDynamicFlagsForViewer(
+            0x0000000Du, view) == 0x00000002u);
+    }
     CHECK(MopUpdateObject::TranslateGameObjectDynamic(0xFFFF0001u) == 0xFFFF0002u);
     CHECK(MopUpdateObject::TranslateGameObjectDynamic(0xFFFF0009u) == 0xFFFF0012u);
     CHECK(MopUpdateObject::TranslateGameObjectDynamic(0x123400F3u) == 0x12340006u);

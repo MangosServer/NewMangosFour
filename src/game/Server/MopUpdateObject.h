@@ -124,6 +124,18 @@ namespace MopUpdateObject
     /// DISABLE_CLIENT_SIDE bit. Unknown legacy bits are deliberately dropped.
     uint32 TranslateUnitDynamicFlags(uint32 legacyFlags);
 
+    struct UnitDynamicFlagView
+    {
+        bool hasLootRecipient;
+        bool tappedByViewer;
+        bool allowedToLoot;
+    };
+
+    /// Project tap and loot visibility for one observer before translating the
+    /// inherited dynamic flags to their 18414 bit positions.
+    uint32 TranslateUnitDynamicFlagsForViewer(uint32 legacyFlags,
+        UnitDynamicFlagView const& view);
+
     /// Preserve the legacy high-half interaction sentinel while translating
     /// the four defined low GameObject flags past target bit zero.
     uint32 TranslateGameObjectDynamic(uint32 legacyDynamic);
