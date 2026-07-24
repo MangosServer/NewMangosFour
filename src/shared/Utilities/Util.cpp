@@ -966,7 +966,8 @@ int return_iCoreNumber()
     return 2;
 #elif defined(CATA)
     return 3;
-#elif defined(MOP)
+#elif defined(MOP) || defined(MISTS)
+    // NewMangosFour's canonical CMake expansion name is MISTS.
     return 4;
 #elif defined(WOD)
     return 5;
