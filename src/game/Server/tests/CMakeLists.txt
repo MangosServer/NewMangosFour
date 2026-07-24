@@ -122,6 +122,11 @@ add_test(NAME mop_opcode_foundation_source
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_opcode_foundation_source_test.cmake)
 
+add_test(NAME mop_opcode_reference_status_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_opcode_reference_status_source_test.cmake)
+
 add_executable(mop_client_opcode_worklist_test mop_client_opcode_worklist_test.cpp)
 target_include_directories(mop_client_opcode_worklist_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
