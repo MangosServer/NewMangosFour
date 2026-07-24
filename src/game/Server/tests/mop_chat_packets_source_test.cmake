@@ -143,6 +143,11 @@ elseif(MUTATION STREQUAL "say_parser_layout")
         "uint8 const length = uint8(in.ReadBits(8));"
         "uint8 const length = uint8(in.ReadBits(9)); /* damaged SAY length */"
         chat_header "${chat_header}")
+elseif(MUTATION STREQUAL "say_language_spell")
+    string(REPLACE
+        "!_player->HasSpell(langDesc->spell_id)"
+        "!false /* removed 18414 language-spell authorization */"
+        chat_handler "${chat_handler}")
 elseif(MUTATION STREQUAL "say_reference_status")
     string(REPLACE
         "CMSG_MESSAGECHAT_SAY                           0x0A9A  ACTIVE"
@@ -299,6 +304,9 @@ require_once("${chat_handler}"
 require_once("${chat_header}"
     "uint8 const length = uint8(in.ReadBits(8));"
     "SAY request 8-bit message length")
+require_once("${chat_handler}"
+    "!_player->HasSpell"
+    "18414 negated known-language spell authorization")
 require_once("${chat_handler}"
     "MopChatPackets::ReadAfkMessageRequest(recv_data, msg)"
     "AFK request parser wiring")

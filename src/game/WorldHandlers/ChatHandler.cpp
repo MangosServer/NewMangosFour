@@ -136,7 +136,12 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
             SendNotification(LANG_UNKNOWN_LANGUAGE);
             return;
         }
-        if (langDesc->skill_id != 0 && !_player->HasSkill(langDesc->skill_id))
+        // In 18414, racial languages are persisted as known
+        // SPELL_EFFECT_LANGUAGE spells. Accept that authoritative state as well
+        // as the legacy skill row so older characters are not locked out when
+        // their already-known language spell never rebuilt mSkillStatus.
+        if (langDesc->skill_id != 0 && !_player->HasSkill(langDesc->skill_id) &&
+                !_player->HasSpell(langDesc->spell_id))
         {
             // also check SPELL_AURA_COMPREHEND_LANGUAGE (client offers option to speak in that language)
             Unit::AuraList const& langAuras = _player->GetAurasByType(SPELL_AURA_COMPREHEND_LANGUAGE);
