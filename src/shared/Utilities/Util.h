@@ -83,6 +83,22 @@ void stripLineInvisibleChars(std::string& src);
 
 struct tm* localtime_r(const time_t* time, struct tm* result);
 
+/**
+ * @brief Thread safe, portable localtime_s/localtime_r replacement
+ *
+ * @param time - local time
+ */
+inline std::tm safe_localtime(const time_t time)
+{
+    std::tm _ltm{};
+#if PLATFORM == PLATFORM_WINDOWS
+    localtime_s(&_ltm, &time);
+#else
+    localtime_r(&time, &_ltm);
+#endif
+    return _ltm;
+}
+
 time_t LocalTimeToUTCTime(time_t time);
 
 /**

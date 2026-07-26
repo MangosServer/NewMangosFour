@@ -206,6 +206,8 @@ set(SRC_GRP_UTILITIES
   Utilities/TypeList.h
   Utilities/UnorderedMapSet.h
   Utilities/Optional.h
+  Utilities/ScheduledExit.cpp
+  Utilities/ScheduledExit.h
 )
 source_group("Utilities" FILES ${SRC_GRP_UTILITIES})
 

@@ -23,48 +23,24 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-/** \file
- \ingroup realmd
+#ifndef MANGOS_TIMECONSTANTS_H
+#define MANGOS_TIMECONSTANTS_H
+
+/**
+ * @brief Durations expressed in seconds, except IN_MILLISECONDS.
+ *
+ * Split out of Common.h so components that only need the time constants
+ * (realmd among them) do not have to pull in the whole shared header.
  */
-
-#include <cstdint>
-#include <string>
-#include "AuthServer.h"
-#include "AuthSocket.h"
-
-#include "net/Server.hpp"
-
-#include <memory>
-
-/// Holds the value-type networking engine, kept in the .cpp so its platform
-/// headers stay out of AuthServer.h (and therefore out of Main.cpp).
-struct AuthServer::Impl
+enum TimeConstants
 {
-    net::Server server;
+    MINUTE = 60,
+    HOUR   = MINUTE * 60,
+    DAY    = HOUR * 24,
+    WEEK   = DAY * 7,
+    MONTH  = DAY * 30,
+    YEAR   = MONTH * 12,
+    IN_MILLISECONDS = 1000
 };
 
-AuthServer::AuthServer()
-    : m_impl(new Impl())
-{
-}
-
-AuthServer::~AuthServer()
-{
-    Stop();
-}
-
-bool AuthServer::Start(uint16_t port, const std::string& bindIp)
-{
-    return m_impl->server.start(port, []() -> std::shared_ptr<net::ISession>
-    {
-        return std::make_shared<AuthSocket>();
-    }, bindIp);
-}
-
-void AuthServer::Stop()
-{
-    if (m_impl)
-    {
-        m_impl->server.stop();
-    }
-}
+#endif

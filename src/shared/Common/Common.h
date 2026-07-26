@@ -198,39 +198,13 @@ inline float finiteAlways(float f) { return finite(f) ? f : 0.0f; }
  * @brief
  *
  */
-enum TimeConstants
-{
-    MINUTE = 60,
-    HOUR   = MINUTE * 60,
-    DAY    = HOUR * 24,
-    WEEK   = DAY * 7,
-    MONTH  = DAY * 30,
-    YEAR   = MONTH * 12,
-    IN_MILLISECONDS = 1000
-};
+#include "TimeConstants.h"
 
 /**
  * @brief
  *
  */
-enum LocaleConstant
-{
-    LOCALE_enUS = 0,                                        // also enGB
-    LOCALE_koKR = 1,
-    LOCALE_frFR = 2,
-    LOCALE_deDE = 3,
-    LOCALE_zhCN = 4,
-    LOCALE_zhTW = 5,
-    LOCALE_esES = 6,
-    LOCALE_esMX = 7,
-    LOCALE_ruRU = 8,
-    LOCALE_ptPT = 9,
-    LOCALE_ptBR = 10,
-    LOCALE_itIT = 11
-};
-
-#define MAX_LOCALE 12 // LOCALE_itIT+1
-#define DEFAULT_LOCALE LOCALE_enUS
+#include "Locales.h"
 
 /**
  * @brief
