@@ -252,13 +252,7 @@ inline char* mangos_strdup(const char* source)
 #  undef min
 #endif
 
-#ifndef M_PI
-#  define M_PI          3.14159265358979323846
-#endif
-
-#ifndef M_PI_F
-#  define M_PI_F        float(M_PI)
-#endif
+#include "Utilities/MathDefines.h"
 
 #ifndef countof
 #define countof(array) (sizeof(array) / sizeof((array)[0]))

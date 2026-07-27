@@ -194,6 +194,7 @@ set(SRC_GRP_UTILITIES
   Utilities/RNGen.h
   Utilities/Timer.h
   Utilities/Util.cpp
+  Utilities/MathDefines.h
   Utilities/Util.h
   Utilities/WorldPacket.h
   Utilities/ByteConverter.h
