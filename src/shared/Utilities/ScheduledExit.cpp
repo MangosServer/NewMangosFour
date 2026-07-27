@@ -16,6 +16,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
+#include <climits>
 #include <cstdlib>
 #include <functional>
 #include <set>
@@ -92,12 +94,35 @@ namespace MaNGOS
             return false;
         }
 
+        // strtoul silently wraps a leading sign, so "-1" would otherwise parse
+        // as ULONG_MAX and narrow to a plausible-looking 4294967295.
+        if (trimmed[0] == '-' || trimmed[0] == '+')
+        {
+            return false;
+        }
+
         char* end = NULL;
+        errno = 0;
         unsigned long parsed = std::strtoul(trimmed.c_str(), &end, 10);
         if (!end || *end != '\0')
         {
             return false;
         }
+
+        // ERANGE covers overflow where unsigned long is 32 bit (Windows); the
+        // explicit bound catches the 64 bit case, where a value above
+        // UINT32_MAX parses cleanly and would then truncate (4294967296 -> 0).
+        if (errno == ERANGE)
+        {
+            return false;
+        }
+
+#if ULONG_MAX > 0xFFFFFFFFUL
+        if (parsed > 0xFFFFFFFFUL)
+        {
+            return false;
+        }
+#endif
 
         value = uint32(parsed);
         return true;
