@@ -57,6 +57,10 @@ if(DEFINED MUTATION)
         # and become unenterable, which is the defect this fix was rejected for.
         string(REPLACE "ToInternalDifficulty(mapDiff->DifficultyID) == 1"
                        "false" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "drop_challenge_mapping")
+        # Exactly the regression this gate failed to catch: without client id 8 all
+        # nine challenge dungeons lose internal mode 2, silently.
+        string(REPLACE "case 8:  return 2;" "" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "drop_40man_mapping")
         string(REPLACE "case 9:  return 0;" "" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "raw_id_through_internal_lookup")
@@ -118,6 +122,7 @@ foreach(_row
         "case 4:  return 1;"
         "case 5:  return 2;"
         "case 6:  return 3;"
+        "case 8:  return 2;"
         "case 9:  return 0;")
     string(FIND "${_dbc_src}" "${_row}" _at)
     if(_at EQUAL -1)
@@ -143,7 +148,8 @@ endif()
 # ---------------------------------------------------------------------------
 foreach(_site
         "GetMapDifficultyDataByClientId(mapid, uint32(difficulty))"
-        "GetMapDifficultyDataByClientId(event.mapid, uint32(event.difficulty))")
+        "GetMapDifficultyDataByClientId(event.mapid, uint32(event.difficulty))"
+        "GetMapDifficultyDataByClientId(mapid, difficulty)")
     string(FIND "${_mps_src}" "${_site}" _at)
     if(_at EQUAL -1)
         message(FATAL_ERROR
@@ -154,5 +160,5 @@ foreach(_site
     endif()
 endforeach()
 
-message(STATUS "map difficulty guard: two key spaces separated, 7 id mappings, "
-               "25-man widening present, 2 raw-id scheduler sites correct")
+message(STATUS "map difficulty guard: two key spaces separated, 8 id mappings, "
+               "25-man widening present, 3 raw-id scheduler sites correct")

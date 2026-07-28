@@ -1666,36 +1666,29 @@ ContentLevels GetContentLevelsForMapAndZone(uint32 mapId, uint32 zoneId)
 }
 
 /**
- * @brief Translate the core's legacy 0-based Difficulty into a 5.4.8 DifficultyID.
+ * @brief Translate a raw 5.4.8 client DifficultyID into the core's internal mode.
  *
- * MapDifficulty.dbc is keyed on Difficulty.dbc ids, and those START AT 1 for
- * instances. Our Difficulty enum is the 0-based WotLK-era one, so every instance
- * lookup missed: Stockades (map 34) has exactly one row, DifficultyID 1, and
- * GetMapDifficultyData(34, DUNGEON_DIFFICULTY_NORMAL=0) found nothing. That made
- * Player::GetAreaTriggerLockStatus() answer AREA_LOCKSTATUS_MISSING_DIFFICULTY and
- * no instance in the game was enterable.
+ * MapDifficulty.dbc is keyed on Difficulty.dbc ids, which for instances START AT 1,
+ * while the Difficulty enum is the 0-based WotLK-era one. Stockades (map 34) has
+ * exactly one row, DifficultyID 1, so a request for DUNGEON_DIFFICULTY_NORMAL (0)
+ * found nothing, Player::GetAreaTriggerLockStatus() answered
+ * AREA_LOCKSTATUS_MISSING_DIFFICULTY, and no instance in the game was enterable.
+ * Continents were unaffected because world, battleground and arena maps are the
+ * only ones that carry a 0 row.
  *
- * The mapping is read out of Difficulty.dbc rather than invented. Each row carries
- * an instance type and a legacy 0-based index:
+ * The direction here is client -> internal, which is what building the legacy index
+ * needs. It deliberately mirrors the switch in BuildMapSpawnModeMasks; the two
+ * should be changed together.
  *
- *   id 1  type 1 (5-man)  legacy 0        id 3  type 2 (raid)  legacy 0
- *   id 2  type 1          legacy 1        id 4  type 2         legacy 1
- *   id 8  type 1          legacy -1       id 5  type 2         legacy 2
- *                                         id 6  type 2         legacy 3
- *                                         id 7  type 2         legacy 4
+ * Ids with no internal equivalent return -1 and are simply absent from the index:
+ * LFR (7), flexible (14) and scenarios (11, 12). The Difficulty enum has no member
+ * for any of them, so giving them one is a feature, not a mapping fix.
  *
- * Verified against the shipped DBCs: dungeon maps only ever carry DifficultyID
- * 1, 2 or 8; raid maps only 3-7, 9 and 14; and world, battleground and arena maps
- * only ever carry 0. That last fact is why continents worked while instances did
- * not, and it is why the translation must apply ONLY to instance maps -- for
- * everything else identity is required, not merely tolerable.
- *
- * Two gaps are deliberate rather than overlooked:
- *  - Challenge mode is DifficultyID 8, whose legacy index is -1. It is reachable
- *    only by knowing it is the third 5-man row, so it is mapped explicitly.
- *  - Scenarios use DifficultyID 11 and 12, both legacy -1, and the Difficulty enum
- *    has no member for either. They are left untranslated and still miss, exactly
- *    as before this change. Fixing that needs new enum members, not a new mapping.
+ * Challenge mode (8) is easy to lose. It has no legacy index in Difficulty.dbc, so
+ * it only appears here because DUNGEON_DIFFICULTY_CHALLENGE exists as the third
+ * 5-man tier. Dropping it silently removes internal mode 2 from all nine challenge
+ * dungeons -- 959, 960, 961, 962, 994, 1001, 1004, 1007 and 1011 -- and an earlier
+ * revision of this function did exactly that.
  */
 int32 ToInternalDifficulty(uint32 clientDifficultyId)
 {
@@ -1708,8 +1701,9 @@ int32 ToInternalDifficulty(uint32 clientDifficultyId)
         case 4:  return 1;                                  // raid 25 normal
         case 5:  return 2;                                  // raid 10 heroic
         case 6:  return 3;                                  // raid 25 heroic
+        case 8:  return 2;                                  // 5-man challenge mode
         case 9:  return 0;                                  // legacy 40-player raids
-        default: return -1;                                 // LFR 7, challenge 8, flex 14, scenario 11/12
+        default: return -1;                                 // LFR 7, flexible 14, scenarios 11/12
     }
 }
 

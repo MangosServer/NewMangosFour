@@ -1177,9 +1177,9 @@ void MapPersistentStateManager::_ResetOrWarnAll(uint32 mapid, Difficulty difficu
 
     if (!warn)
     {
-        // 'difficulty' here is a RAW client DifficultyID taken from the
-    // sMapDifficultyMap key / instance_reset, not an internal mode.
-    MapDifficultyEntry const* mapDiff = GetMapDifficultyDataByClientId(mapid, difficulty);
+        // 'difficulty' here is a RAW client DifficultyID: it reaches this function
+        // from the sMapDifficultyMap key by way of instance_reset and reset events.
+        MapDifficultyEntry const* mapDiff = GetMapDifficultyDataByClientId(mapid, difficulty);
         if (!mapDiff || !mapDiff->RaidDuration)
         {
             sLog.outError("MapPersistentStateManager::ResetOrWarnAll: not valid difficulty or no reset delay for map %d", mapid);

@@ -1029,7 +1029,7 @@ add_test(NAME mop_map_difficulty_source
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_map_difficulty_source_test.cmake)
 
 foreach(mutation IN ITEMS drop_legacy_index drop_index_build drop_25man_widening
-                          drop_40man_mapping raw_id_through_internal_lookup
+                          drop_40man_mapping drop_challenge_mapping raw_id_through_internal_lookup
                           reset_row_through_internal_lookup)
     add_test(NAME mop_map_difficulty_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND}
