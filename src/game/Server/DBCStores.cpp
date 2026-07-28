@@ -1711,6 +1711,31 @@ int32 ToInternalDifficulty(uint32 clientDifficultyId)
 }
 
 /**
+ * @brief Whether a DungeonEncounter.dbc row applies at an internal difficulty.
+ *
+ * DungeonEncounter.dbc keys on raw client DifficultyIDs like everything else in the
+ * 5.4.8 DBCs, and comparing one directly against a Difficulty was wrong in both
+ * directions. Of the 699 shipped rows only the 238 carrying id 0 ever matched, and
+ * they matched for the wrong reason; the 264 rows for 5-man normal (id 1) were tested
+ * against internal mode 1, which is HEROIC, so a normal clear credited nothing while a
+ * heroic clear credited the normal encounter. Ids 5 and 6 (Sinestra, Ra-den) exceed
+ * MAX_DIFFICULTY as raw values and could never match at all.
+ *
+ * Id 0 is a wildcard, not internal mode 0. 41 maps carry nothing but id 0 rows and 36
+ * of those have more than one difficulty tier, so reading it as "normal only" would
+ * stop every heroic run on them from ever crediting an encounter.
+ */
+bool EncounterDifficultyMatches(uint32 encounterDifficultyId, Difficulty difficulty)
+{
+    if (encounterDifficultyId == 0)
+    {
+        return true;                                        // applies to every tier of the map
+    }
+
+    return ToInternalDifficulty(encounterDifficultyId) == int32(difficulty);
+}
+
+/**
  * @brief Builds the legacy-keyed index that GetMapDifficultyData answers from.
  *
  * A static per-type translation is not enough. Some raids have no ID 3 row at all:
@@ -1785,9 +1810,12 @@ static void BuildMapDifficultyLegacyIndex()
  * @param difficulty The map difficulty, in the core's internal 0-based form.
  * @return Pointer to the MapDifficultyEntry, or NULL when no row matches.
  *
- * @note Internal modes are the ONLY key space the server uses for difficulty. Raw
- *       client DifficultyIDs exist solely inside DBCStores, between reading
- *       MapDifficulty.dbc and building this index. Nothing outside should hold one.
+ * @note Nothing may carry a raw client DifficultyID across a runtime or persistence
+ *       boundary. MapDifficulty.dbc is translated here, at load. Two other DBCs also
+ *       store raw ids and each translates at its own boundary instead:
+ *       LfgDungeons.dbc via ToInternalDifficulty in LFGMgr::CreateDungeonGroup, and
+ *       DungeonEncounter.dbc via EncounterDifficultyMatches at both credit sites.
+ *       Both of those were direct casts and both persisted the result.
  */
 MapDifficultyEntry const* GetMapDifficultyData(uint32 mapId, Difficulty difficulty)
 {

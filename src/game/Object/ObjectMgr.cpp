@@ -2427,12 +2427,15 @@ bool PlayerCondition::Meets(Player const* player, Map const* map, WorldObject co
                 sLog.outErrorDb("CONDITION_COMPLETED_ENCOUNTER (entry %u, DungeonEncounterEntry %u) is used on wrong map (used on Map %u) by %s", m_entry, m_value1, player->GetMapId(), player->GetGuidStr().c_str());
                 return false;
             }
-            // Select matching difficulties
-            if (map->GetDifficulty() != Difficulty(dbcEntry1->DifficultyID))
+            // Select matching difficulties. DungeonEncounter.dbc holds RAW client
+            // DifficultyIDs and id 0 is a wildcard, so this must go through the same
+            // predicate DungeonPersistentState::UpdateEncounterState uses -- otherwise
+            // the condition disagrees with the mask it is testing.
+            if (!EncounterDifficultyMatches(dbcEntry1->DifficultyID, map->GetDifficulty()))
             {
                 dbcEntry1 = NULL;
             }
-            if (dbcEntry2 && map->GetDifficulty() != Difficulty(dbcEntry2->DifficultyID))
+            if (dbcEntry2 && !EncounterDifficultyMatches(dbcEntry2->DifficultyID, map->GetDifficulty()))
             {
                 dbcEntry2 = NULL;
             }

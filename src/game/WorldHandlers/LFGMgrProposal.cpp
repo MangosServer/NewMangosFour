@@ -575,7 +575,26 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
         return;
     }
 
-    pGroup->SetDungeonDifficulty(Difficulty(dungeon->DifficultyID));
+    // LfgDungeons.dbc carries a RAW client DifficultyID. Casting it straight to
+    // Difficulty made LFG normal (id 1) select internal mode 1 -- HEROIC -- and LFG
+    // heroic (id 2) select mode 2, CHALLENGE. That value does not stay in the session:
+    // Group::SetDungeonDifficulty persists it to `groups`.`difficulty` and, through the
+    // members, to `characters`.`dungeon_difficulty`, so a single LFG run left every
+    // member's saved difficulty wrong.
+    int32 const dungeonMode = ToInternalDifficulty(dungeon->DifficultyID);
+    if (dungeonMode < 0)
+    {
+        // LFR (7), scenarios (11, 12) and flexible (14) have no internal equivalent --
+        // 77 of the 343 LfgDungeons rows are one of those. Regular keeps the group in a
+        // state the rest of the core can read instead of persisting a mode it cannot.
+        DEBUG_LOG("LFGMgr::CreateDungeonGroup: dungeon %u has client DifficultyID %u with no internal mode, using regular",
+                  dungeon->ID, dungeon->DifficultyID);
+        pGroup->SetDungeonDifficulty(REGULAR_DIFFICULTY);
+    }
+    else
+    {
+        pGroup->SetDungeonDifficulty(Difficulty(dungeonMode));
+    }
 
     // Add group to our group set and group map, then teleport to the dungeon
     ObjectGuid groupGuid = pGroup->GetObjectGuid();

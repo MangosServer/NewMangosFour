@@ -425,7 +425,9 @@ void DungeonPersistentState::UpdateEncounterState(EncounterCreditType type, uint
     {
         DungeonEncounterEntry const* dbcEntry = iter->second->dbcEntry;
 
-        if (iter->second->creditType == type && Difficulty(dbcEntry->DifficultyID) == GetDifficulty() && dbcEntry->MapID == GetMapId())
+        // DungeonEncounter.dbc holds RAW client DifficultyIDs, so this cannot be a
+        // direct comparison against an internal mode -- see EncounterDifficultyMatches.
+        if (iter->second->creditType == type && EncounterDifficultyMatches(dbcEntry->DifficultyID, GetDifficulty()) && dbcEntry->MapID == GetMapId())
         {
             m_completedEncountersMask |= 1 << dbcEntry->Bit;
 
@@ -577,8 +579,19 @@ void DungeonResetScheduler::LoadResetTimes()
             // `instance_reset`.`difficulty` holds an INTERNAL 0-based mode, the same
             // key space as `instance`.`difficulty`, DungeonPersistentState::GetDifficulty
             // and m_resetTimeByMapDifficulty. The scheduler below writes it from the
-            // legacy index, so there is exactly one difficulty key space in the server.
-            if (!mapEntry || !mapEntry->IsDungeon() || !GetMapDifficultyData(mapid, difficulty))
+            // legacy index.
+            //
+            // The RaidDuration test is ALSO the migration for this table. Rows written by
+            // a build that keyed it on raw client DifficultyIDs mostly fail the lookup and
+            // are deleted here -- but nine do not. A raw id 2 row (5-man heroic, 86400s) on
+            // a challenge map resolves as internal mode 2, which on maps 959/960/961/962/
+            // 994/1001/1004/1007/1011 is CHALLENGE, whose row carries no global reset. The
+            // enumeration below skips RaidDuration == 0 rows, so nothing would ever
+            // overwrite the stale timestamp and a challenge instance would inherit an old
+            // heroic lockout. The scheduler only ever writes rows for tiers that HAVE a
+            // global reset, so a row whose tier has none cannot have come from us.
+            MapDifficultyEntry const* resetDiff = GetMapDifficultyData(mapid, difficulty);
+            if (!mapEntry || !mapEntry->IsDungeon() || !resetDiff || !resetDiff->RaidDuration)
             {
                 sLog.outError("MapPersistentStateManager::LoadResetTimes: invalid mapid(%u)/difficulty(%u) pair in instance_reset!", mapid, difficulty);
                 CharacterDatabase.DirectPExecute("DELETE FROM `instance_reset` WHERE `mapid` = '%u' AND `difficulty` = '%u'", mapid, difficulty);

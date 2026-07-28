@@ -174,6 +174,11 @@ MapDifficultyMap const& GetMapDifficultyLegacyMap();
 // equivalent (LFR 7, flexible 14, scenarios 11/12). Challenge mode (8) DOES have one:
 // it is the third 5-man tier, DUNGEON_DIFFICULTY_CHALLENGE.
 int32 ToInternalDifficulty(uint32 clientDifficultyId);
+// True when a DungeonEncounter.dbc row applies at the given INTERNAL difficulty.
+// That table's DifficultyID is a raw client id and must not be compared to a
+// Difficulty directly; 0 there means "every difficulty of this map", not internal
+// mode 0. Both encounter-credit sites must use this so they agree.
+bool EncounterDifficultyMatches(uint32 encounterDifficultyId, Difficulty difficulty);
 void BuildMapSpawnModeMasks(std::map<uint32, uint32>& spawnMasks);
 
 // natural order for difficulties up-down iteration

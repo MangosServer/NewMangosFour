@@ -1,4 +1,4 @@
-# Pins the single-key-space discipline around MapDifficulty.dbc.
+# Pins the difficulty key-space discipline across every boundary that persists one.
 #
 # MapDifficulty.dbc is keyed on Difficulty.dbc ids, which for instances START AT 1,
 # while the core's Difficulty enum is the 0-based WotLK-era one. Every instance
@@ -6,21 +6,32 @@
 # has exactly one row, DifficultyID 1, and a request for DUNGEON_DIFFICULTY_NORMAL
 # (0) found nothing, so the area trigger answered AREA_LOCKSTATUS_MISSING_DIFFICULTY.
 #
-# The fix translates ONCE, at DBC load, into sMapDifficultyLegacyMap. Internal 0-based
-# modes are then the only difficulty key space the server has. Raw client DifficultyIDs
-# live entirely inside DBCStores.cpp, between reading the .dbc and building that index.
+# The rule: translate at the boundary, once, and never let a raw client DifficultyID
+# cross a runtime or persistence boundary. THREE DBCs store raw ids and each has its
+# own translation point:
+#   MapDifficulty.dbc    -> sMapDifficultyLegacyMap, built at load
+#   LfgDungeons.dbc      -> ToInternalDifficulty in LFGMgr::CreateDungeonGroup
+#   DungeonEncounter.dbc -> EncounterDifficultyMatches at both credit sites
 #
-# An earlier revision instead kept BOTH key spaces alive and added a second accessor,
-# GetMapDifficultyDataByClientId, for the reset scheduler. That was rejected: the
-# scheduler does not merely look rows up, it also writes m_resetTimeByMapDifficulty,
-# `instance_reset` and the scheduled DungeonResetEvents, all of which are read back
-# with INTERNAL modes by AddPersistentState, by MovementHandler's reset warning, by
-# the DungeonPersistentState::GetDifficulty() comparison in _ResetOrWarnAll and by the
-# instance/instance_reset SQL join in _CleanupExpiredInstancesAtTime. Since no raw id
-# except 0 equals its own internal mode, 129 of the 143 reset-bearing tiers missed the
-# table outright and the other 14 silently took another tier's row. Auditing callers of
-# the two accessors could not see any of that, because the defect was in the key space,
-# not in the lookups. Hence the ban below: the second accessor must not come back.
+# All three were getting this wrong, and all three PERSIST the result, which is why
+# each is pinned here rather than left to review:
+#
+#   * The reset scheduler enumerated the raw map, so m_resetTimeByMapDifficulty,
+#     `instance_reset` and every DungeonResetEvent were raw-keyed while
+#     AddPersistentState, MovementHandler, _ResetOrWarnAll and the instance/
+#     instance_reset SQL join read them as internal. No raw id except 0 equals its own
+#     internal mode, so 129 of 143 reset-bearing tiers missed outright (resetTime 0,
+#     which SendRaidInfo transmits as a ~79-year lockout) and 14 took another tier's row.
+#   * LFG cast LfgDungeons.DifficultyID straight to Difficulty, so LFG normal set
+#     internal HEROIC and LFG heroic set CHALLENGE -- persisted into `groups`.`difficulty`
+#     and `characters`.`dungeon_difficulty`.
+#   * DungeonEncounter.DifficultyID was compared directly against an internal mode
+#     before writing `instance`.`encountersMask`. Only the 238 wildcard rows ever
+#     matched, and for the wrong reason; the 264 5-man normal rows were tested against
+#     internal 1 (heroic); ids 5 and 6 exceed MAX_DIFFICULTY as raw values.
+#
+# Auditing callers of an accessor cannot find any of this -- the defect is in the key
+# space, not the lookup -- so the assertions below pin key spaces and boundaries.
 #
 # Run:
 #   cmake -DSOURCE_ROOT=<repo> -P mop_map_difficulty_source_test.cmake
@@ -32,19 +43,37 @@ endif()
 set(_dbc "${SOURCE_ROOT}/src/game/Server/DBCStores.cpp")
 set(_dbh "${SOURCE_ROOT}/src/game/Server/DBCStores.h")
 set(_mps "${SOURCE_ROOT}/src/game/WorldHandlers/MapPersistentStateMgr.cpp")
-foreach(_f "${_dbc}" "${_dbh}" "${_mps}")
+set(_lfg "${SOURCE_ROOT}/src/game/WorldHandlers/LFGMgrProposal.cpp")
+set(_omg "${SOURCE_ROOT}/src/game/Object/ObjectMgr.cpp")
+foreach(_f "${_dbc}" "${_dbh}" "${_mps}" "${_lfg}" "${_omg}")
     if(NOT EXISTS "${_f}")
         message(FATAL_ERROR "missing source: ${_f}")
     endif()
 endforeach()
-file(READ "${_dbc}" _dbc_raw)
-file(READ "${_dbh}" _dbh_raw)
-file(READ "${_mps}" _mps_raw)
-# Comments are stripped first so an assertion can never be satisfied by prose that
-# merely names the thing it is checking for.
-string(REGEX REPLACE "//[^\n]*" "" _dbc_src "${_dbc_raw}")
-string(REGEX REPLACE "//[^\n]*" "" _dbh_src "${_dbh_raw}")
-string(REGEX REPLACE "//[^\n]*" "" _mps_src "${_mps_raw}")
+
+# Both comment forms are stripped, so no assertion can ever be satisfied by prose that
+# merely names the thing it checks for. The block-comment pattern is the standard
+# non-greedy C form; a plain /\*.*\*/ would swallow everything between the first and
+# last comment in the file.
+# Takes the NAME of a variable holding the text, never the text itself. A macro
+# substitutes its arguments textually, so passing a file body in pastes that body into
+# the CMake source and anything in it that looks like syntax -- a quote, a backslash --
+# is re-parsed as code. Every source in this tree trips that.
+macro(strip_comments _var)
+    string(REGEX REPLACE "/\\*([^*]|\\*+[^*/])*\\*+/" "" ${_var} "${${_var}}")
+    string(REGEX REPLACE "//[^\n]*" "" ${_var} "${${_var}}")
+endmacro()
+
+file(READ "${_dbc}" _dbc_src)
+strip_comments(_dbc_src)
+file(READ "${_dbh}" _dbh_src)
+strip_comments(_dbh_src)
+file(READ "${_mps}" _mps_src)
+strip_comments(_mps_src)
+file(READ "${_lfg}" _lfg_src)
+strip_comments(_lfg_src)
+file(READ "${_omg}" _omg_src)
+strip_comments(_omg_src)
 
 # ---------------------------------------------------------------------------
 # Mutation arms. Each verifies it changed the text it targets and exits 0
@@ -53,6 +82,8 @@ string(REGEX REPLACE "//[^\n]*" "" _mps_src "${_mps_raw}")
 set(_m_dbc "${_dbc_src}")
 set(_m_dbh "${_dbh_src}")
 set(_m_mps "${_mps_src}")
+set(_m_lfg "${_lfg_src}")
+set(_m_omg "${_omg_src}")
 if(DEFINED MUTATION)
     if(MUTATION STREQUAL "drop_legacy_index")
         string(REPLACE "sMapDifficultyLegacyMap.find(MAKE_PAIR32(mapId, difficulty))"
@@ -60,8 +91,6 @@ if(DEFINED MUTATION)
     elseif(MUTATION STREQUAL "drop_index_build")
         string(REPLACE "    BuildMapDifficultyLegacyIndex();" "" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "drop_25man_widening")
-        # Removes the 25-player-only raid alias. Seven raids lose their regular tier
-        # and become unenterable, which is the defect this fix was first rejected for.
         string(REPLACE "ToInternalDifficulty(mapDiff->DifficultyID) == 1"
                        "false" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "drop_continent_mapping")
@@ -71,33 +100,52 @@ if(DEFINED MUTATION)
         string(REPLACE "case 0:  return 0;" "" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "drop_challenge_mapping")
         string(REPLACE "case 8:  return 2;" "" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "drop_40man_mapping")
+        string(REPLACE "case 9:  return 0;" "" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "drop_challenge_spawn_mode")
-        # The other half of the challenge-mode pair. With the difficulty index admitting
-        # id 8 but the spawn mask dropping it, the nine challenge dungeons resolve at the
-        # area trigger and then instantiate with no spawns filed under mask bit 2.
         # Anchored on "mode = 2;" (unique in the file) rather than the whole case arm:
         # stripping the trailing comment leaves whitespace behind on the "case 8:" line,
         # so a multi-line anchor written against the pre-strip text is a dead arm.
         string(REPLACE "                mode = 2;"
                        "                mode = -1;" _m_dbc "${_dbc_src}")
-    elseif(MUTATION STREQUAL "drop_40man_mapping")
-        string(REPLACE "case 9:  return 0;" "" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "shift_dungeon_spawn_mode")
+        string(REPLACE "mode = int32(mapDiff->DifficultyID) - 1;"
+                       "mode = int32(mapDiff->DifficultyID) - 2;" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "drop_encounter_wildcard")
+        # DungeonEncounter id 0 means "any difficulty of this map". 41 maps carry only
+        # id 0 rows and 36 of those have more than one tier, so reading it as internal
+        # mode 0 stops every heroic run on them from crediting an encounter.
+        string(REPLACE "if (encounterDifficultyId == 0)" "if (false)" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "scheduler_iterates_raw_map")
-        # The defect itself: the reset scheduler keying its own tables on raw client ids.
         string(REPLACE "MapDifficultyMap const& legacyMap = GetMapDifficultyLegacyMap();"
                        "MapDifficultyMap const& legacyMap = sMapDifficultyMap;" _m_mps "${_mps_src}")
     elseif(MUTATION STREQUAL "reintroduce_client_id_lookup")
-        # The rejected design returning. Both scheduler sites move back onto a raw-id
-        # accessor, which is precisely what the ban assertion exists to reject.
         string(REPLACE "GetMapDifficultyData(mapid, difficulty)"
                        "GetMapDifficultyDataByClientId(mapid, difficulty)" _m_mps "${_mps_src}")
     elseif(MUTATION STREQUAL "event_through_raw_lookup")
         string(REPLACE "GetMapDifficultyData(event.mapid, event.difficulty)"
                        "GetMapDifficultyDataByClientId(event.mapid, uint32(event.difficulty))" _m_mps "${_mps_src}")
+    elseif(MUTATION STREQUAL "drop_reset_duration_guard")
+        # The instance_reset migration. Without it, nine stale raw-id-2 heroic rows on
+        # the challenge maps validate as internal mode 2 (challenge, RaidDuration 0),
+        # load their old daily timestamp, and are never overwritten because the
+        # enumeration skips RaidDuration == 0.
+        string(REPLACE " || !resetDiff->RaidDuration" "" _m_mps "${_mps_src}")
+    elseif(MUTATION STREQUAL "encounter_raw_compare")
+        string(REPLACE "EncounterDifficultyMatches(dbcEntry->DifficultyID, GetDifficulty())"
+                       "Difficulty(dbcEntry->DifficultyID) == GetDifficulty()" _m_mps "${_mps_src}")
+    elseif(MUTATION STREQUAL "encounter_condition_raw_compare")
+        string(REPLACE "!EncounterDifficultyMatches(dbcEntry1->DifficultyID, map->GetDifficulty())"
+                       "map->GetDifficulty() != Difficulty(dbcEntry1->DifficultyID)" _m_omg "${_omg_src}")
+    elseif(MUTATION STREQUAL "lfg_raw_cast")
+        string(REPLACE "ToInternalDifficulty(dungeon->DifficultyID)"
+                       "int32(dungeon->DifficultyID)" _m_lfg "${_lfg_src}")
     else()
         message(FATAL_ERROR "unknown MUTATION '${MUTATION}'")
     endif()
-    if(_m_dbc STREQUAL "${_dbc_src}" AND _m_dbh STREQUAL "${_dbh_src}" AND _m_mps STREQUAL "${_mps_src}")
+    if(_m_dbc STREQUAL "${_dbc_src}" AND _m_dbh STREQUAL "${_dbh_src}" AND
+       _m_mps STREQUAL "${_mps_src}" AND _m_lfg STREQUAL "${_lfg_src}" AND
+       _m_omg STREQUAL "${_omg_src}")
         message(STATUS "MUTATION '${MUTATION}' changed nothing -- dead arm, exiting 0 so WILL_FAIL reports it")
         return()
     endif()
@@ -105,27 +153,64 @@ endif()
 set(_dbc_src "${_m_dbc}")
 set(_dbh_src "${_m_dbh}")
 set(_mps_src "${_m_mps}")
+set(_lfg_src "${_m_lfg}")
+set(_omg_src "${_m_omg}")
 
-# Whitespace-collapsed views, so an assertion about a switch arm is not hostage to the
-# exact column its comment used to sit in. Derived AFTER mutation from the same text the
-# other assertions read, so there is only one pipeline and no before/after skew.
+# Whitespace-collapsed view, so an assertion about a switch arm is not hostage to the
+# column its comment used to sit in. Derived AFTER mutation from the same text the other
+# assertions read, so there is one pipeline and no before/after skew.
 string(REGEX REPLACE "[ \t\r\n]+" " " _dbc_flat "${_dbc_src}")
 
 # ---------------------------------------------------------------------------
-# 1. There is ONE difficulty key space. The raw-id accessor must not exist.
+# 1. The raw-id accessor must not exist ANYWHERE in the game tree.
+#
+#    An earlier version scanned three files and called that a ban. The whole point is
+#    that a raw id can reappear in a file nobody thought to list, so the scan has to be
+#    the tree. Mutated buffers are substituted in for the files under test so the
+#    corresponding arms still fire.
 # ---------------------------------------------------------------------------
-foreach(_pair "_dbc_src" "_dbh_src" "_mps_src")
-    string(FIND "${${_pair}}" "GetMapDifficultyDataByClientId" _at)
-    if(NOT _at EQUAL -1)
-        message(FATAL_ERROR
-            "GetMapDifficultyDataByClientId is back (in ${_pair}).\n\n"
-            "Raw client DifficultyIDs must not escape DBCStores.cpp. A caller holding\n"
-            "one does not merely read: the reset scheduler also WRITES its key into\n"
-            "m_resetTimeByMapDifficulty, `instance_reset` and DungeonResetEvent, all of\n"
-            "which are read back with internal modes. Translate at the boundary instead.")
+file(GLOB_RECURSE _tree_files "${SOURCE_ROOT}/src/game/*.cpp" "${SOURCE_ROOT}/src/game/*.h")
+set(_banned "GetMapDifficultyDataByClientId")
+set(_scanned 0)
+foreach(_f IN LISTS _tree_files)
+    if(NOT _f MATCHES "/tests/")
+        if(_f STREQUAL "${_dbc}")
+            set(_body "${_dbc_src}")
+        elseif(_f STREQUAL "${_dbh}")
+            set(_body "${_dbh_src}")
+        elseif(_f STREQUAL "${_mps}")
+            set(_body "${_mps_src}")
+        elseif(_f STREQUAL "${_lfg}")
+            set(_body "${_lfg_src}")
+        elseif(_f STREQUAL "${_omg}")
+            set(_body "${_omg_src}")
+        else()
+            # Raw, uncommented-stripped, deliberately: a stale mention of the banned
+            # symbol in a comment should be cleaned up too, and running the regex over
+            # every file in the tree is both slow and needless here.
+            file(READ "${_f}" _body)
+        endif()
+        math(EXPR _scanned "${_scanned} + 1")
+        string(FIND "${_body}" "${_banned}" _at)
+        if(NOT _at EQUAL -1)
+            message(FATAL_ERROR
+                "${_banned} is back, in:\n  ${_f}\n\n"
+                "Raw client DifficultyIDs must not escape DBCStores.cpp. A caller holding\n"
+                "one does not merely read: the reset scheduler also WRITES its key into\n"
+                "m_resetTimeByMapDifficulty, `instance_reset` and DungeonResetEvent, all of\n"
+                "which are read back with internal modes. Translate at the boundary instead.")
+        endif()
     endif()
 endforeach()
+if(_scanned LESS 200)
+    message(FATAL_ERROR
+        "The whole-tree ban only scanned ${_scanned} files, which means the glob broke.\n"
+        "A ban that reads nothing passes trivially -- exactly the failure it exists to stop.")
+endif()
 
+# ---------------------------------------------------------------------------
+# 2. GetMapDifficultyData answers from the internal-mode index, which is built.
+# ---------------------------------------------------------------------------
 string(FIND "${_dbc_src}" "sMapDifficultyLegacyMap.find(MAKE_PAIR32(mapId, difficulty))" _at)
 if(_at EQUAL -1)
     message(FATAL_ERROR
@@ -134,10 +219,6 @@ if(_at EQUAL -1)
         "and silently selects raid 10-normal while claiming to be 25-heroic.")
 endif()
 
-# ---------------------------------------------------------------------------
-# 2. The legacy index must actually be built, and built after Map.dbc so the
-#    25-player-only raid widening can ask whether a map is a raid.
-# ---------------------------------------------------------------------------
 # Anchored on the indented CALL, not the bare name: the forward declaration and the
 # definition both contain "BuildMapDifficultyLegacyIndex();" at column 0, so a check
 # for the bare name still passed with the call deleted. Its arm was dead.
@@ -176,14 +257,19 @@ endforeach()
 
 # BuildMapSpawnModeMasks must admit the same ids. A tier the difficulty index accepts
 # but the spawn mask drops resolves at the area trigger and then instantiates empty.
-string(FIND "${_dbc_flat}" "case 8: mode = 2; break;" _at)
-if(_at EQUAL -1)
-    message(FATAL_ERROR
-        "BuildMapSpawnModeMasks no longer maps client id 8 to spawn mode 2, but\n"
-        "ToInternalDifficulty still maps it to internal mode 2. A player at dungeon\n"
-        "difficulty 2 on maps 959/960/961/962/994/1001/1004/1007/1011 would pass the\n"
-        "area trigger and arrive in an instance with no spawns under mask bit 2.")
-endif()
+foreach(_arm
+        "case 8: mode = 2; break;"
+        "mode = int32(mapDiff->DifficultyID) - 1;"
+        "mode = int32(mapDiff->DifficultyID) - 3;")
+    string(FIND "${_dbc_flat}" "${_arm}" _at)
+    if(_at EQUAL -1)
+        message(FATAL_ERROR
+            "BuildMapSpawnModeMasks no longer agrees with ToInternalDifficulty:\n  ${_arm}\n\n"
+            "The two must map the same client ids to the same internal modes. A player\n"
+            "whose tier resolves in the index but not the mask passes the area trigger\n"
+            "and arrives in an instance with no spawns filed under that mask bit.")
+    endif()
+endforeach()
 
 string(FIND "${_dbc_src}" "ToInternalDifficulty(mapDiff->DifficultyID) == 1" _at)
 if(_at EQUAL -1)
@@ -194,9 +280,7 @@ if(_at EQUAL -1)
 endif()
 
 # ---------------------------------------------------------------------------
-# 4. The reset scheduler enumerates the INTERNAL index. This is the one that
-#    matters: the loop does not just read, it writes the key that
-#    m_resetTimeByMapDifficulty, `instance_reset` and DungeonResetEvent all carry.
+# 4. The reset scheduler enumerates the INTERNAL index, and refuses stale rows.
 # ---------------------------------------------------------------------------
 string(FIND "${_mps_src}" "MapDifficultyMap const& legacyMap = GetMapDifficultyLegacyMap();" _at)
 if(_at EQUAL -1)
@@ -206,6 +290,17 @@ if(_at EQUAL -1)
         "AddPersistentState, MovementHandler and _ResetOrWarnAll read them with internal\n"
         "modes. No raw id except 0 equals its own internal mode, so 129 of 143\n"
         "reset-bearing tiers get reset time 0 and raid lockouts display as ~79 years.")
+endif()
+
+string(FIND "${_mps_src}" "!resetDiff || !resetDiff->RaidDuration" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "The `instance_reset` migration guard is gone.\n\n"
+        "Rows written by a build that keyed this table on raw client ids mostly fail the\n"
+        "lookup, but nine do not: a raw id 2 row (5-man heroic, 86400s) on a challenge\n"
+        "map resolves as internal mode 2, which there is CHALLENGE and carries no global\n"
+        "reset. The enumeration skips RaidDuration == 0, so the stale timestamp is never\n"
+        "overwritten and a challenge instance inherits an old heroic lockout.")
 endif()
 
 foreach(_site
@@ -221,6 +316,46 @@ foreach(_site
     endif()
 endforeach()
 
-message(STATUS "map difficulty guard: one key space, raw-id accessor absent, "
+# ---------------------------------------------------------------------------
+# 5. The other two DBCs that store raw ids must translate at their boundary.
+#    Both of these PERSIST what they compute, so a wrong value outlives the session.
+# ---------------------------------------------------------------------------
+string(FIND "${_dbc_src}" "if (encounterDifficultyId == 0)" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "EncounterDifficultyMatches lost its wildcard arm.\n\n"
+        "DungeonEncounter.dbc id 0 means 'every difficulty of this map', not internal\n"
+        "mode 0. 41 maps carry nothing but id 0 rows and 36 of those have more than one\n"
+        "tier, so treating it as normal-only stops every heroic run on them from ever\n"
+        "crediting an encounter into `instance`.`encountersMask`.")
+endif()
+
+string(FIND "${_mps_src}" "EncounterDifficultyMatches(dbcEntry->DifficultyID, GetDifficulty())" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "UpdateEncounterState compares DungeonEncounter difficulty directly again.\n"
+        "Of 699 shipped rows only the 238 wildcards ever matched that way, and the 264\n"
+        "5-man normal rows (id 1) were tested against internal mode 1, which is HEROIC.")
+endif()
+
+string(FIND "${_omg_src}" "EncounterDifficultyMatches(dbcEntry1->DifficultyID, map->GetDifficulty())" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "CONDITION_COMPLETED_ENCOUNTER compares DungeonEncounter difficulty directly.\n"
+        "It must use the same predicate as UpdateEncounterState or the condition\n"
+        "disagrees with the encountersMask it is testing.")
+endif()
+
+string(FIND "${_lfg_src}" "ToInternalDifficulty(dungeon->DifficultyID)" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "LFG casts LfgDungeons.DifficultyID straight to Difficulty again.\n\n"
+        "That raw id made LFG normal (1) select internal HEROIC and LFG heroic (2)\n"
+        "select CHALLENGE, and Group::SetDungeonDifficulty persists it to\n"
+        "`groups`.`difficulty` and `characters`.`dungeon_difficulty`.")
+endif()
+
+message(STATUS "map difficulty guard: raw-id accessor absent across ${_scanned} tree files, "
                "9 id mappings incl. continents and challenge, spawn masks in step, "
-               "25-man widening present, scheduler on the internal index")
+               "25-man widening present, scheduler on the internal index with the "
+               "instance_reset migration guard, LFG and DungeonEncounter translated")
