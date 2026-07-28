@@ -1019,3 +1019,22 @@ target_include_directories(mop_showing_helm_packets_test PRIVATE
 set_target_properties(mop_showing_helm_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 target_link_libraries(mop_showing_helm_packets_test PRIVATE shared)
 add_test(NAME mop_showing_helm_packets COMMAND mop_showing_helm_packets_test)
+# The legacy 0-based Difficulty enum versus MapDifficulty.dbc, whose ids start at 1
+# for instances. Every instance lookup missed and nothing in the game was enterable.
+# A wrong or missing arm is silent: the lookup returns NULL and the caller reports
+# AREA_LOCKSTATUS_MISSING_DIFFICULTY with nothing logged.
+add_test(NAME mop_map_difficulty_source
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_map_difficulty_source_test.cmake)
+
+foreach(mutation IN ITEMS drop_dungeon_normal drop_challenge wrong_raid_normal
+                          translate_every_map bypass_translation)
+    add_test(NAME mop_map_difficulty_source_mutation_${mutation}
+        COMMAND ${CMAKE_COMMAND}
+            -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+            -DMUTATION=${mutation}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_map_difficulty_source_test.cmake)
+    set_tests_properties(mop_map_difficulty_source_mutation_${mutation}
+        PROPERTIES WILL_FAIL TRUE)
+endforeach()

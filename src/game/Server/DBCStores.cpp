@@ -1660,15 +1660,84 @@ ContentLevels GetContentLevelsForMapAndZone(uint32 mapId, uint32 zoneId)
 }
 
 /**
+ * @brief Translate the core's legacy 0-based Difficulty into a 5.4.8 DifficultyID.
+ *
+ * MapDifficulty.dbc is keyed on Difficulty.dbc ids, and those START AT 1 for
+ * instances. Our Difficulty enum is the 0-based WotLK-era one, so every instance
+ * lookup missed: Stockades (map 34) has exactly one row, DifficultyID 1, and
+ * GetMapDifficultyData(34, DUNGEON_DIFFICULTY_NORMAL=0) found nothing. That made
+ * Player::GetAreaTriggerLockStatus() answer AREA_LOCKSTATUS_MISSING_DIFFICULTY and
+ * no instance in the game was enterable.
+ *
+ * The mapping is read out of Difficulty.dbc rather than invented. Each row carries
+ * an instance type and a legacy 0-based index:
+ *
+ *   id 1  type 1 (5-man)  legacy 0        id 3  type 2 (raid)  legacy 0
+ *   id 2  type 1          legacy 1        id 4  type 2         legacy 1
+ *   id 8  type 1          legacy -1       id 5  type 2         legacy 2
+ *                                         id 6  type 2         legacy 3
+ *                                         id 7  type 2         legacy 4
+ *
+ * Verified against the shipped DBCs: dungeon maps only ever carry DifficultyID
+ * 1, 2 or 8; raid maps only 3-7, 9 and 14; and world, battleground and arena maps
+ * only ever carry 0. That last fact is why continents worked while instances did
+ * not, and it is why the translation must apply ONLY to instance maps -- for
+ * everything else identity is required, not merely tolerable.
+ *
+ * Two gaps are deliberate rather than overlooked:
+ *  - Challenge mode is DifficultyID 8, whose legacy index is -1. It is reachable
+ *    only by knowing it is the third 5-man row, so it is mapped explicitly.
+ *  - Scenarios use DifficultyID 11 and 12, both legacy -1, and the Difficulty enum
+ *    has no member for either. They are left untranslated and still miss, exactly
+ *    as before this change. Fixing that needs new enum members, not a new mapping.
+ */
+static uint32 ToClientDifficultyId(MapEntry const* mapEntry, Difficulty difficulty)
+{
+    if (!mapEntry)
+    {
+        return uint32(difficulty);
+    }
+
+    if (mapEntry->InstanceType == MAP_INSTANCE)
+    {
+        switch (difficulty)
+        {
+            case DUNGEON_DIFFICULTY_NORMAL:    return 1;
+            case DUNGEON_DIFFICULTY_HEROIC:    return 2;
+            case DUNGEON_DIFFICULTY_CHALLENGE: return 8;
+            default:                           return uint32(difficulty);
+        }
+    }
+
+    if (mapEntry->InstanceType == MAP_RAID)
+    {
+        switch (difficulty)
+        {
+            case RAID_DIFFICULTY_10MAN_NORMAL: return 3;
+            case RAID_DIFFICULTY_25MAN_NORMAL: return 4;
+            case RAID_DIFFICULTY_10MAN_HEROIC: return 5;
+            case RAID_DIFFICULTY_25MAN_HEROIC: return 6;
+            default:                           return uint32(difficulty);
+        }
+    }
+
+    return uint32(difficulty);
+}
+
+/**
  * @brief Looks up the per-difficulty data row for a given map.
  *
  * @param mapId The map id.
- * @param difficulty The map difficulty key.
+ * @param difficulty The map difficulty key, in the core's legacy 0-based form.
  * @return Pointer to the MapDifficultyEntry, or NULL when no row matches.
  */
 MapDifficultyEntry const* GetMapDifficultyData(uint32 mapId, Difficulty difficulty)
 {
-    MapDifficultyMap::const_iterator itr = sMapDifficultyMap.find(MAKE_PAIR32(mapId, difficulty));
+    // Translate here rather than at the call sites: there are eleven of them, and
+    // one missing translation would reintroduce the same silent lookup miss.
+    uint32 const dbcDifficulty = ToClientDifficultyId(sMapStore.LookupEntry(mapId), difficulty);
+
+    MapDifficultyMap::const_iterator itr = sMapDifficultyMap.find(MAKE_PAIR32(mapId, dbcDifficulty));
     return itr != sMapDifficultyMap.end() ? itr->second : NULL;
 }
 
