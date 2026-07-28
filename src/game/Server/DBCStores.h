@@ -165,13 +165,14 @@ std::string const* GetRandomCharacterName(uint32 race, uint32 sex);
 
 typedef std::map<uint32/*pair32(map,diff)*/, MapDifficultyEntry const*> MapDifficultyMap;
 MapDifficultyEntry const* GetMapDifficultyData(uint32 mapId, Difficulty difficulty);
-// For callers holding a RAW client DifficultyID rather than an internal 0-based mode.
-// The reset scheduler walks sMapDifficultyMap directly and persists raw ids into
-// `instance_reset`; passing one to GetMapDifficultyData would reinterpret it as an
-// internal mode and silently pick the wrong row.
-MapDifficultyEntry const* GetMapDifficultyDataByClientId(uint32 mapId, uint32 clientDifficultyId);
+// The index GetMapDifficultyData answers from, keyed on INTERNAL 0-based modes.
+// Exposed only so the reset scheduler can enumerate every tier that carries a global
+// reset. It must not be joined against sMapDifficultyMap: that one is keyed on raw
+// client DifficultyIDs, and no raw id except 0 equals its own internal mode.
+MapDifficultyMap const& GetMapDifficultyLegacyMap();
 // Raw client DifficultyID -> internal 0-based mode, or -1 if the id has no internal
-// equivalent (LFR 7, challenge 8, flexible 14, scenarios 11/12).
+// equivalent (LFR 7, flexible 14, scenarios 11/12). Challenge mode (8) DOES have one:
+// it is the third 5-man tier, DUNGEON_DIFFICULTY_CHALLENGE.
 int32 ToInternalDifficulty(uint32 clientDifficultyId);
 void BuildMapSpawnModeMasks(std::map<uint32, uint32>& spawnMasks);
 

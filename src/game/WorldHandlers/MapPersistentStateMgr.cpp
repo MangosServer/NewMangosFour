@@ -574,9 +574,11 @@ void DungeonResetScheduler::LoadResetTimes()
 
             MapEntry const* mapEntry = sMapStore.LookupEntry(mapid);
 
-            // `instance_reset`.`difficulty` holds a RAW client DifficultyID: the
-            // scheduler below writes it straight from the sMapDifficultyMap key.
-            if (!mapEntry || !mapEntry->IsDungeon() || !GetMapDifficultyDataByClientId(mapid, uint32(difficulty)))
+            // `instance_reset`.`difficulty` holds an INTERNAL 0-based mode, the same
+            // key space as `instance`.`difficulty`, DungeonPersistentState::GetDifficulty
+            // and m_resetTimeByMapDifficulty. The scheduler below writes it from the
+            // legacy index, so there is exactly one difficulty key space in the server.
+            if (!mapEntry || !mapEntry->IsDungeon() || !GetMapDifficultyData(mapid, difficulty))
             {
                 sLog.outError("MapPersistentStateManager::LoadResetTimes: invalid mapid(%u)/difficulty(%u) pair in instance_reset!", mapid, difficulty);
                 CharacterDatabase.DirectPExecute("DELETE FROM `instance_reset` WHERE `mapid` = '%u' AND `difficulty` = '%u'", mapid, difficulty);
@@ -602,7 +604,17 @@ void DungeonResetScheduler::LoadResetTimes()
 
     // calculate new global reset times for expired instances and those that have never been reset yet
     // add the global reset times to the priority queue
-    for (MapDifficultyMap::const_iterator itr = sMapDifficultyMap.begin(); itr != sMapDifficultyMap.end(); ++itr)
+    // Iterates the INTERNAL-mode index, not the raw sMapDifficultyMap. Everything this
+    // loop writes -- m_resetTimeByMapDifficulty, `instance_reset` and the scheduled
+    // DungeonResetEvents -- is read back elsewhere with an internal mode: by
+    // AddPersistentState, by MovementHandler's reset warning and by the
+    // DungeonPersistentState::GetDifficulty() comparison in _ResetOrWarnAll. Keying it
+    // on raw client ids made all three wrong, because no raw id except 0 equals its own
+    // internal mode: 129 of the 143 reset-bearing tiers missed the table outright and
+    // the remaining 14 (internal 3 against raw id 3) picked raid 10-normal's row while
+    // claiming to be 25-heroic.
+    MapDifficultyMap const& legacyMap = GetMapDifficultyLegacyMap();
+    for (MapDifficultyMap::const_iterator itr = legacyMap.begin(); itr != legacyMap.end(); ++itr)
     {
         uint32 map_diff_pair = itr->first;
         uint32 mapid = PAIR32_LOPART(map_diff_pair);
@@ -732,9 +744,10 @@ void DungeonResetScheduler::Update()
             {
                 // re-schedule the next/new global reset/warning
                 // calculate the next reset time
-                // DungeonResetEvent carries a RAW client DifficultyID, taken from the
-                // sMapDifficultyMap key when the event was scheduled.
-                MapDifficultyEntry const* mapDiff = GetMapDifficultyDataByClientId(event.mapid, uint32(event.difficulty));
+                // DungeonResetEvent carries an INTERNAL mode, taken from the legacy
+                // index key when the event was scheduled -- and the same key space the
+                // RESET_EVENT_NORMAL_DUNGEON events built in AddPersistentState use.
+                MapDifficultyEntry const* mapDiff = GetMapDifficultyData(event.mapid, event.difficulty);
                 MANGOS_ASSERT(mapDiff);
 
                 time_t next_reset = DungeonResetScheduler::CalculateNextResetTime(mapDiff, resetTime);
@@ -1177,9 +1190,10 @@ void MapPersistentStateManager::_ResetOrWarnAll(uint32 mapid, Difficulty difficu
 
     if (!warn)
     {
-        // 'difficulty' here is a RAW client DifficultyID: it reaches this function
-        // from the sMapDifficultyMap key by way of instance_reset and reset events.
-        MapDifficultyEntry const* mapDiff = GetMapDifficultyDataByClientId(mapid, difficulty);
+        // 'difficulty' is an INTERNAL mode, which is also what the
+        // GetDifficulty() comparison below needs: DungeonPersistentState holds
+        // internal modes, so a raw id here matched the wrong tier or none at all.
+        MapDifficultyEntry const* mapDiff = GetMapDifficultyData(mapid, difficulty);
         if (!mapDiff || !mapDiff->RaidDuration)
         {
             sLog.outError("MapPersistentStateManager::ResetOrWarnAll: not valid difficulty or no reset delay for map %d", mapid);

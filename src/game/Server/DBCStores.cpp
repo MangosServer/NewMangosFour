@@ -1677,8 +1677,11 @@ ContentLevels GetContentLevelsForMapAndZone(uint32 mapId, uint32 zoneId)
  * only ones that carry a 0 row.
  *
  * The direction here is client -> internal, which is what building the legacy index
- * needs. It deliberately mirrors the switch in BuildMapSpawnModeMasks; the two
- * should be changed together.
+ * needs. The id mapping is identical to the switch in BuildMapSpawnModeMasks and the
+ * two must be changed together: a tier this function admits but that one drops
+ * resolves at the area trigger and then instantiates with no spawns filed under its
+ * mask, so the instance is entered completely empty. Challenge mode was exactly that
+ * divergence until id 8 was added to both.
  *
  * Ids with no internal equivalent return -1 and are simply absent from the index:
  * LFR (7), flexible (14) and scenarios (11, 12). The Difficulty enum has no member
@@ -1713,8 +1716,13 @@ int32 ToInternalDifficulty(uint32 clientDifficultyId)
  * A static per-type translation is not enough. Some raids have no ID 3 row at all:
  * 25-player-only raids carry only ID 4, and legacy 40-player raids only ID 9. Asking
  * for the regular tier and translating it to a fixed 3 misses those maps entirely,
- * so they stay unenterable. The widening below is the same rule BuildMapSpawnModeMasks
- * already applies, kept deliberately in step with it.
+ * so they stay unenterable.
+ *
+ * The widening below serves the same purpose as the one in BuildMapSpawnModeMasks but
+ * is NOT the identical predicate: that one fires only when a raid's mask is exactly
+ * (1 << 1), this one whenever mode 0 is absent and some row maps to mode 1. They agree
+ * on all 253 maps in 5.4.8 -- the seven rows=[4] raids -- and would diverge only on a
+ * hypothetical raid carrying {4,5} or {4,6}. No such map ships.
  *
  * Where two rows map to the same internal mode -- a map carrying both ID 3 and ID 9,
  * say -- the lower client id wins, so the modern row is preferred over the legacy one.
@@ -1777,9 +1785,9 @@ static void BuildMapDifficultyLegacyIndex()
  * @param difficulty The map difficulty, in the core's internal 0-based form.
  * @return Pointer to the MapDifficultyEntry, or NULL when no row matches.
  *
- * @note Callers holding a raw client DifficultyID must use
- *       GetMapDifficultyDataByClientId instead. Passing one here would be
- *       reinterpreted as an internal mode and silently select the wrong row.
+ * @note Internal modes are the ONLY key space the server uses for difficulty. Raw
+ *       client DifficultyIDs exist solely inside DBCStores, between reading
+ *       MapDifficulty.dbc and building this index. Nothing outside should hold one.
  */
 MapDifficultyEntry const* GetMapDifficultyData(uint32 mapId, Difficulty difficulty)
 {
@@ -1788,18 +1796,20 @@ MapDifficultyEntry const* GetMapDifficultyData(uint32 mapId, Difficulty difficul
 }
 
 /**
- * @brief Looks up a row by its raw client DifficultyID rather than an internal mode.
+ * @brief The internal-mode index itself, for callers that must enumerate tiers.
  *
- * The reset scheduler walks sMapDifficultyMap directly and therefore holds raw
- * client ids, which it also persists into `instance_reset` and carries in reset
- * events. Those must keep resolving against the raw key: feeding them through the
- * internal-mode lookup would reinterpret client id 3 as internal mode 3 and select
- * raid 25 heroic instead of raid 10 normal.
+ * Only the reset scheduler needs this: it has to discover every (map, internal mode)
+ * pair that carries a global reset in order to schedule one. Iterating the raw
+ * sMapDifficultyMap instead is what made the reset system incoherent -- it keyed
+ * `instance_reset`, the reset events and m_resetTimeByMapDifficulty on raw client
+ * ids, while AddPersistentState, MovementHandler and DungeonPersistentState all read
+ * those same structures with internal modes. Since no raw id except 0 equals its own
+ * internal mode, 129 of the 143 reset-bearing tiers missed outright and the other 14
+ * silently picked another tier's row.
  */
-MapDifficultyEntry const* GetMapDifficultyDataByClientId(uint32 mapId, uint32 clientDifficultyId)
+MapDifficultyMap const& GetMapDifficultyLegacyMap()
 {
-    MapDifficultyMap::const_iterator itr = sMapDifficultyMap.find(MAKE_PAIR32(mapId, clientDifficultyId));
-    return itr != sMapDifficultyMap.end() ? itr->second : NULL;
+    return sMapDifficultyLegacyMap;
 }
 
 /**
@@ -1809,11 +1819,18 @@ MapDifficultyEntry const* GetMapDifficultyDataByClientId(uint32 mapId, uint32 cl
  * modes (0..MAX_DIFFICULTY-1), which is the convention used by the DB
  * spawn data and the runtime (Map::GetSpawnMode): continents (0) -> 0,
  * 5-man normal/heroic (1/2) -> 0/1, raid 10N/25N/10H/25H (3..6) -> 0..3,
- * legacy 40-player raids (9) -> 0. LFR (7), challenge mode (8) and
- * flexible (14) have no DB spawn sets and are ignored. 25-player-only
- * raids (TBC) instantiate as spawn mode 0 internally and are widened
- * accordingly. Map 0 has no MapDifficulty rows in 4.x+ clients and is
- * forced to the regular mask.
+ * challenge mode (8) -> 2, legacy 40-player raids (9) -> 0. LFR (7),
+ * flexible (14) and scenarios (11, 12) have no internal mode at all and
+ * are ignored. 25-player-only raids (TBC) instantiate as spawn mode 0
+ * internally and are widened accordingly. Map 0 has no MapDifficulty rows
+ * in 4.x+ clients and is forced to the regular mask.
+ *
+ * The id mapping must stay identical to ToInternalDifficulty. Challenge mode
+ * was dropped here while the difficulty index admitted it, which let a player
+ * at dungeon difficulty 2 pass the area trigger on maps 959/960/961/962/994/
+ * 1001/1004/1007/1011 and then arrive in an instance with no spawns filed
+ * under mask bit 2. The shipped DB has no challenge spawns yet, so nothing
+ * observable changed -- but the contract was wrong.
  *
  * @param spawnMasks Destination: map id -> allowed spawn-mode mask.
  */
@@ -1841,10 +1858,13 @@ void BuildMapSpawnModeMasks(std::map<uint32, uint32>& spawnMasks)
             case 6:                                         // raid 25 heroic
                 mode = int32(mapDiff->DifficultyID) - 3;
                 break;
+            case 8:                                         // 5-man challenge mode
+                mode = 2;
+                break;
             case 9:                                         // legacy 40-player raids
                 mode = 0;
                 break;
-            default:                                        // LFR (7) / challenge (8) / flexible (14)
+            default:                                        // LFR (7) / flexible (14) / scenarios (11, 12)
                 break;
         }
 
