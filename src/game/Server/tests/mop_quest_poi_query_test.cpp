@@ -177,9 +177,20 @@ static void test_floor_id_bound()
     CHECK(IsValidQuestPoiFloorId(MAX_QUEST_POI_FLOOR_ID));
     CHECK(!IsValidQuestPoiFloorId(MAX_QUEST_POI_FLOOR_ID + 1));
 
-    // 808 was an earlier candidate bound, taken from DungeonMap.dbc on the
-    // unverified assumption that floorId indexes that DBC. It does not survive
-    // the current bound, and nothing depends on it either way.
+    // 12 is the highest floor observed anywhere in the 18414 retail corpus,
+    // across 14,416 POI records. The bound sits above it on purpose: 12 is a
+    // measured maximum, not a proven ceiling, and an over-tight bound fails
+    // silently by clamping a legitimate floor to 0.
+    CHECK(IsValidQuestPoiFloorId(12));
+    CHECK(IsValidQuestPoiFloorId(13));
+    CHECK(IsValidQuestPoiFloorId(MAX_QUEST_POI_FLOOR_ID));
+    CHECK(!IsValidQuestPoiFloorId(MAX_QUEST_POI_FLOOR_ID + 1));
+
+    // 255 was the previous bound and 808 an earlier candidate still, the
+    // latter taken from DungeonMap.dbc on an unverified assumption about what
+    // floorId indexes. Both are now rejected. Our own table tops out at floor
+    // 7 and has no rows between 13 and 255, so tightening costs nothing.
+    CHECK(!IsValidQuestPoiFloorId(255));
     CHECK(!IsValidQuestPoiFloorId(808));
 
     // The value that crashed the client in game on quest 29406, and the top of

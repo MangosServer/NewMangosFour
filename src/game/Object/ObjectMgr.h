@@ -321,14 +321,31 @@ struct QuestPOIPoint
 // Upper bound accepted for `quest_poi`.`floorId`. See LoadQuestPOI() for why
 // anything above it must never reach the wire.
 //
-// This is a chosen heuristic, not a derived limit. The column is int(10)
-// unsigned, so the schema imposes no useful ceiling, and the client's real
-// ceiling is unknown - all that is established is that 252339 crashes it and
-// that every sane row observed is <= 7. 255 sits well above real data and well
-// below the six-figure import garbage. Narrowing it properly would need the
-// client's POI reader disassembled; until then this bound is deliberately
-// loose rather than falsely precise.
-#define MAX_QUEST_POI_FLOOR_ID 255
+// Measured, not chosen. Across 14,416 POI records in the 18414 retail corpus
+// the floor ids observed are exactly {0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
+// with 1 dominant at 83% and nothing above 12. An earlier revision used 255 -
+// the column is int(10) unsigned, so the schema gives no useful ceiling, and
+// 255 was explicitly a guess. It left a wide hole: a future import at floor 40
+// would have passed straight through the guard.
+//
+// 63 rather than 12, deliberately. 12 is the measured MAXIMUM, not a proven
+// ceiling: 146 captures may repeat POIs and their quest and map coverage is
+// unknown, so a legitimate higher floor could simply never have been sampled.
+// An over-tight bound fails silently - LoadQuestPOI forces the value to 0 and
+// the marker renders on the wrong floor with no error - which is a worse
+// failure than the one this guard exists to prevent.
+//
+// The margin is close to free. The fault this guard actually catches is quest
+// POI blob ids landing in the floorId column, and those sit at 251,732 and
+// above: four orders of magnitude clear of any plausible floor. Every bound
+// between 13 and roughly a thousand rejects them identically, so widening from
+// 12 to 63 gives up nothing real while leaving room for content the corpus did
+// not cover. Our own table holds floors 0..7 only.
+//
+// Stated plainly, because the previous bound was not: 63 is a judgement call
+// with a measured basis, not a derived limit. What is derived is the ceiling
+// it must exceed (12) and the floor it must stay under (251,629).
+#define MAX_QUEST_POI_FLOOR_ID 63
 
 inline bool IsValidQuestPoiFloorId(uint32 floorId)
 {

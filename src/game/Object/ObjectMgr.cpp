@@ -1342,10 +1342,12 @@ void ObjectMgr::LoadQuestPOI()
         // the same packet's objIndex 32 was carried through untouched both
         // times, so this field is the sole trigger.
         //
-        // floorId is a small map-floor ordinal. MAX_QUEST_POI_FLOOR_ID is a
-        // deliberately loose heuristic rather than a measured client limit -
-        // see its definition. Zero rather than drop: the marker still renders,
-        // on the default floor, instead of vanishing.
+        // floorId is a small map-floor ordinal. MAX_QUEST_POI_FLOOR_ID sits
+        // above the measured retail maximum of 12 with a margin for unsampled
+        // content, and far below the blob-id range that produced the only
+        // out-of-range rows we have seen - see its definition. Zero rather
+        // than drop: the marker still renders, on the default floor, instead
+        // of vanishing.
         if (!IsValidQuestPoiFloorId(floorId))
         {
             sLog.outErrorDb("Table `quest_poi` has questId %u poiId %u with out of range floorId %u, forced to 0.",
