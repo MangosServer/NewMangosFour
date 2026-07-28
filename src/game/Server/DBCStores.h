@@ -165,6 +165,14 @@ std::string const* GetRandomCharacterName(uint32 race, uint32 sex);
 
 typedef std::map<uint32/*pair32(map,diff)*/, MapDifficultyEntry const*> MapDifficultyMap;
 MapDifficultyEntry const* GetMapDifficultyData(uint32 mapId, Difficulty difficulty);
+// For callers holding a RAW client DifficultyID rather than an internal 0-based mode.
+// The reset scheduler walks sMapDifficultyMap directly and persists raw ids into
+// `instance_reset`; passing one to GetMapDifficultyData would reinterpret it as an
+// internal mode and silently pick the wrong row.
+MapDifficultyEntry const* GetMapDifficultyDataByClientId(uint32 mapId, uint32 clientDifficultyId);
+// Raw client DifficultyID -> internal 0-based mode, or -1 if the id has no internal
+// equivalent (LFR 7, challenge 8, flexible 14, scenarios 11/12).
+int32 ToInternalDifficulty(uint32 clientDifficultyId);
 void BuildMapSpawnModeMasks(std::map<uint32, uint32>& spawnMasks);
 
 // natural order for difficulties up-down iteration

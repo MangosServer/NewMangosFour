@@ -156,6 +156,10 @@ DBCStorage <MapEntry> sMapStore(MapEntryfmt);
 
 DBCStorage <MapDifficultyEntry> sMapDifficultyStore(MapDifficultyEntryfmt); // only for loading
 MapDifficultyMap sMapDifficultyMap;
+// (mapId, internal 0-based Difficulty) -> row. Built by BuildMapDifficultyLegacyIndex();
+// see GetMapDifficultyData for why the raw DBC keying above cannot serve both.
+static MapDifficultyMap sMapDifficultyLegacyMap;
+static void BuildMapDifficultyLegacyIndex();
 
 DBCStorage <MovieEntry> sMovieStore(MovieEntryfmt);
 DBCStorage <MountCapabilityEntry> sMountCapabilityStore(MountCapabilityfmt);
@@ -739,6 +743,8 @@ void LoadDBCStores(const std::string& dataPath)
         {
             sMapDifficultyMap[MAKE_PAIR32(entry->MapID, entry->DifficultyID)] = entry;
         }
+    // Map.dbc is already loaded above, which the 25-player-only raid widening needs.
+    BuildMapDifficultyLegacyIndex();
 
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sMovieStore,               dbcPath, "Movie.dbc");
     LoadDBC(availableDbcLocales,bar,bad_dbc_files, sMountCapabilityStore,     dbcPath,"MountCapability.dbc");
@@ -1691,53 +1697,114 @@ ContentLevels GetContentLevelsForMapAndZone(uint32 mapId, uint32 zoneId)
  *    has no member for either. They are left untranslated and still miss, exactly
  *    as before this change. Fixing that needs new enum members, not a new mapping.
  */
-static uint32 ToClientDifficultyId(MapEntry const* mapEntry, Difficulty difficulty)
+int32 ToInternalDifficulty(uint32 clientDifficultyId)
 {
-    if (!mapEntry)
+    switch (clientDifficultyId)
     {
-        return uint32(difficulty);
+        case 0:  return 0;                                  // continents / bg / arena
+        case 1:  return 0;                                  // 5-man normal
+        case 2:  return 1;                                  // 5-man heroic
+        case 3:  return 0;                                  // raid 10 normal
+        case 4:  return 1;                                  // raid 25 normal
+        case 5:  return 2;                                  // raid 10 heroic
+        case 6:  return 3;                                  // raid 25 heroic
+        case 9:  return 0;                                  // legacy 40-player raids
+        default: return -1;                                 // LFR 7, challenge 8, flex 14, scenario 11/12
     }
+}
 
-    if (mapEntry->InstanceType == MAP_INSTANCE)
+/**
+ * @brief Builds the legacy-keyed index that GetMapDifficultyData answers from.
+ *
+ * A static per-type translation is not enough. Some raids have no ID 3 row at all:
+ * 25-player-only raids carry only ID 4, and legacy 40-player raids only ID 9. Asking
+ * for the regular tier and translating it to a fixed 3 misses those maps entirely,
+ * so they stay unenterable. The widening below is the same rule BuildMapSpawnModeMasks
+ * already applies, kept deliberately in step with it.
+ *
+ * Where two rows map to the same internal mode -- a map carrying both ID 3 and ID 9,
+ * say -- the lower client id wins, so the modern row is preferred over the legacy one.
+ */
+static void BuildMapDifficultyLegacyIndex()
+{
+    sMapDifficultyLegacyMap.clear();
+
+    for (MapDifficultyMap::const_iterator itr = sMapDifficultyMap.begin(); itr != sMapDifficultyMap.end(); ++itr)
     {
-        switch (difficulty)
+        MapDifficultyEntry const* mapDiff = itr->second;
+        int32 const mode = ToInternalDifficulty(mapDiff->DifficultyID);
+        if (mode < 0 || mode >= MAX_DIFFICULTY)
         {
-            case DUNGEON_DIFFICULTY_NORMAL:    return 1;
-            case DUNGEON_DIFFICULTY_HEROIC:    return 2;
-            case DUNGEON_DIFFICULTY_CHALLENGE: return 8;
-            default:                           return uint32(difficulty);
+            continue;
+        }
+
+        uint32 const key = MAKE_PAIR32(mapDiff->MapID, uint32(mode));
+        MapDifficultyMap::const_iterator existing = sMapDifficultyLegacyMap.find(key);
+        if (existing == sMapDifficultyLegacyMap.end() ||
+            mapDiff->DifficultyID < existing->second->DifficultyID)
+        {
+            sMapDifficultyLegacyMap[key] = mapDiff;
         }
     }
 
-    if (mapEntry->InstanceType == MAP_RAID)
+    // 25-player-only raids instantiate as internal mode 0. Without this a regular
+    // lookup on Hyjal, Magtheridon, SSC, The Eye, Black Temple, Gruul or Sunwell
+    // finds nothing and the map is refused at the area trigger.
+    for (MapDifficultyMap::const_iterator itr = sMapDifficultyMap.begin(); itr != sMapDifficultyMap.end(); ++itr)
     {
-        switch (difficulty)
+        MapDifficultyEntry const* mapDiff = itr->second;
+        MapEntry const* mapEntry = sMapStore.LookupEntry(mapDiff->MapID);
+        if (!mapEntry || !mapEntry->IsRaid())
         {
-            case RAID_DIFFICULTY_10MAN_NORMAL: return 3;
-            case RAID_DIFFICULTY_25MAN_NORMAL: return 4;
-            case RAID_DIFFICULTY_10MAN_HEROIC: return 5;
-            case RAID_DIFFICULTY_25MAN_HEROIC: return 6;
-            default:                           return uint32(difficulty);
+            continue;
+        }
+
+        uint32 const regular = MAKE_PAIR32(mapDiff->MapID, uint32(REGULAR_DIFFICULTY));
+        if (sMapDifficultyLegacyMap.find(regular) == sMapDifficultyLegacyMap.end() &&
+            ToInternalDifficulty(mapDiff->DifficultyID) == 1)
+        {
+            sMapDifficultyLegacyMap[regular] = mapDiff;
         }
     }
-
-    return uint32(difficulty);
 }
 
 /**
  * @brief Looks up the per-difficulty data row for a given map.
  *
+ * MapDifficulty.dbc is keyed on Difficulty.dbc ids, which for instances START AT 1,
+ * while the core's Difficulty enum is the 0-based WotLK-era one. Every instance
+ * lookup therefore missed: Stockades (map 34) has exactly one row, DifficultyID 1,
+ * and a request for DUNGEON_DIFFICULTY_NORMAL (0) found nothing, so
+ * Player::GetAreaTriggerLockStatus answered AREA_LOCKSTATUS_MISSING_DIFFICULTY and
+ * no instance in the game was enterable. Continents were unaffected because
+ * world, battleground and arena maps are the only ones that carry a 0 row.
+ *
  * @param mapId The map id.
- * @param difficulty The map difficulty key, in the core's legacy 0-based form.
+ * @param difficulty The map difficulty, in the core's internal 0-based form.
  * @return Pointer to the MapDifficultyEntry, or NULL when no row matches.
+ *
+ * @note Callers holding a raw client DifficultyID must use
+ *       GetMapDifficultyDataByClientId instead. Passing one here would be
+ *       reinterpreted as an internal mode and silently select the wrong row.
  */
 MapDifficultyEntry const* GetMapDifficultyData(uint32 mapId, Difficulty difficulty)
 {
-    // Translate here rather than at the call sites: there are eleven of them, and
-    // one missing translation would reintroduce the same silent lookup miss.
-    uint32 const dbcDifficulty = ToClientDifficultyId(sMapStore.LookupEntry(mapId), difficulty);
+    MapDifficultyMap::const_iterator itr = sMapDifficultyLegacyMap.find(MAKE_PAIR32(mapId, difficulty));
+    return itr != sMapDifficultyLegacyMap.end() ? itr->second : NULL;
+}
 
-    MapDifficultyMap::const_iterator itr = sMapDifficultyMap.find(MAKE_PAIR32(mapId, dbcDifficulty));
+/**
+ * @brief Looks up a row by its raw client DifficultyID rather than an internal mode.
+ *
+ * The reset scheduler walks sMapDifficultyMap directly and therefore holds raw
+ * client ids, which it also persists into `instance_reset` and carries in reset
+ * events. Those must keep resolving against the raw key: feeding them through the
+ * internal-mode lookup would reinterpret client id 3 as internal mode 3 and select
+ * raid 25 heroic instead of raid 10 normal.
+ */
+MapDifficultyEntry const* GetMapDifficultyDataByClientId(uint32 mapId, uint32 clientDifficultyId)
+{
+    MapDifficultyMap::const_iterator itr = sMapDifficultyMap.find(MAKE_PAIR32(mapId, clientDifficultyId));
     return itr != sMapDifficultyMap.end() ? itr->second : NULL;
 }
 

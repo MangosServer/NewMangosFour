@@ -515,6 +515,8 @@ void DungeonResetScheduler::LoadResetTimes()
 
                 MapEntry const* mapEntry = sMapStore.LookupEntry(mapid);
 
+                // `instance`.`difficulty` holds an internal 0-based mode, not a raw
+                // client id, so this one stays on the internal lookup.
                 if (!mapEntry || !mapEntry->IsDungeon() || !GetMapDifficultyData(mapid, Difficulty(difficulty)))
                 {
                     sMapPersistentStateMgr.DeleteInstanceFromDB(id);
@@ -572,7 +574,9 @@ void DungeonResetScheduler::LoadResetTimes()
 
             MapEntry const* mapEntry = sMapStore.LookupEntry(mapid);
 
-            if (!mapEntry || !mapEntry->IsDungeon() || !GetMapDifficultyData(mapid, difficulty))
+            // `instance_reset`.`difficulty` holds a RAW client DifficultyID: the
+            // scheduler below writes it straight from the sMapDifficultyMap key.
+            if (!mapEntry || !mapEntry->IsDungeon() || !GetMapDifficultyDataByClientId(mapid, uint32(difficulty)))
             {
                 sLog.outError("MapPersistentStateManager::LoadResetTimes: invalid mapid(%u)/difficulty(%u) pair in instance_reset!", mapid, difficulty);
                 CharacterDatabase.DirectPExecute("DELETE FROM `instance_reset` WHERE `mapid` = '%u' AND `difficulty` = '%u'", mapid, difficulty);
@@ -728,7 +732,9 @@ void DungeonResetScheduler::Update()
             {
                 // re-schedule the next/new global reset/warning
                 // calculate the next reset time
-                MapDifficultyEntry const* mapDiff = GetMapDifficultyData(event.mapid, event.difficulty);
+                // DungeonResetEvent carries a RAW client DifficultyID, taken from the
+                // sMapDifficultyMap key when the event was scheduled.
+                MapDifficultyEntry const* mapDiff = GetMapDifficultyDataByClientId(event.mapid, uint32(event.difficulty));
                 MANGOS_ASSERT(mapDiff);
 
                 time_t next_reset = DungeonResetScheduler::CalculateNextResetTime(mapDiff, resetTime);
@@ -1171,7 +1177,9 @@ void MapPersistentStateManager::_ResetOrWarnAll(uint32 mapid, Difficulty difficu
 
     if (!warn)
     {
-        MapDifficultyEntry const* mapDiff = GetMapDifficultyData(mapid, difficulty);
+        // 'difficulty' here is a RAW client DifficultyID taken from the
+    // sMapDifficultyMap key / instance_reset, not an internal mode.
+    MapDifficultyEntry const* mapDiff = GetMapDifficultyDataByClientId(mapid, difficulty);
         if (!mapDiff || !mapDiff->RaidDuration)
         {
             sLog.outError("MapPersistentStateManager::ResetOrWarnAll: not valid difficulty or no reset delay for map %d", mapid);

@@ -1,20 +1,25 @@
-# Pins the legacy-Difficulty -> 5.4.8 DifficultyID translation.
+# Pins the two-key discipline around MapDifficulty.dbc.
 #
-# MapDifficulty.dbc is keyed on Difficulty.dbc ids, which start at 1 for instances,
+# MapDifficulty.dbc is keyed on Difficulty.dbc ids, which for instances START AT 1,
 # while the core's Difficulty enum is the 0-based WotLK-era one. Every instance
-# lookup therefore missed and no instance in the game was enterable: Stockades has
-# exactly one row, DifficultyID 1, and GetMapDifficultyData(34, 0) found nothing.
+# lookup therefore missed and nothing in the game was enterable: Stockades (map 34)
+# has exactly one row, DifficultyID 1, and a request for DUNGEON_DIFFICULTY_NORMAL
+# (0) found nothing, so the area trigger answered AREA_LOCKSTATUS_MISSING_DIFFICULTY.
 #
-# The failure mode is what makes this worth a gate. A wrong or missing arm does not
-# crash or log -- the lookup simply returns NULL and the caller reports
-# AREA_LOCKSTATUS_MISSING_DIFFICULTY, or silently falls back to normal difficulty.
-# There is nothing to notice until someone tries to walk into a dungeon.
+# There are now TWO keys and they must not be confused:
+#   sMapDifficultyMap       raw client DifficultyID  -> GetMapDifficultyDataByClientId
+#   sMapDifficultyLegacyMap internal 0-based mode    -> GetMapDifficultyData
 #
-# Values are not invented. Difficulty.dbc carries an instance type and a legacy
-# 0-based index per row, and the pairs below are read straight off it:
-#   id 1 type 1 legacy 0 | id 2 type 1 legacy 1 | id 8 type 1 legacy -1 (challenge)
-#   id 3 type 2 legacy 0 | id 4 type 2 legacy 1 | id 5 type 2 legacy 2
-#   id 6 type 2 legacy 3 | id 7 type 2 legacy 4
+# Both failure directions are silent. Feeding a raw id to the internal lookup
+# reinterprets client id 3 as internal mode 3 and quietly selects raid 25 heroic
+# instead of raid 10 normal; feeding an internal mode to the raw lookup misses. The
+# reset scheduler is the site that matters: it walks sMapDifficultyMap directly, so
+# it holds raw ids, and it persists them into `instance_reset` and into reset events.
+#
+# A static per-type translation is NOT sufficient and an earlier version of this fix
+# was rejected for exactly that. Some raids have no ID 3 row at all -- 25-player-only
+# raids carry only ID 4 and legacy 40-player raids only ID 9 -- so the index is built
+# per map with the same widening BuildMapSpawnModeMasks already applies.
 #
 # Run:
 #   cmake -DSOURCE_ROOT=<repo> -P mop_map_difficulty_source_test.cmake
@@ -23,90 +28,131 @@ if(NOT DEFINED SOURCE_ROOT)
     message(FATAL_ERROR "SOURCE_ROOT must be set")
 endif()
 
-set(_src "${SOURCE_ROOT}/src/game/Server/DBCStores.cpp")
-if(NOT EXISTS "${_src}")
-    message(FATAL_ERROR "missing source: ${_src}")
-endif()
-file(READ "${_src}" _raw)
-string(REGEX REPLACE "//[^\n]*" "" _text "${_raw}")
+set(_dbc "${SOURCE_ROOT}/src/game/Server/DBCStores.cpp")
+set(_mps "${SOURCE_ROOT}/src/game/WorldHandlers/MapPersistentStateMgr.cpp")
+foreach(_f "${_dbc}" "${_mps}")
+    if(NOT EXISTS "${_f}")
+        message(FATAL_ERROR "missing source: ${_f}")
+    endif()
+endforeach()
+file(READ "${_dbc}" _dbc_raw)
+file(READ "${_mps}" _mps_raw)
+string(REGEX REPLACE "//[^\n]*" "" _dbc_src "${_dbc_raw}")
+string(REGEX REPLACE "//[^\n]*" "" _mps_src "${_mps_raw}")
 
 # ---------------------------------------------------------------------------
-# Mutation arms. Each verifies it changed something and exits 0 otherwise, so a
-# dead arm surfaces as a WILL_FAIL failure rather than a false pass.
+# Mutation arms. Each verifies it changed the text it targets and exits 0
+# otherwise, so a dead arm surfaces as a WILL_FAIL failure rather than a pass.
 # ---------------------------------------------------------------------------
+set(_m_dbc "${_dbc_src}")
+set(_m_mps "${_mps_src}")
 if(DEFINED MUTATION)
-    set(_before "${_text}")
-    if(MUTATION STREQUAL "drop_dungeon_normal")
-        string(REPLACE "case DUNGEON_DIFFICULTY_NORMAL:    return 1;" "" _text "${_text}")
-    elseif(MUTATION STREQUAL "drop_challenge")
-        string(REPLACE "case DUNGEON_DIFFICULTY_CHALLENGE: return 8;" "" _text "${_text}")
-    elseif(MUTATION STREQUAL "wrong_raid_normal")
-        string(REPLACE "case RAID_DIFFICULTY_10MAN_NORMAL: return 3;"
-                       "case RAID_DIFFICULTY_10MAN_NORMAL: return 1;" _text "${_text}")
-    elseif(MUTATION STREQUAL "translate_every_map")
-        # Dropping the instance-type gate would translate world, battleground and
-        # arena maps too. They only ever carry DifficultyID 0, so that breaks every
-        # continent -- a far worse regression than the bug being fixed.
-        string(REPLACE "if (mapEntry->InstanceType == MAP_INSTANCE)" "if (true)" _text "${_text}")
-    elseif(MUTATION STREQUAL "bypass_translation")
-        # Look up the raw difficulty again, i.e. revert the fix.
-        string(REPLACE "MAKE_PAIR32(mapId, dbcDifficulty)" "MAKE_PAIR32(mapId, difficulty)" _text "${_text}")
+    if(MUTATION STREQUAL "drop_legacy_index")
+        string(REPLACE "sMapDifficultyLegacyMap.find(MAKE_PAIR32(mapId, difficulty))"
+                       "sMapDifficultyMap.find(MAKE_PAIR32(mapId, difficulty))" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "drop_index_build")
+        string(REPLACE "    BuildMapDifficultyLegacyIndex();" "" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "drop_25man_widening")
+        # Removes the 25-player-only raid alias. Seven raids lose their regular tier
+        # and become unenterable, which is the defect this fix was rejected for.
+        string(REPLACE "ToInternalDifficulty(mapDiff->DifficultyID) == 1"
+                       "false" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "drop_40man_mapping")
+        string(REPLACE "case 9:  return 0;" "" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "raw_id_through_internal_lookup")
+        # The double translation: reset scheduler raw ids sent to the internal lookup.
+        string(REPLACE "GetMapDifficultyDataByClientId(event.mapid, uint32(event.difficulty))"
+                       "GetMapDifficultyData(event.mapid, event.difficulty)" _m_mps "${_mps_src}")
+    elseif(MUTATION STREQUAL "reset_row_through_internal_lookup")
+        string(REPLACE "GetMapDifficultyDataByClientId(mapid, uint32(difficulty))"
+                       "GetMapDifficultyData(mapid, difficulty)" _m_mps "${_mps_src}")
     else()
         message(FATAL_ERROR "unknown MUTATION '${MUTATION}'")
     endif()
-    if(_before STREQUAL "${_text}")
+    if(_m_dbc STREQUAL "${_dbc_src}" AND _m_mps STREQUAL "${_mps_src}")
         message(STATUS "MUTATION '${MUTATION}' changed nothing -- dead arm, exiting 0 so WILL_FAIL reports it")
         return()
     endif()
 endif()
+set(_dbc_src "${_m_dbc}")
+set(_mps_src "${_m_mps}")
 
 # ---------------------------------------------------------------------------
-# 1. Both mappings, in full. A missing arm is a silently unenterable tier.
+# 1. The two lookups must read their own key spaces.
 # ---------------------------------------------------------------------------
-set(_pairs
-    "case DUNGEON_DIFFICULTY_NORMAL:    return 1;"
-    "case DUNGEON_DIFFICULTY_HEROIC:    return 2;"
-    "case DUNGEON_DIFFICULTY_CHALLENGE: return 8;"
-    "case RAID_DIFFICULTY_10MAN_NORMAL: return 3;"
-    "case RAID_DIFFICULTY_25MAN_NORMAL: return 4;"
-    "case RAID_DIFFICULTY_10MAN_HEROIC: return 5;"
-    "case RAID_DIFFICULTY_25MAN_HEROIC: return 6;"
-)
-foreach(_p IN LISTS _pairs)
-    string(FIND "${_text}" "${_p}" _at)
+foreach(_pair
+        "sMapDifficultyLegacyMap.find(MAKE_PAIR32(mapId, difficulty))"
+        "sMapDifficultyMap.find(MAKE_PAIR32(mapId, clientDifficultyId))")
+    string(FIND "${_dbc_src}" "${_pair}" _at)
     if(_at EQUAL -1)
         message(FATAL_ERROR
-            "MapDifficulty translation is missing an arm:\n  ${_p}\n\n"
-            "Every arm corresponds to a Difficulty.dbc row. A missing one makes that\n"
-            "difficulty silently unenterable -- the lookup returns NULL and the caller\n"
-            "reports AREA_LOCKSTATUS_MISSING_DIFFICULTY with nothing logged.")
+            "A MapDifficulty lookup no longer reads its own key space:\n  ${_pair}\n\n"
+            "GetMapDifficultyData answers internal 0-based modes from the legacy index;\n"
+            "GetMapDifficultyDataByClientId answers raw client ids from the DBC map.\n"
+            "Crossing them selects the wrong row silently.")
     endif()
 endforeach()
 
 # ---------------------------------------------------------------------------
-# 2. The translation must be gated on instance type. World, battleground and arena
-#    maps only ever carry DifficultyID 0; translating them would break continents.
+# 2. The legacy index must actually be built, and built after Map.dbc so the
+#    25-player-only raid widening can ask whether a map is a raid.
 # ---------------------------------------------------------------------------
-foreach(_g "if (mapEntry->InstanceType == MAP_INSTANCE)"
-           "if (mapEntry->InstanceType == MAP_RAID)")
-    string(FIND "${_text}" "${_g}" _at)
-    if(_at EQUAL -1)
-        message(FATAL_ERROR
-            "The difficulty translation is no longer gated on instance type:\n  ${_g}\n\n"
-            "Non-instance maps carry DifficultyID 0 and must NOT be translated.")
-    endif()
-endforeach()
-
-# ---------------------------------------------------------------------------
-# 3. It must happen inside GetMapDifficultyData, not at the call sites. There are
-#    eleven callers; one missed translation reintroduces the same silent miss.
-# ---------------------------------------------------------------------------
-string(FIND "${_text}" "MAKE_PAIR32(mapId, dbcDifficulty)" _at)
+# Anchored on the indented CALL, not the bare name: the forward declaration and the
+# definition both contain "BuildMapDifficultyLegacyIndex();" at column 0, so a check
+# for the bare name still passed with the call deleted. Its arm was dead.
+string(FIND "${_dbc_src}" "\n    BuildMapDifficultyLegacyIndex();" _at)
 if(_at EQUAL -1)
     message(FATAL_ERROR
-        "GetMapDifficultyData no longer looks up the translated difficulty.\n"
-        "Translating at the call sites instead would mean eleven places to keep\n"
-        "right, and the failure mode of missing one is silent.")
+        "BuildMapDifficultyLegacyIndex() is never called. GetMapDifficultyData would\n"
+        "answer from an empty index and every instance lookup would miss again.")
 endif()
 
-message(STATUS "map difficulty guard: 7 translation arms present, gated on instance type")
+# ---------------------------------------------------------------------------
+# 3. The raw-id -> internal-mode table, including the two rows that only exist
+#    because some raids have no modern normal row at all.
+# ---------------------------------------------------------------------------
+foreach(_row
+        "case 1:  return 0;"
+        "case 2:  return 1;"
+        "case 3:  return 0;"
+        "case 4:  return 1;"
+        "case 5:  return 2;"
+        "case 6:  return 3;"
+        "case 9:  return 0;")
+    string(FIND "${_dbc_src}" "${_row}" _at)
+    if(_at EQUAL -1)
+        message(FATAL_ERROR
+            "ToInternalDifficulty is missing a mapping:\n  ${_row}\n\n"
+            "Each row corresponds to a Difficulty.dbc id. A missing one makes that\n"
+            "tier silently unenterable. Client id 9 is the legacy 40-player raids and\n"
+            "is the only route to a regular tier on four maps.")
+    endif()
+endforeach()
+
+string(FIND "${_dbc_src}" "ToInternalDifficulty(mapDiff->DifficultyID) == 1" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "The 25-player-only raid widening is gone. Seven raids carry only client id 4\n"
+        "and would lose their regular tier entirely, which is exactly the defect the\n"
+        "first version of this fix was rejected for.")
+endif()
+
+# ---------------------------------------------------------------------------
+# 4. The reset scheduler holds RAW ids and must use the raw lookup. These are the
+#    sites where a double translation would corrupt reset times.
+# ---------------------------------------------------------------------------
+foreach(_site
+        "GetMapDifficultyDataByClientId(mapid, uint32(difficulty))"
+        "GetMapDifficultyDataByClientId(event.mapid, uint32(event.difficulty))")
+    string(FIND "${_mps_src}" "${_site}" _at)
+    if(_at EQUAL -1)
+        message(FATAL_ERROR
+            "A reset-scheduler site no longer uses the raw-id lookup:\n  ${_site}\n\n"
+            "Those values come from the sMapDifficultyMap key and from `instance_reset`,\n"
+            "so they are raw client ids. Sending them through GetMapDifficultyData\n"
+            "reinterprets client id 3 as internal mode 3 and picks raid 25 heroic.")
+    endif()
+endforeach()
+
+message(STATUS "map difficulty guard: two key spaces separated, 7 id mappings, "
+               "25-man widening present, 2 raw-id scheduler sites correct")

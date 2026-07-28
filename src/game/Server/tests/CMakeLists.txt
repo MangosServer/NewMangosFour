@@ -1028,8 +1028,9 @@ add_test(NAME mop_map_difficulty_source
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_map_difficulty_source_test.cmake)
 
-foreach(mutation IN ITEMS drop_dungeon_normal drop_challenge wrong_raid_normal
-                          translate_every_map bypass_translation)
+foreach(mutation IN ITEMS drop_legacy_index drop_index_build drop_25man_widening
+                          drop_40man_mapping raw_id_through_internal_lookup
+                          reset_row_through_internal_lookup)
     add_test(NAME mop_map_difficulty_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND}
             -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
