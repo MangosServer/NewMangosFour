@@ -582,14 +582,39 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
     // members, to `characters`.`dungeon_difficulty`, so a single LFG run left every
     // member's saved difficulty wrong.
     int32 const dungeonMode = ToInternalDifficulty(dungeon->DifficultyID);
+
+    // Raids and dungeons keep their difficulty in DIFFERENT fields, and the setters persist to
+    // different columns: SetDungeonDifficulty writes `groups`.`difficulty` and every member's
+    // `characters`.`dungeon_difficulty`, SetRaidDifficulty writes `groups`.`raiddifficulty` and
+    // `characters`.`raid_difficulty`. Sending a raid through the dungeon setter therefore stores
+    // the raid tier in the dungeon slot and leaves the raid slot untouched.
+    //
+    // It is not merely misfiled. 61 of the 343 LfgDungeons rows are TypeID 2, and their tiers
+    // translate across internal 0..3 -- 25-player heroic reaches 3, which is outside the range a
+    // dungeon difficulty can hold at all, so the group ends up with a dungeon mode no 5-man tier
+    // corresponds to.
+    bool const isRaid = (dungeon->TypeID == LFG_TYPE_RAID);
+
     if (dungeonMode < 0)
     {
-        // LFR (7), scenarios (11, 12) and flexible (14) have no internal equivalent --
-        // 77 of the 343 LfgDungeons rows are one of those. Regular keeps the group in a
+        // LFR (7), scenarios (11, 12) and flexible (14) have no internal equivalent -- 77 of the
+        // 343 LfgDungeons rows are one of those, 4 of them raids. Regular keeps the group in a
         // state the rest of the core can read instead of persisting a mode it cannot.
         DEBUG_LOG("LFGMgr::CreateDungeonGroup: dungeon %u has client DifficultyID %u with no internal mode, using regular",
                   dungeon->ID, dungeon->DifficultyID);
-        pGroup->SetDungeonDifficulty(REGULAR_DIFFICULTY);
+
+        if (isRaid)
+        {
+            pGroup->SetRaidDifficulty(REGULAR_DIFFICULTY);
+        }
+        else
+        {
+            pGroup->SetDungeonDifficulty(REGULAR_DIFFICULTY);
+        }
+    }
+    else if (isRaid)
+    {
+        pGroup->SetRaidDifficulty(Difficulty(dungeonMode));
     }
     else
     {

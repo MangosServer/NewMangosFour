@@ -1037,7 +1037,8 @@ foreach(mutation IN ITEMS drop_legacy_index drop_index_build drop_25man_widening
                           encounter_condition_raw_compare lfg_raw_cast
                           encounter_equality_only encounter_fallback_unconditional
                           encounter_fallback_chain_broken encounter_heroic_fallback_broken
-                          drop_exact_tier_index_build encounter_drops_map_context)
+                          drop_exact_tier_index_build encounter_drops_map_context
+                          lfg_raid_through_dungeon_setter lfg_drops_raid_type_test)
     add_test(NAME mop_map_difficulty_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND}
             -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}

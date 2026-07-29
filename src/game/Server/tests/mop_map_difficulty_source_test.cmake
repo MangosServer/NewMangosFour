@@ -107,6 +107,13 @@ if(DEFINED MUTATION)
         string(REPLACE "        case 2:  return 1;" "        case 2:  return 0;" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "drop_exact_tier_index_build")
         string(REPLACE "    BuildEncounterExactTierIndex();" "" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "lfg_raid_through_dungeon_setter")
+        # The original defect: every LFG group, raid or not, through the dungeon setter.
+        string(REPLACE "        pGroup->SetRaidDifficulty(Difficulty(dungeonMode));"
+                       "        pGroup->SetDungeonDifficulty(Difficulty(dungeonMode));"
+                       _m_lfg "${_lfg_src}")
+    elseif(MUTATION STREQUAL "lfg_drops_raid_type_test")
+        string(REPLACE "dungeon->TypeID == LFG_TYPE_RAID" "false" _m_lfg "${_lfg_src}")
     elseif(MUTATION STREQUAL "encounter_drops_map_context")
         # Without mapId the predicate cannot know whether an exact row exists.
         string(REPLACE "bool EncounterDifficultyMatches(uint32 mapId, uint32 encounterDifficultyId, Difficulty difficulty)"
@@ -426,6 +433,31 @@ foreach(_chain "        case 2:  return 1;"
             "walk, so truncating it silently drops map 994 and nothing else changes.")
     endif()
 endforeach()
+
+# ---------------------------------------------------------------------------
+# LFG raids must use the raid setter. The two setters persist to different columns
+# (`groups`.`difficulty` vs `raiddifficulty`, and the matching `characters` columns), so sending a
+# raid through the dungeon setter files the tier in the wrong slot and leaves the right one unset.
+# 61 of 343 LfgDungeons rows are TypeID 2, and their tiers reach internal 3 (25-player heroic),
+# which is outside the range a dungeon difficulty can hold at all.
+# ---------------------------------------------------------------------------
+string(FIND "${_lfg_src}" "dungeon->TypeID == LFG_TYPE_RAID" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "LFG no longer distinguishes raids when setting difficulty.\n\n"
+        "Without the TypeID test every LFG group goes through SetDungeonDifficulty, so all 61\n"
+        "raid rows write their tier to `groups`.`difficulty` and every member's\n"
+        "`characters`.`dungeon_difficulty`, leaving the raid columns untouched.")
+endif()
+
+string(FIND "${_lfg_src}" "pGroup->SetRaidDifficulty(Difficulty(dungeonMode));" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "LFG raid groups are not using SetRaidDifficulty.\n\n"
+        "Raid tiers translate across internal 0..3; 25-player heroic is 3, which no 5-man tier\n"
+        "corresponds to, so persisting it as a dungeon difficulty stores a mode the dungeon\n"
+        "fields cannot represent.")
+endif()
 
 message(STATUS "map difficulty guard: raw-id accessor absent across ${_scanned} tree files, "
                "9 id mappings incl. continents and challenge, spawn masks in step, "
