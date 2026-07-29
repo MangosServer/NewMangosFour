@@ -1029,8 +1029,8 @@ add_test(NAME mop_map_difficulty_source
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_map_difficulty_source_test.cmake)
 
 foreach(mutation IN ITEMS drop_legacy_index drop_index_build drop_25man_widening
-                          drop_continent_mapping drop_40man_mapping drop_challenge_mapping
-                          drop_challenge_spawn_mode shift_dungeon_spawn_mode
+                          drop_continent_mapping drop_40man_mapping readd_challenge_mapping
+                          readd_challenge_spawn_mode shift_dungeon_spawn_mode
                           drop_encounter_wildcard scheduler_iterates_raw_map
                           reintroduce_client_id_lookup event_through_raw_lookup
                           drop_reset_duration_guard encounter_raw_compare

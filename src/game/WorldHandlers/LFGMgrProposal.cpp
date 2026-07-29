@@ -583,16 +583,23 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
     // member's saved difficulty wrong.
     int32 const dungeonMode = ToInternalDifficulty(dungeon->DifficultyID);
 
-    // Raids and dungeons keep their difficulty in DIFFERENT fields, and the setters persist to
-    // different columns: SetDungeonDifficulty writes `groups`.`difficulty` and every member's
-    // `characters`.`dungeon_difficulty`, SetRaidDifficulty writes `groups`.`raiddifficulty` and
-    // `characters`.`raid_difficulty`. Sending a raid through the dungeon setter therefore stores
-    // the raid tier in the dungeon slot and leaves the raid slot untouched.
+    // Raids and dungeons keep their difficulty in DIFFERENT fields, and the two setters do not
+    // persist symmetrically:
+    //   SetDungeonDifficulty -> `groups`.`difficulty` and every member's
+    //                           `characters`.`dungeon_difficulty`
+    //   SetRaidDifficulty    -> `groups`.`raiddifficulty` only, plus in-memory
+    //                           Player::m_raidDifficulty
     //
-    // It is not merely misfiled. 61 of the 343 LfgDungeons rows are TypeID 2, and their tiers
-    // translate across internal 0..3 -- 25-player heroic reaches 3, which is outside the range a
-    // dungeon difficulty can hold at all, so the group ends up with a dungeon mode no 5-man tier
-    // corresponds to.
+    // There is deliberately no `characters`.`raid_difficulty` claim here: that column does not
+    // exist in the schema. The raid tier reaches a character through Player::_LoadGroup at the
+    // next login, not through a column of its own. An earlier revision of this comment asserted
+    // the symmetric pair and was wrong about half of it.
+    //
+    // Sending a raid through the dungeon setter therefore stores the raid tier in the dungeon slot
+    // and leaves the raid slot untouched. 61 of the 343 LfgDungeons rows are TypeID 2, and the
+    // tiers they carry translate to internal 0..3 -- client 3 and 9 to 0, 4 to 1, 5 to 2, 6 to 3.
+    // Internal 3 is 25-player heroic, which no 5-man tier corresponds to, so a group could end up
+    // holding a dungeon difficulty outside the range dungeon difficulties represent.
     bool const isRaid = (dungeon->TypeID == LFG_TYPE_RAID);
 
     if (dungeonMode < 0)

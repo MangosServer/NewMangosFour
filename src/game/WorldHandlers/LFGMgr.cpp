@@ -189,31 +189,40 @@ DungeonTypes LFGMgr::GetDungeonType(uint32 dungeonId)
     LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(dungeonId);
     if (dungeon)
     {
+        // LfgDungeons.dbc carries a RAW client DifficultyID; the DUNGEON_DIFFICULTY_* constants
+        // are internal modes. Comparing them directly made raw 1 (5-man normal) equal
+        // DUNGEON_DIFFICULTY_HEROIC, which is 1, while raw 2 (5-man heroic) matched neither
+        // constant and fell through to DUNGEON_UNKNOWN -- so every TBC and WotLK dungeon was
+        // typed as heroic or as unknown, never as normal.
+        int32 const mode = ToInternalDifficulty(dungeon->DifficultyID);
+
         switch (dungeon->ExpansionLevel)
         {
             case 0:
                 return DUNGEON_CLASSIC;
             case 1:
             {
-                if (dungeon->DifficultyID == DUNGEON_DIFFICULTY_NORMAL)
+                if (mode == int32(DUNGEON_DIFFICULTY_NORMAL))
                 {
                     return DUNGEON_TBC;
                 }
-                else if (dungeon->DifficultyID == DUNGEON_DIFFICULTY_HEROIC)
+                else if (mode == int32(DUNGEON_DIFFICULTY_HEROIC))
                 {
                     return DUNGEON_TBC_HEROIC;
                 }
+                return DUNGEON_UNKNOWN;                     // was a fall-through into case 2
             }
             case 2:
             {
-                if (dungeon->DifficultyID == DUNGEON_DIFFICULTY_NORMAL)
+                if (mode == int32(DUNGEON_DIFFICULTY_NORMAL))
                 {
                     return DUNGEON_WOTLK;
                 }
-                else if (dungeon->DifficultyID == DUNGEON_DIFFICULTY_HEROIC)
+                else if (mode == int32(DUNGEON_DIFFICULTY_HEROIC))
                 {
                     return DUNGEON_WOTLK_HEROIC;
                 }
+                return DUNGEON_UNKNOWN;                     // was a fall-through into default
             }
             default:
                 return DUNGEON_UNKNOWN;
@@ -412,8 +421,15 @@ void LFGMgr::UpdateNeededRoles(ObjectGuid guid, LFGPlayers* information)
     LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(*itr);
     if (dungeon)
     {
-        // atm we're just handling DUNGEON_DIFFICULTY_NORMAL
-        if (dungeon->DifficultyID == DUNGEON_DIFFICULTY_NORMAL)
+        // atm we're just handling DUNGEON_DIFFICULTY_NORMAL.
+        //
+        // Same raw-vs-internal confusion as GetDungeonType: LfgDungeons.dbc DifficultyID is a raw
+        // client id, so comparing it to DUNGEON_DIFFICULTY_NORMAL (internal 0) matched only rows
+        // carrying raw 0 -- the 59 continent-style rows -- and never raw 1, which is what a 5-man
+        // normal dungeon actually is. The 90 normal-dungeon rows therefore left neededTanks,
+        // neededHealers and neededDps at their default, so the role counts were never initialised
+        // for the one case this branch claims to handle.
+        if (ToInternalDifficulty(dungeon->DifficultyID) == int32(DUNGEON_DIFFICULTY_NORMAL))
         {
             information->neededTanks = NORMAL_TANK_OR_HEALER_COUNT - tankCount;
             information->neededHealers = NORMAL_TANK_OR_HEALER_COUNT - healCount;

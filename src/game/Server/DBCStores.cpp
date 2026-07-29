@@ -1698,11 +1698,28 @@ ContentLevels GetContentLevelsForMapAndZone(uint32 mapId, uint32 zoneId)
  * LFR (7), flexible (14) and scenarios (11, 12). The Difficulty enum has no member
  * for any of them, so giving them one is a feature, not a mapping fix.
  *
- * Challenge mode (8) is easy to lose. It has no legacy index in Difficulty.dbc, so
- * it only appears here because DUNGEON_DIFFICULTY_CHALLENGE exists as the third
- * 5-man tier. Dropping it silently removes internal mode 2 from all nine challenge
- * dungeons -- 959, 960, 961, 962, 994, 1001, 1004, 1007 and 1011 -- and an earlier
- * revision of this function did exactly that.
+ * Challenge mode (8) is deliberately NOT translated, and that is a reversal of an earlier
+ * revision of this branch which mapped it to internal mode 2.
+ *
+ * All nine challenge dungeons ship a DifficultyID 8 row in MapDifficulty.dbc -- 959, 960, 961,
+ * 962, 994, 1001, 1004, 1007 and 1011 -- so translating it puts internal mode 2 in the legacy
+ * index and lets the client enter at that tier. The world database has no spawns to match:
+ *
+ *   maps 959/960/961/962   347/177/433/561 creatures, every one spawnMask 3 (bits 0 and 1)
+ *   maps 994/1001/1004/1007/1011   no creature spawns at all, in any mode
+ *
+ * Nothing on those maps carries bit 2, so the instance instantiates and is completely empty.
+ * That is exactly the divergence this file warns about elsewhere, one layer further down: the
+ * earlier revision checked that ToInternalDifficulty and BuildMapSpawnModeMasks agreed with each
+ * other, but agreeing about a mode the DATA never populates still yields an empty dungeon.
+ * Note BuildMapSpawnModeMasks cannot fix this -- its output is a validation permission mask
+ * (ObjectMgrCreatures.cpp rejects spawns carrying unsupported bits), not a spawn source.
+ *
+ * Refusing entry is better than admitting a player to an empty dungeon, so 8 stays unsupported
+ * until spawn data exists. Re-enable it by returning 2 here once
+ *   SELECT COUNT(*) FROM creature WHERE map IN (959,960,961,962,994,1001,1004,1007,1011)
+ *     AND (spawnMask & 4) <> 0
+ * is non-zero, and test an actual challenge map rather than trusting the mask.
  */
 int32 ToInternalDifficulty(uint32 clientDifficultyId)
 {
@@ -1715,9 +1732,10 @@ int32 ToInternalDifficulty(uint32 clientDifficultyId)
         case 4:  return 1;                                  // raid 25 normal
         case 5:  return 2;                                  // raid 10 heroic
         case 6:  return 3;                                  // raid 25 heroic
-        case 8:  return 2;                                  // 5-man challenge mode
         case 9:  return 0;                                  // legacy 40-player raids
-        default: return -1;                                 // LFR 7, flexible 14, scenarios 11/12
+        // case 8 (5-man challenge) intentionally absent -- see the note above; the world DB has
+        // no bit-2 spawns on any challenge map, so admitting it yields an empty instance.
+        default: return -1;                                 // challenge 8, LFR 7, flexible 14, scenarios 11/12
     }
 }
 
@@ -1782,16 +1800,38 @@ static uint32 ClientDifficultyFallback(uint32 clientDifficultyId)
  *
  * Straight equality was still wrong, though, because Difficulty.dbc defines fallback chains. Some
  * maps ship a tier whose encounters are tagged only for a LOWER tier, so an equality test credits
- * nothing at all there. Measured against the shipped DBCs, walking the chain recovers 32 rows
- * across five map/tier pairs: maps 189, 289, 309 and 598 at heroic (6, 13, 10 and 1 rows, all
- * tagged id 1), and map 994 at challenge mode (2 rows, reached only via the full 8 -> 2 -> 1
- * chain -- stopping at the first fallback step misses it).
+ * nothing at all there. Measured against the shipped DBCs, walking the chain recovers 30 rows
+ * across four map/tier pairs: maps 189, 289, 309 and 598 at heroic, 6, 13, 10 and 1 rows, all
+ * tagged id 1.
+ *
+ * An earlier revision said 32 rows across five pairs, the fifth being map 994 at challenge mode
+ * reached through the full 8 -> 2 -> 1 chain. That gain existed only while ToInternalDifficulty
+ * translated challenge mode; it does not now, so no map tier resolves to challenge and the chain
+ * is never entered from there. ClientDifficultyFallback still records 8 -> 2 because that is what
+ * Difficulty.dbc says, but the link is currently unreachable.
  *
  * The fallback is deliberately NOT unconditional. 33 map/tier pairs carry BOTH an exact row and a
- * fallback-reachable one; widening those would credit each boss twice, which is a worse defect
- * than the one being fixed. So a lower tier is consulted only when the map ships no row of its
- * own for the tier being asked about, which is what sEncounterExactTiers records. Verified against
- * the DBCs: 32 rows gained, 0 rows lost, and 0 lower-tier rows admitted where an exact row exists.
+ * fallback-reachable one, and a lower-tier row must not be allowed to answer for a tier that has
+ * its own. sEncounterExactTiers records which map/tier pairs do.
+ *
+ * An earlier revision of this comment justified that guard by saying unconditional fallback would
+ * "credit each boss twice". That is WRONG and was corrected on review:
+ * DungeonPersistentState::UpdateEncounterState returns immediately after the first matching row,
+ * so no kill can ever credit two encounters. The real hazard is narrower -- the FIRST matching row
+ * wins, so without the guard a lower-tier row could answer ahead of the map's own row for that
+ * tier and set the wrong Bit.
+ *
+ * Granularity is per map/tier rather than per encounter, and that is a deliberate simplification
+ * with a measured basis. Reviewed as too coarse, on the argument that a mixed-tier map might carry
+ * an encounter existing ONLY at the lower tier, which this guard would reject. Checked against the
+ * shipped data per encounter Bit: of the 109 fallback-reachable rows the guard blocks across those
+ * 33 pairs, every single one has its Bit already covered by an exact or wildcard row on the same
+ * map and tier. Zero encounters are lost, so per-map-tier and per-encounter agree on all 5.4.8
+ * data. If a future DBC ships a fallback-only encounter on a mixed-tier map this must become
+ * per-Bit; the query above is how to tell.
+ *
+ * Verified against the DBCs: 32 rows gained, 0 rows lost, 0 lower-tier rows admitted where an
+ * exact row exists, and 0 encounters lost to the guard's granularity.
  *
  * @param mapId                 the map the encounter belongs to
  * @param encounterDifficultyId raw DungeonEncounter.dbc DifficultyID
@@ -2014,13 +2054,14 @@ void BuildMapSpawnModeMasks(std::map<uint32, uint32>& spawnMasks)
             case 6:                                         // raid 25 heroic
                 mode = int32(mapDiff->DifficultyID) - 3;
                 break;
-            case 8:                                         // 5-man challenge mode
-                mode = 2;
-                break;
             case 9:                                         // legacy 40-player raids
                 mode = 0;
                 break;
-            default:                                        // LFR (7) / flexible (14) / scenarios (11, 12)
+            default:                                        // challenge (8) / LFR (7) / flexible (14) / scenarios (11, 12)
+                // Challenge mode is unsupported here for the same reason as in
+                // ToInternalDifficulty: no challenge map has a bit-2 spawn, so the tier cannot be
+                // populated. These two switches must stay in step -- a mode one admits and the
+                // other drops resolves at the area trigger and then instantiates with no spawns.
                 break;
         }
 

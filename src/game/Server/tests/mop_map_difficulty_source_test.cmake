@@ -100,8 +100,9 @@ if(DEFINED MUTATION)
         string(REPLACE "sEncounterExactTiers.find(MAKE_PAIR32(mapId, uint32(difficulty))) != sEncounterExactTiers.end()"
                        "false" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "encounter_fallback_chain_broken")
-        # Truncating challenge mode's chain at one step loses map 994 -- 8 -> 2 -> 1 must
-        # be walked to completion, not just to the first fallback.
+        # ClientDifficultyFallback must mirror Difficulty.dbc field 1 in full. The 8 -> 2 link is
+        # currently unreachable (challenge mode is not translated), but it is still what the DBC
+        # says and the chain walk must not be truncated for whichever tier next needs it.
         string(REPLACE "        case 8:  return 2;" "        case 8:  return 0;" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "encounter_heroic_fallback_broken")
         string(REPLACE "        case 2:  return 1;" "        case 2:  return 0;" _m_dbc "${_dbc_src}")
@@ -127,16 +128,25 @@ if(DEFINED MUTATION)
         # is invisible to every "is the translation applied" check. It would strip all
         # 112 continent, 13 battleground and 7 arena maps out of the index.
         string(REPLACE "case 0:  return 0;" "" _m_dbc "${_dbc_src}")
-    elseif(MUTATION STREQUAL "drop_challenge_mapping")
-        string(REPLACE "case 8:  return 2;" "" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "readd_challenge_mapping")
+        # The inverse of the other arms: challenge mode must STAY untranslated, because no
+        # challenge map has a bit-2 spawn. Re-adding it lets a player into an empty dungeon.
+        string(REPLACE "        case 9:  return 0;"
+                       "        case 8:  return 2;\n        case 9:  return 0;"
+                       _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "drop_40man_mapping")
         string(REPLACE "case 9:  return 0;" "" _m_dbc "${_dbc_src}")
-    elseif(MUTATION STREQUAL "drop_challenge_spawn_mode")
-        # Anchored on "mode = 2;" (unique in the file) rather than the whole case arm:
-        # stripping the trailing comment leaves whitespace behind on the "case 8:" line,
-        # so a multi-line anchor written against the pre-strip text is a dead arm.
-        string(REPLACE "                mode = 2;"
-                       "                mode = -1;" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "readd_challenge_spawn_mode")
+        # The spawn-mask half of the same inverse.
+        #
+        # The anchor ENDS at "case 9:" and never spans the newline after it. Comments are stripped
+        # before mutation and stripping "// legacy 40-player raids" leaves the run of spaces that
+        # separated it, so any anchor continuing past "case 9:" has to reproduce that invisible
+        # whitespace exactly. Two drafts of this arm died that way, and the note further down about
+        # the same hazard was written after the first.
+        string(REPLACE "mode = int32(mapDiff->DifficultyID) - 3;\n                break;\n            case 9:"
+                       "mode = int32(mapDiff->DifficultyID) - 3;\n                break;\n            case 8:\n                mode = 2;\n                break;\n            case 9:"
+                       _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "shift_dungeon_spawn_mode")
         string(REPLACE "mode = int32(mapDiff->DifficultyID) - 1;"
                        "mode = int32(mapDiff->DifficultyID) - 2;" _m_dbc "${_dbc_src}")
@@ -271,7 +281,6 @@ foreach(_row
         "case 4:  return 1;"
         "case 5:  return 2;"
         "case 6:  return 3;"
-        "case 8:  return 2;"
         "case 9:  return 0;")
     string(FIND "${_dbc_src}" "${_row}" _at)
     if(_at EQUAL -1)
@@ -279,15 +288,70 @@ foreach(_row
             "ToInternalDifficulty is missing a mapping:\n  ${_row}\n\n"
             "Each row corresponds to a Difficulty.dbc id. A missing one makes that\n"
             "tier silently unenterable. Client id 9 is the legacy 40-player raids and\n"
-            "is the only route to a regular tier on four maps; client id 8 is challenge\n"
-            "mode and the only route to internal mode 2 on nine 5-man maps.")
+            "is the only route to a regular tier on four maps.\n\n"
+            "Client id 8 (challenge mode) is deliberately NOT in this list -- see the\n"
+            "absence check below.")
     endif()
 endforeach()
+
+# Challenge mode must stay untranslated, and this is the inverse of every other check here.
+#
+# All nine challenge maps ship a MapDifficulty id 8 row, so translating it puts internal mode 2 in
+# the legacy index and lets a player in. The world database cannot populate that tier: maps
+# 959/960/961/962 carry 347/177/433/561 creatures, every one spawnMask 3 (bits 0 and 1), and
+# 994/1001/1004/1007/1011 have no creature spawns at all in any mode. Nothing anywhere on those
+# maps has bit 2, so the instance instantiates completely empty.
+#
+# This is subtler than the divergence the checks above guard against. Those verify the two switches
+# agree with EACH OTHER; agreeing about a mode the DATA never populates still yields an empty
+# dungeon. BuildMapSpawnModeMasks cannot rescue it either -- its output is a validation permission
+# mask, not a spawn source.
+#
+# Re-enable both arms together once
+#   SELECT COUNT(*) FROM creature WHERE map IN (959,960,961,962,994,1001,1004,1007,1011)
+#     AND (spawnMask & 4) <> 0
+# is non-zero, and test an actual challenge map rather than trusting the mask.
+# Scoped to each function body on purpose. "case 8: return 2;" is NOT unique in this file --
+# ClientDifficultyFallback legitimately contains it, because Difficulty.dbc really does record
+# 8 -> 2 -- so a whole-file search for it can never distinguish the two and would either fire
+# always or never. An earlier draft of this check searched the whitespace-flattened text for the
+# two-space spelling, which matches nothing after flattening: it was vacuous and its arm passed.
+macro(_body_of _out _src _signature)
+    string(FIND "${_src}" "${_signature}" _fn_at)
+    if(_fn_at EQUAL -1)
+        message(FATAL_ERROR "cannot locate ${_signature} -- the check below would be vacuous")
+    endif()
+    string(SUBSTRING "${_src}" ${_fn_at} -1 ${_out})
+    string(FIND "${${_out}}" "\n}" _fn_end)
+    if(_fn_end EQUAL -1)
+        message(FATAL_ERROR "cannot find the end of ${_signature}")
+    endif()
+    string(SUBSTRING "${${_out}}" 0 ${_fn_end} ${_out})
+endmacro()
+
+_body_of(_to_internal_body "${_dbc_src}" "int32 ToInternalDifficulty(uint32 clientDifficultyId)")
+string(FIND "${_to_internal_body}" "case 8:" _at)
+if(NOT _at EQUAL -1)
+    message(FATAL_ERROR
+        "ToInternalDifficulty translates challenge mode again.\n\n"
+        "The world database has no bit-2 spawn on any of the nine challenge maps, so admitting\n"
+        "internal mode 2 lets a player enter a dungeon with nothing in it. Refusing entry is\n"
+        "better. If spawn data now exists, remove this check and re-enable BOTH switches together\n"
+        "-- enabling one alone is exactly the divergence the checks above exist for.")
+endif()
+
+_body_of(_spawn_mask_body "${_dbc_src}" "void BuildMapSpawnModeMasks(std::map<uint32, uint32>& spawnMasks)")
+string(FIND "${_spawn_mask_body}" "mode = 2;" _at)
+if(NOT _at EQUAL -1)
+    message(FATAL_ERROR
+        "BuildMapSpawnModeMasks admits challenge mode again -- see the check above. Internal mode 2\n"
+        "is still reachable here for raids (client id 5) through the arithmetic arm; only the\n"
+        "explicit challenge case must stay absent.")
+endif()
 
 # BuildMapSpawnModeMasks must admit the same ids. A tier the difficulty index accepts
 # but the spawn mask drops resolves at the area trigger and then instantiates empty.
 foreach(_arm
-        "case 8: mode = 2; break;"
         "mode = int32(mapDiff->DifficultyID) - 1;"
         "mode = int32(mapDiff->DifficultyID) - 3;")
     string(FIND "${_dbc_flat}" "${_arm}" _at)
@@ -387,9 +451,10 @@ endif()
 # ---------------------------------------------------------------------------
 # Encounter fallback. Difficulty.dbc defines chains (2->1, 5->3, 6->4, 7->4, 8->2, 11->12) and
 # some maps tag their encounters only for a lower tier, so pure equality credits nothing there.
-# Measured against the shipped DBCs, walking the chain recovers 32 rows across five map/tier
-# pairs -- maps 189/289/309/598 at heroic, and map 994 at challenge mode, which is reachable
-# ONLY via the full 8 -> 2 -> 1 walk.
+# Measured against the shipped DBCs, walking the chain recovers 30 rows across four map/tier
+# pairs -- maps 189, 289, 309 and 598 at heroic, 6, 13, 10 and 1 rows, all tagged id 1. An earlier
+# revision said 32 across five, the fifth being map 994 at challenge mode; that gain existed only
+# while challenge mode was translated, and it no longer is.
 #
 # The chain must NOT be walked when the map ships its own row for the tier: 33 map/tier pairs
 # carry both, and widening them credits every boss twice. That guard is the whole reason the
@@ -460,7 +525,7 @@ if(_at EQUAL -1)
 endif()
 
 message(STATUS "map difficulty guard: raw-id accessor absent across ${_scanned} tree files, "
-               "9 id mappings incl. continents and challenge, spawn masks in step, "
+               "8 id mappings incl. continents, challenge deliberately absent, spawn masks in step, "
                "25-man widening present, scheduler on the internal index with the "
                "instance_reset migration guard, LFG and DungeonEncounter translated, "
                "encounter fallback chain-walked behind the exact-tier guard")
