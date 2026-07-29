@@ -1304,8 +1304,14 @@ void ObjectMgr::LoadQuestPOI()
 
     uint32 count = 0;
 
-    //                                                0           1        2           3        4            5          6       7       8
-    QueryResult* result = WorldDatabase.Query("SELECT `questId`, `poiId`, `objIndex`, `mapId`, `mapAreaId`, `floorId`, `unk3`, `unk4`, `blobId` FROM `quest_poi`");
+    // Selects only the columns this loader actually uses. A column named here that
+    // the table does not have fails the whole query, and because the failure looks
+    // exactly like an empty table, every quest silently loses its map markers with
+    // nothing in the log to say why. `blobId` was selected here without ever being
+    // used or shipped in a schema, which cost the entire POI feature; add it back
+    // together with the code that consumes it and the migration that creates it.
+    //                                                0           1        2           3        4            5          6       7
+    QueryResult* result = WorldDatabase.Query("SELECT `questId`, `poiId`, `objIndex`, `mapId`, `mapAreaId`, `floorId`, `unk3`, `unk4` FROM `quest_poi`");
 
     if (!result)
     {
@@ -1314,7 +1320,7 @@ void ObjectMgr::LoadQuestPOI()
         bar.step();
 
         sLog.outString();
-        sLog.outErrorDb(">> Loaded 0 quest POI definitions. DB table `quest_poi` is empty.");
+        sLog.outErrorDb(">> Loaded 0 quest POI definitions. Table `quest_poi` is empty, or the query failed - check the SQL error above for a column this core expects and the table does not have.");
         return;
     }
 
@@ -1336,7 +1342,6 @@ void ObjectMgr::LoadQuestPOI()
         uint32 floorId          = fields[5].GetUInt32();
         uint32 unk3             = fields[6].GetUInt32();
         uint32 unk4             = fields[7].GetUInt32();
-		uint32 blobId           = fields[8].GetUInt32();
 
         // An out-of-range floorId crashes the 5.4.8 client the moment it reads
         // SMSG_QUEST_POI_QUERY_RESPONSE, which is sent on quest accept - so one
