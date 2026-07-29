@@ -96,9 +96,12 @@ if(DEFINED MUTATION)
             "data << \"Greetings $N\""
             gossip_def "${gossip_def}")
     elseif(MUTATION STREQUAL "npc_db_content")
+        # Must track the declared value. When the tuple advanced to 23.3.1 this arm still
+        # searched for "31", matched nothing, and silently became a no-op -- so it passed, and
+        # the stale pin it was meant to protect went unnoticed.
         string(REPLACE
-            "WORLD_DB_CONTENT_NR         \"31\""
-            "WORLD_DB_CONTENT_NR         \"30\""
+            "WORLD_DB_CONTENT_NR         \"1\""
+            "WORLD_DB_CONTENT_NR         \"0\""
             revision_data "${revision_data}")
     elseif(MUTATION STREQUAL "npc_reference_status")
         string(REPLACE
@@ -267,8 +270,8 @@ endforeach()
 # with it or the check silently asserts an obsolete database.
 foreach(requirement IN ITEMS
         "WORLD_DB_VERSION_NR[ \t]+\"23\""
-        "WORLD_DB_STRUCTURE_NR[ \t]+\"2\""
-        "WORLD_DB_CONTENT_NR[ \t]+\"31\"")
+        "WORLD_DB_STRUCTURE_NR[ \t]+\"3\""
+        "WORLD_DB_CONTENT_NR[ \t]+\"1\"")
     require_once("${revision_data}"
         "${requirement}"
         "BroadcastText-aware world database requirement")
