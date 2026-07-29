@@ -2431,11 +2431,11 @@ bool PlayerCondition::Meets(Player const* player, Map const* map, WorldObject co
             // DifficultyIDs and id 0 is a wildcard, so this must go through the same
             // predicate DungeonPersistentState::UpdateEncounterState uses -- otherwise
             // the condition disagrees with the mask it is testing.
-            if (!EncounterDifficultyMatches(dbcEntry1->DifficultyID, map->GetDifficulty()))
+            if (!EncounterDifficultyMatches(dbcEntry1->MapID, dbcEntry1->DifficultyID, map->GetDifficulty()))
             {
                 dbcEntry1 = NULL;
             }
-            if (dbcEntry2 && !EncounterDifficultyMatches(dbcEntry2->DifficultyID, map->GetDifficulty()))
+            if (dbcEntry2 && !EncounterDifficultyMatches(dbcEntry2->MapID, dbcEntry2->DifficultyID, map->GetDifficulty()))
             {
                 dbcEntry2 = NULL;
             }

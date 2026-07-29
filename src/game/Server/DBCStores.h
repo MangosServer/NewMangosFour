@@ -178,7 +178,9 @@ int32 ToInternalDifficulty(uint32 clientDifficultyId);
 // That table's DifficultyID is a raw client id and must not be compared to a
 // Difficulty directly; 0 there means "every difficulty of this map", not internal
 // mode 0. Both encounter-credit sites must use this so they agree.
-bool EncounterDifficultyMatches(uint32 encounterDifficultyId, Difficulty difficulty);
+// mapId is required: whether a lower-tier encounter row applies depends on whether THIS map
+// ships one of its own for the tier being asked about. See the definition.
+bool EncounterDifficultyMatches(uint32 mapId, uint32 encounterDifficultyId, Difficulty difficulty);
 void BuildMapSpawnModeMasks(std::map<uint32, uint32>& spawnMasks);
 
 // natural order for difficulties up-down iteration

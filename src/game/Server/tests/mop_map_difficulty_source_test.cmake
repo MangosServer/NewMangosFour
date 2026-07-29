@@ -90,6 +90,28 @@ if(DEFINED MUTATION)
                        "sMapDifficultyMap.find(MAKE_PAIR32(mapId, difficulty))" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "drop_index_build")
         string(REPLACE "    BuildMapDifficultyLegacyIndex();" "" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "encounter_equality_only")
+        # The original regression: compare equal and never consult the fallback chain.
+        string(REPLACE "    if (sEncounterExactTiers.find(MAKE_PAIR32(mapId, uint32(difficulty))) != sEncounterExactTiers.end())"
+                       "    if (true)" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "encounter_fallback_unconditional")
+        # The tempting over-correction: walk the chain even when the map has its own row,
+        # which double-credits every boss on the 33 map/tier pairs that carry both.
+        string(REPLACE "sEncounterExactTiers.find(MAKE_PAIR32(mapId, uint32(difficulty))) != sEncounterExactTiers.end()"
+                       "false" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "encounter_fallback_chain_broken")
+        # Truncating challenge mode's chain at one step loses map 994 -- 8 -> 2 -> 1 must
+        # be walked to completion, not just to the first fallback.
+        string(REPLACE "        case 8:  return 2;" "        case 8:  return 0;" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "encounter_heroic_fallback_broken")
+        string(REPLACE "        case 2:  return 1;" "        case 2:  return 0;" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "drop_exact_tier_index_build")
+        string(REPLACE "    BuildEncounterExactTierIndex();" "" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "encounter_drops_map_context")
+        # Without mapId the predicate cannot know whether an exact row exists.
+        string(REPLACE "bool EncounterDifficultyMatches(uint32 mapId, uint32 encounterDifficultyId, Difficulty difficulty)"
+                       "bool EncounterDifficultyMatches(uint32 encounterDifficultyId, Difficulty difficulty)"
+                       _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "drop_25man_widening")
         string(REPLACE "ToInternalDifficulty(mapDiff->DifficultyID) == 1"
                        "false" _m_dbc "${_dbc_src}")
@@ -132,10 +154,10 @@ if(DEFINED MUTATION)
         # enumeration skips RaidDuration == 0.
         string(REPLACE " || !resetDiff->RaidDuration" "" _m_mps "${_mps_src}")
     elseif(MUTATION STREQUAL "encounter_raw_compare")
-        string(REPLACE "EncounterDifficultyMatches(dbcEntry->DifficultyID, GetDifficulty())"
+        string(REPLACE "EncounterDifficultyMatches(dbcEntry->MapID, dbcEntry->DifficultyID, GetDifficulty())"
                        "Difficulty(dbcEntry->DifficultyID) == GetDifficulty()" _m_mps "${_mps_src}")
     elseif(MUTATION STREQUAL "encounter_condition_raw_compare")
-        string(REPLACE "!EncounterDifficultyMatches(dbcEntry1->DifficultyID, map->GetDifficulty())"
+        string(REPLACE "!EncounterDifficultyMatches(dbcEntry1->MapID, dbcEntry1->DifficultyID, map->GetDifficulty())"
                        "map->GetDifficulty() != Difficulty(dbcEntry1->DifficultyID)" _m_omg "${_omg_src}")
     elseif(MUTATION STREQUAL "lfg_raw_cast")
         string(REPLACE "ToInternalDifficulty(dungeon->DifficultyID)"
@@ -330,7 +352,7 @@ if(_at EQUAL -1)
         "crediting an encounter into `instance`.`encountersMask`.")
 endif()
 
-string(FIND "${_mps_src}" "EncounterDifficultyMatches(dbcEntry->DifficultyID, GetDifficulty())" _at)
+string(FIND "${_mps_src}" "EncounterDifficultyMatches(dbcEntry->MapID, dbcEntry->DifficultyID, GetDifficulty())" _at)
 if(_at EQUAL -1)
     message(FATAL_ERROR
         "UpdateEncounterState compares DungeonEncounter difficulty directly again.\n"
@@ -338,7 +360,7 @@ if(_at EQUAL -1)
         "5-man normal rows (id 1) were tested against internal mode 1, which is HEROIC.")
 endif()
 
-string(FIND "${_omg_src}" "EncounterDifficultyMatches(dbcEntry1->DifficultyID, map->GetDifficulty())" _at)
+string(FIND "${_omg_src}" "EncounterDifficultyMatches(dbcEntry1->MapID, dbcEntry1->DifficultyID, map->GetDifficulty())" _at)
 if(_at EQUAL -1)
     message(FATAL_ERROR
         "CONDITION_COMPLETED_ENCOUNTER compares DungeonEncounter difficulty directly.\n"
@@ -355,7 +377,58 @@ if(_at EQUAL -1)
         "`groups`.`difficulty` and `characters`.`dungeon_difficulty`.")
 endif()
 
+# ---------------------------------------------------------------------------
+# Encounter fallback. Difficulty.dbc defines chains (2->1, 5->3, 6->4, 7->4, 8->2, 11->12) and
+# some maps tag their encounters only for a lower tier, so pure equality credits nothing there.
+# Measured against the shipped DBCs, walking the chain recovers 32 rows across five map/tier
+# pairs -- maps 189/289/309/598 at heroic, and map 994 at challenge mode, which is reachable
+# ONLY via the full 8 -> 2 -> 1 walk.
+#
+# The chain must NOT be walked when the map ships its own row for the tier: 33 map/tier pairs
+# carry both, and widening them credits every boss twice. That guard is the whole reason the
+# predicate needs mapId, so all three are pinned together.
+# ---------------------------------------------------------------------------
+string(FIND "${_dbc_src}" "bool EncounterDifficultyMatches(uint32 mapId, uint32 encounterDifficultyId, Difficulty difficulty)" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "EncounterDifficultyMatches no longer takes mapId.\n\n"
+        "Without the map it cannot tell whether an exact row exists, so it must either never\n"
+        "fall back (losing 32 rows on five map/tier pairs) or always fall back (double-crediting\n"
+        "33 pairs). Both are worse than the bug this replaced.")
+endif()
+
+string(FIND "${_dbc_src}" "sEncounterExactTiers.find(MAKE_PAIR32(mapId, uint32(difficulty))) != sEncounterExactTiers.end()" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "The exact-tier guard is gone from EncounterDifficultyMatches.\n\n"
+        "33 map/tier pairs ship BOTH an exact encounter row and a fallback-reachable one.\n"
+        "Without this guard every one of those bosses is credited twice.")
+endif()
+
+string(FIND "${_dbc_src}" "    BuildEncounterExactTierIndex();" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "BuildEncounterExactTierIndex is never called.\n\n"
+        "sEncounterExactTiers stays empty, so the guard above always reads 'no exact row' and\n"
+        "the fallback fires everywhere -- the double-credit case, silently.")
+endif()
+
+foreach(_chain "        case 2:  return 1;"
+               "        case 5:  return 3;"
+               "        case 6:  return 4;"
+               "        case 8:  return 2;")
+    string(FIND "${_dbc_src}" "${_chain}" _at)
+    if(_at EQUAL -1)
+        message(FATAL_ERROR
+            "A Difficulty.dbc fallback link is missing:\n  ${_chain}\n\n"
+            "These mirror field 1 of the shipped Difficulty.dbc. Breaking 8 -> 2 in particular\n"
+            "is easy to miss: challenge mode reaches its rows only through the full 8 -> 2 -> 1\n"
+            "walk, so truncating it silently drops map 994 and nothing else changes.")
+    endif()
+endforeach()
+
 message(STATUS "map difficulty guard: raw-id accessor absent across ${_scanned} tree files, "
                "9 id mappings incl. continents and challenge, spawn masks in step, "
                "25-man widening present, scheduler on the internal index with the "
-               "instance_reset migration guard, LFG and DungeonEncounter translated")
+               "instance_reset migration guard, LFG and DungeonEncounter translated, "
+               "encounter fallback chain-walked behind the exact-tier guard")

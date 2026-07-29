@@ -427,7 +427,7 @@ void DungeonPersistentState::UpdateEncounterState(EncounterCreditType type, uint
 
         // DungeonEncounter.dbc holds RAW client DifficultyIDs, so this cannot be a
         // direct comparison against an internal mode -- see EncounterDifficultyMatches.
-        if (iter->second->creditType == type && EncounterDifficultyMatches(dbcEntry->DifficultyID, GetDifficulty()) && dbcEntry->MapID == GetMapId())
+        if (iter->second->creditType == type && EncounterDifficultyMatches(dbcEntry->MapID, dbcEntry->DifficultyID, GetDifficulty()) && dbcEntry->MapID == GetMapId())
         {
             m_completedEncountersMask |= 1 << dbcEntry->Bit;
 

@@ -36,6 +36,7 @@
 #include "Util.h"
 
 #include <map>
+#include <set>
 
 typedef std::map<uint16, uint32> AreaFlagByAreaID;
 typedef std::map<uint32, uint32> AreaFlagByMapID;
@@ -160,6 +161,12 @@ MapDifficultyMap sMapDifficultyMap;
 // see GetMapDifficultyData for why the raw DBC keying above cannot serve both.
 static MapDifficultyMap sMapDifficultyLegacyMap;
 static void BuildMapDifficultyLegacyIndex();
+
+// MAKE_PAIR32(mapId, internal Difficulty) for every map/tier that ships at least one
+// NON-wildcard DungeonEncounter row of its own. Consulted by EncounterDifficultyMatches to
+// decide whether falling back to a lower tier is allowed; see there for why it must be.
+static std::set<uint32> sEncounterExactTiers;
+static void BuildEncounterExactTierIndex();
 
 DBCStorage <MovieEntry> sMovieStore(MovieEntryfmt);
 DBCStorage <MountCapabilityEntry> sMountCapabilityStore(MountCapabilityfmt);
@@ -745,6 +752,10 @@ void LoadDBCStores(const std::string& dataPath)
         }
     // Map.dbc is already loaded above, which the 25-player-only raid widening needs.
     BuildMapDifficultyLegacyIndex();
+
+    // DungeonEncounter.dbc is loaded above; this records which map/tier pairs have their own
+    // rows, so EncounterDifficultyMatches knows when falling back is allowed.
+    BuildEncounterExactTierIndex();
 
     LoadDBC(availableDbcLocales, bar, bad_dbc_files, sMovieStore,               dbcPath, "Movie.dbc");
     LoadDBC(availableDbcLocales,bar,bad_dbc_files, sMountCapabilityStore,     dbcPath,"MountCapability.dbc");
@@ -1725,14 +1736,131 @@ int32 ToInternalDifficulty(uint32 clientDifficultyId)
  * of those have more than one difficulty tier, so reading it as "normal only" would
  * stop every heroic run on them from ever crediting an encounter.
  */
-bool EncounterDifficultyMatches(uint32 encounterDifficultyId, Difficulty difficulty)
+/**
+ * @brief The tier a client DifficultyID falls back to, mirroring Difficulty.dbc field 1.
+ *
+ * Hardcoded for the same reason ToInternalDifficulty is: Difficulty.dbc is never loaded by this
+ * core, and at twelve static rows for 5.4.8 the table is not worth a store. Values read directly
+ * from the shipped file; 0 means "no fallback", it is not a reference to id 0.
+ *
+ *   2 -> 1        5-man heroic falls back to 5-man normal
+ *   5 -> 3        10-player heroic  -> 10-player normal
+ *   6 -> 4        25-player heroic  -> 25-player normal
+ *   7 -> 4        LFR               -> 25-player normal
+ *   8 -> 2 -> 1   challenge mode    -> heroic -> normal
+ *   11 -> 12      heroic scenario   -> normal scenario
+ *
+ * Ids 1, 3, 4, 9, 12 and 14 terminate.
+ */
+static uint32 ClientDifficultyFallback(uint32 clientDifficultyId)
+{
+    switch (clientDifficultyId)
+    {
+        case 2:  return 1;
+        case 5:  return 3;
+        case 6:  return 4;
+        case 7:  return 4;
+        case 8:  return 2;
+        case 11: return 12;
+        default: return 0;                                  // no fallback
+    }
+}
+
+/**
+ * @brief Whether a DungeonEncounter.dbc row applies at an internal difficulty on a given map.
+ *
+ * DungeonEncounter.dbc keys on raw client DifficultyIDs like everything else in the 5.4.8 DBCs,
+ * and comparing one directly against a Difficulty was wrong in both directions. Of the 699
+ * shipped rows only the 238 carrying id 0 ever matched, and they matched for the wrong reason;
+ * the 264 rows for 5-man normal (id 1) were tested against internal mode 1, which is HEROIC, so a
+ * normal clear credited nothing while a heroic clear credited the normal encounter. Ids 5 and 6
+ * (Sinestra, Ra-den) exceed MAX_DIFFICULTY as raw values and could never match at all.
+ *
+ * Id 0 is a wildcard, not internal mode 0. 41 maps carry nothing but id 0 rows and 36 of those
+ * have more than one difficulty tier, so reading it as "normal only" would stop every heroic run
+ * on them from ever crediting an encounter.
+ *
+ * Straight equality was still wrong, though, because Difficulty.dbc defines fallback chains. Some
+ * maps ship a tier whose encounters are tagged only for a LOWER tier, so an equality test credits
+ * nothing at all there. Measured against the shipped DBCs, walking the chain recovers 32 rows
+ * across five map/tier pairs: maps 189, 289, 309 and 598 at heroic (6, 13, 10 and 1 rows, all
+ * tagged id 1), and map 994 at challenge mode (2 rows, reached only via the full 8 -> 2 -> 1
+ * chain -- stopping at the first fallback step misses it).
+ *
+ * The fallback is deliberately NOT unconditional. 33 map/tier pairs carry BOTH an exact row and a
+ * fallback-reachable one; widening those would credit each boss twice, which is a worse defect
+ * than the one being fixed. So a lower tier is consulted only when the map ships no row of its
+ * own for the tier being asked about, which is what sEncounterExactTiers records. Verified against
+ * the DBCs: 32 rows gained, 0 rows lost, and 0 lower-tier rows admitted where an exact row exists.
+ *
+ * @param mapId                 the map the encounter belongs to
+ * @param encounterDifficultyId raw DungeonEncounter.dbc DifficultyID
+ * @param difficulty            the internal difficulty the group is running
+ */
+bool EncounterDifficultyMatches(uint32 mapId, uint32 encounterDifficultyId, Difficulty difficulty)
 {
     if (encounterDifficultyId == 0)
     {
         return true;                                        // applies to every tier of the map
     }
 
-    return ToInternalDifficulty(encounterDifficultyId) == int32(difficulty);
+    if (ToInternalDifficulty(encounterDifficultyId) == int32(difficulty))
+    {
+        return true;                                        // the map's own row for this tier
+    }
+
+    // An exact row exists for this tier, so the lower tiers are not this tier's encounters.
+    if (sEncounterExactTiers.find(MAKE_PAIR32(mapId, uint32(difficulty))) != sEncounterExactTiers.end())
+    {
+        return false;
+    }
+
+    // Nothing exact: walk this map's tier down its fallback chain and see if the row sits on it.
+    MapDifficultyEntry const* mapDiff = GetMapDifficultyData(mapId, difficulty);
+    if (!mapDiff)
+    {
+        return false;
+    }
+
+    for (uint32 tier = ClientDifficultyFallback(mapDiff->DifficultyID); tier;
+         tier = ClientDifficultyFallback(tier))
+    {
+        if (tier == encounterDifficultyId)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @brief Records which map/tier pairs ship a non-wildcard encounter row of their own.
+ *
+ * Must run after DungeonEncounter.dbc is loaded. Wildcard (id 0) rows are excluded on purpose:
+ * they apply everywhere, so a map carrying only wildcards has no tier-specific rows and should
+ * still be allowed to fall back.
+ */
+static void BuildEncounterExactTierIndex()
+{
+    sEncounterExactTiers.clear();
+
+    for (uint32 i = 0; i < sDungeonEncounterStore.GetNumRows(); ++i)
+    {
+        DungeonEncounterEntry const* entry = sDungeonEncounterStore.LookupEntry(i);
+        if (!entry || entry->DifficultyID == 0)
+        {
+            continue;
+        }
+
+        int32 internal = ToInternalDifficulty(entry->DifficultyID);
+        if (internal < 0)
+        {
+            continue;                                       // LFR, flexible, scenarios
+        }
+
+        sEncounterExactTiers.insert(MAKE_PAIR32(entry->MapID, uint32(internal)));
+    }
 }
 
 /**
