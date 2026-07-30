@@ -166,16 +166,24 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
                     }
                 }
 
-                // The expansion has to be filtered too -- checking the selected row above is not
-                // enough. Every one of the 10 random rows that survives admission has Group_ID 0,
-                // and Group_ID 0 matches 273 rows, 20 of which carry scenario tier 12. Without this
-                // an untranslatable dungeon reaches CreateDungeonGroup through a perfectly valid
-                // random queue, which is the same silent downgrade the admission check exists to
-                // prevent.
+                // Filter the expansion as well. Group_ID 0 matches 273 rows, 20 of which carry
+                // scenario tier 12, and all 10 random rows that pass admission have Group_ID 0, so
+                // the expanded set is full of dungeons this core cannot run.
                 //
-                // Dropped, not refused: the expanded set is a CANDIDATE list, so removing the
-                // members this core cannot run leaves random queueing working, whereas refusing the
-                // row would disable it for all 10.
+                // Be precise about what this does and does not achieve, because an earlier comment
+                // here claimed it was what stopped an untranslatable tier reaching
+                // CreateDungeonGroup. It is not. Both the party and solo paths below replace the
+                // expanded set with randomDungeonID alone before the queued LFGPlayers state is
+                // built, and SendDungeonProposal takes *dungeonList.begin() from that -- so the
+                // proposal always carries the random row, which the admission check above has
+                // already validated. THAT is the guarantee. What this filter does is keep
+                // untranslatable ids out of roleCheck.dungeonList, which is handed back to the
+                // client and re-read on a role-check rejoin.
+                //
+                // Dropped, not refused: the expansion is a CANDIDATE list, so removing the members
+                // this core cannot run leaves random queueing working, whereas refusing the row
+                // would disable it for all 10. No empty-set check follows, because the admitted
+                // random row is itself translatable and always survives.
                 for (std::set<uint32>::iterator it = dungeons.begin(); it != dungeons.end(); )
                 {
                     LfgDungeonsEntry const* candidate = sLfgDungeonsStore.LookupEntry(*it);
@@ -187,11 +195,6 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
                     {
                         ++it;
                     }
-                }
-
-                if (dungeons.empty())
-                {
-                    result = ERR_LFG_INVALID_SLOT;
                 }
             }
             else

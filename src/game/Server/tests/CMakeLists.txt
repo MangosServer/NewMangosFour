@@ -1040,7 +1040,7 @@ foreach(mutation IN ITEMS drop_legacy_index drop_index_build drop_25man_widening
                           drop_exact_tier_index_build encounter_drops_map_context
                           lfg_raid_through_dungeon_setter lfg_drops_raid_type_test reset_table_partially_trusted reset_row_applied_before_validation
                           lfg_admits_untranslatable_tier lfg_types_raids_as_dungeons
-                          lfg_raid_gets_5man_roles unbounded_fallback_walk lfg_random_expansion_unfiltered)
+                          lfg_raid_gets_5man_roles unbounded_fallback_walk lfg_random_expansion_unfiltered reset_condemns_on_any_invalid_row)
     add_test(NAME mop_map_difficulty_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND}
             -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}

@@ -199,7 +199,13 @@ if(DEFINED MUTATION)
         # as internal 3 (raid 25-heroic) on the 14 maps carrying both with a global reset. It then
         # reaches SetResetTimeFor and suppresses the fresh initialisation the scheduler would do.
         # No per-row test can tell those 14 apart, so the table has to be condemned as a whole.
-        string(REPLACE "        if (legacyKeySpace)" "        if (false)" _m_mps "${_mps_src}")
+        string(REPLACE "        if (rawKeySpaceProven)" "        if (false)" _m_mps "${_mps_src}")
+    elseif(MUTATION STREQUAL "reset_condemns_on_any_invalid_row")
+        # Condemning on ANY invalid row is far too broad. The rebuild computes `today + period +
+        # diff`, so discarding a valid row moves that lockout boundary by up to a full reset period
+        # -- one map dropped from the DBC, or one hand-edited row, would move every boundary in the
+        # table. Only a stored value >= MAX_DIFFICULTY is definitive raw-key-space evidence.
+        string(REPLACE "                if (difficulty >= MAX_DIFFICULTY)" "                if (true)" _m_mps "${_mps_src}")
     elseif(MUTATION STREQUAL "reset_row_applied_before_validation")
         # Applying rows as they are read, instead of collecting and validating first, reinstates the
         # same hole: the rows before the first invalid one have already been applied.
@@ -617,7 +623,7 @@ endif()
 # MapDifficulty.dbc: of the 14 maps with an ambiguous row, zero lack a detectable one. So one bad
 # row condemns the table, and it is dropped and rebuilt rather than partially trusted.
 # ---------------------------------------------------------------------------
-string(FIND "${_mps_src}" "if (legacyKeySpace)" _at)
+string(FIND "${_mps_src}" "if (rawKeySpaceProven)" _at)
 if(_at EQUAL -1)
     message(FATAL_ERROR
         "`instance_reset` is no longer condemned as a whole table.\n\n"
@@ -698,6 +704,16 @@ if(_at EQUAL -1)
         "Checking the selected row alone is not enough: all 10 random rows that pass admission have\n"
         "Group_ID 0, which matches 273 rows, 20 of them at scenario tier 12. An untranslatable\n"
         "dungeon then reaches CreateDungeonGroup behind a perfectly valid random queue.")
+endif()
+
+string(FIND "${_mps_src}" "if (difficulty >= MAX_DIFFICULTY)" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "the `instance_reset` condemnation trigger is no longer narrow.\n\n"
+        "Only a stored value >= MAX_DIFFICULTY is definitive evidence of the raw key space. Firing\n"
+        "on any invalid row means one removed-map or hand-edited row discards every legitimate reset\n"
+        "time, and the rebuild recomputes `today + period + diff` -- so those boundaries move by up\n"
+        "to a full reset period. This table is not a semantically free cache.")
 endif()
 
 message(STATUS "map difficulty guard: raw-id accessor absent across ${_scanned} tree files, "

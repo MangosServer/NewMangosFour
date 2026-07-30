@@ -588,17 +588,38 @@ void DungeonResetScheduler::LoadResetTimes()
         //     tiers with no reset time yet. No per-row test can tell those 14 apart from a row we
         //     wrote ourselves; the value is legal in both key spaces.
         //
-        // So the table is validated as a WHOLE. Every one of those 14 maps also carries at least one
-        // detectable stale row (a 10/25 raid ships raw 3, 4, 5 and 6, all with a global reset), so a
-        // legacy table always announces itself -- verified against MapDifficulty.dbc: of the 14 maps
-        // with an ambiguous row, zero lack a detectable one. One detectable row therefore condemns
-        // the table, and the whole thing is dropped and rebuilt rather than partially trusted.
+        // So the table is validated as a WHOLE, but the trigger is narrow, and BOTH halves of that
+        // matter. An earlier revision of this code got each of them wrong in turn.
         //
-        // Dropping it is cheap: these rows are a cache of computed global reset times, and the
-        // scheduler below regenerates every one it needs in the same startup. The only visible
-        // effect is that global lockout boundaries are recomputed once.
+        // The trigger is DEFINITIVE evidence only: a stored value >= MAX_DIFFICULTY. Nothing but the
+        // raw key space can put one there. The first attempt condemned the table on ANY invalid row,
+        // which is far too broad -- a map dropped from the DBC or one hand-edited row would discard
+        // every legitimate reset time, and that is NOT free. The rebuild below computes
+        // `today + period + diff`, so wiping a valid row moves that lockout boundary by up to a full
+        // reset period. Calling this table "just a cache" was wrong. Non-definitive invalid rows are
+        // therefore deleted individually, exactly as before, and leave the rest of the table alone.
+        //
+        // When definitive evidence IS present, every row is suspect and all of them go, because the
+        // 14 ambiguous ones cannot be identified. That is sound for a table the old build wrote in
+        // full: a 10/25 raid ships raw 3, 4, 5 and 6 with a global reset, so raw 4/5/6 are there to
+        // find. Verified against MapDifficulty.dbc -- of the 14 maps with an ambiguous raw-3 row,
+        // ZERO lack a definitive >= MAX_DIFFICULTY row.
+        //
+        // WHAT THIS STILL DOES NOT FIX, and it is a real gap rather than a theoretical one. DBC
+        // co-occurrence is not TABLE co-occurrence. A legacy table can hold an ambiguous raw-3 row
+        // with its raw-4/5/6 companions already gone -- after a partial startup, manual cleanup, or
+        // one run of the earlier row-by-row version of this very migration, which deleted exactly
+        // those detectable rows one at a time. Such a table passes validation, the stale 10-normal
+        // timestamp is applied as 25-heroic, and the rebuild is suppressed. No inspection of the row
+        // contents can catch that; it needs a durable marker, and this repository does not carry the
+        // characters schema, so the marker has to be a one-time migration in the database repo:
+        //
+        //     DELETE FROM `instance_reset`;    -- key space changed from raw to internal
+        //
+        // It is shipped alongside this change for exactly that purpose. The log line below tells an
+        // administrator when this build has seen raw-keyed rows, so the case is at least visible.
         std::vector<std::pair<uint32 /*mapid*/, std::pair<uint32 /*difficulty*/, uint64 /*resettime*/> > > resetRows;
-        bool legacyKeySpace = false;
+        bool rawKeySpaceProven = false;
 
         do
         {
@@ -616,7 +637,18 @@ void DungeonResetScheduler::LoadResetTimes()
             if (!mapEntry || !mapEntry->IsDungeon() || !resetDiff || !resetDiff->RaidDuration)
             {
                 sLog.outError("MapPersistentStateManager::LoadResetTimes: invalid mapid(%u)/difficulty(%u) pair in instance_reset!", mapid, difficulty);
-                legacyKeySpace = true;
+
+                if (difficulty >= MAX_DIFFICULTY)
+                {
+                    // Only the raw key space can produce this. Flag the table; the row goes with the
+                    // rest of it below.
+                    rawKeySpaceProven = true;
+                }
+                else
+                {
+                    // Invalid for some unrelated reason. Drop just this row, as this code always did.
+                    CharacterDatabase.DirectPExecute("DELETE FROM `instance_reset` WHERE `mapid` = '%u' AND `difficulty` = '%u'", mapid, difficulty);
+                }
                 continue;
             }
 
@@ -625,14 +657,16 @@ void DungeonResetScheduler::LoadResetTimes()
         while (result->NextRow());
         delete result;
 
-        if (legacyKeySpace)
+        if (rawKeySpaceProven)
         {
-            // At least one row cannot be an internal mode, so this table was written by a build that
-            // keyed it on raw client DifficultyIDs. The rows that DID validate cannot be trusted
-            // either -- see above -- so none of them is applied.
-            sLog.outString("MapPersistentStateManager::LoadResetTimes: `instance_reset` was keyed on raw client "
+            // A stored value >= MAX_DIFFICULTY proves this table was keyed on raw client
+            // DifficultyIDs, so the rows that DID validate cannot be trusted either -- see above --
+            // and none of them is applied.
+            sLog.outString("MapPersistentStateManager::LoadResetTimes: `instance_reset` holds raw client "
                            "DifficultyIDs; discarding all %u remaining row(s) and rebuilding. Global instance "
-                           "lockout boundaries are recomputed once.", uint32(resetRows.size()));
+                           "lockout boundaries are recomputed once. If this recurs, run "
+                           "\"DELETE FROM `instance_reset`;\" once against the characters database.",
+                           uint32(resetRows.size()));
             CharacterDatabase.DirectExecute("DELETE FROM `instance_reset`");
             resetRows.clear();
         }
