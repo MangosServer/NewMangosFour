@@ -196,10 +196,14 @@ endif()
 # 4. Iteration must stay ASCENDING through LookupEntry.
 #
 #    Lowest-Id-wins is a property of the walk, not of the rows: this fill states no
-#    preference between two instance-tier rows, and 41 keys ship no base row at all. Reverse
-#    the loop and 2684 spells change payload with nothing in this file edited. The old fill
-#    had the same hidden dependency, which is how a prediction about the startup counter came
-#    out backwards -- it was reasoned from raw file order.
+#    preference between two instance-tier rows, and 41 keys ship no base row at all. Reverse the
+#    loop and those 41 keys, across 40 spells, change payload with nothing in this file edited --
+#    and ONLY those, because wherever a base row exists it wins from either direction. (This
+#    paragraph said 2684 spells in an earlier revision, which was the reach of the OLD fill's
+#    dependency, not this one's. The rest of the file already said 41/40.)
+#
+#    The old fill had the same hidden dependency and a much wider one, which is how a prediction
+#    about the startup counter came out backwards -- it was reasoned from raw file order.
 # ---------------------------------------------------------------------------
 if(NOT _dbc_flat MATCHES "for\\(uint32 i = 1; i < sSpellEffectStore\\.GetNumRows\\(\\); \\+\\+i\\) \\{ if \\(SpellEffectEntry const \\*spellEffect = sSpellEffectStore\\.LookupEntry\\(i\\)\\)")
     message(FATAL_ERROR
