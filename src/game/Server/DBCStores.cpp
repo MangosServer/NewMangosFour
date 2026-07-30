@@ -863,7 +863,7 @@ void LoadDBCStores(const std::string& dataPath)
             // DBC that was overwhelmingly an instance tier. Open-world and normal-dungeon casts of
             // those 2684 spells therefore used the heroic, raid or LFR variant of the effect.
             //
-            // TWO things change below, and the second matters far more than the first:
+            // TWO things change below, and the FIRST matters far more than the second:
             //
             //   the else branch  keeps the row already installed instead of overwriting it, so the
             //                    LOWEST-Id row wins rather than the highest. This is what alters
@@ -891,6 +891,13 @@ void LoadDBCStores(const std::string& dataPath)
             // Bone Storm, 70867/70879 Essence of the Blood Queen, 72151 Frenzied Bloodthirst. For
             // those the lowest-Id row is kept, whichever tier that is. There is no principled
             // answer without tier awareness; this at least makes the choice deterministic.
+            //
+            // Those 41 are also EXACTLY the keys whose survivor still depends on the direction of
+            // this loop. Wherever a base row exists it wins from either direction -- ascending, it
+            // is installed first or displaces what was; descending, it displaces what was. Measured:
+            // reversing the walk changes 41 keys across 40 spells, and no key ships more than one
+            // base row, so there is no ambiguity among base rows either. The loop direction is still
+            // load-bearing, just narrowly, and the gate pins it.
             SpellEffectEntry const*& slot =
                 sSpellEffectMap[spellEffect->SpellID].effects[spellEffect->EffectIndex];
 

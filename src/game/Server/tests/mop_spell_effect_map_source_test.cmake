@@ -12,8 +12,10 @@
 #     highest Id, and across the shipped DBC the highest-Id row of a colliding key is
 #     overwhelmingly an instance tier. Open-world and normal-dungeon casts of those 2684
 #     spells therefore used the heroic / raid / LFR payload.
-#   * Iteration order is the ONLY thing that decided the winner. Nothing in the old fill
-#     expressed an intent, so any change to the loop silently changed 2684 spells.
+#   * Iteration order was the ONLY thing that decided the winner. Nothing in the old fill
+#     expressed an intent, so any change to the loop silently changed 2684 spells. After the fix
+#     the loop still decides 41 keys across 40 spells -- the ones with no base row -- and nothing
+#     else, because a base row wins from either direction.
 #
 # The fix keeps the first row installed (lowest Id) and lets a base-difficulty row jump the
 # queue. Those are two separate mechanisms with very different reach, and conflating them
@@ -75,10 +77,32 @@ if(DEFINED MUTATION)
         string(REPLACE "spellEffect->DifficultyID == 0 && slot->DifficultyID != 0"
                        "slot->DifficultyID == 0 && spellEffect->DifficultyID != 0"
                        _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "base_branch_no_assign")
+        # Drop the assignment from the preference branch. The counter still increments, so the
+        # startup diagnostic still reports 76 displacements, but no row is actually installed and
+        # the map keeps the instance row. Silent: every other assertion here stays satisfied.
+        #
+        # REGEX, not a literal REPLACE. The line this targets carries a trailing `// base tier jumps
+        # the queue`, and comments are stripped BEFORE mutation, so the literal text is not in
+        # _dbc_src -- it has been replaced by an invisible run of trailing spaces. The first attempt
+        # at this arm matched nothing and was caught by the dead-arm guard below. Anchor on
+        # ++spellEffectBasePreferred instead: it is unique, whereas `slot = spellEffect;` at this
+        # indentation also appears in the first-install branch.
+        string(REGEX REPLACE "slot = spellEffect;[ \t]*\n([ \t]*)\\+\\+spellEffectBasePreferred;"
+                             "\\1++spellEffectBasePreferred;" _m_dbc "${_dbc_src}")
+    elseif(MUTATION STREQUAL "drop_branch_overwrites")
+        # Put an assignment back into the drop branch. That is last-row-wins restored, with both
+        # counters intact and the preference branch untouched.
+        string(REPLACE "            else\n            {\n                ++spellEffectTierDropped;"
+                       "            else\n            {\n                slot = spellEffect;\n                ++spellEffectTierDropped;"
+                       _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "descending_iteration")
-        # Lowest-Id-wins is a statement about ITERATION ORDER, not about the rows. Reverse the
-        # walk and the same fill selects the highest Id again on every key with no base row --
-        # and on the 41 base-less keys, on every key at all.
+        # Lowest-Id-wins is a statement about ITERATION ORDER, not about the rows -- but only
+        # narrowly, and the arm must not claim more than that. Wherever a base row exists it wins
+        # from either direction, so reversing the walk moves 41 keys across 40 spells: exactly the
+        # 41 that ship no base row. (No key ships more than one base row, so base rows are never
+        # ambiguous among themselves.) 41 keys is small and still worth pinning, because nothing at
+        # the call site would reveal that this loop's direction decides them.
         string(REPLACE "    for(uint32 i = 1; i < sSpellEffectStore.GetNumRows(); ++i)\n    {\n        if (SpellEffectEntry const *spellEffect = sSpellEffectStore.LookupEntry(i))"
                        "    for(uint32 i = sSpellEffectStore.GetNumRows(); i > 0; --i)\n    {\n        if (SpellEffectEntry const *spellEffect = sSpellEffectStore.LookupEntry(i - 1))"
                        _m_dbc "${_dbc_src}")
@@ -144,15 +168,28 @@ if(NOT _fill_flat MATCHES "SpellEffectEntry const\\*& slot = sSpellEffectMap\\[s
 endif()
 
 # ---------------------------------------------------------------------------
-# 3. First-install, then the base preference, then drop. In that order.
+# 3. First-install, then the base preference, then drop -- in that order, and each with the
+#    RIGHT BODY.
 #
-#    `!slot` must be tested first or the preference dereferences a null slot.
+#    `!slot` must be tested first or the preference dereferences a null slot. The bodies matter
+#    as much as the conditions and are pinned here as one contiguous pattern: an earlier version
+#    stopped at the else-if condition, which let two silent breakages through the baseline while
+#    all five mutation arms still failed. Deleting `slot = spellEffect;` from the preference
+#    branch left the counter incrementing and the row not installed; adding it to the drop branch
+#    restored last-row-wins. Neither was detectable. Hence the whole three-branch body, and the
+#    two arms that reproduce exactly those breakages.
 # ---------------------------------------------------------------------------
-if(NOT _fill_flat MATCHES "if \\(!slot\\) \\{ slot = spellEffect; \\} else if \\(spellEffect->DifficultyID == 0 && slot->DifficultyID != 0\\)")
+if(NOT _fill_flat MATCHES "if \\(!slot\\) \\{ slot = spellEffect; \\} else if \\(spellEffect->DifficultyID == 0 && slot->DifficultyID != 0\\) \\{ slot = spellEffect; \\+\\+spellEffectBasePreferred; \\} else \\{ \\+\\+spellEffectTierDropped; \\}")
     message(FATAL_ERROR
-        "the fill is not `if (!slot) install; else if (base displaces instance)`. The null test "
-        "must come first -- the preference dereferences slot -- and the preference must read "
-        "`spellEffect->DifficultyID == 0 && slot->DifficultyID != 0`, not the inverse.")
+        "the spell-effect fill is not the exact three-branch form:\n\n"
+        "    if (!slot)                { slot = spellEffect; }\n"
+        "    else if (base, slot inst) { slot = spellEffect; ++spellEffectBasePreferred; }\n"
+        "    else                      { ++spellEffectTierDropped; }\n\n"
+        "The null test must come first (the preference dereferences slot); the preference must read "
+        "`spellEffect->DifficultyID == 0 && slot->DifficultyID != 0` and must ACTUALLY ASSIGN; and "
+        "the drop branch must only count. An assignment in the drop branch is last-row-wins again, "
+        "and a missing assignment in the preference branch counts a displacement that never "
+        "happened -- both leave every other assertion here satisfied.")
 endif()
 
 # ---------------------------------------------------------------------------

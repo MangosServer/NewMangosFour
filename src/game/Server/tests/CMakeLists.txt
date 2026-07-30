@@ -1024,7 +1024,7 @@ add_test(NAME mop_spell_effect_map_source
     COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_spell_effect_map_source_test.cmake)
 
-foreach(mutation IN ITEMS last_row_wins base_not_preferred descending_iteration slot_by_value diagnostic_undercounts)
+foreach(mutation IN ITEMS last_row_wins base_not_preferred base_branch_no_assign drop_branch_overwrites descending_iteration slot_by_value diagnostic_undercounts)
     add_test(NAME mop_spell_effect_map_source_mutation_${mutation}
         COMMAND ${CMAKE_COMMAND} -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
             -DMUTATION=${mutation}
