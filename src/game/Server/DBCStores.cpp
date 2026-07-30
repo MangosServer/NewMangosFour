@@ -831,6 +831,8 @@ void LoadDBCStores(const std::string& dataPath)
     }
 
     uint32 oobSpellEffectIndex = 0;
+    uint32 spellEffectTierDropped = 0;
+    uint32 spellEffectBasePreferred = 0;
     for(uint32 i = 1; i < sSpellEffectStore.GetNumRows(); ++i)
     {
         if (SpellEffectEntry const *spellEffect = sSpellEffectStore.LookupEntry(i))
@@ -852,13 +854,78 @@ void LoadDBCStores(const std::string& dataPath)
                 continue;
             }
 
-            sSpellEffectMap[spellEffect->SpellID].effects[spellEffect->EffectIndex] = spellEffect;
+            // SpellEffect.dbc carries a DifficultyID and this map has no room for it: one row
+            // survives per (SpellID, EffectIndex). 3043 keys ship rows at more than one tier --
+            // 2684 distinct spells, 2940 of those keys with genuinely different payloads.
+            //
+            // Plain assignment let whichever row this loop reached LAST win. The loop walks
+            // ascending Id via LookupEntry, so that was the highest-Id row, and across the shipped
+            // DBC that was overwhelmingly an instance tier. Open-world and normal-dungeon casts of
+            // those 2684 spells therefore used the heroic, raid or LFR variant of the effect.
+            //
+            // TWO things change below, and the second matters far more than the first:
+            //
+            //   the else branch  keeps the row already installed instead of overwriting it, so the
+            //                    LOWEST-Id row wins rather than the highest. This is what alters
+            //                    the outcome on 2967 of the 2983 keys whose survivor changes.
+            //   the preference   lets a base (DifficultyID 0) row displace an already-installed
+            //                    instance row. It fires on 76 keys, but on 60 of those the base row
+            //                    is also the HIGHEST Id, so the old fill already ended on that very
+            //                    row and the preference is inert. It changes 16 outcomes.
+            //
+            // So the honest description is "lowest-Id wins, with the base row allowed to jump the
+            // queue", not "the base row now wins". An earlier revision of this comment led with the
+            // preference and offered spell 130078 "Instability" as the example -- which is inert:
+            // its rows are 167016/d7, 167017/d6, 167018/d5, 167019/d0, so the base row IS the
+            // highest Id and the old fill already landed on it. Real examples, all differing in
+            // payload: spell 135146 "Shatter" effect 0 (old Id 182109 tier 7 -> new 176307 tier 0)
+            // and 134691 "Impale" effect 0 (old 184928 tier 4 -> new 175542 tier 0).
+            //
+            // This does NOT make the lookup difficulty-aware: an instance-specific variant is still
+            // never applied. That needs the tier threaded through GetSpellEffect's 176 call sites
+            // across some thirty files, several of which have no difficulty in scope at all, and is
+            // deliberately separate work.
+            //
+            // 41 keys ship no base row at all, 18 of them carrying just {5, 6}. These are
+            // predominantly WotLK ICC and ToC spells -- 66320 Fire Bomb, 66495 Fel Inferno, 69075
+            // Bone Storm, 70867/70879 Essence of the Blood Queen, 72151 Frenzied Bloodthirst. For
+            // those the lowest-Id row is kept, whichever tier that is. There is no principled
+            // answer without tier awareness; this at least makes the choice deterministic.
+            SpellEffectEntry const*& slot =
+                sSpellEffectMap[spellEffect->SpellID].effects[spellEffect->EffectIndex];
+
+            if (!slot)
+            {
+                slot = spellEffect;
+            }
+            else if (spellEffect->DifficultyID == 0 && slot->DifficultyID != 0)
+            {
+                slot = spellEffect;                         // base tier jumps the queue
+                ++spellEffectBasePreferred;
+            }
+            else
+            {
+                ++spellEffectTierDropped;
+            }
         }
     }
 
     if (oobSpellEffectIndex)
     {
         sLog.outErrorDb("SpellEffect.dbc: skipped %u records with EffectIndex >= %u", oobSpellEffectIndex, MAX_SPELL_EFFECTS_MOP);
+    }
+
+    if (spellEffectTierDropped || spellEffectBasePreferred)
+    {
+        // This counts ROWS the map had no slot for, not spells affected. The two are far apart:
+        // 6915 surplus rows collapse onto 3043 multi-tier keys, and only 2983 of those keys end up
+        // with a different survivor than a last-row-wins fill would have chosen. Do not read this
+        // number as "N spells changed behaviour".
+        sLog.outString("SpellEffect.dbc: %u per-difficulty row(s) not representable in the "
+                       "single-slot effect map (%u lost to an already-installed row, %u displaced "
+                       "by a preferred base-difficulty row)",
+                       spellEffectTierDropped + spellEffectBasePreferred,
+                       spellEffectTierDropped, spellEffectBasePreferred);
     }
 
     LoadDBC(availableDbcLocales,bar,bad_dbc_files,sSpellEquippedItemsStore,  dbcPath,"SpellEquippedItems.dbc");
