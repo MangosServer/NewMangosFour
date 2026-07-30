@@ -95,8 +95,17 @@ if(DEFINED MUTATION)
         string(REPLACE "    if (sEncounterExactTiers.find(MAKE_PAIR32(mapId, uint32(difficulty))) != sEncounterExactTiers.end())"
                        "    if (true)" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "encounter_fallback_unconditional")
-        # The tempting over-correction: walk the chain even when the map has its own row,
-        # which double-credits every boss on the 33 map/tier pairs that carry both.
+        # The tempting over-correction: walk the chain even when the map has its own row for the
+        # tier, admitting 109 rows across 33 map/tier pairs that the DBC assigned to another tier.
+        #
+        # This arm pins INTENT, not an observable bug, and the comment must not overstate it. Two
+        # earlier justifications for it were both wrong: that it double-credits each boss (it cannot
+        # -- UpdateEncounterState returns after the first match), and that it loses encounters
+        # (measured: at boss granularity every one of the 109 blocked rows has its Bit covered by an
+        # exact or wildcard row, so dropping the guard changes no boss's creditability on 5.4.8
+        # data). What it does do is make the predicate answer a different question. Keep the arm so
+        # the guard is not deleted as dead code, and keep this note so it is not re-justified with a
+        # mechanism that does not exist.
         string(REPLACE "sEncounterExactTiers.find(MAKE_PAIR32(mapId, uint32(difficulty))) != sEncounterExactTiers.end()"
                        "false" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "encounter_fallback_chain_broken")

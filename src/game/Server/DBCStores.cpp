@@ -1830,8 +1830,17 @@ static uint32 ClientDifficultyFallback(uint32 clientDifficultyId)
  * data. If a future DBC ships a fallback-only encounter on a mixed-tier map this must become
  * per-Bit; the query above is how to tell.
  *
- * Verified against the DBCs: 32 rows gained, 0 rows lost, 0 lower-tier rows admitted where an
- * exact row exists, and 0 encounters lost to the guard's granularity.
+ * Verified against the DBCs, twice and independently: 30 row/tier pairs gained over plain
+ * ToInternalDifficulty equality, 0 rows lost, 0 lower-tier rows admitted where an exact row
+ * exists, and 0 encounters lost to the guard's granularity. (An earlier revision said 32 gained;
+ * every way of counting it -- by row/tier pair, by distinct DBC row Id, and without requiring the
+ * map to offer the tier -- gives 30.)
+ *
+ * Worth being plain about what that measurement means for the guard itself: at boss granularity it
+ * is INERT on shipped 5.4.8.18414 data. Dropping it changes no encounter's creditability, because
+ * each of the 109 rows it blocks has its Bit covered anyway. It is kept because it states what the
+ * predicate means -- an exact row for a tier settles that tier -- and because without it those 109
+ * rows match a tier the DBC assigned elsewhere. It is intent, not a bug fix.
  *
  * @param mapId                 the map the encounter belongs to
  * @param encounterDifficultyId raw DungeonEncounter.dbc DifficultyID
