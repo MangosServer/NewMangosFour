@@ -121,6 +121,22 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
                     result = ERR_LFG_INVALID_SLOT;
                     break;
             }
+
+            // Refuse a slot whose tier this core cannot represent, instead of admitting it and
+            // silently downgrading it later. LfgDungeons.dbc DifficultyID 7 (LFR), 8 (5-man
+            // challenge), 11 and 12 (scenarios) and 14 (flexible) have no internal Difficulty, and
+            // 77 of the 343 rows carry one of them.
+            //
+            // This is the gate that makes ToInternalDifficulty's negative return mean something.
+            // CreateDungeonGroup runs long after the group has been built and its members pulled out
+            // of their previous groups, so it is far too late to refuse there; all it can do is
+            // substitute REGULAR_DIFFICULTY, which for an LFR row means a 25-player queue entering
+            // the 10-normal tier of the same raid. Refusing at admission returns
+            // ERR_LFG_INVALID_SLOT, which the client reports, and nothing is half-formed.
+            if (result == ERR_LFG_OK && ToInternalDifficulty(dungeon->DifficultyID) < 0)
+            {
+                result = ERR_LFG_INVALID_SLOT;
+            }
         }
     }
 
@@ -148,6 +164,34 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
                             dungeons.insert(dungeonList->ID); // adding to set
                         }
                     }
+                }
+
+                // The expansion has to be filtered too -- checking the selected row above is not
+                // enough. Every one of the 10 random rows that survives admission has Group_ID 0,
+                // and Group_ID 0 matches 273 rows, 20 of which carry scenario tier 12. Without this
+                // an untranslatable dungeon reaches CreateDungeonGroup through a perfectly valid
+                // random queue, which is the same silent downgrade the admission check exists to
+                // prevent.
+                //
+                // Dropped, not refused: the expanded set is a CANDIDATE list, so removing the
+                // members this core cannot run leaves random queueing working, whereas refusing the
+                // row would disable it for all 10.
+                for (std::set<uint32>::iterator it = dungeons.begin(); it != dungeons.end(); )
+                {
+                    LfgDungeonsEntry const* candidate = sLfgDungeonsStore.LookupEntry(*it);
+                    if (!candidate || ToInternalDifficulty(candidate->DifficultyID) < 0)
+                    {
+                        it = dungeons.erase(it);
+                    }
+                    else
+                    {
+                        ++it;
+                    }
+                }
+
+                if (dungeons.empty())
+                {
+                    result = ERR_LFG_INVALID_SLOT;
                 }
             }
             else

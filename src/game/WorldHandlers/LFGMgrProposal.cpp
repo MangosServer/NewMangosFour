@@ -604,11 +604,22 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
 
     if (dungeonMode < 0)
     {
-        // LFR (7), scenarios (11, 12) and flexible (14) have no internal equivalent -- 77 of the
-        // 343 LfgDungeons rows are one of those, 4 of them raids. Regular keeps the group in a
-        // state the rest of the core can read instead of persisting a mode it cannot.
-        DEBUG_LOG("LFGMgr::CreateDungeonGroup: dungeon %u has client DifficultyID %u with no internal mode, using regular",
-                  dungeon->ID, dungeon->DifficultyID);
+        // UNREACHABLE from the queue: JoinLFG refuses any slot whose DifficultyID has no internal
+        // mode with ERR_LFG_INVALID_SLOT, and also filters the random-dungeon group expansion, which
+        // otherwise smuggles 20 scenario rows in behind a valid random selection. Together those are
+        // where an unsupported tier is actually rejected.
+        // By the time execution arrives here the group exists and its members have already been
+        // pulled out of their previous groups, so refusing is no longer an option -- all that is
+        // left is to avoid persisting a mode the core cannot read.
+        //
+        // So this is a safety net, not a policy, and it is deliberately loud: if it ever fires, a
+        // proposal reached here by some path that does not go through JoinLFG's admission check, and
+        // the group is about to be teleported into REGULAR_DIFFICULTY of a map it did not queue for.
+        // LFR (7), 5-man challenge (8), scenarios (11, 12) and flexible (14) have no internal
+        // equivalent; 77 of the 343 LfgDungeons rows are one of those, 4 of them raids.
+        sLog.outError("LFGMgr::CreateDungeonGroup: dungeon %u has client DifficultyID %u with no internal mode. "
+                      "JoinLFG should have refused this slot; falling back to regular difficulty.",
+                      dungeon->ID, dungeon->DifficultyID);
 
         if (isRaid)
         {

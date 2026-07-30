@@ -44,8 +44,10 @@ set(_dbc "${SOURCE_ROOT}/src/game/Server/DBCStores.cpp")
 set(_dbh "${SOURCE_ROOT}/src/game/Server/DBCStores.h")
 set(_mps "${SOURCE_ROOT}/src/game/WorldHandlers/MapPersistentStateMgr.cpp")
 set(_lfg "${SOURCE_ROOT}/src/game/WorldHandlers/LFGMgrProposal.cpp")
+set(_lqu "${SOURCE_ROOT}/src/game/WorldHandlers/LFGMgrQueue.cpp")
+set(_lfm "${SOURCE_ROOT}/src/game/WorldHandlers/LFGMgr.cpp")
 set(_omg "${SOURCE_ROOT}/src/game/Object/ObjectMgr.cpp")
-foreach(_f "${_dbc}" "${_dbh}" "${_mps}" "${_lfg}" "${_omg}")
+foreach(_f "${_dbc}" "${_dbh}" "${_mps}" "${_lfg}" "${_lqu}" "${_lfm}" "${_omg}")
     if(NOT EXISTS "${_f}")
         message(FATAL_ERROR "missing source: ${_f}")
     endif()
@@ -72,6 +74,10 @@ file(READ "${_mps}" _mps_src)
 strip_comments(_mps_src)
 file(READ "${_lfg}" _lfg_src)
 strip_comments(_lfg_src)
+file(READ "${_lqu}" _lqu_src)
+strip_comments(_lqu_src)
+file(READ "${_lfm}" _lfm_src)
+strip_comments(_lfm_src)
 file(READ "${_omg}" _omg_src)
 strip_comments(_omg_src)
 
@@ -83,6 +89,8 @@ set(_m_dbc "${_dbc_src}")
 set(_m_dbh "${_dbh_src}")
 set(_m_mps "${_mps_src}")
 set(_m_lfg "${_lfg_src}")
+set(_m_lqu "${_lqu_src}")
+set(_m_lfm "${_lfm_src}")
 set(_m_omg "${_omg_src}")
 if(DEFINED MUTATION)
     if(MUTATION STREQUAL "drop_legacy_index")
@@ -185,6 +193,49 @@ if(DEFINED MUTATION)
     elseif(MUTATION STREQUAL "encounter_condition_raw_compare")
         string(REPLACE "!EncounterDifficultyMatches(dbcEntry1->MapID, dbcEntry1->DifficultyID, map->GetDifficulty())"
                        "map->GetDifficulty() != Difficulty(dbcEntry1->DifficultyID)" _m_omg "${_omg_src}")
+    elseif(MUTATION STREQUAL "reset_table_partially_trusted")
+        # The migration hole Codex found. `instance_reset` was keyed on RAW client ids by an earlier
+        # build, and the two key spaces overlap: a stale raw 3 (raid 10-normal) validates perfectly
+        # as internal 3 (raid 25-heroic) on the 14 maps carrying both with a global reset. It then
+        # reaches SetResetTimeFor and suppresses the fresh initialisation the scheduler would do.
+        # No per-row test can tell those 14 apart, so the table has to be condemned as a whole.
+        string(REPLACE "        if (legacyKeySpace)" "        if (false)" _m_mps "${_mps_src}")
+    elseif(MUTATION STREQUAL "reset_row_applied_before_validation")
+        # Applying rows as they are read, instead of collecting and validating first, reinstates the
+        # same hole: the rows before the first invalid one have already been applied.
+        string(REPLACE "            resetRows.push_back(std::make_pair(mapid, std::make_pair(difficulty, oldresettime)));"
+                       "            SetResetTimeFor(mapid, Difficulty(difficulty), oldresettime);" _m_mps "${_mps_src}")
+    elseif(MUTATION STREQUAL "lfg_admits_untranslatable_tier")
+        # Without this admission check, LFR/challenge/scenario/flexible slots are queued and then
+        # silently downgraded to REGULAR_DIFFICULTY in CreateDungeonGroup -- far too late to refuse,
+        # because the group is built and its members already pulled out of their old groups.
+        string(REPLACE "            if (result == ERR_LFG_OK && ToInternalDifficulty(dungeon->DifficultyID) < 0)"
+                       "            if (false)" _m_lqu "${_lqu_src}")
+    elseif(MUTATION STREQUAL "lfg_random_expansion_unfiltered")
+        # Checking only the SELECTED row is not enough. All 10 random rows that pass admission have
+        # Group_ID 0, which matches 273 rows including 20 at scenario tier 12, so the expansion walks
+        # an untranslatable dungeon straight past the admission check.
+        string(REPLACE "                    if (!candidate || ToInternalDifficulty(candidate->DifficultyID) < 0)"
+                       "                    if (false)" _m_lqu "${_lqu_src}")
+    elseif(MUTATION STREQUAL "lfg_types_raids_as_dungeons")
+        # DungeonTypes has no raid member. Raid rows carry raw 3 and 4, which translate to internal
+        # 0 and 1 -- exactly what the tier tests look for -- so without the TypeID guard every TBC
+        # and WotLK raid is classified as a normal or heroic 5-man for daily rewards.
+        string(REPLACE "        if (dungeon->TypeID == LFG_TYPE_RAID)
+        {
+            return DUNGEON_UNKNOWN;
+        }"
+                       "" _m_lfm "${_lfm_src}")
+    elseif(MUTATION STREQUAL "lfg_raid_gets_5man_roles")
+        # Raid rows carry raw 3 and 9, both translating to internal 0, so without the TypeID test a
+        # 10, 25 or 40-player raid is handed the hardcoded 1 tank / 1 healer / 3 dps composition.
+        string(REPLACE "        if (dungeon->TypeID != LFG_TYPE_RAID &&
+            ToInternalDifficulty(dungeon->DifficultyID) == int32(DUNGEON_DIFFICULTY_NORMAL))"
+                       "        if (ToInternalDifficulty(dungeon->DifficultyID) == int32(DUNGEON_DIFFICULTY_NORMAL))"
+                       _m_lfm "${_lfm_src}")
+    elseif(MUTATION STREQUAL "unbounded_fallback_walk")
+        # An unbounded walk over a hand-maintained table is a startup hang one edit away.
+        string(REPLACE "        if (++depth >= MAX_DIFFICULTY_FALLBACK_DEPTH)" "        if (false)" _m_dbc "${_dbc_src}")
     elseif(MUTATION STREQUAL "lfg_raw_cast")
         string(REPLACE "ToInternalDifficulty(dungeon->DifficultyID)"
                        "int32(dungeon->DifficultyID)" _m_lfg "${_lfg_src}")
@@ -193,6 +244,7 @@ if(DEFINED MUTATION)
     endif()
     if(_m_dbc STREQUAL "${_dbc_src}" AND _m_dbh STREQUAL "${_dbh_src}" AND
        _m_mps STREQUAL "${_mps_src}" AND _m_lfg STREQUAL "${_lfg_src}" AND
+       _m_lqu STREQUAL "${_lqu_src}" AND _m_lfm STREQUAL "${_lfm_src}" AND
        _m_omg STREQUAL "${_omg_src}")
         message(STATUS "MUTATION '${MUTATION}' changed nothing -- dead arm, exiting 0 so WILL_FAIL reports it")
         return()
@@ -202,12 +254,15 @@ set(_dbc_src "${_m_dbc}")
 set(_dbh_src "${_m_dbh}")
 set(_mps_src "${_m_mps}")
 set(_lfg_src "${_m_lfg}")
+set(_lqu_src "${_m_lqu}")
+set(_lfm_src "${_m_lfm}")
 set(_omg_src "${_m_omg}")
 
 # Whitespace-collapsed view, so an assertion about a switch arm is not hostage to the
 # column its comment used to sit in. Derived AFTER mutation from the same text the other
 # assertions read, so there is one pipeline and no before/after skew.
 string(REGEX REPLACE "[ \t\r\n]+" " " _dbc_flat "${_dbc_src}")
+string(REGEX REPLACE "[ \t\r\n]+" " " _lfm_flat "${_lfm_src}")
 
 # ---------------------------------------------------------------------------
 # 1. The raw-id accessor must not exist ANYWHERE in the game tree.
@@ -466,8 +521,19 @@ endif()
 # while challenge mode was translated, and it no longer is.
 #
 # The chain must NOT be walked when the map ships its own row for the tier: 33 map/tier pairs
-# carry both, and widening them credits every boss twice. That guard is the whole reason the
-# predicate needs mapId, so all three are pinned together.
+# carry both, and widening them admits 109 rows that the DBC assigned to another tier. It does NOT
+# double-credit -- UpdateEncounterState returns after the first match -- and measured per encounter
+# Bit it changes no boss's creditability on 5.4.8 data either, so the guard is intent rather than a
+# symptom fix. It is still the reason the predicate needs mapId, so all three are pinned together.
+#
+# KNOWN LIMITATION, stated because a reviewer asked for it and the answer is "not here". The claim
+# that the guard's per-map-tier granularity loses no encounter is a property of the DBC DATA, not of
+# this source. It was measured twice, independently, against DungeonEncounter.dbc and
+# MapDifficulty.dbc -- of the 109 blocked rows, every Bit is covered by an exact or wildcard row on
+# the same map and tier -- but a source gate cannot check it, and nothing in the test suite reads
+# DBCs. So if a future DBC ships a fallback-only encounter on a mixed-tier map, this guard starts
+# losing that boss and no automated test notices. The assertions below pin the SHAPE of the
+# predicate; the data invariant is out-of-band and needs re-measuring whenever the DBCs change.
 # ---------------------------------------------------------------------------
 string(FIND "${_dbc_src}" "bool EncounterDifficultyMatches(uint32 mapId, uint32 encounterDifficultyId, Difficulty difficulty)" _at)
 if(_at EQUAL -1)
@@ -509,9 +575,12 @@ foreach(_chain "        case 2:  return 1;"
 endforeach()
 
 # ---------------------------------------------------------------------------
-# LFG raids must use the raid setter. The two setters persist to different columns
-# (`groups`.`difficulty` vs `raiddifficulty`, and the matching `characters` columns), so sending a
-# raid through the dungeon setter files the tier in the wrong slot and leaves the right one unset.
+# LFG raids must use the raid setter. The two setters persist to different columns:
+# `groups`.`difficulty` and `groups`.`raiddifficulty`. On the character side there is only
+# `characters`.`dungeon_difficulty` -- verified against the live schema, there is NO
+# `characters`.`raid_difficulty`; a player's raid tier comes back from the group at next login. So
+# sending a raid through the dungeon setter files the tier in the wrong group column and leaves the
+# right one unset.
 # 61 of 343 LfgDungeons rows are TypeID 2, and their tiers reach internal 3 (25-player heroic),
 # which is outside the range a dungeon difficulty can hold at all.
 # ---------------------------------------------------------------------------
@@ -531,6 +600,104 @@ if(_at EQUAL -1)
         "Raid tiers translate across internal 0..3; 25-player heroic is 3, which no 5-man tier\n"
         "corresponds to, so persisting it as a dungeon difficulty stores a mode the dungeon\n"
         "fields cannot represent.")
+endif()
+
+# ---------------------------------------------------------------------------
+# `instance_reset` is validated as a WHOLE TABLE, not row by row.
+#
+# The old build keyed this column on raw client DifficultyIDs, and the two key spaces overlap. Raw
+# 3 is raid 10-normal; internal 3 is raid 25-heroic. On the 14 maps carrying both with a global
+# reset, a stale 10-normal timestamp validates perfectly as a 25-heroic one, is applied by
+# SetResetTimeFor, and then suppresses the fresh initialisation the scheduler would have done --
+# because that loop only fills tiers with no reset time yet. No per-row test can separate those 14
+# from rows we wrote ourselves; the value is legal in both key spaces.
+#
+# Every one of those 14 maps also carries at least one DETECTABLE stale row -- a 10/25 raid ships
+# raw 3, 4, 5 and 6, all with a global reset, and 4/5/6 exceed MAX_DIFFICULTY. Verified against
+# MapDifficulty.dbc: of the 14 maps with an ambiguous row, zero lack a detectable one. So one bad
+# row condemns the table, and it is dropped and rebuilt rather than partially trusted.
+# ---------------------------------------------------------------------------
+string(FIND "${_mps_src}" "if (legacyKeySpace)" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "`instance_reset` is no longer condemned as a whole table.\n\n"
+        "Row-by-row validation leaves 14 stale raid 10-normal rows indistinguishable from real\n"
+        "25-heroic ones. They load, and then stop the scheduler from computing the real reset time.")
+endif()
+string(FIND "${_mps_src}" "DELETE FROM `instance_reset`\"" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "the whole-table `instance_reset` delete is gone; a legacy table would be kept in part.")
+endif()
+string(FIND "${_mps_src}" "resetRows.push_back(" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "`instance_reset` rows are applied as they are read instead of being collected first.\n\n"
+        "Validation has to complete before ANY row is applied -- otherwise every row ahead of the\n"
+        "first detectably-stale one has already reached SetResetTimeFor.")
+endif()
+
+# ---------------------------------------------------------------------------
+# An untranslatable LFG tier is refused at ADMISSION, not downgraded later.
+#
+# ToInternalDifficulty returning -1 only means something if something acts on it. CreateDungeonGroup
+# cannot: it runs after the group is built and its members pulled out of their previous groups, so
+# all it can do is substitute REGULAR_DIFFICULTY -- which for an LFR row puts a 25-player queue into
+# the 10-normal tier of the same raid. 77 of the 343 LfgDungeons rows carry an untranslatable tier.
+# ---------------------------------------------------------------------------
+string(FIND "${_lqu_src}" "ToInternalDifficulty(dungeon->DifficultyID) < 0" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "JoinLFG no longer refuses slots whose tier has no internal mode.\n\n"
+        "Without it, LFR (7), 5-man challenge (8), scenarios (11, 12) and flexible (14) queue\n"
+        "successfully and are silently downgraded to REGULAR_DIFFICULTY at group creation.")
+endif()
+
+# ---------------------------------------------------------------------------
+# Raid rows must not be given five-man semantics. Translating the difficulty made this NEWLY
+# possible: raid rows carry raw 3, 4 and 9, which translate to internal 0 and 1 -- exactly the
+# values both of these sites test for. Before the translation they compared raw against internal
+# and missed, so raids were excluded by accident.
+# ---------------------------------------------------------------------------
+# Matched with its BODY, on the flattened view. `else if (dungeon->TypeID == LFG_TYPE_RAID)` at
+# LFGMgr.cpp:354 contains the guard's condition as a substring, so a plain FIND for the condition
+# alone stayed satisfied after the guard was deleted outright -- the arm mutated the file and the
+# gate still passed.
+if(NOT _lfm_flat MATCHES "if \\(dungeon->TypeID == LFG_TYPE_RAID\\) \\{ return DUNGEON_UNKNOWN; \\}")
+    message(FATAL_ERROR
+        "GetDungeonType no longer excludes raids.\n\n"
+        "DungeonTypes has no raid member -- it classifies five-man dungeons for daily rewards. With\n"
+        "the difficulty translated, raid raw 3 and 4 become internal 0 and 1 and every TBC/WotLK\n"
+        "raid is returned as a normal or heroic five-man.")
+endif()
+string(FIND "${_lfm_src}" "dungeon->TypeID != LFG_TYPE_RAID &&" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "the LFG role-count initialiser no longer excludes raids.\n\n"
+        "NORMAL_TANK_OR_HEALER_COUNT/NORMAL_DAMAGE_COUNT are a 1/1/3 five-man composition. Raid raw\n"
+        "3 and 9 both translate to internal 0, so without the TypeID test a 10, 25 or 40-player raid\n"
+        "is sized as a five-man group.")
+endif()
+
+# ---------------------------------------------------------------------------
+# The fallback chain walk is bounded. ClientDifficultyFallback is a hand-maintained switch, and an
+# unbounded walk over it turns one bad edit into a startup hang rather than a wrong answer. No DBC
+# can cause that -- the core never loads Difficulty.dbc -- which is exactly why the bound has to
+# guard against the edit instead.
+# ---------------------------------------------------------------------------
+string(FIND "${_dbc_src}" "if (++depth >= MAX_DIFFICULTY_FALLBACK_DEPTH)" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "the ClientDifficultyFallback walk is unbounded again; a cycle in that switch hangs startup.")
+endif()
+
+string(FIND "${_lqu_src}" "ToInternalDifficulty(candidate->DifficultyID) < 0" _at)
+if(_at EQUAL -1)
+    message(FATAL_ERROR
+        "the random-dungeon group expansion is no longer filtered.\n\n"
+        "Checking the selected row alone is not enough: all 10 random rows that pass admission have\n"
+        "Group_ID 0, which matches 273 rows, 20 of them at scenario tier 12. An untranslatable\n"
+        "dungeon then reaches CreateDungeonGroup behind a perfectly valid random queue.")
 endif()
 
 message(STATUS "map difficulty guard: raw-id accessor absent across ${_scanned} tree files, "

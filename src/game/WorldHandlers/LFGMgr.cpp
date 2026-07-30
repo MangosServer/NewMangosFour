@@ -189,6 +189,21 @@ DungeonTypes LFGMgr::GetDungeonType(uint32 dungeonId)
     LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(dungeonId);
     if (dungeon)
     {
+        // DungeonTypes classifies FIVE-MAN dungeons for daily-reward purposes -- see
+        // RegisterPlayerDaily and the reward selection in LFGMgrProposal -- and has no raid member
+        // at all. A raid row must therefore not be classified here.
+        //
+        // That needs saying because translating the difficulty made this newly wrong. Raid rows
+        // carry raw DifficultyID 3 (10-normal) and 4 (25-normal), which translate to internal 0 and
+        // 1, exactly the values the tests below look for. So every TBC and WotLK raid would come out
+        // of here typed DUNGEON_TBC / DUNGEON_WOTLK or their heroic variants -- a 25-man raid counted
+        // as a normal 5-man dungeon for daily rewards. Before the translation, raw 3 and 4 matched
+        // neither constant and fell out as DUNGEON_UNKNOWN by accident.
+        if (dungeon->TypeID == LFG_TYPE_RAID)
+        {
+            return DUNGEON_UNKNOWN;
+        }
+
         // LfgDungeons.dbc carries a RAW client DifficultyID; the DUNGEON_DIFFICULTY_* constants
         // are internal modes. Comparing them directly made raw 1 (5-man normal) equal
         // DUNGEON_DIFFICULTY_HEROIC, which is 1, while raw 2 (5-man heroic) matched neither
@@ -429,7 +444,19 @@ void LFGMgr::UpdateNeededRoles(ObjectGuid guid, LFGPlayers* information)
         // normal dungeon actually is. The 90 normal-dungeon rows therefore left neededTanks,
         // neededHealers and neededDps at their default, so the role counts were never initialised
         // for the one case this branch claims to handle.
-        if (ToInternalDifficulty(dungeon->DifficultyID) == int32(DUNGEON_DIFFICULTY_NORMAL))
+        // ...and only for FIVE-MAN rows. NORMAL_TANK_OR_HEALER_COUNT and NORMAL_DAMAGE_COUNT are 1,
+        // 1 and 3 -- a 5-man composition. Raid rows carry raw DifficultyID 3 (10-normal) and 9
+        // (legacy 40-player), both of which translate to internal 0, so without the TypeID test the
+        // translation would newly hand a 10, 25 or 40-player raid a one-tank/one-healer/three-dps
+        // requirement. Before the translation those rows compared raw 3 and 9 against internal 0 and
+        // missed, so they were excluded by accident.
+        //
+        // LfgDungeons.dbc does supply per-row Count_tank, Count_healer and Count_damage, which is
+        // where raid compositions should eventually come from. Reading them here would change the
+        // 5-man numbers too, so it is left out of this fix; the point of this branch is the key
+        // space, and it must not silently start sizing raid groups.
+        if (dungeon->TypeID != LFG_TYPE_RAID &&
+            ToInternalDifficulty(dungeon->DifficultyID) == int32(DUNGEON_DIFFICULTY_NORMAL))
         {
             information->neededTanks = NORMAL_TANK_OR_HEALER_COUNT - tankCount;
             information->neededHealers = NORMAL_TANK_OR_HEALER_COUNT - healCount;

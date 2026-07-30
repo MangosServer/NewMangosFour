@@ -1691,8 +1691,8 @@ ContentLevels GetContentLevelsForMapAndZone(uint32 mapId, uint32 zoneId)
  * needs. The id mapping is identical to the switch in BuildMapSpawnModeMasks and the
  * two must be changed together: a tier this function admits but that one drops
  * resolves at the area trigger and then instantiates with no spawns filed under its
- * mask, so the instance is entered completely empty. Challenge mode was exactly that
- * divergence until id 8 was added to both.
+ * mask, so the instance is entered completely empty. Challenge mode is exactly that
+ * hazard, and the two switches agree by both OMITTING id 8 -- see below.
  *
  * Ids with no internal equivalent return -1 and are simply absent from the index:
  * LFR (7), flexible (14) and scenarios (11, 12). The Difficulty enum has no member
@@ -1871,12 +1871,29 @@ bool EncounterDifficultyMatches(uint32 mapId, uint32 encounterDifficultyId, Diff
         return false;
     }
 
+    // Bounded, because an unbounded walk over a hand-maintained table is a startup hang waiting to
+    // happen. The shipped chains are acyclic and at most two links long (8 -> 2 -> 1), and no
+    // future Difficulty.dbc can change that -- the core never loads that file, so the only way to
+    // introduce a cycle is to edit ClientDifficultyFallback itself. The bound is what makes that
+    // edit a wrong answer instead of an infinite loop, and MAX_DIFFICULTY_FALLBACK_DEPTH is well
+    // clear of the longest real chain.
+    uint32 const MAX_DIFFICULTY_FALLBACK_DEPTH = 8;
+    uint32 depth = 0;
+
     for (uint32 tier = ClientDifficultyFallback(mapDiff->DifficultyID); tier;
          tier = ClientDifficultyFallback(tier))
     {
         if (tier == encounterDifficultyId)
         {
             return true;
+        }
+
+        if (++depth >= MAX_DIFFICULTY_FALLBACK_DEPTH)
+        {
+            sLog.outError("EncounterDifficultyMatches: ClientDifficultyFallback chain from raw id %u "
+                          "exceeded %u links -- it has a cycle. Treating map %u tier %u as no match.",
+                          mapDiff->DifficultyID, MAX_DIFFICULTY_FALLBACK_DEPTH, mapId, uint32(difficulty));
+            break;
         }
     }
 
@@ -2024,9 +2041,11 @@ MapDifficultyMap const& GetMapDifficultyLegacyMap()
  * modes (0..MAX_DIFFICULTY-1), which is the convention used by the DB
  * spawn data and the runtime (Map::GetSpawnMode): continents (0) -> 0,
  * 5-man normal/heroic (1/2) -> 0/1, raid 10N/25N/10H/25H (3..6) -> 0..3,
- * challenge mode (8) -> 2, legacy 40-player raids (9) -> 0. LFR (7),
- * flexible (14) and scenarios (11, 12) have no internal mode at all and
- * are ignored. 25-player-only raids (TBC) instantiate as spawn mode 0
+ * legacy 40-player raids (9) -> 0. LFR (7), 5-man challenge (8), scenarios
+ * (11, 12) and flexible (14) are not translated and are ignored -- for
+ * challenge mode that is a deliberate choice rather than a missing enum
+ * value, because no spawn on a challenge map carries bit 2. This switch and
+ * ToInternalDifficulty must keep agreeing on exactly which ids they admit. 25-player-only raids (TBC) instantiate as spawn mode 0
  * internally and are widened accordingly. Map 0 has no MapDifficulty rows
  * in 4.x+ clients and is forced to the regular mask.
  *

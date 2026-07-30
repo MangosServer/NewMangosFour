@@ -170,9 +170,11 @@ MapDifficultyEntry const* GetMapDifficultyData(uint32 mapId, Difficulty difficul
 // reset. It must not be joined against sMapDifficultyMap: that one is keyed on raw
 // client DifficultyIDs, and no raw id except 0 equals its own internal mode.
 MapDifficultyMap const& GetMapDifficultyLegacyMap();
-// Raw client DifficultyID -> internal 0-based mode, or -1 if the id has no internal
-// equivalent (LFR 7, flexible 14, scenarios 11/12). Challenge mode (8) DOES have one:
-// it is the third 5-man tier, DUNGEON_DIFFICULTY_CHALLENGE.
+// Raw client DifficultyID -> internal 0-based mode, or -1 if the id is not translated:
+// LFR (7), 5-man challenge (8), scenarios (11, 12) and flexible (14). Challenge mode is
+// the odd one out -- DUNGEON_DIFFICULTY_CHALLENGE exists, so a mapping to internal 2 is
+// available and is deliberately NOT made, because no spawn on any challenge map carries
+// bit 2 and admitting it would open an empty instance. See the note at the definition.
 int32 ToInternalDifficulty(uint32 clientDifficultyId);
 // True when a DungeonEncounter.dbc row applies at the given INTERNAL difficulty.
 // That table's DifficultyID is a raw client id and must not be compared to a
