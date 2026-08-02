@@ -36,6 +36,7 @@
 #define _AUTH_OPENSSL_PROVIDER_H
 
 #include "Common/Common.h"
+#include <string>
 #include <openssl/evp.h>
 
 /**
@@ -117,6 +118,12 @@ public:
      * @return true if provider is loaded, false otherwise
      */
     bool IsLoaded() const { return m_provider != nullptr; }
+
+    /**
+     * @brief Get the version reported by the loaded provider
+     * @return Provider version, or an empty string if unavailable
+     */
+    std::string Version() const;
 
     /**
      * @brief Get the underlying provider handle

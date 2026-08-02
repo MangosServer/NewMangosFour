@@ -298,4 +298,5 @@ endif()
 
 if(WITH_TESTS)
     add_subdirectory(Database/tests)
+    add_subdirectory(Auth/tests)
 endif()
