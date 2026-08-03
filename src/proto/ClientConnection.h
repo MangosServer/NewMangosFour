@@ -116,6 +116,11 @@ namespace proto
 
             bool IsClosed() const override { return closed(); }
 
+            static uint32 GetOpenConnectionCount()
+            {
+                return s_openConnections.load(std::memory_order_relaxed);
+            }
+
         private:
 
             /// Encode one packet to wire bytes: MopWire::BuildServerHeader, then
@@ -197,6 +202,8 @@ namespace proto
             /// m_lastDecodeLog), shared across the frame-level and dispatch-level
             /// decode-failure paths. Seconds since epoch; 0 means "never logged".
             std::atomic<int64_t> m_lastDecodeLogSec;
+
+            static std::atomic<uint32> s_openConnections;
     };
 }
 

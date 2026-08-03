@@ -37,6 +37,8 @@
 
 namespace proto
 {
+    std::atomic<uint32> ClientConnection::s_openConnections{0};
+
     namespace
     {
         // The handful of transport opcodes this file speaks. Re-derived from (grepped
@@ -79,10 +81,12 @@ namespace proto
           m_fastPingRun(0),
           m_lastDecodeLogSec(0)
     {
+        s_openConnections.fetch_add(1, std::memory_order_relaxed);
     }
 
     ClientConnection::~ClientConnection()
     {
+        s_openConnections.fetch_sub(1, std::memory_order_relaxed);
     }
 
     std::vector<uint8_t> ClientConnection::EncodeForSend(const WorldPacket& packet, bool& fatal)

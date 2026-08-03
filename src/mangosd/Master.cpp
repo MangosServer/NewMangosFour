@@ -35,6 +35,7 @@
 #include "Log.h"
 #include "MapManager.h"
 #include "MassMailMgr.h"
+#include "SystemConfig.h"
 #include "WorldNetwork.h"
 #include "Timer.h"
 #include "World.h"
@@ -61,6 +62,27 @@ extern int m_ServiceStatus;
 #endif
 
 extern uint32 realmID;
+
+namespace
+{
+#ifdef _WIN32
+    void UpdateConsoleTitle(uint32 players, uint32 connections)
+    {
+        static std::string lastTitle;
+
+        char title[128];
+        snprintf(title, sizeof(title), "%s (%u Players - %u Connections)",
+                 MANGOS_PACKAGENAME, players, connections);
+
+        std::string const newTitle(title);
+        if (lastTitle != newTitle)
+        {
+            lastTitle = newTitle;
+            SetConsoleTitleA(title);
+        }
+    }
+#endif
+}
 
 Master::Master()
 {
@@ -265,6 +287,9 @@ void Master::WorldLoop()
     sLog.outString("World Updater Thread started (%dms min update interval)", WORLD_SLEEP_CONST);
 
     uint32 realPrevTime = getMSTime();
+#ifdef _WIN32
+    uint32 lastStatusTime = realPrevTime;
+#endif
 
     while (!World::IsStopped())
     {
@@ -277,6 +302,15 @@ void Master::WorldLoop()
         realPrevTime = realCurrTime;
 
         const uint32 executionTimeDiff = getMSTimeDiff(realCurrTime, getMSTime());
+
+#ifdef _WIN32
+        if (getMSTimeDiff(lastStatusTime, realCurrTime) >= 1000)
+        {
+            lastStatusTime = realCurrTime;
+            UpdateConsoleTitle(sWorld.GetActiveSessionCount(),
+                               sWorldNetwork.GetOpenConnectionCount());
+        }
+#endif
 
         if (executionTimeDiff < WORLD_SLEEP_CONST)
         {

@@ -62,6 +62,9 @@ class WorldNetwork : public MaNGOS::Singleton<WorldNetwork>
         /// Stop accepting and tear down every live connection.
         void Stop();
 
+        /// Number of accepted world connections that have not been destroyed.
+        uint32 GetOpenConnectionCount() const;
+
     private:
 
         WorldNetwork();
