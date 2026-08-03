@@ -1,3 +1,7 @@
+if(NOT WIN32)
+    return()
+endif()
+
 add_executable(openssl_provider_release_layout_test
     OpenSSLProviderReleaseLayoutTest.cpp)
 
