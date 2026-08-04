@@ -176,6 +176,11 @@ MapDifficultyMap const& GetMapDifficultyLegacyMap();
 // available and is deliberately NOT made, because no spawn on any challenge map carries
 // bit 2 and admitting it would open an empty instance. See the note at the definition.
 int32 ToInternalDifficulty(uint32 clientDifficultyId);
+// True when (mapId, clientDifficultyId) is a row the OLD raw-keyed reset scheduler could have
+// written into `instance_reset`. A migration PREDICATE, not an accessor -- it returns no row, so it
+// is not a way around the tree-wide ban on raw-keyed lookups. Used to tell a genuine stale raw row
+// from an arbitrary out-of-range hand edit, which must not condemn a whole table.
+bool IsLegacyRawResetKey(uint32 mapId, uint32 clientDifficultyId);
 // True when a DungeonEncounter.dbc row applies at the given INTERNAL difficulty.
 // That table's DifficultyID is a raw client id and must not be compared to a
 // Difficulty directly; 0 there means "every difficulty of this map", not internal

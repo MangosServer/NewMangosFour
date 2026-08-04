@@ -605,19 +605,22 @@ void DungeonResetScheduler::LoadResetTimes()
         // find. Verified against MapDifficulty.dbc -- of the 14 maps with an ambiguous raw-3 row,
         // ZERO lack a definitive >= MAX_DIFFICULTY row.
         //
-        // WHAT THIS STILL DOES NOT FIX, and it is a real gap rather than a theoretical one. DBC
-        // co-occurrence is not TABLE co-occurrence. A legacy table can hold an ambiguous raw-3 row
-        // with its raw-4/5/6 companions already gone -- after a partial startup, manual cleanup, or
-        // one run of the earlier row-by-row version of this very migration, which deleted exactly
-        // those detectable rows one at a time. Such a table passes validation, the stale 10-normal
-        // timestamp is applied as 25-heroic, and the rebuild is suppressed. No inspection of the row
-        // contents can catch that; it needs a durable marker, and this repository does not carry the
-        // characters schema, so the marker has to be a one-time migration in the database repo:
+        // Sniffing alone is NOT sufficient, and the durable answer is a version bump rather than
+        // anything in this function. DBC co-occurrence is not TABLE co-occurrence: a legacy table can
+        // hold an ambiguous raw-3 row with its raw-4/5/6 companions already gone -- after a partial
+        // startup, manual cleanup, or one run of an earlier row-by-row version of this very
+        // migration, which deleted exactly those detectable rows one at a time. Such a table passes
+        // everything below, the stale 10-normal timestamp is applied as 25-heroic, and the rebuild is
+        // suppressed. No inspection of row contents can catch it.
         //
-        //     DELETE FROM `instance_reset`;    -- key space changed from raw to internal
+        // So CHAR_DB_STRUCTURE_NR is bumped to 2, and the matching characters update deletes this
+        // table and advances `db_version`. A version or structure mismatch is FATAL in
+        // Database::CheckDatabaseVersion, so an un-migrated database cannot start -- which is the
+        // point. Bumping CONTENT instead would not do: a content lag is only a warning there, and
+        // the affected database would start silently.
         //
-        // It is shipped alongside this change for exactly that purpose. The log line below tells an
-        // administrator when this build has seen raw-keyed rows, so the case is at least visible.
+        // The detection below is therefore belt-and-braces for a database that reaches this code
+        // anyway, and the log line names the statement to run.
         std::vector<std::pair<uint32 /*mapid*/, std::pair<uint32 /*difficulty*/, uint64 /*resettime*/> > > resetRows;
         bool rawKeySpaceProven = false;
 
@@ -638,10 +641,16 @@ void DungeonResetScheduler::LoadResetTimes()
             {
                 sLog.outError("MapPersistentStateManager::LoadResetTimes: invalid mapid(%u)/difficulty(%u) pair in instance_reset!", mapid, difficulty);
 
-                if (difficulty >= MAX_DIFFICULTY)
+                if (IsLegacyRawResetKey(mapid, difficulty))
                 {
-                    // Only the raw key space can produce this. Flag the table; the row goes with the
-                    // rest of it below.
+                    // This row is exactly what the old raw-keyed scheduler wrote: a raw reset-bearing
+                    // (map, tier) pair. Flag the table; the row goes with the rest of it below.
+                    //
+                    // Not `difficulty >= MAX_DIFFICULTY`, which an earlier revision used. Out of
+                    // internal range is not evidence of the raw key space -- an arbitrary hand edit
+                    // is out of range too, and treating that as proof condemns a whole table of valid
+                    // reset times over one junk row, which is the blast radius this trigger exists to
+                    // avoid.
                     rawKeySpaceProven = true;
                 }
                 else

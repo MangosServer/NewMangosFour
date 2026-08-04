@@ -1785,6 +1785,36 @@ static uint32 ClientDifficultyFallback(uint32 clientDifficultyId)
 }
 
 /**
+ * @brief True when (mapId, clientDifficultyId) is a row the OLD raw-keyed reset scheduler could
+ *        have written into `instance_reset`.
+ *
+ * A migration predicate, and deliberately not an accessor. The general raw lookup
+ * (GetMapDifficultyDataByClientId) is banned tree-wide precisely so a raw row cannot reach runtime
+ * code, and this must not be a way back in -- it answers a yes/no question about a stored key and
+ * hands back no row.
+ *
+ * Needed because "out of internal range" is NOT evidence of the raw key space. An arbitrary
+ * hand-edited value is also out of range, and treating it as proof would condemn a whole table of
+ * valid reset times over one bad row. The old scheduler enumerated the RAW map and skipped
+ * RaidDuration == 0, so a genuine stale row is exactly a raw reset-bearing (map, tier) pair: 136 of
+ * them across 88 maps, values 2, 3, 4, 5, 6 and 9. Anything else out of range is just junk.
+ *
+ * @param mapId              the map the stored row names
+ * @param clientDifficultyId the stored difficulty, read as a RAW client id
+ * @return true if the raw map has this pair with a global reset
+ */
+bool IsLegacyRawResetKey(uint32 mapId, uint32 clientDifficultyId)
+{
+    MapDifficultyMap::const_iterator itr = sMapDifficultyMap.find(MAKE_PAIR32(mapId, clientDifficultyId));
+    if (itr == sMapDifficultyMap.end())
+    {
+        return false;
+    }
+
+    return itr->second->RaidDuration != 0;
+}
+
+/**
  * @brief Whether a DungeonEncounter.dbc row applies at an internal difficulty on a given map.
  *
  * DungeonEncounter.dbc keys on raw client DifficultyIDs like everything else in the 5.4.8 DBCs,

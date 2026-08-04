@@ -49,10 +49,20 @@
     #define REALMD_DB_CONTENT_NR        "1"
     #define REALMD_DB_UPDATE_DESCRIPT   "Release 22"
 
+    // Structure 2: `instance_reset`.`difficulty` changed key space, from raw client
+    // DifficultyIDs to the core's internal 0-based Difficulty. The two OVERLAP -- a stale
+    // raid 10-normal row (raw 3) is a legal internal 3, raid 25-heroic -- so the rows cannot
+    // all be told apart by inspection, and a wrong reset time then suppresses the scheduler's
+    // rebuild. The core detects and discards a table the old build wrote in full, but not one
+    // whose detectable rows were already cleaned, so this has to be enforced rather than
+    // sniffed. STRUCTURE and not CONTENT deliberately: a version or structure mismatch is
+    // fatal in Database::CheckDatabaseVersion, whereas a content lag is only a warning and
+    // would let exactly the affected database start silently.
+    // The matching characters update deletes `instance_reset` and advances `db_version`.
     #define CHAR_DB_VERSION_NR          "23"
-    #define CHAR_DB_STRUCTURE_NR        "1"
+    #define CHAR_DB_STRUCTURE_NR        "2"
     #define CHAR_DB_CONTENT_NR          "1"
-    #define CHAR_DB_UPDATE_DESCRIPT     "Initial Base M4 DB"
+    #define CHAR_DB_UPDATE_DESCRIPT     "instance_reset keyed on internal Difficulty"
 
     #define WORLD_DB_VERSION_NR         "23"
     #define WORLD_DB_STRUCTURE_NR       "3"
