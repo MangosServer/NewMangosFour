@@ -481,63 +481,66 @@ void WorldSession::SendLfgProposalUpdate(LFGProposal const& proposal)
         return;
     }
 
-    ObjectGuid plrGuid = pPlayer->GetObjectGuid();
+    ObjectGuid const plrGuid = pPlayer->GetObjectGuid();
 
-    // find() without checking end() dereferenced a past-the-end iterator. It is reachable:
-    // SendDungeonProposal skips offline players when filling `groups` and `answers` but
-    // still lists them in `currentRoles`, so a player who queues, logs out, and logs back
-    // in before someone else answers arrives here with no entry of their own.
+    // find() without checking end() dereferenced a past-the-end iterator here. It is
+    // reachable, not theoretical: SendDungeonProposal skips offline players when filling
+    // `groups` and `answers` but still lists them in `currentRoles`, so a player who
+    // queues, logs out and logs back in arrives with no entry of their own.
     playerGroupMap::const_iterator myGroup = proposal.groups.find(plrGuid);
     if (myGroup == proposal.groups.end())
     {
         return;
     }
 
-    ObjectGuid plrGroupGuid = myGroup->second;
+    ObjectGuid const plrGroupGuid = myGroup->second;
 
-    uint32 dungeonEntry = sLFGMgr.GetDungeonEntry(proposal.dungeonID);
-    bool showProposal = !proposal.isNew && proposal.groupRawGuid == plrGroupGuid.GetRawValue();
+    // Rebuilt for 18414. See MopLfgPackets::BuildProposalUpdate for the layout and the
+    // two captures it was verified against.
+    MopLfgPackets::ProposalUpdate update;
+    update.dungeonEntry = sLFGMgr.GetDungeonEntry(proposal.dungeonID);
+    update.proposalId = proposal.id;
+    update.state = uint8(proposal.state);
+    update.encounters = proposal.encounters;
+    update.joinTime = uint32(proposal.joinedQueue);
 
-    WorldPacket data(SMSG_LFG_PROPOSAL_UPDATE, 15 + (9 * proposal.currentRoles.size()));
+    // "silent" suppresses opening a fresh window: the client updates one it already has.
+    // Only correct when this is not a new proposal AND the recipient is already in the
+    // group the proposal will reuse.
+    update.silent = !proposal.isNew && plrGroupGuid &&
+                    plrGroupGuid.GetRawValue() == proposal.groupRawGuid;
 
-    data << uint32(dungeonEntry);                // Dungeon Entry
-    data << uint8(proposal.state);               // Proposal state
-    data << uint32(proposal.id);                 // ID of proposal
-    data << uint32(proposal.encounters);         // Encounters done
-    data << uint8(showProposal);                 // Show or hide proposal window [todo-this]
-    data << uint8(proposal.currentRoles.size()); // Size of group
+    // The recipient's own group if they have one, else themselves -- this identifies who
+    // the update is about, not the proposed group.
+    update.requesterGuid = plrGroupGuid ? plrGroupGuid.GetRawValue() : plrGuid.GetRawValue();
 
-    for (playerGroupMap::const_iterator it = proposal.groups.begin(); it != proposal.groups.end(); ++it)
+    for (playerGroupMap::const_iterator it = proposal.groups.begin();
+         it != proposal.groups.end(); ++it)
     {
-        ObjectGuid grpPlrGuid = it->first;
+        ObjectGuid const memberGuid = it->first;
 
-        roleMap::const_iterator roleItr = proposal.currentRoles.find(grpPlrGuid);
-        proposalAnswerMap::const_iterator answerItr = proposal.answers.find(grpPlrGuid);
+        roleMap::const_iterator roleItr = proposal.currentRoles.find(memberGuid);
+        proposalAnswerMap::const_iterator answerItr = proposal.answers.find(memberGuid);
         if (roleItr == proposal.currentRoles.end() || answerItr == proposal.answers.end())
         {
             continue;
         }
 
-        uint8 grpPlrRole = roleItr->second;
-        LFGProposalAnswer grpPlrAnswer = answerItr->second;
+        MopLfgPackets::ProposalPlayer entry;
+        entry.roles = roleItr->second;
+        entry.isSelf = (memberGuid == plrGuid);
+        entry.answered = (answerItr->second != LFG_ANSWER_PENDING);
+        entry.agreed = (answerItr->second == LFG_ANSWER_AGREE);
+        entry.inProposedGroup = it->second && !proposal.isNew &&
+                                it->second.GetRawValue() == proposal.groupRawGuid;
+        entry.sameGroupAsSelf = it->second && it->second == plrGroupGuid;
 
-        data << uint32(grpPlrRole);              // Player's role
-        data << uint8(grpPlrGuid == plrGuid);    // Is this player me?
-
-        if (it->second != 0)
-        {
-            data << uint8(it->second == ObjectGuid(proposal.groupRawGuid)); // Is player in the proposed group?
-            data << uint8(it->second == plrGroupGuid);          // Is player in the same group as myself?
-        }
-        else
-        {
-            data << uint8(0);
-            data << uint8(0);
-        }
-
-        data << uint8(grpPlrAnswer != LFG_ANSWER_PENDING);  // Has the player selected an answer?
-        data << uint8(grpPlrAnswer == LFG_ANSWER_AGREE);    // Has the player agreed to do the dungeon?
+        update.players.push_back(entry);
     }
+
+    WorldPacket data(SMSG_LFG_PROPOSAL_UPDATE, 40 + update.players.size() * 5);
+    MopLfgPackets::BuildProposalUpdate(data, update);
+
     SendPacket(&data);
 }
 

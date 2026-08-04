@@ -126,8 +126,35 @@ namespace MopLfgPackets
     /// drifting apart.
     uint8 const ROLE_CHECK_STATE_INITIATING = 2;
 
+    /// One participant of a dungeon proposal.
+    struct ProposalPlayer
+    {
+        uint32 roles = 0;
+        bool inProposedGroup = false;   // already in the group the proposal will reuse
+        bool isSelf = false;            // is this the recipient
+        bool answered = false;
+        bool agreed = false;
+        bool sameGroupAsSelf = false;
+    };
+
+    struct ProposalUpdate
+    {
+        std::vector<ProposalPlayer> players;
+        uint64 requesterGuid = 0;       // recipient's original group, else the player
+        uint64 instanceGuid = 0;        // see BuildProposalUpdate
+        uint32 dungeonEntry = 0;
+        uint32 clientQueueId = 0;
+        uint32 proposalId = 0;
+        uint32 joinTime = 0;
+        uint32 encounters = 0;
+        uint32 flags = 3;
+        uint8 state = 0;
+        bool silent = false;            // update an open window instead of opening one
+    };
+
     bool BuildBootPlayer(WorldPacket& out, BootUpdate const& update);
     void BuildRoleCheckUpdate(WorldPacket& out, RoleCheckUpdate const& update);
+    void BuildProposalUpdate(WorldPacket& out, ProposalUpdate const& update);
     bool BuildUpdateStatus(WorldPacket& out, StatusUpdate const& update);
     void BuildQueueStatus(WorldPacket& out, QueueStatusUpdate const& update);
     bool ParseLfrSearchRequest(WorldPacket& in, LfrSearchRequest& request);
@@ -220,6 +247,100 @@ inline void MopLfgPackets::BuildRoleCheckUpdate(WorldPacket& out,
     {
         out << uint32(*it);
     }
+}
+
+inline void MopLfgPackets::BuildProposalUpdate(WorldPacket& out,
+    ProposalUpdate const& update)
+{
+    // SMSG_LFG_PROPOSAL_UPDATE (0x1E3B).
+    //
+    // The body that stood here was the 3.3.5 shape -- flat uint32/uint8 fields and a
+    // per-player run of single bytes -- and shared no field order with 18414. Verified
+    // byte-exact against two real captures chosen to differ as much as possible:
+    //
+    //   capture-000044 seq 1948,    64 B:  5 players, 1 tank / 1 healer / 3 dps
+    //   capture-000059 seq 2063424, 156 B: 25 players, 2 tank / 6 healer / 17 dps
+    //
+    // Both decode to zero leftover. The second is a raid finder proposal, and its
+    // composition matches the 2/6/17 that LfgDungeons.dbc carries for LFR rows -- an
+    // independent check on the decode from a completely different evidence source.
+    //
+    // Corpus catalogueGenerationId 2BE10C89...88752.
+    //
+    // Two corrections to the reference layout this was checked against:
+    //
+    //  - It builds the second GUID as `dungeonEntry | (0x1F45 << 48)`. Real traffic
+    //    carries neither: the top five bytes are constant 1F 44 00 00 11 in both
+    //    captures while the low three vary, i.e. a genuine instance-side GUID with a
+    //    counter, unrelated to the dungeon entry. We do not model that object, so we
+    //    send zero -- a legal encoding, since all eight mask bits then read false and
+    //    WriteByteSeq emits nothing. If a live client turns out to need it to match the
+    //    proposal, synthesise it from proposalId rather than guessing a constant.
+    //
+    //  - Roles are passed through verbatim. Observed values include 0x32 and 0x09, so
+    //    bits above DAMAGE are real and must not be masked off.
+    out.WriteBit(MopLfgPacketDetail::GuidByte(update.instanceGuid, 6) != 0);
+    out.WriteBit(MopLfgPacketDetail::GuidByte(update.instanceGuid, 0) != 0);
+    MopLfgPacketDetail::WriteGuidMask(out, update.requesterGuid, { 1, 7, 5 });
+    out.WriteBit(MopLfgPacketDetail::GuidByte(update.instanceGuid, 5) != 0);
+    MopLfgPacketDetail::WriteGuidMask(out, update.requesterGuid, { 4 });
+    out.WriteBit(update.silent);
+    out.WriteBit(MopLfgPacketDetail::GuidByte(update.instanceGuid, 2) != 0);
+    MopLfgPacketDetail::WriteGuidMask(out, update.requesterGuid, { 6 });
+    MopLfgPacketDetail::WriteGuidMask(out, update.instanceGuid, { 3, 7 });
+    MopLfgPacketDetail::WriteGuidMask(out, update.requesterGuid, { 3 });
+
+    out.WriteBits(uint32(update.players.size()), 21);
+
+    for (std::vector<ProposalPlayer>::const_iterator it = update.players.begin();
+         it != update.players.end(); ++it)
+    {
+        out.WriteBit(it->inProposedGroup);
+        out.WriteBit(it->isSelf);
+        out.WriteBit(it->answered);
+        out.WriteBit(it->agreed);
+        out.WriteBit(it->sameGroupAsSelf);
+    }
+
+    MopLfgPacketDetail::WriteGuidMask(out, update.requesterGuid, { 2 });
+    MopLfgPacketDetail::WriteGuidMask(out, update.instanceGuid, { 4 });
+    out.WriteBit(false);                                    // unknown; zero in all observed traffic
+    MopLfgPacketDetail::WriteGuidMask(out, update.requesterGuid, { 0 });
+    MopLfgPacketDetail::WriteGuidMask(out, update.instanceGuid, { 1 });
+
+    out.FlushBits();
+
+    MopLfgPacketDetail::WriteGuidBytes(out, update.instanceGuid, { 1 });
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 4 });
+    MopLfgPacketDetail::WriteGuidBytes(out, update.instanceGuid, { 4 });
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 7, 2, 0 });
+
+    out << uint32(update.dungeonEntry);
+    out << uint8(update.state);
+    out << uint32(update.clientQueueId);
+
+    MopLfgPacketDetail::WriteGuidBytes(out, update.instanceGuid, { 6 });
+    out << uint32(update.proposalId);
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 5, 3 });
+    out << uint32(update.joinTime);
+    MopLfgPacketDetail::WriteGuidBytes(out, update.instanceGuid, { 5 });
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 6 });
+
+    for (std::vector<ProposalPlayer>::const_iterator it = update.players.begin();
+         it != update.players.end(); ++it)
+    {
+        out << uint32(it->roles);
+    }
+
+    out << uint32(update.encounters);
+
+    MopLfgPacketDetail::WriteGuidBytes(out, update.instanceGuid, { 7 });
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 1 });
+    MopLfgPacketDetail::WriteGuidBytes(out, update.instanceGuid, { 0, 2 });
+
+    out << uint32(update.flags);
+
+    MopLfgPacketDetail::WriteGuidBytes(out, update.instanceGuid, { 3 });
 }
 
 inline bool MopLfgPackets::ParseLfrSearchRequest(WorldPacket& in,
