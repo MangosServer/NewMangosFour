@@ -23,6 +23,9 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include <algorithm>
+#include <vector>
+
 #include "DBCEnums.h"
 #include "DBCStores.h"
 #include "DBCStructure.h"
@@ -464,63 +467,178 @@ dungeonForbidden LFGMgr::FindRandomDungeonsNotForPlayer(Player* plr)
     return randomDungeons;
 }
 
+namespace
+{
+    // The client's LFD frame offers four INDEPENDENT checkboxes -- FrameXML/LFDFrame.lua
+    // calls SetLFGRoles(leader, tank, healer, dps) -- so the mask that arrives on the
+    // wire routinely carries several roles at once. A player who ticked tank AND dps is
+    // willing to fill either, not neither.
+    //
+    // Every consumer here used to switch on the exact value of (mask & ~LEADER), matching
+    // only 0x02/0x04/0x08. A hybrid therefore counted as zero of everything: solo hybrids
+    // merged into a full-size entry that still reported every role missing and could
+    // neither complete nor merge again, and a premade containing one hybrid failed its
+    // role check outright and was ejected.
+    //
+    // Assigning each player exactly one of the roles they offered needs backtracking, not
+    // a greedy pass: given a tank-only player and a tank-or-healer player, handing the
+    // tank slot to the hybrid first strands the specialist even though a valid assignment
+    // exists. With at most 5 players and 3 roles the search is bounded by 3^5.
+    struct RoleQuota
+    {
+        uint8 tank;
+        uint8 healer;
+        uint8 damage;
+
+        uint32 Total() const { return uint32(tank) + healer + damage; }
+    };
+
+    bool AssignRolesRecursive(std::vector<uint8> const& masks, size_t index, RoleQuota remaining,
+                              RoleQuota& leftover)
+    {
+        if (index == masks.size())
+        {
+            leftover = remaining;   // what is still open once everyone present is placed
+            return true;
+        }
+
+        static uint8 const candidates[3] = { PLAYER_ROLE_TANK, PLAYER_ROLE_HEALER, PLAYER_ROLE_DAMAGE };
+
+        for (uint8 i = 0; i < 3; ++i)
+        {
+            uint8 const role = candidates[i];
+            if (!(masks[index] & role))
+            {
+                continue;
+            }
+
+            uint8* slot = (role == PLAYER_ROLE_TANK) ? &remaining.tank
+                        : (role == PLAYER_ROLE_HEALER) ? &remaining.healer
+                        : &remaining.damage;
+
+            if (!*slot)
+            {
+                continue;
+            }
+
+            --(*slot);
+            if (AssignRolesRecursive(masks, index + 1, remaining, leftover))
+            {
+                return true;
+            }
+            ++(*slot);
+        }
+
+        return false;
+    }
+
+    /// Can every player fill exactly one of the roles they offered, within the dungeon's caps?
+    /// On success `leftover` receives the roles still open, which is what the queue
+    /// advertises as "needed" and what the completion test reads.
+    bool RolesFitQuota(roleMap const& roles, RoleQuota const& quota, RoleQuota& leftover)
+    {
+        if (roles.size() > quota.Total())
+        {
+            return false;
+        }
+
+        std::vector<uint8> masks;
+        masks.reserve(roles.size());
+
+        for (roleMap::const_iterator it = roles.begin(); it != roles.end(); ++it)
+        {
+            uint8 const offered = uint8(it->second & ~PLAYER_ROLE_LEADER);
+            if (!offered)
+            {
+                return false;   // no role ticked at all -- cannot be placed
+            }
+
+            masks.push_back(offered);
+        }
+
+        // Least-flexible player first, so the search prunes early.
+        std::sort(masks.begin(), masks.end(), [](uint8 a, uint8 b)
+        {
+            uint8 popA = uint8((a & 2 ? 1 : 0) + (a & 4 ? 1 : 0) + (a & 8 ? 1 : 0));
+            uint8 popB = uint8((b & 2 ? 1 : 0) + (b & 4 ? 1 : 0) + (b & 8 ? 1 : 0));
+            return popA < popB;
+        });
+
+        leftover = quota;
+        return AssignRolesRecursive(masks, 0, quota, leftover);
+    }
+
+    /// The role composition a dungeon actually wants, straight off its DBC row.
+    ///
+    /// Not every queueable row is a 1/1/3 five-man: the shipped LfgDungeons.dbc carries
+    /// 0/0/3 scenarios, 0/0/1 solo content, 2/6/17 raid finder and 0/0/25 flexible raid.
+    /// Reading the row instead of assuming NORMAL_* is what lets those queue at all.
+    bool GetDungeonQuota(std::set<uint32> const& dungeonList, RoleQuota& quota)
+    {
+        if (dungeonList.empty())
+        {
+            return false;
+        }
+
+        LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(*dungeonList.begin());
+        if (!dungeon)
+        {
+            return false;
+        }
+
+        quota.tank   = uint8(dungeon->Count_tank);
+        quota.healer = uint8(dungeon->Count_healer);
+        quota.damage = uint8(dungeon->Count_damage);
+
+        return quota.Total() != 0;
+    }
+}
+
+bool LFGMgr::RolesAreValidForDungeons(roleMap const& roles, std::set<uint32> const& dungeonList)
+{
+    RoleQuota quota;
+    if (!GetDungeonQuota(dungeonList, quota))
+    {
+        return false;
+    }
+
+    RoleQuota leftover;
+    return RolesFitQuota(roles, quota, leftover);
+}
+
 void LFGMgr::UpdateNeededRoles(ObjectGuid guid, LFGPlayers* information)
 {
-    uint8 tankCount = 0, dpsCount = 0, healCount = 0;
-    for (roleMap::iterator it = information->currentRoles.begin(); it != information->currentRoles.end(); ++it)
+    // The role composition comes from the DUNGEON, not from a difficulty test.
+    //
+    // This previously read `if (dungeon->DifficultyID == DUNGEON_DIFFICULTY_NORMAL)`,
+    // comparing a RAW client DifficultyID against the internal 0-based enum -- two
+    // different key spaces at 5.4.8. The shipped LfgDungeons.dbc carries no queueable
+    // row with DifficultyID 0 at all (TypeID 1 has {1,2,7,11,12,14}, TypeID 6 has
+    // {1,2,11,12}), so the branch NEVER fired and the needed-role counts stayed at zero
+    // for every entry. With zeros, RoleMapsAreCompatible computed (3-0)+(3-0) = 6 > 3
+    // and refused every pair, so the matchmaker formed nothing at all.
+    RoleQuota quota;
+    if (!GetDungeonQuota(information->dungeonList, quota))
     {
-        uint8 withoutLeader = it->second;
-        withoutLeader &= ~PLAYER_ROLE_LEADER;
-
-        switch (withoutLeader)
-        {
-            case PLAYER_ROLE_TANK:
-                ++tankCount;
-                break;
-            case PLAYER_ROLE_HEALER:
-                ++healCount;
-                break;
-            case PLAYER_ROLE_DAMAGE:
-                ++dpsCount;
-                break;
-        }
+        m_playerData[guid] = *information;
+        return;
     }
 
-    std::set<uint32>::iterator itr = information->dungeonList.begin();
-
-    // check dungeon type for max of each role [normal heroic etc.]
-    LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(*itr);
-    if (dungeon)
+    RoleQuota leftover;
+    if (!RolesFitQuota(information->currentRoles, quota, leftover))
     {
-        // atm we're just handling DUNGEON_DIFFICULTY_NORMAL.
-        //
-        // Same raw-vs-internal confusion as GetDungeonType: LfgDungeons.dbc DifficultyID is a raw
-        // client id, so comparing it to DUNGEON_DIFFICULTY_NORMAL (internal 0) matched only rows
-        // carrying raw 0 -- 60 of them -- and never raw 1, which is what a 5-man normal dungeon
-        // actually is. 60 rather than the 59 given before: the old comparison had no TypeID
-        // filter, so its match set included id 358, 10v10 Rated Battleground, which is raid-typed.
-        // 59 is the non-raid subset, which is not what the code being described matched. The 90 normal-dungeon rows therefore left neededTanks,
-        // neededHealers and neededDps at their default, so the role counts were never initialised
-        // for the one case this branch claims to handle.
-        // ...and only for FIVE-MAN rows. NORMAL_TANK_OR_HEALER_COUNT and NORMAL_DAMAGE_COUNT are 1,
-        // 1 and 3 -- a 5-man composition. Raid rows carry raw DifficultyID 3 (10-normal) and 9
-        // (legacy 40-player), both of which translate to internal 0, so without the TypeID test the
-        // translation would newly hand a 10, 25 or 40-player raid a one-tank/one-healer/three-dps
-        // requirement. Before the translation those rows compared raw 3 and 9 against internal 0 and
-        // missed, so they were excluded by accident.
-        //
-        // LfgDungeons.dbc does supply per-row Count_tank, Count_healer and Count_damage, which is
-        // where raid compositions should eventually come from. Reading them here would change the
-        // 5-man numbers too, so it is left out of this fix; the point of this branch is the key
-        // space, and it must not silently start sizing raid groups.
-        if (dungeon->TypeID != LFG_TYPE_RAID &&
-            ToInternalDifficulty(dungeon->DifficultyID) == int32(DUNGEON_DIFFICULTY_NORMAL))
-        {
-            information->neededTanks = NORMAL_TANK_OR_HEALER_COUNT - tankCount;
-            information->neededHealers = NORMAL_TANK_OR_HEALER_COUNT - healCount;
-            information->neededDps = NORMAL_DAMAGE_COUNT - dpsCount;
-        }
+        // No assignment places everyone present -- the entry is over-subscribed on some
+        // role. Report the dungeon's full requirement so it advertises as unsatisfiable
+        // rather than wrapping a uint8 and claiming 254 damage slots are free.
+        leftover = quota;
     }
+
+    // The resolver already clamped these: they count down from the quota as players are
+    // placed and can never go below zero, so the old `1 - tankCount` uint8 wrap that
+    // turned a two-tank party into "254 more tanks welcome" cannot recur.
+    information->neededTanks   = leftover.tank;
+    information->neededHealers = leftover.healer;
+    information->neededDps     = leftover.damage;
 
     m_playerData[guid] = *information;
 }
@@ -636,12 +754,49 @@ void LFGMgr::AddToWaitMap(uint8 role, std::set<uint32> dungeons)
     }
 }
 
+bool LFGMgr::TryFormGroup(ObjectGuid guid)
+{
+    LFGPlayers* entry = GetPlayerOrPartyData(guid);
+    if (!entry || entry->currentState != LFG_STATE_QUEUED)
+    {
+        return false;
+    }
+
+    if (entry->neededTanks || entry->neededHealers || entry->neededDps)
+    {
+        return false;
+    }
+
+    SendDungeonProposal(entry);
+
+    // Out of the queue the moment a proposal exists for it. Without this the entry is
+    // still LFG_STATE_QUEUED next tick, gets matched again, and fires a fresh proposal
+    // -- and a new SMSG_LFG_PROPOSAL_UPDATE -- every single tick, forever.
+    m_queueSet.erase(guid);
+    m_playerData.erase(guid);
+    return true;
+}
+
 void LFGMgr::FindQueueMatches()
 {
-    // Fetch information on all the queued players/groups
-    for (queueSet::iterator itr = m_queueSet.begin(); itr != m_queueSet.end(); ++itr)
+    // Snapshot: MergeGroups and TryFormGroup both erase from m_queueSet, and erasing the
+    // element an active iterator points at is UB.
+    queueSet const snapshot = m_queueSet;
+
+    for (queueSet::const_iterator itr = snapshot.begin(); itr != snapshot.end(); ++itr)
     {
+        // An entry can be absorbed or dequeued by an earlier iteration of this same pass.
+        if (m_queueSet.find(*itr) == m_queueSet.end())
+        {
+            continue;
+        }
+
         FindSpecificQueueMatches(*itr);
+
+        // A party that arrives already complete -- the common premade-of-five case --
+        // is never merged with anything, so the completion test inside MergeGroups
+        // never sees it. Without this check such a group waits in the queue forever.
+        TryFormGroup(*itr);
     }
 }
 
@@ -654,11 +809,26 @@ void LFGMgr::FindSpecificQueueMatches(ObjectGuid guid)
         // compare to everyone else in queue for compatibility
         // after a match is found call UpdateNeededRoles
         // Use the roleMap to store player guid/role information; merge into queueInfo struct & delete other struct/map entry
-        for (queueSet::iterator itr = m_queueSet.begin(); itr != m_queueSet.end(); ++itr)
+        queueSet const snapshot = m_queueSet;
+
+        for (queueSet::const_iterator itr = snapshot.begin(); itr != snapshot.end(); ++itr)
         {
             if (*itr == guid)
             {
                 continue;
+            }
+
+            // Absorbed by an earlier merge in this same pass, or dequeued by a proposal.
+            if (m_queueSet.find(*itr) == m_queueSet.end())
+            {
+                continue;
+            }
+
+            // Re-read: MergeGroups mutates the entry we are accumulating into.
+            queueInfo = GetPlayerOrPartyData(guid);
+            if (!queueInfo)
+            {
+                return;
             }
 
             LFGPlayers* matchInfo = GetPlayerOrPartyData(*itr);
@@ -684,7 +854,7 @@ void LFGMgr::FindSpecificQueueMatches(ObjectGuid guid)
                 {
                     // check for player / role count and also team compatibility
                     // if function returns true, then merge groups into one
-                    if (RoleMapsAreCompatible(queueInfo, matchInfo) && MatchesAreOfSameTeam(queueInfo, matchInfo))
+                    if (RoleMapsAreCompatible(queueInfo, matchInfo, compatibleDungeons) && MatchesAreOfSameTeam(queueInfo, matchInfo))
                     {
                         MergeGroups(guid, *itr, compatibleDungeons);
                     }
@@ -694,35 +864,47 @@ void LFGMgr::FindSpecificQueueMatches(ObjectGuid guid)
     }
 }
 
-bool LFGMgr::RoleMapsAreCompatible(LFGPlayers* groupOne, LFGPlayers* groupTwo)
+bool LFGMgr::RoleMapsAreCompatible(LFGPlayers* groupOne, LFGPlayers* groupTwo,
+                                   std::set<uint32> const& compatibleDungeons)
 {
-    // When this is called we already know that the dungeons match, so just focus on roles
-    // compare: neededX(role) from each struct and the amount of people per role in the roleMap
-    if ((groupOne->currentRoles.size() + groupTwo->currentRoles.size()) > NORMAL_TOTAL_ROLE_COUNT)
+    // When this is called we already know the dungeons overlap, so just focus on roles.
+    //
+    // The question is simply: if these two entries were one, could every player in the
+    // union fill a distinct slot the dungeon actually has? Asking the resolver directly
+    // replaces the old per-role arithmetic, which recovered "present" as
+    // (NORMAL_X - neededX) and so inherited every uint8 wrap in neededX -- a two-tank
+    // party gave (1-255) + (1-0) = -254, which passed the cap test and merged a party
+    // that could never complete.
+    //
+    // It also drops the hardcoded 1/1/3/5, which is wrong for the 108 of 247 queueable
+    // TypeID 1 rows that are scenarios (0/0/3), solo content (0/0/1), raid finder
+    // (2/6/17) or flexible raid (0/0/25).
+    RoleQuota quota;
+    if (!GetDungeonQuota(compatibleDungeons, quota))
     {
         return false;
     }
-    else
+
+    if ((groupOne->currentRoles.size() + groupTwo->currentRoles.size()) > quota.Total())
     {
-        // make sure we don't have too many players of a certain role here
-        if (((NORMAL_DAMAGE_COUNT - groupOne->neededDps) + (NORMAL_DAMAGE_COUNT - groupTwo->neededDps)) > NORMAL_DAMAGE_COUNT)
-        {
-            return false;
-        }
-        else if (((NORMAL_TANK_OR_HEALER_COUNT - groupOne->neededHealers) + (NORMAL_TANK_OR_HEALER_COUNT - groupTwo->neededHealers)) > NORMAL_TANK_OR_HEALER_COUNT)
-        {
-            return false;
-        }
-        else if (((NORMAL_TANK_OR_HEALER_COUNT - groupOne->neededTanks) + (NORMAL_TANK_OR_HEALER_COUNT - groupTwo->neededTanks)) > NORMAL_TANK_OR_HEALER_COUNT)
-        {
-            return false;
-        }
-        else
-        {
-            return true; // the player/role counts line up!
-        }
+        return false;
     }
-    return false;
+
+    roleMap combined = groupOne->currentRoles;
+    for (roleMap::const_iterator it = groupTwo->currentRoles.begin(); it != groupTwo->currentRoles.end(); ++it)
+    {
+        combined[it->first] = it->second;
+    }
+
+    // A player present in both entries collapses to one key, so the union can be smaller
+    // than the sum -- that is the duplicate-membership case and it must not merge.
+    if (combined.size() != groupOne->currentRoles.size() + groupTwo->currentRoles.size())
+    {
+        return false;
+    }
+
+    RoleQuota leftover;
+    return RolesFitQuota(combined, quota, leftover);
 }
 
 bool LFGMgr::MatchesAreOfSameTeam(LFGPlayers* groupOne, LFGPlayers* groupTwo)
@@ -778,13 +960,19 @@ void LFGMgr::MergeGroups(ObjectGuid guidOne, ObjectGuid guidTwo, std::set<uint32
     // being safe
     //mainGroup = GetPlayerOrPartyData(rawGuidOne);
 
-    // Then do the following:
-    if ((mainGroup->neededTanks == 0) && (mainGroup->neededHealers == 0) && (mainGroup->neededDps == 0))
-    {
-        SendDungeonProposal(mainGroup);
-    }
-
+    // Both containers, or guidTwo lingers in m_queueSet pointing at data that no
+    // longer exists. That stale entry is not merely a leak: the merged-away
+    // player still reads LFG_STATE_QUEUED, SendQueueStatus keys off m_playerData
+    // so their client never hears again, and a re-queue skips JoinLFG's
+    // duplicate cleanup (it is guarded on existing data) -- leaving that player
+    // live in a fresh solo entry AND still listed in the merged entry's roles,
+    // which can produce two proposals for the same person.
+    m_queueSet.erase(guidTwo);
     m_playerData.erase(guidTwo);
+
+    // Completion is decided after the absorbed entry is gone, so the proposal is built
+    // from one consistent view and TryFormGroup can dequeue the survivor safely.
+    TryFormGroup(guidOne);
 }
 
 void LFGMgr::SendQueueStatus()

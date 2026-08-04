@@ -53,15 +53,22 @@ void LFGMgr::PerformRoleCheck(Player* pPlayer, Group* pGroup, uint8 roles)
         return; // no role check map found
     }
 
-    LFGRoleCheck roleCheck = it->second;
+    // A REFERENCE, not a copy. This was `LFGRoleCheck roleCheck = it->second;`, so
+    // every `roleCheck.currentRoles[plrGuid] = roles` below landed in a temporary that
+    // was discarded on return -- no member's answer was ever recorded, and a party of
+    // two or more could never complete its role check no matter what anyone clicked.
+    LFGRoleCheck& roleCheck = it->second;
     bool roleChosen = roleCheck.state != LFG_ROLECHECK_DEFAULT && plrGuid;
 
     if (!plrGuid)
     {
         roleCheck.state = LFG_ROLECHECK_ABORTED;  // aborted if anyone cancels during role check
     }
-    else if (roles < PLAYER_ROLE_TANK)            // kind of a sanity check- the client shouldn't allow this to happen
+    else if (!(roles & (PLAYER_ROLE_TANK | PLAYER_ROLE_HEALER | PLAYER_ROLE_DAMAGE)))
     {
+        // The mask must name at least one real role. Testing `roles < PLAYER_ROLE_TANK`
+        // only rejected 0 and a bare LEADER bit; it accepted any unknown high bit as a
+        // valid answer, which then matched no role anywhere downstream.
         roleCheck.state = LFG_ROLECHECK_NO_ROLE;
     }
     else
@@ -80,7 +87,7 @@ void LFGMgr::PerformRoleCheck(Player* pPlayer, Group* pGroup, uint8 roles)
 
         if (allRolesChosen) // meaning that everyone confirmed their roles
         {
-            roleCheck.state = ValidateGroupRoles(roleCheck.currentRoles) ? LFG_ROLECHECK_FINISHED : LFG_ROLECHECK_MISSING_ROLE;
+            roleCheck.state = ValidateGroupRoles(roleCheck.currentRoles, roleCheck.dungeonList) ? LFG_ROLECHECK_FINISHED : LFG_ROLECHECK_MISSING_ROLE;
         }
     }
 
@@ -131,7 +138,13 @@ void LFGMgr::PerformRoleCheck(Player* pPlayer, Group* pGroup, uint8 roles)
 
     if (roleCheck.state == LFG_ROLECHECK_FINISHED)
     {
-        LFGPlayers* queueInfo   = GetPlayerOrPartyData(groupGuid);
+        LFGPlayers* queueInfo = GetPlayerOrPartyData(groupGuid);
+        if (!queueInfo)
+        {
+            m_roleCheckMap.erase(groupGuid);
+            return;
+        }
+
         queueInfo->currentState = LFG_STATE_QUEUED;
         queueInfo->currentRoles = roleCheck.currentRoles;
         queueInfo->joinedTime   = time(NULL);
@@ -139,6 +152,10 @@ void LFGMgr::PerformRoleCheck(Player* pPlayer, Group* pGroup, uint8 roles)
         m_playerData[groupGuid] = *queueInfo;
 
         AddToQueue(groupGuid);
+
+        // The check is resolved; leaving it in the map makes RemoveOldRoleChecks expire
+        // an already-queued party and tear its queue entry back down.
+        m_roleCheckMap.erase(groupGuid);
     }
     else if (roleCheck.state != LFG_ROLECHECK_INITIALITING)
     {
@@ -158,35 +175,21 @@ void LFGMgr::PerformRoleCheck(Player* pPlayer, Group* pGroup, uint8 roles)
     }
 }
 
-bool LFGMgr::ValidateGroupRoles(roleMap groupMap)
+bool LFGMgr::ValidateGroupRoles(roleMap groupMap, std::set<uint32> const& dungeonList)
 {
     if (groupMap.empty()) // sanity check
     {
         return false;
     }
 
-    uint8 tankCount = 0, dpsCount = 0, healCount = 0;
-
-    for (roleMap::iterator it = groupMap.begin(); it != groupMap.end(); ++it)
-    {
-        uint8 withoutLeader = it->second;
-        withoutLeader &= ~PLAYER_ROLE_LEADER;
-
-        switch (withoutLeader)
-        {
-            case PLAYER_ROLE_TANK:
-                ++tankCount;
-                break;
-            case PLAYER_ROLE_HEALER:
-                ++healCount;
-                break;
-            case PLAYER_ROLE_DAMAGE:
-                ++dpsCount;
-                break;
-        }
-    }
-
-    return (tankCount + dpsCount + healCount == groupMap.size()) ? true : false;
+    // This used to assert only that every member had picked exactly one of tank/healer/
+    // damage, which failed two ways at once: a member who ticked tank AND damage matched
+    // no case and sank the whole party's role check, while a party of five tanks passed
+    // it and then jammed the queue because no dungeon has five tank slots.
+    //
+    // Asking whether the party can be assigned to the dungeon's actual role counts covers
+    // both, and covers scenarios and raid finder, whose compositions are not 1/1/3.
+    return RolesAreValidForDungeons(groupMap, dungeonList);
 }
 
 //todo: remove from queue, update queue average settings
@@ -1179,7 +1182,12 @@ void LFGMgr::SendLfgJoinResult(ObjectGuid plrGuid, LfgJoinResult result, LFGStat
 
 void LFGMgr::RemoveOldRoleChecks()
 {
-    for (roleCheckMap::iterator roleItr = m_roleCheckMap.begin(); roleItr != m_roleCheckMap.end(); ++roleItr)
+    // Erase-safe iteration. m_roleCheckMap is an unordered_map, so erasing by
+    // key destroys the node roleItr points at and the following ++roleItr walks
+    // freed memory. This is the FIRST thing LFGMgr::Update calls, so it would
+    // crash or spin the world thread on the first tick that finds an expired
+    // check.
+    for (roleCheckMap::iterator roleItr = m_roleCheckMap.begin(); roleItr != m_roleCheckMap.end(); )
     {
         ObjectGuid groupGuid = roleItr->first;
 
@@ -1198,7 +1206,16 @@ void LFGMgr::RemoveOldRoleChecks()
                 SendLfgUpdate(plrGuid, GetPlayerStatus(plrGuid), true);  // not in lfg system anymore
             }
 
-            m_roleCheckMap.erase(groupGuid);
+            // Advance BEFORE erasing, and drop the queue data this check owned:
+            // the entries JoinLFG wrote for the group would otherwise survive
+            // with nothing left to resolve them.
+            m_playerData.erase(groupGuid);
+            m_queueSet.erase(groupGuid);
+            roleItr = m_roleCheckMap.erase(roleItr);
+        }
+        else
+        {
+            ++roleItr;
         }
     }
 }

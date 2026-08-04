@@ -303,8 +303,6 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         roleCheck.leaderGuidRaw = leaderGuid.GetRawValue();
         roleCheck.waitForRoleTime = time_t(time(NULL) + LFG_TIME_ROLECHECK);
 
-        m_roleCheckMap[guid] = roleCheck;
-
         // place original dungeon ID back in the set
         if (isRandom)
         {
@@ -327,6 +325,13 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
                 m_playerStatusMap[plrGuid] = overallStatus;
             }
         }
+
+        // Stored AFTER the loop above, not before it. The stored copy used to be taken
+        // while currentRoles was still empty, so the role check the rest of the system
+        // saw listed nobody: PerformRoleCheck then found "everyone" had answered as soon
+        // as the FIRST member replied, and a five-man queued on a one-entry role map.
+        m_roleCheckMap[guid] = roleCheck;
+
         // used later if they enter the queue
         LFGPlayers groupInfo(LFG_STATE_NONE, dungeons, roleCheck.currentRoles, comments, false, time(NULL), 0, 0, 0);
         m_playerData[guid] = groupInfo;

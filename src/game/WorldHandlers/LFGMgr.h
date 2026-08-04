@@ -420,7 +420,9 @@ enum LFGSpells
 
 enum LFGTimes
 {
-    LFG_TIME_ROLECHECK                           = 45*IN_MILLISECONDS,
+    // SECONDS, not milliseconds: waitForRoleTime is built from time(NULL),
+    // so 45*IN_MILLISECONDS made a role check expire after 12.5 HOURS.
+    LFG_TIME_ROLECHECK                           = 45,
     LFG_TIME_BOOT                                = 120,
     LFG_TIME_PROPOSAL                            = 45,
 };
@@ -847,6 +849,13 @@ public:
     void UpdateNeededRoles(ObjectGuid guid, LFGPlayers* information);
 
     /**
+     * @brief Fire a proposal for this entry if every role it needs is filled, and
+     *        dequeue it so it cannot be matched or proposed again.
+     * @return true if a proposal was sent (the entry no longer exists).
+     */
+    bool TryFormGroup(ObjectGuid guid);
+
+    /**
      * @brief Add the player or group to the Dungeon Finder queue
      *
      * @param guid the player/group's ObjectGuid
@@ -885,7 +894,16 @@ public:
     void PerformRoleCheck(Player* pPlayer, Group* pGroup, uint8 roles);
 
     /// Make sure role selections are okay
-    bool ValidateGroupRoles(roleMap groupMap);
+    bool ValidateGroupRoles(roleMap groupMap, std::set<uint32> const& dungeonList);
+
+    /**
+     * @brief Can every player fill exactly one of the roles they ticked, within the
+     *        role counts the dungeon's own DBC row asks for?
+     *
+     * Handles multi-role selections: the client offers four independent checkboxes,
+     * so a mask carrying tank|damage is a player willing to be either.
+     */
+    bool RolesAreValidForDungeons(roleMap const& roles, std::set<uint32> const& dungeonList);
 
     /// Proposal-Related Functions
 
@@ -919,7 +937,7 @@ protected:
     bool HasLeaderFlag(roleMap const& roles);
 
     /// Compares two groups/players to see if their role combinations are compatible
-    bool RoleMapsAreCompatible(LFGPlayers* groupOne, LFGPlayers* groupTwo);
+    bool RoleMapsAreCompatible(LFGPlayers* groupOne, LFGPlayers* groupTwo, std::set<uint32> const& compatibleDungeons);
 
     /// Checks whether or not two combinations of players/groups are on the same team (alliance/horde)
     bool MatchesAreOfSameTeam(LFGPlayers* groupOne, LFGPlayers* groupTwo);
