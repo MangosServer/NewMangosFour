@@ -564,10 +564,12 @@ struct LFGPlayers //TODO: rename to LFGQueueData
     std::string comments;
     bool isGroup;
 
-    time_t joinedTime;
-    uint8 neededTanks;
-    uint8 neededHealers;
-    uint8 neededDps;
+    // Zeroed: the default constructor left these indeterminate, and needed* decides both
+    // whether an entry is complete and what the queue advertises to the client.
+    time_t joinedTime = 0;
+    uint8 neededTanks = 0;
+    uint8 neededHealers = 0;
+    uint8 neededDps = 0;
 
     LFGPlayers() : currentState(LFG_STATE_NONE), currentRoles(0), isGroup(false) {}
     LFGPlayers(LFGState state, std::set<uint32> dungeonSelection, roleMap CurrentRoles, std::string comment, bool IsGroup, time_t JoinedTime,
@@ -654,17 +656,23 @@ struct LFGGroupStatus //todo: check for this in joinlfg function, not lfgplayers
 /// For SMSG_LFG_PROPOSAL_UPDATE
 struct LFGProposal
 {
-    uint32 id;                 // proposal id
-    uint32 dungeonID;          // dungeon id
-    LFGProposalState state;    // proposal state
-    uint32 encounters;         // encounters done
-    uint64 groupRawGuid;       // group raw guid value
-    uint64 groupLeaderGuid;    // group leader's guid
-    bool isNew;                // is new or old group
-    roleMap currentRoles;      // group player's roles
-    proposalAnswerMap answers; // answers to a proposal
-    playerGroupMap groups;     // data on which groups players belong/belonged to
-    time_t joinedQueue;        // time from when the players joined the queue
+    // Every scalar is initialised. groupRawGuid and groupLeaderGuid in particular are
+    // the only two SendDungeonProposal does not always assign -- it sets them solely on
+    // the premade path -- yet it READS groupRawGuid to decide whether to set it, and
+    // CreateDungeonGroup branches on it to choose between reusing an existing group and
+    // making a new one. Left indeterminate, an all-solo proposal picked its branch from
+    // whatever was on the stack.
+    uint32 id = 0;                  // proposal id
+    uint32 dungeonID = 0;           // dungeon id
+    LFGProposalState state = LFG_PROPOSAL_INITIATING;  // proposal state
+    uint32 encounters = 0;          // encounters done
+    uint64 groupRawGuid = 0;        // group raw guid value
+    uint64 groupLeaderGuid = 0;     // group leader's guid
+    bool isNew = true;              // is new or old group
+    roleMap currentRoles;           // group player's roles
+    proposalAnswerMap answers;      // answers to a proposal
+    playerGroupMap groups;          // data on which groups players belong/belonged to
+    time_t joinedQueue = 0;         // time from when the players joined the queue
 };
 
 // For SMSG_LFG_PLAYER_REWARD

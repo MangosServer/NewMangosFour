@@ -465,8 +465,24 @@ void WorldSession::SendLfgRoleChosen(uint64 rawGuid, uint8 roles)
 void WorldSession::SendLfgProposalUpdate(LFGProposal const& proposal)
 {
     Player* pPlayer = GetPlayer();
+    if (!pPlayer)
+    {
+        return;
+    }
+
     ObjectGuid plrGuid = pPlayer->GetObjectGuid();
-    ObjectGuid plrGroupGuid = proposal.groups.find(plrGuid)->second;
+
+    // find() without checking end() dereferenced a past-the-end iterator. It is reachable:
+    // SendDungeonProposal skips offline players when filling `groups` and `answers` but
+    // still lists them in `currentRoles`, so a player who queues, logs out, and logs back
+    // in before someone else answers arrives here with no entry of their own.
+    playerGroupMap::const_iterator myGroup = proposal.groups.find(plrGuid);
+    if (myGroup == proposal.groups.end())
+    {
+        return;
+    }
+
+    ObjectGuid plrGroupGuid = myGroup->second;
 
     uint32 dungeonEntry = sLFGMgr.GetDungeonEntry(proposal.dungeonID);
     bool showProposal = !proposal.isNew && proposal.groupRawGuid == plrGroupGuid.GetRawValue();
@@ -483,8 +499,16 @@ void WorldSession::SendLfgProposalUpdate(LFGProposal const& proposal)
     for (playerGroupMap::const_iterator it = proposal.groups.begin(); it != proposal.groups.end(); ++it)
     {
         ObjectGuid grpPlrGuid = it->first;
-        uint8 grpPlrRole = proposal.currentRoles.find(grpPlrGuid)->second;
-        LFGProposalAnswer grpPlrAnswer = proposal.answers.find(grpPlrGuid)->second;
+
+        roleMap::const_iterator roleItr = proposal.currentRoles.find(grpPlrGuid);
+        proposalAnswerMap::const_iterator answerItr = proposal.answers.find(grpPlrGuid);
+        if (roleItr == proposal.currentRoles.end() || answerItr == proposal.answers.end())
+        {
+            continue;
+        }
+
+        uint8 grpPlrRole = roleItr->second;
+        LFGProposalAnswer grpPlrAnswer = answerItr->second;
 
         data << uint32(grpPlrRole);              // Player's role
         data << uint8(grpPlrGuid == plrGuid);    // Is this player me?
