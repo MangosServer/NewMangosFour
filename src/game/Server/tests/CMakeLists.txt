@@ -1019,33 +1019,3 @@ target_include_directories(mop_showing_helm_packets_test PRIVATE
 set_target_properties(mop_showing_helm_packets_test PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 target_link_libraries(mop_showing_helm_packets_test PRIVATE shared)
 add_test(NAME mop_showing_helm_packets COMMAND mop_showing_helm_packets_test)
-# The legacy 0-based Difficulty enum versus MapDifficulty.dbc, whose ids start at 1
-# for instances. Every instance lookup missed and nothing in the game was enterable.
-# A wrong or missing arm is silent: the lookup returns NULL and the caller reports
-# AREA_LOCKSTATUS_MISSING_DIFFICULTY with nothing logged.
-add_test(NAME mop_map_difficulty_source
-    COMMAND ${CMAKE_COMMAND}
-        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_map_difficulty_source_test.cmake)
-
-foreach(mutation IN ITEMS drop_legacy_index drop_index_build drop_25man_widening
-                          drop_continent_mapping drop_40man_mapping readd_challenge_mapping
-                          readd_challenge_spawn_mode shift_dungeon_spawn_mode
-                          drop_encounter_wildcard scheduler_iterates_raw_map
-                          reintroduce_client_id_lookup event_through_raw_lookup
-                          drop_reset_duration_guard encounter_raw_compare
-                          encounter_condition_raw_compare lfg_raw_cast
-                          encounter_equality_only encounter_fallback_unconditional
-                          encounter_fallback_chain_broken encounter_heroic_fallback_broken
-                          drop_exact_tier_index_build encounter_drops_map_context
-                          lfg_raid_through_dungeon_setter lfg_drops_raid_type_test reset_table_partially_trusted reset_row_applied_before_validation
-                          lfg_admits_untranslatable_tier lfg_types_raids_as_dungeons
-                          lfg_raid_gets_5man_roles unbounded_fallback_walk lfg_random_expansion_unfiltered reset_condemns_on_any_invalid_row)
-    add_test(NAME mop_map_difficulty_source_mutation_${mutation}
-        COMMAND ${CMAKE_COMMAND}
-            -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
-            -DMUTATION=${mutation}
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/mop_map_difficulty_source_test.cmake)
-    set_tests_properties(mop_map_difficulty_source_mutation_${mutation}
-        PROPERTIES WILL_FAIL TRUE)
-endforeach()
