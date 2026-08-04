@@ -603,6 +603,21 @@ bool MopGroupPromotePackets::ParseAssistant(WorldPacket& in, AssistantRequest& o
     return true;
 }
 
+bool MopLfgSetRolesPackets::ParseRequest(WorldPacket& in, Request& out)
+{
+    // Fixed 5 bytes. Refuse anything else rather than reading past the end -- a short
+    // body would otherwise leave the role mask half-populated and silently queue the
+    // player as the wrong role.
+    if (in.size() - in.rpos() < 5)
+    {
+        return false;
+    }
+
+    in >> out.roles;
+    in >> out.roleCheckCounter;
+    return true;
+}
+
 bool MopLfgLeavePackets::ParseRequest(WorldPacket& in, Request& out)
 {
     // Build 18414 writer sub_6674C9 (Wow.exe.c:879339-879394). Layout:

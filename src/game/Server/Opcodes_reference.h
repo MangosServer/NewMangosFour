@@ -1575,7 +1575,7 @@ typedef uint16_t uint16;
  *   CMSG_INSPECT_RATED_BG_STATS                    0x0882  DORMANT
  *   CMSG_RAID_TARGET_UPDATE                        0x0886  ACTIVE
  *   CMSG_UNKNOWN_0x0896                            0x0896  DOC
- *   CMSG_LFG_SET_ROLES                             0x08A2  DORMANT
+ *   CMSG_LFG_SET_ROLES                             0x08A2  REGISTERED
  *   CMSG_RANDOM_ROLL                               0x08A3  DOC
  *   CMSG_REORDER_CHARACTERS                        0x08A7  DORMANT
  *   CMSG_MESSAGECHAT_ADDON_INSTANCE                0x08AF  ACTIVE

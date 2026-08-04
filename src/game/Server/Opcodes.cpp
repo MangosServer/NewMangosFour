@@ -804,6 +804,7 @@ void InitializeOpcodes()
 
     // Empty 18414 status refresh request. The handler replies through the
     // already-converted unified SMSG_LFG_UPDATE_STATUS body.
+    DefC(CMSG_LFG_SET_ROLES, "CMSG_LFG_SET_ROLES", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgSetRolesOpcode);
     DefC(CMSG_LFG_GET_STATUS, "CMSG_LFG_GET_STATUS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgGetStatusOpcode);
 
     // Direct 18414 LFR-browser request and empty full-replacement response.

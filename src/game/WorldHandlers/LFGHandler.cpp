@@ -184,6 +184,46 @@ void WorldSession::HandleLfgLeaveOpcode(WorldPacket& recv_data)
     sLFGMgr.LeaveLFG(plr, isGroup);
 }
 
+void WorldSession::HandleLfgSetRolesOpcode(WorldPacket& recv_data)
+{
+    DEBUG_LOG("CMSG_LFG_SET_ROLES");
+
+    // This is the reply half of the LFG role check, and it had no handler and no
+    // registration at all -- the client's answer was dropped at the dispatcher without
+    // so much as a log line, so a party entered LFG_STATE_ROLECHECK and stayed there.
+    //
+    // Note the Lua SetLFGRoles() does NOT send this; it only mutates local state. The
+    // packet is emitted by CompleteLFGRoleCheck, i.e. when the player confirms.
+    MopLfgSetRolesPackets::Request request;
+    if (!MopLfgSetRolesPackets::ParseRequest(recv_data, request))
+    {
+        sLog.outError("Malformed CMSG_LFG_SET_ROLES body from %s: expected 5 bytes.",
+                      GetPlayerName());
+        return;
+    }
+
+    Player* plr = GetPlayer();
+    if (!plr)
+    {
+        return;
+    }
+
+    // A role check only exists for a party. A solo queuer states their roles in
+    // CMSG_LFG_JOIN and never reaches this path.
+    Group* pGroup = plr->GetGroup();
+    if (!pGroup)
+    {
+        return;
+    }
+
+    DEBUG_LOG("CMSG_LFG_SET_ROLES: %s roles 0x%02X.", GetPlayerName(), request.roles);
+
+    // Truncated to the byte the role plumbing uses. The wire field is 32 bits, but only
+    // the low four (leader/tank/healer/damage) are ever set; anything above them is
+    // rejected by PerformRoleCheck's mask test rather than being silently accepted.
+    sLFGMgr.PerformRoleCheck(plr, pGroup, uint8(request.roles & 0xFF));
+}
+
 void WorldSession::HandleLfgGetStatusOpcode(WorldPacket& /*recv_data*/)
 {
     DEBUG_LOG("CMSG_LFG_GET_STATUS");

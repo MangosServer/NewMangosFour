@@ -333,6 +333,33 @@ namespace MopLfgLeavePackets
     bool ParseRequest(WorldPacket& in, Request& out);
 }
 
+namespace MopLfgSetRolesPackets
+{
+    /// A parsed CMSG_LFG_SET_ROLES body.
+    ///
+    /// Derived from the client's own body writer sub_6688D0 -- vtable slot 1 behind the
+    /// opcode thunk sub_6615FE, which writes 2210 (0x08A2). It emits exactly two fields
+    /// and nothing else:
+    ///
+    ///     sub_40F075(pkt, *(uint32*)(this + 16));   // WriteUInt32 -- the role mask
+    ///     sub_40F018(pkt, *(uint8 *)(this + 20));   // WriteUInt8  -- role check counter
+    ///
+    /// Flat: no bit packing and no GUID, so there is nothing to XOR or reorder. All 99
+    /// build-18414 captures in the corpus are exactly 5 bytes, which agrees.
+    struct Request
+    {
+        /// Bitmask, NOT an enum. The LFD frame's four checkboxes are independent, so a
+        /// player offering tank-or-damage sends 0x0A -- observed on the wire in
+        /// capture-000112 seq 90341.
+        uint32 roles = 0;
+
+        /// Echoed back by the client; carries no authority server-side.
+        uint8 roleCheckCounter = 0;
+    };
+
+    bool ParseRequest(WorldPacket& in, Request& out);
+}
+
 namespace MopGroupMarkerPackets
 {
     struct MinimapPingRequest
