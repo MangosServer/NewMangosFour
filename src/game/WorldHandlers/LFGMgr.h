@@ -103,7 +103,31 @@ namespace MopLfgPackets
         uint32 dungeonEntry = 0;
     };
 
+    /// One entry of a role check, in the order the client expects them: leader first.
+    struct RoleCheckMember
+    {
+        uint64 guid = 0;
+        uint32 roles = 0;
+        uint8 level = 0;
+    };
+
+    struct RoleCheckUpdate
+    {
+        std::vector<RoleCheckMember> members;
+        std::vector<uint32> dungeonEntries;
+        uint8 partyIndex = 0;
+        uint8 state = 0;
+    };
+
+    /// Wire value of LFG_ROLECHECK_INITIALITING.
+    ///
+    /// Spelled out here because LFGRoleCheckState is declared further down this header,
+    /// after these inline builders. A static_assert next to the enum keeps the two from
+    /// drifting apart.
+    uint8 const ROLE_CHECK_STATE_INITIATING = 2;
+
     bool BuildBootPlayer(WorldPacket& out, BootUpdate const& update);
+    void BuildRoleCheckUpdate(WorldPacket& out, RoleCheckUpdate const& update);
     bool BuildUpdateStatus(WorldPacket& out, StatusUpdate const& update);
     void BuildQueueStatus(WorldPacket& out, QueueStatusUpdate const& update);
     bool ParseLfrSearchRequest(WorldPacket& in, LfrSearchRequest& request);
@@ -132,6 +156,69 @@ namespace MopLfgPacketDetail
     {
         for (size_t index : order)
             out.WriteByteSeq(GuidByte(guid, index));
+    }
+}
+
+inline void MopLfgPackets::BuildRoleCheckUpdate(WorldPacket& out,
+    RoleCheckUpdate const& update)
+{
+    // SMSG_LFG_ROLE_CHECK_UPDATE (0x12BB).
+    //
+    // The body that stood here was the 3.3.5 shape -- a uint32 state, flat counts and
+    // raw uint64 GUIDs -- and shared no field order with 18414. Verified byte-exact
+    // against two real captures of different shape, decoding to zero leftover bytes:
+    //
+    //   capture-000075 seq 891708, 35 B: partyIndex 0, state 2, 2 members, 1 dungeon
+    //   capture-000059 seq 719547, 68 B: partyIndex 1, state 2, 5 members, 1 dungeon
+    //
+    // Corpus catalogueGenerationId 2BE10C89...88752.
+    //
+    // Note partyIndex is NOT always zero -- the second capture carries 1 -- so it is a
+    // real field rather than padding, even though GetLFGRoleUpdate does not surface it
+    // to Lua (the client stores it at dword_1209678 and reads it elsewhere).
+    //
+    // The "random dungeon" GUID is always empty in observed traffic; its mask bits are
+    // written all-zero and WriteByteSeq emits nothing for a zero byte, so it costs 8
+    // mask bits and no bytes. It is kept explicit because the bit positions are
+    // interleaved with the dungeon count and cannot be collapsed away.
+    uint64 const randomDungeonGuid = 0;
+
+    out << uint8(update.partyIndex);
+    out << uint8(update.state);
+
+    out.WriteBits(uint32(update.members.size()), 21);
+
+    for (std::vector<RoleCheckMember>::const_iterator it = update.members.begin();
+         it != update.members.end(); ++it)
+    {
+        out.WriteBit(it->roles > 0);        // has this member answered yet
+        MopLfgPacketDetail::WriteGuidMask(out, it->guid, { 3, 0, 5, 2, 7, 1, 4, 6 });
+    }
+
+    MopLfgPacketDetail::WriteGuidMask(out, randomDungeonGuid, { 3, 5 });
+    out.WriteBits(uint32(update.dungeonEntries.size()), 22);
+    MopLfgPacketDetail::WriteGuidMask(out, randomDungeonGuid, { 0, 7, 6, 1, 4, 2 });
+    out.WriteBit(update.state == ROLE_CHECK_STATE_INITIATING);
+
+    out.FlushBits();
+
+    MopLfgPacketDetail::WriteGuidBytes(out, randomDungeonGuid, { 0 });
+
+    for (std::vector<RoleCheckMember>::const_iterator it = update.members.begin();
+         it != update.members.end(); ++it)
+    {
+        out << uint8(it->level);
+        MopLfgPacketDetail::WriteGuidBytes(out, it->guid, { 3, 6 });
+        out << uint32(it->roles);
+        MopLfgPacketDetail::WriteGuidBytes(out, it->guid, { 2, 4, 0, 1, 5, 7 });
+    }
+
+    MopLfgPacketDetail::WriteGuidBytes(out, randomDungeonGuid, { 1, 7, 6, 4, 3, 2, 5 });
+
+    for (std::vector<uint32>::const_iterator it = update.dungeonEntries.begin();
+         it != update.dungeonEntries.end(); ++it)
+    {
+        out << uint32(*it);
     }
 }
 
@@ -467,6 +554,11 @@ enum LFGRoleCheckState
     LFG_ROLECHECK_ABORTED                        = 5,      // Someone left the group
     LFG_ROLECHECK_NO_ROLE                        = 6       // Someone didn't select a role
 };
+
+static_assert(uint8(LFG_ROLECHECK_INITIALITING) == MopLfgPackets::ROLE_CHECK_STATE_INITIATING,
+    "SMSG_LFG_ROLE_CHECK_UPDATE writes a bit for state == INITIALITING; the value it "
+    "compares against must track the enum. Both captures the writer is tested on carry "
+    "state 2 with that bit set.");
 
 /// Role types
 enum LFGRoles

@@ -398,10 +398,12 @@ void WorldSession::SendLfgQueueStatus(LFGQueueStatus const& status)
 
 void WorldSession::SendLfgRoleCheckUpdate(LFGRoleCheck const& roleCheck)
 {
-    WorldPacket data(SMSG_LFG_ROLE_CHECK_UPDATE);
-
-    data << uint32(roleCheck.state);
-    data << uint8(roleCheck.state == LFG_ROLECHECK_INITIALITING);
+    // Rebuilt for 18414. See MopLfgPackets::BuildRoleCheckUpdate for the layout and the
+    // two captures it was verified against; the previous body was the 3.3.5 shape and
+    // shared no field order with this client, which is why the role check prompt never
+    // appeared however correct the server-side state was.
+    MopLfgPackets::RoleCheckUpdate update;
+    update.state = uint8(roleCheck.state);
 
     std::set<uint32> dungeons;
     if (roleCheck.randomDungeonID)
@@ -413,42 +415,51 @@ void WorldSession::SendLfgRoleCheckUpdate(LFGRoleCheck const& roleCheck)
         dungeons = roleCheck.dungeonList;
     }
 
-    data << uint8(dungeons.size());
-    if (!dungeons.empty())
-        for (std::set<uint32>::iterator it = dungeons.begin(); it != dungeons.end(); ++it)
-        {
-            data << uint32(sLFGMgr.GetDungeonEntry(*it));
-        }
-
-    data << uint8(roleCheck.currentRoles.size());
-    if (!roleCheck.currentRoles.empty())
+    for (std::set<uint32>::const_iterator it = dungeons.begin(); it != dungeons.end(); ++it)
     {
-        ObjectGuid leaderGuid = ObjectGuid(roleCheck.leaderGuidRaw);
-        uint8 leaderRoles = roleCheck.currentRoles.find(leaderGuid)->second;
-        Player* pLeader = sObjectAccessor.FindPlayer(leaderGuid);
-
-        data << uint64(leaderGuid.GetRawValue());
-        data << uint8(leaderRoles > 0);
-        data << uint32(leaderRoles);
-        data << uint8(pLeader ? pLeader->getLevel() : 0);
-
-        for (roleMap::const_iterator rItr = roleCheck.currentRoles.begin(); rItr != roleCheck.currentRoles.end(); ++rItr)
-        {
-            if (rItr->first == leaderGuid)
-            {
-                continue; // exclude the leader
-            }
-
-            ObjectGuid plrGuid = rItr->first;
-
-            Player* pPlayer = sObjectAccessor.FindPlayer(plrGuid);
-
-            data << uint64(plrGuid.GetRawValue());
-            data << uint8(rItr->second > 0);
-            data << uint32(rItr->second);
-            data << uint8(pPlayer ? pPlayer->getLevel() : 0);
-        }
+        update.dungeonEntries.push_back(sLFGMgr.GetDungeonEntry(*it));
     }
+
+    // The leader MUST be first: the client renders entry 0 as the initiator, and both
+    // captures show the leader's roles carrying the LEADER bit while later members are
+    // still zero.
+    ObjectGuid const leaderGuid = ObjectGuid(roleCheck.leaderGuidRaw);
+
+    roleMap::const_iterator leaderItr = roleCheck.currentRoles.find(leaderGuid);
+    if (leaderItr != roleCheck.currentRoles.end())
+    {
+        // Unchecked find() here previously: a role check whose leader had already left
+        // dereferenced end().
+        MopLfgPackets::RoleCheckMember member;
+        member.guid = leaderGuid.GetRawValue();
+        member.roles = leaderItr->second;
+
+        Player* pLeader = sObjectAccessor.FindPlayer(leaderGuid);
+        member.level = pLeader ? uint8(pLeader->getLevel()) : uint8(0);
+
+        update.members.push_back(member);
+    }
+
+    for (roleMap::const_iterator rItr = roleCheck.currentRoles.begin();
+         rItr != roleCheck.currentRoles.end(); ++rItr)
+    {
+        if (rItr->first == leaderGuid)
+        {
+            continue;
+        }
+
+        MopLfgPackets::RoleCheckMember member;
+        member.guid = rItr->first.GetRawValue();
+        member.roles = rItr->second;
+
+        Player* pPlayer = sObjectAccessor.FindPlayer(rItr->first);
+        member.level = pPlayer ? uint8(pPlayer->getLevel()) : uint8(0);
+
+        update.members.push_back(member);
+    }
+
+    WorldPacket data(SMSG_LFG_ROLE_CHECK_UPDATE, 16 + update.members.size() * 16);
+    MopLfgPackets::BuildRoleCheckUpdate(data, update);
 
     SendPacket(&data);
 }

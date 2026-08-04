@@ -604,6 +604,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_SAVE_GUILD_EMBLEM:          // MopGuildPackets::BuildSaveGuildEmblemResult
         case SMSG_BINDER_CONFIRM:              // MopBindPackets::BuildBinderConfirm
         case SMSG_PLAYERBOUND:                 // MopBindPackets::BuildPlayerBound
+        case SMSG_LFG_ROLE_CHECK_UPDATE:      // MopLfgPackets::BuildRoleCheckUpdate, byte-exact vs capture-000075 seq 891708 and capture-000059 seq 719547
         case SMSG_LFG_BOOT_PLAYER:            // MopLfgPackets::BuildBootPlayer
         case SMSG_LFG_UPDATE_STATUS:          // MopLfgPackets::BuildUpdateStatus
         case SMSG_LFG_QUEUE_STATUS:           // MopLfgPackets::BuildQueueStatus
