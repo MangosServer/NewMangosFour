@@ -146,11 +146,9 @@ void WorldSession::HandleLfgJoinOpcode(WorldPacket& recv_data)
     // DifficultyID == 0 and no TypeID==1 row in LfgDungeons.dbc carries that,
     // so every entry reports needing nobody and any two would be matched.
     //
-    // Known gap, deliberately not hidden: SendLfgJoinResult builds
-    // SMSG_LFG_JOIN_RESULT, which is NOT admitted, so a REFUSED join tells the
-    // player nothing. Success is unaffected -- SendLfgUpdate goes out over the
-    // already-admitted SMSG_LFG_UPDATE_STATUS. The reply is held rather than
-    // admitted because the only fixture for its non-empty form is synthetic.
+    // SMSG_LFG_JOIN_RESULT is now built to the 18414 layout and admitted, so a
+    // refused join reaches the player. See MopLfgPackets::BuildJoinResult for the
+    // three captures it is pinned to.
     std::set<uint32> requested(dungeons.begin(), dungeons.end());
     sLFGMgr.JoinLFG(roles, requested, comment, GetPlayer());
 }
@@ -267,12 +265,20 @@ void WorldSession::HandleLfgGetStatusOpcode(WorldPacket& /*recv_data*/)
     if (status.state == LFG_STATE_NONE)
         return;
 
+    // Exactly ONE packet, with the dungeon list PRESENT.
+    //
+    // This used to send a second copy with dungeonList.clear(). No such body exists in
+    // retail traffic: 0 of 5291 observed SMSG_LFG_UPDATE_STATUS carry an empty dungeon
+    // list. It was the old 3.3.5 UPDATE_PARTY/UPDATE_PLAYER pair, and 5.4.8 has a
+    // single opcode. Retail's reply to the zone-in probe is one reason-15 body that
+    // still lists the dungeons (capture-000720 seq 1286, reproduced at capture-000044
+    // seq 6354, capture-000656 seq 113708 and capture-000872 seq 14299).
+    //
+    // The LFG_STATE_NONE early return above is also correct and must stay: 1598 of 2144
+    // GET_STATUS probes draw no reply at all, and none of the 504 post-completion or
+    // post-leave probes do.
     status.updateType = LFG_UPDATE_STATUS;
-    bool const groupFirst = GetPlayer()->GetGroup() != nullptr;
-    SendLfgUpdate(groupFirst, status);
-
-    status.dungeonList.clear();
-    SendLfgUpdate(!groupFirst, status);
+    SendLfgUpdate(GetPlayer()->GetGroup() != nullptr, status);
 }
 
 void WorldSession::HandleLfgLockInfoRequestOpcode(WorldPacket& recv_data)
@@ -349,34 +355,46 @@ void WorldSession::HandleSetLfgCommentOpcode(WorldPacket& recv_data)
     DEBUG_LOG("LFG comment \"%s\"", comment.c_str());
 }
 
-void WorldSession::SendLfgJoinResult(LfgJoinResult result, LFGState state, partyForbidden const& lockedDungeons)
+void WorldSession::SendLfgJoinResult(LfgJoinResult result, uint8 detail, partyForbidden const& lockedDungeons)
 {
-    uint32 packetSize = 0;
+    MopLfgPackets::JoinResult update;
+    update.result = uint8(result);
+    update.detail = detail;
+
+    // Retail zeroes the GUID and the whole ticket on a refusal -- that is what makes the
+    // 18-byte form -- and carries both on a success. All 11 observed refusals are the
+    // zeroed shape, so a refusal must not invent a ticket.
+    if (result == ERR_LFG_OK)
+    {
+        if (Player* player = GetPlayer())
+        {
+            update.requesterGuid = player->GetObjectGuid().GetRawValue();
+        }
+        LFGStatusPacketData queueData;
+        sLFGMgr.GetStatusPacketData(GetPlayer()->GetObjectGuid(), GetPlayer()->GetObjectGuid(), queueData);
+        update.joinTime = queueData.joinedTime ? queueData.joinedTime : uint32(time(NULL));
+        update.clientQueueId = queueData.ticketId;
+        update.ticketType = 3;
+    }
+
     for (partyForbidden::const_iterator it = lockedDungeons.begin(); it != lockedDungeons.end(); ++it)
     {
-        packetSize += 12 + uint32(it->second.size()) * 8;
-    }
+        MopLfgPackets::JoinResultPlayer player;
+        player.guid = it->first.GetRawValue();
 
-    WorldPacket data(SMSG_LFG_JOIN_RESULT, packetSize);
-    data << uint32(result);
-    data << uint32(state);
-
-    if (!lockedDungeons.empty())
-    {
-        for (partyForbidden::const_iterator it = lockedDungeons.begin(); it != lockedDungeons.end(); ++it)
+        for (dungeonForbidden::const_iterator itr = it->second.begin(); itr != it->second.end(); ++itr)
         {
-            dungeonForbidden dungeonInfo = it->second;
-
-            data << uint64(it->first); // object guid of player
-            data << uint32(dungeonInfo.size()); // amount of their locked dungeons
-
-            for (dungeonForbidden::iterator itr = dungeonInfo.begin(); itr != dungeonInfo.end(); ++itr)
-            {
-                data << uint32(itr->first); // dungeon entry
-                data << uint32(itr->second); // reason for dungeon being forbidden/locked
-            }
+            MopLfgPackets::PlayerLockInfo lock;
+            lock.dungeonEntry = itr->first;
+            lock.lockStatus = itr->second;
+            player.locks.push_back(lock);
         }
+
+        update.players.push_back(player);
     }
+
+    WorldPacket data(SMSG_LFG_JOIN_RESULT, 24);
+    MopLfgPackets::BuildJoinResult(data, update);
 
     SendPacket(&data);
 }
@@ -396,9 +414,20 @@ void WorldSession::SendLfgUpdate(bool isGroup, LFGPlayerStatus status)
     case LFG_UPDATE_PROPOSAL_BEGIN:
         joined = true;
         break;
+    case LFG_UPDATE_JOIN_QUEUE_INITIAL:
+        joined = true;
+        break;
     case LFG_UPDATE_STATUS:
         isQueued = (status.state == LFG_STATE_QUEUED);
-        joined = status.state != LFG_STATE_NONE;
+        // `joined` must go FALSE once the player is inside. It used to be
+        // `state != LFG_STATE_NONE`, and LFG_STATE_IN_DUNGEON is non-zero, so we
+        // reported joined=1 from inside the dungeon where retail sends 0
+        // (capture-000720 seq 1286, byte 1 = 0x80). UIParent.lua:3902 GetLFGMode then
+        // returns "suspended" instead of falling through to "lfgparty" -- the client
+        // believes the player is still queued rather than in the run.
+        joined = (status.state != LFG_STATE_NONE
+                  && status.state != LFG_STATE_IN_DUNGEON
+                  && status.state != LFG_STATE_FINISHED_DUNGEON);
         break;
     default:
         break;
@@ -415,15 +444,27 @@ void WorldSession::SendLfgUpdate(bool isGroup, LFGPlayerStatus status)
     MopLfgPackets::StatusUpdate update;
     update.requesterGuid = queueGuid.GetRawValue();
     update.comment = status.comment;
-    update.needs = {{ queueData.neededTanks, queueData.neededHealers, queueData.neededDps }};
-    update.isParty = isGroup;
+    // Retail leaves these 0,0,0 in all 5291 observed bodies without exception; the
+    // role shortage is advertised in SMSG_LFG_QUEUE_STATUS instead.
+    update.needs = {{ 0, 0, 0 }};
+    // Always 1. Across 5291 retail bodies byte 1 takes only 0x00, 0x80 and 0xC0 --
+    // the 0x40 our solo queue used to emit (bit9 set, bit8 clear) occurs zero times,
+    // and bit8 is set even for a solo queue with no group at all. The name "isParty"
+    // does not explain that; the wire value is not in doubt.
+    update.isParty = true;
     update.joined = joined;
-    update.lfgJoined = status.updateType != LFG_UPDATE_LEAVE;
+    // notifyUi tracks joined -- equal in 5288 of 5291 bodies, and 0 for every terminal
+    // reason (8, 9, 11, 15, 25). It was defaulted true and never assigned.
+    update.notifyUi = joined;
+    // Not "did the player leave" and not "is the player inside": this bit says the
+    // queue entry is owned by a GROUP. All 1931 bodies with a group-typed requesterGuid
+    // carry it at every stage, including open-world queueing. It moves together with
+    // requesterGuid, which is exactly the condition that selected queueGuid above.
+    update.lfgJoined = (queueGuid != playerGuid);
     update.queued = isQueued;
     update.requestedRoles = queueData.roles;
     update.updateReason = uint8(status.updateType);
-    // This legacy single-queue manager does not track the client queue ID.
-    update.ticketId = 0;
+    update.ticketId = queueData.ticketId;
     update.ticketTime = queueData.joinedTime;
 
     if (!status.dungeonList.empty())
@@ -452,8 +493,10 @@ void WorldSession::SendLfgQueueStatus(LFGQueueStatus const& status)
     update.waitTimeDps = status.dpsAvgWaitTime;
     update.dps = status.neededDps;
     update.joinTime = status.joinTime;
-    // This legacy single-queue manager has no client queue-ID allocation.
-    update.clientQueueId = 0;
+    // Retail's clientQueueId IS the status packet's ticketId -- capture-000044 carries
+    // 0x9BFF in SMSG_LFG_JOIN_RESULT seq 1547, SMSG_LFG_QUEUE_STATUS seq 1577 and the
+    // status bodies alike. One identifier, three packets.
+    update.clientQueueId = status.ticketId;
     update.waitTime = status.playerAvgWaitTime;
     update.dungeonEntry = sLFGMgr.GetDungeonEntry(status.dungeonID);
 

@@ -177,6 +177,28 @@ namespace MopLfgPackets
     void BuildEmptyPlayerInfo(WorldPacket& out);
     void BuildPlayerInfo(WorldPacket& out, std::vector<PlayerLockInfo> const& locks);
     void BuildEmptyPartyInfo(WorldPacket& out);
+
+    /// One party member's lock list inside SMSG_LFG_JOIN_RESULT. Reuses PlayerLockInfo
+    /// because the 16-byte lock record is the same one SMSG_LFG_PLAYER_INFO carries --
+    /// only the field ORDER on the wire differs between the two packets.
+    struct JoinResultPlayer
+    {
+        uint64 guid = 0;
+        std::vector<PlayerLockInfo> locks;
+    };
+
+    struct JoinResult
+    {
+        std::vector<JoinResultPlayer> players;  // empty for every refusal observed
+        uint64 requesterGuid = 0;               // zero on a refusal
+        uint32 joinTime = 0;                    // queue ticket, shared with SMSG_LFG_QUEUE_STATUS
+        uint32 clientQueueId = 0;
+        uint32 ticketType = 0;                  // 3 on success, 0 on every observed refusal
+        uint8 result = 0;                       // LfgJoinResult
+        uint8 detail = 0;                       // LFGRoleCheckState; only read when result == 0x1C
+    };
+
+    void BuildJoinResult(WorldPacket& out, JoinResult const& update);
 }
 
 namespace MopLfgPacketDetail
@@ -516,6 +538,65 @@ inline void MopLfgPackets::BuildQueueStatus(WorldPacket& out,
     MopLfgPacketDetail::WriteGuidBytes(out, update.queueGuid, { 5, 3, 6 });
 }
 
+inline void MopLfgPackets::BuildJoinResult(WorldPacket& out,
+    JoinResult const& update)
+{
+    // SMSG_LFG_JOIN_RESULT (0x18E3).
+    //
+    // Direct inverse of the 18414 reader sub_760C65, reached from dispatcher case 687.
+    // The body that stood here was the 3.3.5 shape -- uint32 result, uint32 state, then
+    // raw uint64 GUIDs -- which shares no field WIDTH with this client, let alone field
+    // order. That, plus the opcode never having been admitted, is why a refused join was
+    // silent in both directions.
+    //
+    // Verified byte-exact against all three observed sizes, decoding to zero leftover
+    // bytes and zero non-zero pad bits (catalogueGenerationId 2BE10C89...88752):
+    //
+    //   capture-000059 seq 490545, 18 B: refusal, result 0x1C detail 6, guid 0, ticket 0
+    //   capture-000044 seq 1547,   23 B: success, guid 0x0400000006296291, type 3
+    //   capture-000075 seq 891753, 24 B: success, guid 0x1F5400001249B4F0, type 3
+    //
+    // The governing identity when no locks are present is
+    //   len == 18 + popcount(byte0) + popcount(byte3)
+    // because the GUID mask is SPLIT either side of the 22-bit lock count.
+    //
+    // capture-000044 cross-checks against SMSG_LFG_QUEUE_STATUS seq 1577 in the same
+    // capture: joinTime 0x54146107 and queueId 0x9BFF are identical in both, so the
+    // ticket really is one shared identifier rather than a per-packet value.
+    MopLfgPacketDetail::WriteGuidMask(out, update.requesterGuid, { 7, 6, 3, 0 });
+    out.WriteBits(update.players.size(), 22);
+    for (JoinResultPlayer const& player : update.players)
+    {
+        MopLfgPacketDetail::WriteGuidMask(out, player.guid, { 3 });
+        out.WriteBits(player.locks.size(), 20);
+        MopLfgPacketDetail::WriteGuidMask(out, player.guid, { 6, 1, 4, 7, 2, 0, 5 });
+    }
+    MopLfgPacketDetail::WriteGuidMask(out, update.requesterGuid, { 5, 1, 4, 2 });
+    out.FlushBits();
+
+    out << update.result;
+    for (JoinResultPlayer const& player : update.players)
+    {
+        MopLfgPacketDetail::WriteGuidBytes(out, player.guid, { 4 });
+        for (PlayerLockInfo const& lock : player.locks)
+        {
+            // Reverse of the SMSG_LFG_PLAYER_INFO order: the dungeon entry is written
+            // LAST here, after both sub-reasons and the lock status.
+            out << lock.subReason2;
+            out << lock.subReason1;
+            out << lock.lockStatus;
+            out << lock.dungeonEntry;
+        }
+        MopLfgPacketDetail::WriteGuidBytes(out, player.guid, { 1, 0, 5, 7, 3, 6, 2 });
+    }
+    out << update.detail;
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 2 });
+    out << update.joinTime;
+    out << update.clientQueueId;
+    out << update.ticketType;
+    MopLfgPacketDetail::WriteGuidBytes(out, update.requesterGuid, { 6, 4, 1, 0, 5, 7, 3 });
+}
+
 inline bool MopLfgPackets::ParseLockInfoRequest(WorldPacket& in,
     bool& forPlayer)
 {
@@ -612,26 +693,56 @@ enum LFGFlags
 };
 
 /// Possible statuses to send after a request to join the dungeon finder
+/// Result codes for SMSG_LFG_JOIN_RESULT, build 18414.
+///
+/// Re-valued from the 3.3.5 numbering this was inherited with. The client picks the
+/// displayed string by LINEAR SCAN of a 19-entry {u32 code, u32 stringId} table at
+/// .data:00F66A30, bounded by `cmp ecx, 13h` at .text:0098E80C. A code that is not in
+/// that table takes the `jmp short loc_98E820` at .text:0098E811, which skips the
+/// DisplayError call outright -- the player is shown NOTHING. Every value below was
+/// resolved through the descriptor array at .data:00F5C278 (stride 0x14, name pointer
+/// at +0x00), so these are table reads, not an ordering guess.
+///
+/// The shift is NOT a constant: +0x1B for the old 0x01..0x05, then +0x1A from
+/// MISMATCHED_SLOTS on, because MoP dropped NO_SLOTS_PARTY. A blanket offset would
+/// silently mis-value two thirds of the enum.
 enum LfgJoinResult
 {
-    ERR_LFG_OK                                  = 0x00,
-    ERR_LFG_ROLE_CHECK_FAILED                   = 0x01,
-    ERR_LFG_GROUP_FULL                          = 0x02,
-    ERR_LFG_NO_LFG_OBJECT                       = 0x04,
-    ERR_LFG_NO_SLOTS_PLAYER                     = 0x05,
-    ERR_LFG_NO_SLOTS_PARTY                      = 0x06,
-    ERR_LFG_MISMATCHED_SLOTS                    = 0x07,
-    ERR_LFG_PARTY_PLAYERS_FROM_DIFFERENT_REALMS = 0x08,
-    ERR_LFG_MEMBERS_NOT_PRESENT                 = 0x09,
-    ERR_LFG_GET_INFO_TIMEOUT                    = 0x0A,
-    ERR_LFG_INVALID_SLOT                        = 0x0B,
-    ERR_LFG_DESERTER_PLAYER                     = 0x0C,
-    ERR_LFG_DESERTER_PARTY                      = 0x0D,
-    ERR_LFG_RANDOM_COOLDOWN_PLAYER              = 0x0E,
-    ERR_LFG_RANDOM_COOLDOWN_PARTY               = 0x0F,
-    ERR_LFG_TOO_MANY_MEMBERS                    = 0x10,
-    ERR_LFG_CANT_USE_DUNGEONS                   = 0x11,
-    ERR_LFG_ROLE_CHECK_FAILED2                  = 0x12,
+    ERR_LFG_OK                                  = 0x00, // success; not in the table, client shows nothing
+    ERR_LFG_ROLE_CHECK_FAILED                   = 0x1C, // detail byte refines this one -- see LfgJoinResultDetail
+    ERR_LFG_GROUP_FULL                          = 0x1D,
+    ERR_LFG_NO_LFG_OBJECT                       = 0x1F,
+    ERR_LFG_NO_SLOTS_PLAYER                     = 0x20, // the only code that also carries the per-player lock array
+    ERR_LFG_MISMATCHED_SLOTS                    = 0x21,
+    ERR_LFG_PARTY_PLAYERS_FROM_DIFFERENT_REALMS = 0x22,
+    ERR_LFG_MEMBERS_NOT_PRESENT                 = 0x23,
+    ERR_LFG_GET_INFO_TIMEOUT                    = 0x24,
+    ERR_LFG_INVALID_SLOT                        = 0x25,
+    ERR_LFG_DESERTER_PLAYER                     = 0x26,
+    ERR_LFG_DESERTER_PARTY                      = 0x27,
+    ERR_LFG_RANDOM_COOLDOWN_PLAYER              = 0x28,
+    ERR_LFG_RANDOM_COOLDOWN_PARTY               = 0x29,
+    ERR_LFG_TOO_MANY_MEMBERS                    = 0x2A,
+    ERR_LFG_CANT_USE_DUNGEONS                   = 0x2B,
+    ERR_LFG_ROLE_CHECK_FAILED2                  = 0x2C, // genuine second code; renders the same string as 0x1C
+    ERR_LFG_TOO_FEW_MEMBERS                     = 0x32, // MoP-new
+    ERR_LFG_REASON_TOO_MANY_LFG                 = 0x33, // MoP-new
+    ERR_LFG_MISMATCHED_SLOTS_LOCAL_XREALM       = 0x35, // MoP-new
+
+    // ERR_LFG_NO_SLOTS_PARTY is deliberately absent. Its string still exists in the
+    // client (index 0x2EE) but NO result code maps to it, so there is no way to send
+    // it. Callers must use ERR_LFG_NO_SLOTS_PLAYER for a party too -- it is the code
+    // that carries the lock array, so the player is told which dungeons were locked
+    // instead of being shown nothing.
+};
+
+/// Second body byte, only consulted when the result is ERR_LFG_ROLE_CHECK_FAILED
+/// (.text:0098E7DE `cmp dl, 1Ch`). Any other value falls through to the plain string.
+enum LfgJoinResultDetail
+{
+    LFG_JOIN_DETAIL_NONE       = 0,
+    LFG_JOIN_DETAIL_TIMEOUT    = 3, // -> ERR_LFG_ROLE_CHECK_FAILED_TIMEOUT    (string 0x2E9)
+    LFG_JOIN_DETAIL_NOT_VIABLE = 4, // -> ERR_LFG_ROLE_CHECK_FAILED_NOT_VIABLE (string 0x2EA)
 };
 
 enum LfgUpdateType
@@ -650,6 +761,14 @@ enum LfgUpdateType
     LFG_UPDATE_STATUS               = 15,
     LFG_UPDATE_GROUP_MEMBER_OFFLINE = 16,
     LFG_UPDATE_GROUP_DISBAND        = 17,
+
+    /// Retail's opening reason for a fresh queue: 257 of 276 observed joins lead with
+    /// 24 and NONE lead with 6. LFG_UPDATE_JOIN (6) is the re-queue-from-inside-a-
+    /// dungeon reason, which is why it was the wrong thing to open with.
+    LFG_UPDATE_JOIN_QUEUE_INITIAL   = 24,
+    /// Sent after SMSG_LFG_PLAYER_REWARD when the run completes. All 283 observed
+    /// reason-25 bodies carry the same flag tuple.
+    LFG_UPDATE_DUNGEON_FINISHED     = 25,
 };
 
 enum LfgType
@@ -864,6 +983,11 @@ struct LFGPlayers //TODO: rename to LFGQueueData
     // Zeroed: the default constructor left these indeterminate, and needed* decides both
     // whether an entry is complete and what the queue advertises to the client.
     time_t joinedTime = 0;
+    /// The queue ticket. Retail never sends 0 in any of the 5291 observed status
+    /// bodies; it is stable for the life of a queue entry and the client ECHOES IT
+    /// BACK verbatim in CMSG_LFG_PROPOSAL_RESPONSE and CMSG_LFG_LEAVE, so with 0 the
+    /// client's own replies cannot be matched to the entry that produced them.
+    uint32 ticketId = 0;
     uint8 neededTanks = 0;
     uint8 neededHealers = 0;
     uint8 neededDps = 0;
@@ -912,6 +1036,7 @@ struct LFGQueueStatus
     uint8  neededDps;             // amount of dps needed
     uint32 timeSpentInQueue;      // time already spent in the queue
     uint32 joinTime;              // server epoch time when the queue entry was created
+    uint32 ticketId;              // retail's clientQueueId equals the status packet's ticketId
 };
 
 /// For CMSG_LFG_GET_STATUS, SMSG_LFG_UPDATE_PARTY, and SMSG_LFG_UPDATE_PLAYER
@@ -932,6 +1057,7 @@ struct LFGStatusPacketData
 {
     uint32 roles = 0;
     uint32 joinedTime = 0;
+    uint32 ticketId = 0;
     uint8 neededTanks = 0;
     uint8 neededHealers = 0;
     uint8 neededDps = 0;
@@ -1247,6 +1373,10 @@ public:
 
     /// Send a periodic status update for queued players
     void SendQueueStatus();
+    void SendQueueStatusFor(ObjectGuid queueGuid, time_t timeNow);
+
+    /// Non-zero, stable per queue entry, monotonic. See LFGPlayers::ticketId.
+    uint32 AllocateTicketId() { return ++m_nextTicketId; }
 
     /// Role-Related Functions
 
@@ -1345,7 +1475,7 @@ protected:
     void SendLfgUpdate(ObjectGuid plrGuid, LFGPlayerStatus status, bool isGroup);
 
     /// Send SMSG_LFG_JOIN_RESULT
-    void SendLfgJoinResult(ObjectGuid plrGuid, LfgJoinResult result, LFGState state, partyForbidden const& lockedDungeons);
+    void SendLfgJoinResult(ObjectGuid plrGuid, LfgJoinResult result, uint8 detail, partyForbidden const& lockedDungeons);
 
     /// Get rid of expired role checks
     void RemoveOldRoleChecks();
@@ -1360,6 +1490,7 @@ private:
     /// General info related to joining / leaving the dungeon finder
     playerData m_playerData;
     queueSet   m_queueSet;
+    uint32     m_nextTicketId;
 
     /// Dungeon Finder Status for players
     playerStatusMap m_playerStatusMap;

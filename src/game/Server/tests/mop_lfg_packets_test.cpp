@@ -135,6 +135,78 @@ static void test_queue_status_exact_fixture()
     }));
 }
 
+/// SMSG_LFG_JOIN_RESULT, pinned to the three real payload shapes in the corpus
+/// (build 18414, catalogue 2BE10C89). These are captured bytes, not synthesised
+/// ones: the previous body was the 3.3.5 layout and would fail every one of them
+/// on the first byte, so a shape-only test would not have caught it.
+///
+/// The GUID mask is SPLIT either side of the 22-bit lock count, which is what makes
+/// the length identity len == 18 + popcount(byte0) + popcount(byte3).
+static void test_join_result_refusal_fixture()
+{
+    // capture-000059 seq 490545: role check failed, detail 6 (LFG_ROLECHECK_NO_ROLE).
+    // A refusal zeroes the GUID and the entire ticket -- that is what makes it 18 bytes.
+    MopLfgPackets::JoinResult update;
+    update.result = 0x1C;
+    update.detail = 6;
+
+    WorldPacket packet(SMSG_LFG_JOIN_RESULT, 24);
+    MopLfgPackets::BuildJoinResult(packet, update);
+    CHECK(Equal(packet, {
+        0x00,0x00,0x00,0x00,
+        0x1C, 0x06,
+        0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00
+    }));
+}
+
+static void test_join_result_success_23_fixture()
+{
+    // capture-000044 seq 1547. The ticket here is the SAME one carried by
+    // SMSG_LFG_QUEUE_STATUS seq 1577 in this capture: joinTime 0x54146107,
+    // queueId 0x9BFF. Three of the eight GUID bytes are zero, hence 23 not 26.
+    MopLfgPackets::JoinResult update;
+    update.requesterGuid = 0x0400000006296291ULL;
+    update.joinTime = 0x54146107;
+    update.clientQueueId = 0x9BFF;
+    update.ticketType = 3;
+
+    WorldPacket packet(SMSG_LFG_JOIN_RESULT, 32);
+    MopLfgPackets::BuildJoinResult(packet, update);
+    CHECK(Equal(packet, {
+        0xB0, 0x00, 0x00, 0x14,
+        0x00, 0x00,
+        0x28,
+        0x07, 0x61, 0x14, 0x54,
+        0xFF, 0x9B, 0x00, 0x00,
+        0x03, 0x00, 0x00, 0x00,
+        0x63, 0x90, 0x05, 0x07
+    }));
+}
+
+static void test_join_result_success_24_fixture()
+{
+    // capture-000075 seq 891753: a different GUID with one more non-zero byte.
+    MopLfgPackets::JoinResult update;
+    update.requesterGuid = 0x1F5400001249B4F0ULL;
+    update.joinTime = 0x53D28F06;
+    update.clientQueueId = 0x4692;
+    update.ticketType = 3;
+
+    WorldPacket packet(SMSG_LFG_JOIN_RESULT, 32);
+    MopLfgPackets::BuildJoinResult(packet, update);
+    CHECK(Equal(packet, {
+        0xF0, 0x00, 0x00, 0x14,
+        0x00, 0x00,
+        0x48,
+        0x06, 0x8F, 0xD2, 0x53,
+        0x92, 0x46, 0x00, 0x00,
+        0x03, 0x00, 0x00, 0x00,
+        0x55, 0xB5, 0xF1, 0x1E, 0x13
+    }));
+}
+
 static void test_lock_info_request()
 {
     WorldPacket player(CMSG_LFG_LOCK_INFO_REQUEST, 2);
@@ -182,6 +254,9 @@ int main(int /*argc*/, char** /*argv*/)
 {
     test_update_status_exact_fixture();
     test_queue_status_exact_fixture();
+    test_join_result_refusal_fixture();
+    test_join_result_success_23_fixture();
+    test_join_result_success_24_fixture();
     test_lock_info_request();
     test_lfr_search_request();
 

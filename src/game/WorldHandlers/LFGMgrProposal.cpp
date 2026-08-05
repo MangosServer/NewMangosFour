@@ -131,7 +131,7 @@ void LFGMgr::PerformRoleCheck(Player* pPlayer, Group* pGroup, uint8 roles)
             default:
                 if (roleCheck.leaderGuidRaw == guidBuff.GetRawValue())
                 {
-                    SendLfgJoinResult(guidBuff, ERR_LFG_ROLE_CHECK_FAILED, LFG_STATE_ROLECHECK, nullForbidden);
+                    SendLfgJoinResult(guidBuff, ERR_LFG_ROLE_CHECK_FAILED, uint8(roleCheck.state), nullForbidden);
                 }
                 SetPlayerUpdateType(guidBuff, LFG_UPDATE_ROLECHECK_FAILED);
                 SendLfgUpdate(guidBuff, GetPlayerStatus(guidBuff), true);
@@ -1434,13 +1434,13 @@ void LFGMgr::SendLfgUpdate(ObjectGuid plrGuid, LFGPlayerStatus status, bool isGr
     }
 }
 
-void LFGMgr::SendLfgJoinResult(ObjectGuid plrGuid, LfgJoinResult result, LFGState state, partyForbidden const& lockedDungeons)
+void LFGMgr::SendLfgJoinResult(ObjectGuid plrGuid, LfgJoinResult result, uint8 detail, partyForbidden const& lockedDungeons)
 {
     Player* pPlayer = sObjectAccessor.FindPlayer(plrGuid);
 
     if (pPlayer)
     {
-        pPlayer->GetSession()->SendLfgJoinResult(result, state, lockedDungeons);
+        pPlayer->GetSession()->SendLfgJoinResult(result, detail, lockedDungeons);
     }
 }
 

@@ -609,6 +609,8 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_LFG_BOOT_PLAYER:            // MopLfgPackets::BuildBootPlayer
         case SMSG_LFG_UPDATE_STATUS:          // MopLfgPackets::BuildUpdateStatus
         case SMSG_LFG_QUEUE_STATUS:           // MopLfgPackets::BuildQueueStatus
+        case SMSG_LFG_JOIN_RESULT:            // MopLfgPackets::BuildJoinResult, byte-exact vs capture-000059 seq 490545 (18B refusal),
+                                              // capture-000044 seq 1547 (23B) and capture-000075 seq 891753 (24B)
         case SMSG_LFG_PLAYER_INFO:            // MopLfgPackets::BuildEmptyPlayerInfo
         case SMSG_LFG_PARTY_INFO:             // MopLfgPackets::BuildEmptyPartyInfo
         case SMSG_LFG_UPDATE_SEARCH:           // MopLfgPackets::BuildEmptyLfrSearchResponse

@@ -45,6 +45,8 @@ INSTANTIATE_SINGLETON_1(LFGMgr);
 LFGMgr::LFGMgr()
 {
     m_proposalId = 0;
+    // Starts at a non-zero base: retail never sends ticketId 0.
+    m_nextTicketId = 1000;
 }
 
 LFGMgr::~LFGMgr()
@@ -697,6 +699,12 @@ void LFGMgr::AddToQueue(ObjectGuid guid)
     {
         m_queueSet.insert(guid);
     }
+
+    // Tell the client its queue status straight away. Retail's first SMSG_LFG_QUEUE_STATUS
+    // lands 1-5s after the join, long before any tick would fire -- see SendQueueStatusFor.
+    // This must stay AFTER UpdateNeededRoles above, which fills the tank/healer/dps counts
+    // the packet carries; sending first would report a queue that needs nobody.
+    SendQueueStatusFor(guid, time(0));
 }
 
 void LFGMgr::RemoveFromQueue(ObjectGuid guid)
@@ -1280,81 +1288,108 @@ void LFGMgr::SendQueueStatus()
     // Check who is listed as being in the queue
     for (queueSet::iterator itr = m_queueSet.begin(); itr != m_queueSet.end(); ++itr)
     {
-        // make sure it's not a false entry
-        LFGPlayers* queueInfo = GetPlayerOrPartyData(*itr);
-        if (queueInfo && queueInfo->currentState == LFG_STATE_QUEUED)
+        SendQueueStatusFor(*itr, timeNow);
+    }
+}
+
+// Split out of SendQueueStatus so a single queue can be told its status the moment it is
+// created, rather than only on the next matchmaker tick.
+//
+// Retail sends the first SMSG_LFG_QUEUE_STATUS within seconds of the join: across 55 queued
+// sessions at build 18414 the delay from CMSG_LFG_JOIN to the first status is 1-5s (median 4),
+// and it then repeats roughly every 35s. capture-000044 seq 1577 confirms both halves of that
+// -- its queuedTime field reads 3, matching the 3s the index measured since the join.
+//
+// Tick-only delivery could not reproduce that. SendQueueStatus runs at the END of Update(),
+// AFTER FindQueueMatches, so a queue that matched on its first tick was dequeued before the
+// status was ever built and the player got NONE at all -- no role counts, no average wait, an
+// empty eye tooltip. Observed live on a solo debug queue that matched 29s after joining.
+void LFGMgr::SendQueueStatusFor(ObjectGuid queueGuid, time_t timeNow)
+{
+    // make sure it's not a false entry
+    LFGPlayers* queueInfo = GetPlayerOrPartyData(queueGuid);
+    if (!queueInfo || queueInfo->currentState != LFG_STATE_QUEUED)
+    {
+        return;
+    }
+
+    // Guarded because this now also runs at join time: dungeonList.begin() on an empty
+    // set is undefined, and an empty list is reachable if every candidate was filtered.
+    if (queueInfo->dungeonList.empty())
+    {
+        return;
+    }
+
+    for (roleMap::iterator rItr = queueInfo->currentRoles.begin(); rItr != queueInfo->currentRoles.end(); ++rItr)
+    {
+        if (Player* pPlayer = sObjectAccessor.FindPlayer(rItr->first))
         {
-            for (roleMap::iterator rItr = queueInfo->currentRoles.begin(); rItr != queueInfo->currentRoles.end(); ++rItr)
+            uint32 dungeonId = *queueInfo->dungeonList.begin();
+
+            // Each recipient must be told about THEIR OWN queue, not the
+            // merged entry's key.
+            //
+            // The key is whichever entry did the absorbing, so after two solo
+            // players merge it is one of their guids. The other player joined
+            // under their own guid -- that is what SMSG_LFG_UPDATE_STATUS sent
+            // them as requesterGuid -- and a queue status arriving under a
+            // stranger's identity does not match the queue their client is
+            // tracking, so it is ignored: no role counts, no average wait, a
+            // placeholder time in queue, and most of the minimap eye's tooltip
+            // missing. The absorbing player saw none of this, because for them
+            // the merged key IS their own guid.
+            //
+            // Mirrors SendLfgUpdate: a party member's queue is keyed by the
+            // group guid, everyone else by their own.
+            ObjectGuid memberQueueGuid = rItr->first;
+            if (Group* pGroup = pPlayer->GetGroup())
             {
-                if (Player* pPlayer = sObjectAccessor.FindPlayer(rItr->first))
+                if (pGroup->GetObjectGuid() == queueGuid)
                 {
-                    uint32 dungeonId = *queueInfo->dungeonList.begin();
-
-                    // Each recipient must be told about THEIR OWN queue, not the
-                    // merged entry's key.
-                    //
-                    // The key is whichever entry did the absorbing, so after two solo
-                    // players merge it is one of their guids. The other player joined
-                    // under their own guid -- that is what SMSG_LFG_UPDATE_STATUS sent
-                    // them as requesterGuid -- and a queue status arriving under a
-                    // stranger's identity does not match the queue their client is
-                    // tracking, so it is ignored: no role counts, no average wait, a
-                    // placeholder time in queue, and most of the minimap eye's tooltip
-                    // missing. The absorbing player saw none of this, because for them
-                    // the merged key IS their own guid.
-                    //
-                    // Mirrors SendLfgUpdate: a party member's queue is keyed by the
-                    // group guid, everyone else by their own.
-                    ObjectGuid memberQueueGuid = rItr->first;
-                    if (Group* pGroup = pPlayer->GetGroup())
-                    {
-                        if (pGroup->GetObjectGuid() == *itr)
-                        {
-                            memberQueueGuid = *itr;
-                        }
-                    }
-
-                    LFGQueueStatus status;
-                    status.queueGuid = memberQueueGuid.GetRawValue();
-                    status.dungeonID        = dungeonId;
-                    status.neededTanks      = queueInfo->neededTanks;
-                    status.neededHeals      = queueInfo->neededHealers;
-                    status.neededDps        = queueInfo->neededDps;
-                    status.timeSpentInQueue = uint32(timeNow - queueInfo->joinedTime);
-                    status.joinTime = uint32(queueInfo->joinedTime);
-
-                    int32 playerWaitTime;
-
-                    // strip leader flag from role
-                    uint8 withoutLeader = rItr->second;
-                    withoutLeader &= ~PLAYER_ROLE_LEADER;
-
-                    switch (withoutLeader)
-                    {
-                        case PLAYER_ROLE_TANK:
-                            playerWaitTime = m_tankWaitTime[dungeonId].time;
-                            break;
-                        case PLAYER_ROLE_HEALER:
-                            playerWaitTime = m_healerWaitTime[dungeonId].time;
-                            break;
-                        case PLAYER_ROLE_DAMAGE:
-                            playerWaitTime = m_dpsWaitTime[dungeonId].time;
-                            break;
-                        default:
-                            playerWaitTime = m_avgWaitTime[dungeonId].time;
-                            break;
-                    }
-
-                    status.playerAvgWaitTime = playerWaitTime;
-                    status.dpsAvgWaitTime    = m_dpsWaitTime[dungeonId].time;
-                    status.healerAvgWaitTime = m_healerWaitTime[dungeonId].time;
-                    status.tankAvgWaitTime   = m_tankWaitTime[dungeonId].time;
-                    status.avgWaitTime       = m_avgWaitTime[dungeonId].time;
-
-                    // Send packet to client
-                    pPlayer->GetSession()->SendLfgQueueStatus(status);
+                    memberQueueGuid = queueGuid;
                 }
             }
+
+            LFGQueueStatus status;
+            status.queueGuid = memberQueueGuid.GetRawValue();
+            status.dungeonID        = dungeonId;
+            status.neededTanks      = queueInfo->neededTanks;
+            status.neededHeals      = queueInfo->neededHealers;
+            status.neededDps        = queueInfo->neededDps;
+            status.timeSpentInQueue = uint32(timeNow - queueInfo->joinedTime);
+            status.joinTime = uint32(queueInfo->joinedTime);
+            status.ticketId = queueInfo->ticketId;
+
+            int32 playerWaitTime;
+
+            // strip leader flag from role
+            uint8 withoutLeader = rItr->second;
+            withoutLeader &= ~PLAYER_ROLE_LEADER;
+
+            switch (withoutLeader)
+            {
+                case PLAYER_ROLE_TANK:
+                    playerWaitTime = m_tankWaitTime[dungeonId].time;
+                    break;
+                case PLAYER_ROLE_HEALER:
+                    playerWaitTime = m_healerWaitTime[dungeonId].time;
+                    break;
+                case PLAYER_ROLE_DAMAGE:
+                    playerWaitTime = m_dpsWaitTime[dungeonId].time;
+                    break;
+                default:
+                    playerWaitTime = m_avgWaitTime[dungeonId].time;
+                    break;
+            }
+
+            status.playerAvgWaitTime = playerWaitTime;
+            status.dpsAvgWaitTime    = m_dpsWaitTime[dungeonId].time;
+            status.healerAvgWaitTime = m_healerWaitTime[dungeonId].time;
+            status.tankAvgWaitTime   = m_tankWaitTime[dungeonId].time;
+            status.avgWaitTime       = m_avgWaitTime[dungeonId].time;
+
+            // Send packet to client
+            pPlayer->GetSession()->SendLfgQueueStatus(status);
         }
     }
 }

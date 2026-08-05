@@ -71,7 +71,7 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
     if (HasLiveProposalFor(plr->GetObjectGuid()))
     {
         partyForbidden noneForbidden;
-        plr->GetSession()->SendLfgJoinResult(ERR_LFG_NO_LFG_OBJECT, LFG_STATE_PROPOSAL, noneForbidden);
+        plr->GetSession()->SendLfgJoinResult(ERR_LFG_NO_LFG_OBJECT, LFG_JOIN_DETAIL_NONE, noneForbidden);
         return;
     }
 
@@ -324,14 +324,20 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         }
         else
         {
-            result = (pGroup) ? ERR_LFG_NO_SLOTS_PARTY : ERR_LFG_NO_SLOTS_PLAYER;
+            // NO_SLOTS_PLAYER for a party too. 18414 has no NO_SLOTS_PARTY code: the
+            // GlobalString survives at index 0x2EE but nothing in the client's result
+            // table maps to it, so the old party value (0x06) matched no entry and the
+            // client displayed nothing at all -- the most common way to queue and see
+            // the button do nothing. 0x20 is also the code that carries the per-player
+            // lock array, so the party is told WHICH dungeons were locked.
+            result = ERR_LFG_NO_SLOTS_PLAYER;
         }
     }
 
     // If our result is not ERR_LFG_OK, send join result now with err message
     if (result != ERR_LFG_OK)
     {
-        plr->GetSession()->SendLfgJoinResult(result, LFG_STATE_NONE, partyLockedDungeons);
+        plr->GetSession()->SendLfgJoinResult(result, LFG_JOIN_DETAIL_NONE, partyLockedDungeons);
         return;
     }
 
@@ -364,10 +370,12 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         {
             if (Player* pGroupPlr = itr->getSource())
             {
-                LFGPlayerStatus overallStatus(LFG_STATE_NONE, LFG_UPDATE_JOIN, dungeons, comments);
+                // ROLECHECK, not NONE -- same reason as the solo path below. The update
+                // announced the join while reporting the state as NONE, and only moved to
+                // ROLECHECK for the stored copy afterwards.
+                LFGPlayerStatus overallStatus(LFG_STATE_ROLECHECK, LFG_UPDATE_JOIN, dungeons, comments);
 
                 pGroupPlr->GetSession()->SendLfgUpdate(true, overallStatus);
-                overallStatus.state = LFG_STATE_ROLECHECK;
 
                 ObjectGuid plrGuid = pGroupPlr->GetObjectGuid();
                 roleCheck.currentRoles[plrGuid] = 0;
@@ -385,6 +393,7 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         // used later if they enter the queue
         LFGPlayers groupInfo(LFG_STATE_NONE, dungeons, roleCheck.currentRoles, comments, false, time(NULL), 0, 0, 0);
         groupInfo.candidateDungeons = candidates;
+        groupInfo.ticketId = AllocateTicketId();
         m_playerData[guid] = groupInfo;
 
         PerformRoleCheck(plr, pGroup, (uint8)roles);
@@ -416,20 +425,46 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
 
         LFGPlayers playerInfo(LFG_STATE_QUEUED, dungeons, playerRole, comments, false, time(NULL), 0, 0, 0);
         playerInfo.candidateDungeons = candidates;
+        playerInfo.ticketId = AllocateTicketId();
         m_playerData[guid] = playerInfo;
 
         // set up a status struct for client requests/updates
+        //
+        // QUEUED, not NONE. This used to announce the join while reporting the player's LFG
+        // state as LFG_STATE_NONE, and only correct it to QUEUED afterwards for storage -- so
+        // the packet said "you have joined the dungeon finder" and "you are not in the dungeon
+        // finder" at the same time, and the client had no active queue to announce. Observed
+        // live: pressing Queue produced no notification at all, and the only one the player
+        // ever saw was a stale status replayed after they had already entered the dungeon.
         LFGPlayerStatus plrStatus;
-        plrStatus.updateType  = LFG_UPDATE_JOIN;
-        plrStatus.state = LFG_STATE_NONE;
+        plrStatus.updateType  = LFG_UPDATE_JOIN_QUEUE_INITIAL;
+        plrStatus.state = LFG_STATE_QUEUED;
         plrStatus.dungeonList = dungeons;
         plrStatus.comment = comments;
 
-        // Send information back to the client
-        plr->GetSession()->SendLfgJoinResult(result, LFG_STATE_NONE, partyLockedDungeons);
+        // Retail's join burst, in this order (capture-000720 seq 182-185, and the same
+        // shape at capture-000044 seq 3601-3605):
+        //
+        //   1. SMSG_LFG_UPDATE_STATUS reason 24, queued = 0
+        //   2. SMSG_LFG_UPDATE_STATUS reason 13, queued = 1
+        //   3. SMSG_LFG_JOIN_RESULT
+        //   4. SMSG_LFG_UPDATE_STATUS reason 13 again -- a byte-identical duplicate of 2
+        //
+        // We used to lead with the join result and send a single status packet. The
+        // opening reason was 6, which retail uses for re-queueing from INSIDE a dungeon
+        // and never to open a fresh queue: 257 of 276 observed joins lead with 24.
+        //
+        // Step 4 is not a mistake in the capture. Retail repeats reason 13 either side
+        // of the join result in every session walked.
         plr->GetSession()->SendLfgUpdate(false, plrStatus);
 
-        plrStatus.state = LFG_STATE_QUEUED;
+        plrStatus.updateType = LFG_UPDATE_ADDED_TO_QUEUE;
+        plr->GetSession()->SendLfgUpdate(false, plrStatus);
+
+        plr->GetSession()->SendLfgJoinResult(result, LFG_JOIN_DETAIL_NONE, partyLockedDungeons);
+
+        plr->GetSession()->SendLfgUpdate(false, plrStatus);
+
         m_playerStatusMap[guid] = plrStatus;
         AddToQueue(guid);
     }
@@ -676,6 +711,7 @@ bool LFGMgr::GetStatusPacketData(ObjectGuid queueGuid, ObjectGuid playerGuid, LF
         data.roles = role->second;
 
     data.joinedTime = uint32(information.joinedTime);
+    data.ticketId = information.ticketId;
     data.neededTanks = information.neededTanks;
     data.neededHealers = information.neededHealers;
     data.neededDps = information.neededDps;
