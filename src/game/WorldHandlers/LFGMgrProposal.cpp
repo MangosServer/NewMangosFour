@@ -755,12 +755,9 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
         }
     }
 
-    LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(proposal->dungeonID);
-    if (!dungeon)
-    {
-        return;
-    }
-
+    // `dungeon` is the lookup made at the top of this function, before any group was
+    // created -- it is not re-fetched here.
+    //
     // LfgDungeons.dbc carries a RAW client DifficultyID. Casting it straight to
     // Difficulty made LFG normal (id 1) select internal mode 1 -- HEROIC -- and LFG
     // heroic (id 2) select mode 2, CHALLENGE. That value does not stay in the session:
@@ -825,8 +822,8 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
         pGroup->SetDungeonDifficulty(Difficulty(dungeonMode));
     }
 
-    // Add group to our group set and group map, then teleport to the dungeon
-    ObjectGuid groupGuid = pGroup->GetObjectGuid();
+    // Add group to our group set and group map, then teleport to the dungeon.
+    // groupGuid is the one taken above; do not shadow it.
     LFGGroupStatus groupStatus(LFG_STATE_IN_DUNGEON, dungeon->ID, proposal->currentRoles, pGroup->GetLeaderGuid());
 
     m_groupSet.insert(groupGuid);
