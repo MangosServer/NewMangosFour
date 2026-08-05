@@ -79,6 +79,9 @@ void LFGMgr::Update()
     // remove old role checks
     RemoveOldRoleChecks();
 
+    // and proposals nobody answered
+    RemoveOldProposals();
+
     // go through a waitTimeMap::iterator for each wait map and update times based on player count
     for (waitTimeMap::iterator tankItr = m_tankWaitTime.begin(); tankItr != m_tankWaitTime.end(); ++tankItr)
     {
@@ -795,14 +798,137 @@ bool LFGMgr::TryFormGroup(ObjectGuid guid)
         return false;
     }
 
-    SendDungeonProposal(entry);
+    // Everyone in the entry must be online. SendDungeonProposal skips offline players
+    // when filling `groups` and `answers` while `currentRoles` still counts them toward
+    // the completed composition, so the online members could all accept, `allOkay` would
+    // see no pending answer for the absent one, and a SHORT group would be built and
+    // teleported in. Drop them from the entry instead and let it re-fill.
+    std::vector<ObjectGuid> offline;
+    for (roleMap::const_iterator it = entry->currentRoles.begin(); it != entry->currentRoles.end(); ++it)
+    {
+        if (!sObjectAccessor.FindPlayer(it->first))
+        {
+            offline.push_back(it->first);
+        }
+    }
 
-    // Out of the queue the moment a proposal exists for it. Without this the entry is
-    // still LFG_STATE_QUEUED next tick, gets matched again, and fires a fresh proposal
-    // -- and a new SMSG_LFG_PROPOSAL_UPDATE -- every single tick, forever.
+    if (!offline.empty())
+    {
+        for (std::vector<ObjectGuid>::const_iterator it = offline.begin(); it != offline.end(); ++it)
+        {
+            entry->currentRoles.erase(*it);
+            m_playerStatusMap.erase(*it);
+        }
+
+        if (entry->currentRoles.empty())
+        {
+            m_queueSet.erase(guid);
+            m_playerData.erase(guid);
+            return false;
+        }
+
+        UpdateNeededRoles(guid, entry);
+        return false;   // no longer complete; stays queued and keeps looking
+    }
+
+    // Out of the MATCH set, but the entry itself stays. Leaving it in m_queueSet would
+    // have it matched again next tick and fire a fresh proposal -- and a new
+    // SMSG_LFG_PROPOSAL_UPDATE -- every tick forever. Keeping m_playerData is what lets
+    // a declined or timed-out proposal put the survivors back in the queue rather than
+    // ejecting them from the dungeon finder.
     m_queueSet.erase(guid);
-    m_playerData.erase(guid);
+    entry->currentState = LFG_STATE_PROPOSAL;
+
+    SendDungeonProposal(entry);
     return true;
+}
+
+void LFGMgr::CancelProposal(uint32 proposalId, std::set<ObjectGuid> const& culprits)
+{
+    proposalMap::iterator it = m_proposalMap.find(proposalId);
+    if (it == m_proposalMap.end())
+    {
+        return;
+    }
+
+    LFGProposal proposal = it->second;      // copy: the map entry is erased below
+    m_proposalMap.erase(it);
+
+    // Tell every client the proposal is over so the window closes.
+    proposal.state = LFG_PROPOSAL_FAILED;
+    for (proposalAnswerMap::const_iterator ans = proposal.answers.begin();
+         ans != proposal.answers.end(); ++ans)
+    {
+        if (Player* pMember = sObjectAccessor.FindPlayer(ans->first))
+        {
+            pMember->GetSession()->SendLfgProposalUpdate(proposal);
+        }
+    }
+
+    LFGPlayers* entry = GetPlayerOrPartyData(proposal.queueGuid);
+
+    // The players responsible leave the dungeon finder outright -- the client says so:
+    // "You have been removed from the queue because you did not accept the invitation."
+    for (std::set<ObjectGuid>::const_iterator bad = culprits.begin(); bad != culprits.end(); ++bad)
+    {
+        if (entry)
+        {
+            entry->currentRoles.erase(*bad);
+        }
+
+        SetPlayerState(*bad, LFG_STATE_NONE);
+        SetPlayerUpdateType(*bad, LFG_UPDATE_LEAVE);
+        SendLfgUpdate(*bad, GetPlayerStatus(*bad), false);
+
+        m_queueSet.erase(*bad);
+        m_playerData.erase(*bad);
+        m_playerStatusMap.erase(*bad);
+    }
+
+    if (!entry || entry->currentRoles.empty())
+    {
+        m_queueSet.erase(proposal.queueGuid);
+        m_playerData.erase(proposal.queueGuid);
+        return;
+    }
+
+    // Everyone else goes back in: "You have been returned to the front of the queue."
+    entry->currentState = LFG_STATE_QUEUED;
+    UpdateNeededRoles(proposal.queueGuid, entry);
+
+    for (roleMap::const_iterator role = entry->currentRoles.begin();
+         role != entry->currentRoles.end(); ++role)
+    {
+        SetPlayerState(role->first, LFG_STATE_QUEUED);
+        SetPlayerUpdateType(role->first, LFG_UPDATE_ADDED_TO_QUEUE);
+        SendLfgUpdate(role->first, GetPlayerStatus(role->first), false);
+    }
+
+    m_queueSet.insert(proposal.queueGuid);
+}
+
+void LFGMgr::RemoveOldProposals()
+{
+    time_t const now = time(NULL);
+
+    std::vector<uint32> expired;
+    for (proposalMap::const_iterator it = m_proposalMap.begin(); it != m_proposalMap.end(); ++it)
+    {
+        if (it->second.createdTime && (now - it->second.createdTime) >= LFG_TIME_PROPOSAL)
+        {
+            expired.push_back(it->first);
+        }
+    }
+
+    // Collected first: CancelProposal erases from the map being walked.
+    //
+    // Without this reaper a recipient who ignored the popup, disconnected, or whose
+    // client-side timer lapsed left everyone else pinned at LFG_STATE_PROPOSAL for ever
+    // -- and JoinLFG refuses that state, so they could not re-queue until relog.
+    for (std::vector<uint32>::const_iterator it = expired.begin(); it != expired.end(); ++it)
+    {
+        CancelProposal(*it, std::set<ObjectGuid>());
+    }
 }
 
 void LFGMgr::FindQueueMatches()

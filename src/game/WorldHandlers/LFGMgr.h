@@ -877,6 +877,13 @@ struct LFGProposal
     // whatever was on the stack.
     uint32 id = 0;                  // proposal id
     uint32 dungeonID = 0;           // dungeon id
+
+    // The m_playerData key this proposal was built from. The queue entry is kept alive
+    // for the lifetime of the proposal so a failure can put the survivors back, which is
+    // what the client tells the player happens: ERR_LFG_PROPOSAL_FAILED reads "Someone
+    // has declined the invite. You have been returned to the front of the queue."
+    ObjectGuid queueGuid;
+    time_t createdTime = 0;         // for the timeout reaper
     LFGProposalState state = LFG_PROPOSAL_INITIATING;  // proposal state
     uint32 encounters = 0;          // encounters done
     uint64 groupRawGuid = 0;        // group raw guid value
@@ -1075,6 +1082,20 @@ public:
      * @return true if a proposal was sent (the entry no longer exists).
      */
     bool TryFormGroup(ObjectGuid guid);
+
+    /**
+     * @brief Cancel a proposal, remove the players responsible, and return everyone else
+     *        to the queue.
+     *
+     * @param proposalId the proposal to cancel
+     * @param culprits   players removed from the dungeon finder entirely (the decliner
+     *                   and, if they were in a premade, that premade). Empty on timeout,
+     *                   where nobody is singled out.
+     */
+    void CancelProposal(uint32 proposalId, std::set<ObjectGuid> const& culprits);
+
+    /// Cancel proposals nobody answered within LFG_TIME_PROPOSAL.
+    void RemoveOldProposals();
 
     /**
      * @brief Add the player or group to the Dungeon Finder queue

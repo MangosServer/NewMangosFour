@@ -210,6 +210,17 @@ void LFGMgr::SendDungeonProposal(LFGPlayers* lfgGroup)
     newProposal.dungeonID = *dItr;
     newProposal.isNew = true;
     newProposal.joinedQueue = lfgGroup->joinedTime;
+    newProposal.createdTime = time(NULL);
+
+    // Which queue entry this came from, so a failure can put the survivors back.
+    for (playerData::const_iterator it = m_playerData.begin(); it != m_playerData.end(); ++it)
+    {
+        if (&it->second == lfgGroup)
+        {
+            newProposal.queueGuid = it->first;
+            break;
+        }
+    }
 
     bool premadeGroup = IsProposalSameGroup(newProposal);
 
@@ -354,85 +365,58 @@ void LFGMgr::ProposalUpdate(uint32 proposalID, ObjectGuid plrGuid, bool accepted
         return;
     }
 
+    // Only a participant may answer.
+    //
+    // m_proposalId is a plain incrementing counter, so an id is trivially guessable.
+    // Without this check, writing to proposal->answers INSERTED the caller, and a
+    // `false` answer from any logged-in player cancelled a group they had nothing to do
+    // with -- clearing the real members out of the queue.
+    if (proposal->answers.find(plrGuid) == proposal->answers.end())
+    {
+        sLog.outError("LFG: %s answered proposal %u they are not part of.",
+                      plrGuid.GetString().c_str(), proposalID);
+        return;
+    }
+
     bool allOkay = true; // true if everyone answered LFG_ANSWER_AGREE
 
     // Update answer map to given value
     LFGProposalAnswer plrAnswer = (LFGProposalAnswer)accepted;
     proposal->answers[plrGuid] = plrAnswer;
 
-    // A decline cancels the WHOLE proposal, for everyone.
+    // A decline cancels the proposal, but it does NOT eject everyone.
     //
-    // Three bugs lived in the old fall-through. ProposalDeclined can erase the proposal
-    // from m_proposalMap, destroying the object `proposal` points into, and the code
-    // below then iterated and wrote through that dangling pointer. When it did NOT
-    // erase -- the non-premade path -- it removed the decliner from `answers`, so the
-    // allOkay loop no longer saw them: four accepts plus one decline in a five-man read
-    // as unanimous, built a FOUR-man group and teleported it in. And simply returning
-    // early left the other members holding a proposal window that never closed.
+    // The client states all three outcomes plainly:
+    //   ERR_LFG_PROPOSAL_FAILED         "Someone has declined the invite. You have been
+    //                                    returned to the front of the queue."
+    //   ERR_LFG_PROPOSAL_DECLINED_SELF  "You have been removed from the queue because you
+    //                                    did not accept the invitation."
+    //   ERR_LFG_PROPOSAL_DECLINED_PARTY "...because someone in your party did not accept."
     //
-    // So: mark it failed, tell everyone still listed so their windows close, run the
-    // per-player teardown, then erase the proposal unconditionally.
+    // So the decliner leaves, their premade leaves with them, and everyone else is
+    // requeued. An earlier version of this removed everyone, which is why the queue
+    // entry is now kept alive for the lifetime of the proposal -- there has to be
+    // something left to put people back into.
     if (plrAnswer == LFG_ANSWER_DENY)
     {
-        uint32 const cancelledId = proposal->id;
+        std::set<ObjectGuid> culprits;
+        culprits.insert(plrGuid);
 
-        proposal->state = LFG_PROPOSAL_FAILED;
-
-        for (proposalAnswerMap::const_iterator itr = proposal->answers.begin();
-             itr != proposal->answers.end(); ++itr)
+        // A premade is removed alongside the member who declined for it.
+        playerGroupMap::const_iterator declinerGroup = proposal->groups.find(plrGuid);
+        if (declinerGroup != proposal->groups.end() && declinerGroup->second)
         {
-            if (Player* pMember = sObjectAccessor.FindPlayer(itr->first))
+            for (playerGroupMap::const_iterator it = proposal->groups.begin();
+                 it != proposal->groups.end(); ++it)
             {
-                pMember->GetSession()->SendLfgProposalUpdate(*proposal);
+                if (it->second == declinerGroup->second)
+                {
+                    culprits.insert(it->first);
+                }
             }
         }
 
-        // Snapshot the membership before ProposalDeclined, which calls LeaveLFG and can
-        // mutate the maps we need to walk afterwards.
-        std::vector<ObjectGuid> members;
-        members.reserve(proposal->answers.size());
-        for (proposalAnswerMap::const_iterator itr = proposal->answers.begin();
-             itr != proposal->answers.end(); ++itr)
-        {
-            members.push_back(itr->first);
-        }
-
-        ProposalDeclined(plrGuid, proposal);
-
-        // Clear EVERY member's dungeon finder state, not just the decliner's.
-        //
-        // ProposalDeclined calls LeaveLFG for the decliner alone, so without this the
-        // other members stayed at LFG_STATE_PROPOSAL for ever: their queue entry was
-        // already erased when the proposal fired, nothing else resets them, and JoinLFG
-        // now refuses a player in that state -- which would have left them unable to use
-        // the dungeon finder again until relog.
-        //
-        // Everyone leaving on a decline is deliberate. Retail puts the non-decliners
-        // back in the queue, but their queue data is gone by this point and rebuilding
-        // it is a separate piece of work; leaving LFG cleanly is correct-but-less, and
-        // is visible to the player rather than silent.
-        for (std::vector<ObjectGuid>::const_iterator itr = members.begin();
-             itr != members.end(); ++itr)
-        {
-            // Tell them they are out of the queue BEFORE the status entry goes, since
-            // the update is built from it. Closing the proposal window is not enough on
-            // its own: without an explicit LEAVE the client keeps showing itself as
-            // queued for a queue that no longer exists.
-            SetPlayerState(*itr, LFG_STATE_NONE);
-            SetPlayerUpdateType(*itr, LFG_UPDATE_LEAVE);
-
-            bool const wasGrouped = m_playerData.find(*itr) != m_playerData.end() &&
-                                    m_playerData[*itr].isGroup;
-            SendLfgUpdate(*itr, GetPlayerStatus(*itr), wasGrouped);
-
-            m_queueSet.erase(*itr);
-            m_playerData.erase(*itr);
-            m_playerStatusMap.erase(*itr);
-        }
-
-        // Unconditional. The premade path erased it and the solo path did not, which is
-        // what left a stale proposal able to complete short on a later accept.
-        m_proposalMap.erase(cancelledId);
+        CancelProposal(proposal->id, culprits);
         return;
     }
 
@@ -656,6 +640,17 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
         }
 
         pGroup->SetAsLfgGroup();
+
+        // A dungeon whose composition exceeds a party must be a RAID before anyone is
+        // added. Group::IsFull caps a normal party at MAX_GROUP_SIZE, and AddMember just
+        // returns false past that -- so a raid-finder proposal (2/6/17 = 25) silently
+        // completed as a five-man while the other twenty were told a group had been
+        // found, never added, and never teleported.
+        if (dungeon->Count_tank + dungeon->Count_healer + dungeon->Count_damage > MAX_GROUP_SIZE)
+        {
+            pGroup->ConvertToRaid();
+        }
+
         sObjectMgr.AddGroup(pGroup);
     }
 
@@ -677,7 +672,13 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
             Player::RemoveFromGroup(existing, it->first);
         }
 
-        pGroup->AddMember(it->first, pMember->GetName());
+        if (!pGroup->AddMember(it->first, pMember->GetName()))
+        {
+            // Ignoring this return is how the raid case failed silently. Say so.
+            sLog.outError("LFG: could not add %s to dungeon group %u (full at %u members).",
+                          it->first.GetString().c_str(), pGroup->GetId(),
+                          pGroup->GetMembersCount());
+        }
     }
 
     LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(proposal->dungeonID);
@@ -898,6 +899,12 @@ LFGGroupStatus* LFGMgr::GetGroupStatus(ObjectGuid guid)
     }
 }
 
+/// Legacy per-player decline teardown.
+///
+/// No longer on the decline path: ProposalUpdate routes declines through CancelProposal,
+/// which implements the three outcomes the client actually describes (decliner out,
+/// their premade out, everyone else requeued). Kept because the boot/kick flow still
+/// references this shape, but it must not be called for a proposal response.
 void LFGMgr::ProposalDeclined(ObjectGuid guid, LFGProposal* proposal)
 {
     Player* pPlayer = sObjectAccessor.FindPlayer(guid);
