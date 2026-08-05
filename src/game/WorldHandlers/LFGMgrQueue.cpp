@@ -451,6 +451,14 @@ void LFGMgr::LeaveLFG(Player* plr, bool isGroup)
                 LFGPlayerStatus grpPlrStatus = GetPlayerStatus(grpPlrGuid);
                 switch (grpPlrStatus.state)
                 {
+                    // IN_DUNGEON and FINISHED_DUNGEON are handled with the queue states,
+                    // and leaving them out is what made "Leave Dungeon" do nothing at all.
+                    // Once the finder has placed a player their state is IN_DUNGEON, so a
+                    // leave fell through this switch, sent the client nothing, and left the
+                    // player believing they were still in an LFG session -- with no way out
+                    // short of relogging. Observed live: two CMSG_LFG_LEAVE with no effect.
+                    case LFG_STATE_IN_DUNGEON:
+                    case LFG_STATE_FINISHED_DUNGEON:
                     case LFG_STATE_PROPOSAL:
                     case LFG_STATE_QUEUED:
                         grpPlrStatus.updateType = LFG_UPDATE_LEAVE;
@@ -479,6 +487,10 @@ void LFGMgr::LeaveLFG(Player* plr, bool isGroup)
         LFGPlayerStatus plrStatus = GetPlayerStatus(plrGuid);
         switch (plrStatus.state)
         {
+            // Same set as the group branch above -- see the note there for why
+            // IN_DUNGEON must be handled rather than falling through.
+            case LFG_STATE_IN_DUNGEON:
+            case LFG_STATE_FINISHED_DUNGEON:
             case LFG_STATE_PROPOSAL:
             case LFG_STATE_QUEUED:
                 plrStatus.updateType = LFG_UPDATE_LEAVE;
