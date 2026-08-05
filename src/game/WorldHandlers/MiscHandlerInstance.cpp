@@ -24,6 +24,7 @@
  */
 
 #include "Common.h"
+#include "DBCStores.h"
 #include "Language.h"
 #include "Database/DatabaseEnv.h"
 #include "Database/DatabaseImpl.h"
@@ -86,14 +87,25 @@ void WorldSession::HandleSetDungeonDifficultyOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: Received opcode MSG_SET_DUNGEON_DIFFICULTY");
 
-    uint32 mode;
-    recv_data >> mode;
+    // The client sends a RAW DifficultyID, not an internal mode.
+    //
+    // This read the value and used it as a Difficulty directly, so Normal (raw 1) would
+    // have stored HEROIC, Heroic (raw 2) would have stored CHALLENGE, and Challenge
+    // (raw 8) would have been rejected outright, since MAX_DUNGEON_DIFFICULTY is 3.
+    // Latent rather than live -- this handler has no DefC registration, so nothing can
+    // reach it -- but wiring it in that state would have silently inverted the setting.
+    uint32 clientDifficultyId;
+    recv_data >> clientDifficultyId;
 
-    if (mode >= MAX_DUNGEON_DIFFICULTY)
+    int32 const internalMode = ToInternalDifficulty(clientDifficultyId);
+    if (internalMode < 0 || internalMode >= MAX_DUNGEON_DIFFICULTY)
     {
-        sLog.outError("WorldSession::HandleSetDungeonDifficultyOpcode: player %d sent an invalid instance mode %d!", _player->GetGUIDLow(), mode);
+        sLog.outError("WorldSession::HandleSetDungeonDifficultyOpcode: player %d sent client difficulty %u, which has no internal dungeon mode!",
+                      _player->GetGUIDLow(), clientDifficultyId);
         return;
     }
+
+    uint32 const mode = uint32(internalMode);
 
     if (Difficulty(mode) == _player->GetDungeonDifficulty())
     {
@@ -135,14 +147,20 @@ void WorldSession::HandleSetRaidDifficultyOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: Received opcode MSG_SET_RAID_DIFFICULTY");
 
-    uint32 mode;
-    recv_data >> mode;
+    // RAW DifficultyID from the client, as with the dungeon handler above. Also latent:
+    // no DefC registration exists for this opcode either.
+    uint32 clientDifficultyId;
+    recv_data >> clientDifficultyId;
 
-    if (mode >= MAX_RAID_DIFFICULTY)
+    int32 const internalMode = ToInternalDifficulty(clientDifficultyId);
+    if (internalMode < 0 || internalMode >= MAX_RAID_DIFFICULTY)
     {
-        sLog.outError("WorldSession::HandleSetRaidDifficultyOpcode: player %d sent an invalid instance mode %d!", _player->GetGUIDLow(), mode);
+        sLog.outError("WorldSession::HandleSetRaidDifficultyOpcode: player %d sent client difficulty %u, which has no internal raid mode!",
+                      _player->GetGUIDLow(), clientDifficultyId);
         return;
     }
+
+    uint32 const mode = uint32(internalMode);
 
     if (Difficulty(mode) == _player->GetRaidDifficulty())
     {

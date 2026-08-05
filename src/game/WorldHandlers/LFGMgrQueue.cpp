@@ -166,24 +166,36 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
                     }
                 }
 
-                // Filter the expansion as well. Group_ID 0 matches 273 rows, 20 of which carry
-                // scenario tier 12, and all 10 random rows that pass admission have Group_ID 0, so
-                // the expanded set is full of dungeons this core cannot run.
+                // Filter the expansion as well, so an untranslatable tier cannot ride into
+                // roleCheck.dungeonList -- that list is handed back to the client and re-read on a
+                // role-check rejoin.
                 //
-                // Be precise about what this does and does not achieve, because an earlier comment
-                // here claimed it was what stopped an untranslatable tier reaching
-                // CreateDungeonGroup. It is not. Both the party and solo paths below replace the
-                // expanded set with randomDungeonID alone before the queued LFGPlayers state is
-                // built, and SendDungeonProposal takes *dungeonList.begin() from that -- so the
-                // proposal always carries the random row, which the admission check above has
-                // already validated. THAT is the guarantee. What this filter does is keep
-                // untranslatable ids out of roleCheck.dungeonList, which is handed back to the
-                // client and re-read on a role-check rejoin.
+                // The numbers that were here before are withdrawn. They claimed Group_ID 0 matches
+                // 273 rows, that 20 of those carry scenario tier 12, and that all 10 admissible
+                // random rows have Group_ID 0. Re-measured against the shipped LfgDungeons.dbc, all
+                // three are wrong: Group_ID 0 matches 79 rows, NONE of them carry tier 12, and no
+                // admissible random row has Group_ID 0 at all -- the ten carry 1, 2, 3, 4, 5, 12,
+                // 13, 33, 36 and 37, one per expansion tier. They were measured through a
+                // LookupEntry that was returning the Nth ROW rather than the row with that ID,
+                // because LfgDungeonsEntryfmt was missing its 'n' index marker, so every row read
+                // belonged to a different dungeon.
                 //
-                // Dropped, not refused: the expansion is a CANDIDATE list, so removing the members
-                // this core cannot run leaves random queueing working, whereas refusing the row
-                // would disable it for all 10. No empty-set check follows, because the admitted
-                // random row is itself translatable and always survives.
+                // With that corrected, this filter removes nothing for any shipped random: each one
+                // expands to a Group_ID whose members are ordinary dungeons carrying raw tier 1 or
+                // 2, both translatable. It is kept as a guard rather than deleted, because the
+                // expansion is driven by DBC content and a future row could carry a tier this core
+                // cannot represent -- but it is a guard, not a load-bearing filter, and it should
+                // not be cited as one.
+                //
+                // What actually stops an untranslatable tier reaching CreateDungeonGroup is the
+                // admission check above. Both the party and solo paths below replace the expanded
+                // set with randomDungeonID alone before the queued LFGPlayers state is built, and
+                // SendDungeonProposal takes *dungeonList.begin() from that, so the proposal always
+                // carries the random row -- which admission has already validated.
+                //
+                // Dropped, not refused: the expansion is a CANDIDATE list, so removing members this
+                // core cannot run leaves random queueing working. No empty-set check follows,
+                // because the admitted random row is itself translatable and always survives.
                 for (std::set<uint32>::iterator it = dungeons.begin(); it != dungeons.end(); )
                 {
                     LfgDungeonsEntry const* candidate = sLfgDungeonsStore.LookupEntry(*it);

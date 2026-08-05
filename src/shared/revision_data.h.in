@@ -62,7 +62,13 @@
     #define CHAR_DB_VERSION_NR          "23"
     #define CHAR_DB_STRUCTURE_NR        "2"
     #define CHAR_DB_CONTENT_NR          "1"
-    #define CHAR_DB_UPDATE_DESCRIPT     "instance_reset keyed on internal Difficulty"
+    // Must match, character for character, the description the characters update inserts
+    // (Rel23_02_001_Instance_Reset_Difficulty_Key_Space.sql). db_version.description is
+    // varchar(30); the previous string was 43 characters, so it could never equal any row
+    // the update could write. Harmless -- CheckDatabaseVersion only PRINTS the description
+    // and gates on version/structure -- but it made the mismatch banner advertise an
+    // expected value no database could ever hold.
+    #define CHAR_DB_UPDATE_DESCRIPT     "instance_reset key space"
 
     #define WORLD_DB_VERSION_NR         "23"
     #define WORLD_DB_STRUCTURE_NR       "3"

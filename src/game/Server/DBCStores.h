@@ -176,6 +176,20 @@ MapDifficultyMap const& GetMapDifficultyLegacyMap();
 // available and is deliberately NOT made, because no spawn on any challenge map carries
 // bit 2 and admitting it would open an empty instance. See the note at the definition.
 int32 ToInternalDifficulty(uint32 clientDifficultyId);
+// Internal 0-based mode -> the RAW client DifficultyID to put ON THE WIRE.
+//
+// The inverse of ToInternalDifficulty is not a function -- several raw ids collapse to the
+// same internal mode -- so the caller must say whether it is talking about a raid tier or a
+// dungeon tier. That is exactly why the client keeps dungeon and raid difficulty in two
+// separate fields with two separate opcodes.
+//
+// Every packet that reports a difficulty to the client MUST go through this. Retail never
+// sends 0 for SMSG_SET_DUNGEON_DIFFICULTY: 954 build-18414 captures carry only 1 (x512) and
+// 2 (x424), and FrameXML/Constants.lua declares DIFFICULTY_DUNGEON_NORMAL = 1,
+// DIFFICULTY_DUNGEON_HEROIC = 2, DIFFICULTY_DUNGEON_CHALLENGE = 8. The raid side is the same
+// key space -- an observed SMSG_SET_RAID_DIFFICULTY body carries 9, which is a legacy
+// 40-player raid and cannot be an internal mode at all, since those stop at 3.
+uint32 ToClientDifficulty(Difficulty difficulty, bool isRaid);
 // True when (mapId, clientDifficultyId) is a row the OLD raw-keyed reset scheduler could have
 // written into `instance_reset`. A migration PREDICATE, not an accessor -- it returns no row, so it
 // is not a way around the tree-wide ban on raw-keyed lookups. Used to tell a genuine stale raw row

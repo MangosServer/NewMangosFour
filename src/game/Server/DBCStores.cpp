@@ -1721,6 +1721,42 @@ ContentLevels GetContentLevelsForMapAndZone(uint32 mapId, uint32 zoneId)
  *     AND (spawnMask & 4) <> 0
  * is non-zero, and test an actual challenge map rather than trusting the mask.
  */
+/**
+ * @brief Internal 0-based mode -> the raw client DifficultyID to put on the wire.
+ *
+ * Round-trips through ToInternalDifficulty for every value it returns, which is asserted
+ * by construction below: each arm is the lowest raw id that translates back to the same
+ * internal mode in the requested context.
+ *
+ * Challenge is the asymmetric case. ToInternalDifficulty deliberately refuses raw 8, because
+ * admitting it would let the core instantiate an empty challenge map -- but the client still
+ * uses 8 to DISPLAY challenge mode, and DUNGEON_DIFFICULTY_CHALLENGE exists as an internal
+ * value that other code can set. So the outbound direction maps it and the inbound direction
+ * does not, and that asymmetry is intentional rather than an oversight.
+ */
+uint32 ToClientDifficulty(Difficulty difficulty, bool isRaid)
+{
+    if (isRaid)
+    {
+        switch (difficulty)
+        {
+            case RAID_DIFFICULTY_10MAN_NORMAL: return 3;
+            case RAID_DIFFICULTY_25MAN_NORMAL: return 4;
+            case RAID_DIFFICULTY_10MAN_HEROIC: return 5;
+            case RAID_DIFFICULTY_25MAN_HEROIC: return 6;
+            default:                           return 3;
+        }
+    }
+
+    switch (difficulty)
+    {
+        case DUNGEON_DIFFICULTY_NORMAL:    return 1;
+        case DUNGEON_DIFFICULTY_HEROIC:    return 2;
+        case DUNGEON_DIFFICULTY_CHALLENGE: return 8;
+        default:                           return 1;
+    }
+}
+
 int32 ToInternalDifficulty(uint32 clientDifficultyId)
 {
     switch (clientDifficultyId)

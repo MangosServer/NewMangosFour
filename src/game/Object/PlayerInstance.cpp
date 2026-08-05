@@ -83,15 +83,24 @@
 
 void Player::SendDungeonDifficulty(bool /*IsInGroup*/)
 {
+    // RAW client id on the wire, not the internal mode.
+    //
+    // This sent GetDungeonDifficulty() straight out, so a character on normal difficulty
+    // reported 0 -- a value retail never sends. Across 954 build-18414 captures of this
+    // opcode the payload is only ever 1 (x512) or 2 (x424), and FrameXML/Constants.lua
+    // declares DIFFICULTY_DUNGEON_NORMAL = 1 and DIFFICULTY_DUNGEON_HEROIC = 2.
     WorldPacket data(SMSG_SET_DUNGEON_DIFFICULTY, 4);
-    MopCompactPackets::BuildSetDungeonDifficulty(data, GetDungeonDifficulty());
+    MopCompactPackets::BuildSetDungeonDifficulty(data, ToClientDifficulty(GetDungeonDifficulty(), false));
     GetSession()->SendPacket(&data);
 }
 
 void Player::SendRaidDifficulty(bool /*IsInGroup*/)
 {
+    // RAW client id on the wire, as above. An observed body for this opcode carries 9 --
+    // a legacy 40-player raid -- which cannot be an internal mode, since raid modes stop
+    // at 3. Same key space as the dungeon side.
     WorldPacket data(SMSG_SET_RAID_DIFFICULTY, 4);
-    MopCompactPackets::BuildSetRaidDifficulty(data, GetRaidDifficulty());
+    MopCompactPackets::BuildSetRaidDifficulty(data, ToClientDifficulty(GetRaidDifficulty(), true));
     GetSession()->SendPacket(&data);
 }
 
