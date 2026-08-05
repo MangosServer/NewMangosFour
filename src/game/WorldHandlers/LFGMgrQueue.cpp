@@ -91,6 +91,22 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         for (std::set<uint32>::iterator it = dungeons.begin(); it != dungeons.end(); ++it)
         {
             LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(*it);
+            if (!dungeon)
+            {
+                // These ids come off the wire, and this lookup can now return NULL where it
+                // never used to. While LfgDungeons.dbc was indexed by row ordinal, every id
+                // below the record count found *something*, so the missing check was survivable
+                // by accident. Indexing by id is correct but leaves the id space sparse -- it
+                // runs to 774 with 432 holes -- so any client sending an id in a hole would
+                // dereference NULL here.
+                //
+                // Refused rather than skipped: an id the DBC does not know is not a slot this
+                // server can offer, and ERR_LFG_INVALID_SLOT is what the rest of this loop
+                // already returns for a slot it will not take.
+                result = ERR_LFG_INVALID_SLOT;
+                continue;
+            }
+
             switch (dungeon->TypeID)
             {
                 case LFG_TYPE_RANDOM_DUNGEON:
