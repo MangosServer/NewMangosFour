@@ -267,21 +267,6 @@ void WorldSession::HandleLfgGetStatusOpcode(WorldPacket& /*recv_data*/)
     if (status.state == LFG_STATE_NONE)
         return;
 
-    // A player who is already IN the dungeon is not queued, and must not be answered as
-    // though they were.
-    //
-    // The client asks for its status on every zone-in, so this fires immediately after the
-    // finder teleports someone. Answering from the stored record replayed the queue -- the
-    // reply still carried the dungeon list (0x01000006, Deadmines, observed live) -- and the
-    // client announced "you are now queued in the dungeon finder", with the sound, seconds
-    // AFTER the player had walked into the place.
-    //
-    // Nothing is sent instead. The queue-status reply has no meaning for someone inside, and
-    // the group and instance state the client needs at that point arrive through their own
-    // packets.
-    if (status.state == LFG_STATE_IN_DUNGEON || status.state == LFG_STATE_FINISHED_DUNGEON)
-        return;
-
     status.updateType = LFG_UPDATE_STATUS;
     bool const groupFirst = GetPlayer()->GetGroup() != nullptr;
     SendLfgUpdate(groupFirst, status);
