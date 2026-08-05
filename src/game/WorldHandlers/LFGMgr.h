@@ -851,6 +851,16 @@ struct LFGPlayers //TODO: rename to LFGQueueData
     std::string comments;
     bool isGroup;
 
+    /// The concrete dungeons a RANDOM selection expanded to, kept so a proposal can name
+    /// one. Empty for a normal queue.
+    ///
+    /// dungeonList holds what the player asked for, which for a random queue is the single
+    /// category row -- that is what the client is shown and what the reward lookup keys on,
+    /// so it must not be replaced. But a category row is not a place: all 12 TypeID 6 rows
+    /// in LfgDungeons.dbc carry MapID 0 or 0xFFFFFFFF, so proposing one teleports the group
+    /// nowhere. The expansion is therefore kept alongside rather than collapsed away.
+    std::set<uint32> candidateDungeons;
+
     // Zeroed: the default constructor left these indeterminate, and needed* decides both
     // whether an entry is complete and what the queue advertises to the client.
     time_t joinedTime = 0;
@@ -950,7 +960,16 @@ struct LFGProposal
     // making a new one. Left indeterminate, an all-solo proposal picked its branch from
     // whatever was on the stack.
     uint32 id = 0;                  // proposal id
-    uint32 dungeonID = 0;           // dungeon id
+    uint32 dungeonID = 0;           // dungeon id as QUEUED -- for a random queue this is the
+                                    // category row, which is what the client is shown and what
+                                    // the reward lookup keys on
+
+    /// The dungeon the group is actually put into. Equals dungeonID for a normal queue.
+    ///
+    /// For a random queue it is a concrete member of the expansion, because the category row
+    /// has no map to teleport to. Split from dungeonID rather than replacing it so the
+    /// proposal packet and the reward path keep naming the random entry the player chose.
+    uint32 concreteDungeonID = 0;
 
     // The m_playerData key this proposal was built from. The queue entry is kept alive
     // for the lifetime of the proposal so a failure can put the survivors back, which is

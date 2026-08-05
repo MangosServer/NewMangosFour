@@ -347,8 +347,15 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         roleCheck.waitForRoleTime = time_t(time(NULL) + LFG_TIME_ROLECHECK);
 
         // place original dungeon ID back in the set
+        //
+        // The expansion is SAVED first. dungeonList must go back to the single category row --
+        // that is what the client is shown and what the reward lookup keys on -- but a category
+        // row is not a place: all 12 TypeID 6 rows carry MapID 0 or 0xFFFFFFFF. Discarding the
+        // expansion here is what left a random queue proposing a row it could not teleport to.
+        std::set<uint32> candidates;
         if (isRandom)
         {
+            candidates = dungeons;
             dungeons.clear();
             dungeons.insert(randomDungeonID);
         }
@@ -377,15 +384,18 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
 
         // used later if they enter the queue
         LFGPlayers groupInfo(LFG_STATE_NONE, dungeons, roleCheck.currentRoles, comments, false, time(NULL), 0, 0, 0);
+        groupInfo.candidateDungeons = candidates;
         m_playerData[guid] = groupInfo;
 
         PerformRoleCheck(plr, pGroup, (uint8)roles);
     }
     else
     {
-        // place original dungeon ID back in the set
+        // place original dungeon ID back in the set -- expansion saved first, as above
+        std::set<uint32> candidates;
         if (isRandom)
         {
+            candidates = dungeons;
             dungeons.clear();
             dungeons.insert(randomDungeonID);
         }
@@ -405,6 +415,7 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         }
 
         LFGPlayers playerInfo(LFG_STATE_QUEUED, dungeons, playerRole, comments, false, time(NULL), 0, 0, 0);
+        playerInfo.candidateDungeons = candidates;
         m_playerData[guid] = playerInfo;
 
         // set up a status struct for client requests/updates

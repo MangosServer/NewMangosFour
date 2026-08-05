@@ -195,6 +195,60 @@ bool LFGMgr::ValidateGroupRoles(roleMap groupMap, std::set<uint32> const& dungeo
     return RolesAreValidForDungeons(groupMap, dungeonList);
 }
 
+/**
+ * @brief The dungeon a proposal should actually put the group into.
+ *
+ * A normal queue names a real dungeon and this returns it unchanged. A RANDOM queue names a
+ * category, and a category is not a place: all 12 TypeID 6 rows in LfgDungeons.dbc carry MapID
+ * 0 or 0xFFFFFFFF. Proposing one sent the group to a plain teleport failure, or -- for the four
+ * carrying 0 -- silently to Eastern Kingdoms.
+ *
+ * The category row is excluded from its own expansion. Group_ID 33, behind Random Hour of
+ * Twilight Heroic, has exactly ONE member and that member is the category row itself, so
+ * without the exclusion that random would still propose an unrunnable row.
+ *
+ * Untranslatable tiers are excluded for the same reason JoinLFG refuses them at admission: a
+ * row whose DifficultyID has no internal mode cannot be entered at the tier it claims.
+ *
+ * @return a concrete dungeon id, or 0 when nothing behind the selection is runnable.
+ */
+static uint32 PickConcreteDungeon(uint32 queuedDungeonId, std::set<uint32> const& candidates)
+{
+    LfgDungeonsEntry const* queued = sLfgDungeonsStore.LookupEntry(queuedDungeonId);
+    if (!queued)
+    {
+        return 0;
+    }
+
+    if (queued->TypeID != LFG_TYPE_RANDOM_DUNGEON)
+    {
+        return queuedDungeonId;                             // already a real dungeon
+    }
+
+    for (std::set<uint32>::const_iterator it = candidates.begin(); it != candidates.end(); ++it)
+    {
+        if (*it == queuedDungeonId)
+        {
+            continue;                                       // the category cannot host itself
+        }
+
+        LfgDungeonsEntry const* candidate = sLfgDungeonsStore.LookupEntry(*it);
+        if (!candidate || candidate->TypeID == LFG_TYPE_RANDOM_DUNGEON)
+        {
+            continue;
+        }
+
+        if (ToInternalDifficulty(candidate->DifficultyID) < 0)
+        {
+            continue;
+        }
+
+        return candidate->ID;
+    }
+
+    return 0;
+}
+
 //todo: remove from queue, update queue average settings
 void LFGMgr::SendDungeonProposal(ObjectGuid queueGuid, LFGPlayers* lfgGroup)
 {
@@ -209,6 +263,24 @@ void LFGMgr::SendDungeonProposal(ObjectGuid queueGuid, LFGPlayers* lfgGroup)
     newProposal.encounters = 0; // todo: check if group has already started a dungeon and are looking for another plr
     newProposal.currentRoles = lfgGroup->currentRoles;
     newProposal.dungeonID = *dItr;
+
+    // The dungeon the group is actually put into.
+    //
+    // For a normal queue that is the queued row. For a RANDOM one it cannot be: every TypeID 6
+    // row in LfgDungeons.dbc carries MapID 0 or 0xFFFFFFFF, so proposing the category itself
+    // teleports the group nowhere -- 4 of the 12 silently to Eastern Kingdoms and the other 8 to
+    // a plain failure. A concrete member of the expansion is chosen instead, while dungeonID
+    // keeps naming the random entry for the proposal packet and the reward lookup.
+    newProposal.concreteDungeonID = PickConcreteDungeon(*dItr, lfgGroup->candidateDungeons);
+    if (!newProposal.concreteDungeonID)
+    {
+        // Nothing runnable behind the category. Do not build a proposal that cannot complete:
+        // the group would be formed, torn out of its previous groups and then left standing.
+        sLog.outError("LFG SendDungeonProposal: random dungeon %u expanded to no runnable "
+                      "member; refusing to propose.", *dItr);
+        return;
+    }
+
     newProposal.isNew = true;
     newProposal.joinedQueue = lfgGroup->joinedTime;
     newProposal.createdTime = time(NULL);
@@ -625,7 +697,11 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
     // an unknown dungeon id returned having already new'd a Group, run Create (a group
     // id plus an INSERT INTO groups) and registered it with ObjectMgr -- leaking the
     // object and stranding its rows, with the proposal also left in m_proposalMap.
-    LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(proposal->dungeonID);
+    // The CONCRETE dungeon: proposal->dungeonID may be a random category, which has no map.
+    // Older proposals predating the split carry 0 here, so fall back rather than refuse.
+    uint32 const runDungeonId = proposal->concreteDungeonID ? proposal->concreteDungeonID
+                                                            : proposal->dungeonID;
+    LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(runDungeonId);
     if (!dungeon)
     {
         return;
