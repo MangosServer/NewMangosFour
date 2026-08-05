@@ -233,6 +233,734 @@ bool MopGroupInvitePackets::ParseRequest(WorldPacket& in, Request& out)
     return true;
 }
 
+bool MopGroupUninvitePackets::ParseRequest(WorldPacket& in, Request& out)
+{
+    // Build 18414 writer sub_66A7CE, reached through vtable D636E8 slot 1;
+    // slot 2 sub_66238A writes opcode 3297. Layout:
+    //
+    //   uint8  0x7F marker, raw, BEFORE the bit stream
+    //   bits   GUID presence in order 6,4,3,2,0,1,7,5
+    //          reason length, 8 bits (sub_665185 takes a uint8)
+    //          FlushBits
+    //   bytes  reason string, not NUL terminated
+    //          GUID bytes in order 5,6,1,4,3,2,7,0, each ^1, omitted when zero
+    //
+    // Verified byte-exact against three real bodies. Two from one capture
+    // decode to the SAME GUID, one of them carrying reason "afk", which checks
+    // the byte order semantically rather than only self-consistently.
+    //
+    // The legacy reader took a RAW ObjectGuid and skipped a std::string, with no
+    // marker, so it could not decode even the ordinary 8-byte body.
+    auto fail = [&in]()
+    {
+        in.rfinish();
+        return false;
+    };
+
+    // marker + mask + length
+    if (in.rpos() != 0 || in.size() - in.rpos() < 3)
+    {
+        return fail();
+    }
+
+    uint8 marker = 0;
+    in >> marker;
+    if (marker != 0x7F)
+    {
+        return fail();
+    }
+
+    static uint8 const maskOrder[8] = { 6, 4, 3, 2, 0, 1, 7, 5 };
+    static uint8 const byteOrder[8] = { 5, 6, 1, 4, 3, 2, 7, 0 };
+
+    bool present[8] = { false };
+    for (size_t i = 0; i < 8; ++i)
+    {
+        present[maskOrder[i]] = in.ReadBit();
+    }
+    uint32 const reasonLength = in.ReadBits(8);
+    in.ResetBitReader();
+
+    size_t presentCount = 0;
+    for (size_t i = 0; i < 8; ++i)
+    {
+        if (present[i])
+        {
+            ++presentCount;
+        }
+    }
+
+    // Exact tail, so a declared length cannot over-read.
+    if (in.size() - in.rpos() != reasonLength + presentCount)
+    {
+        return fail();
+    }
+
+    Request parsed;
+    parsed.reason = in.ReadString(reasonLength);
+
+    uint8 bytes[8] = { 0 };
+    bool canonical = true;
+    for (size_t i = 0; i < 8; ++i)
+    {
+        uint8 const index = byteOrder[i];
+        if (!present[index])
+        {
+            continue;
+        }
+        uint8 raw = 0;
+        in >> raw;
+        // WriteByteSeq emits (value ^ 1) for a present byte, so a raw one would
+        // decode to zero and contradict its own presence bit.
+        if (raw == 1)
+        {
+            canonical = false;
+        }
+        bytes[index] = raw ^ 1;
+    }
+
+    if (!canonical || in.rpos() != in.size())
+    {
+        return fail();
+    }
+
+    // An embedded NUL would truncate every downstream comparison.
+    if (parsed.reason.find('\0') != std::string::npos)
+    {
+        return fail();
+    }
+
+    uint64 rawGuid = 0;
+    for (size_t i = 0; i < 8; ++i)
+    {
+        rawGuid |= uint64(bytes[i]) << (i * 8);
+    }
+    parsed.targetGuid = ObjectGuid(rawGuid);
+
+    out = parsed;
+    return true;
+}
+
+bool MopGroupLootMethodPackets::ParseRequest(WorldPacket& in, Request& out)
+{
+    // Build 18414 writer sub_6678EB, reached through vtable D634E0 slot 1;
+    // slot 2 sub_661728 writes opcode 3553. Layout:
+    //
+    //   uint8  0x7F marker
+    //   uint8  loot method
+    //   uint32 loot threshold  (sub_40F075 writes four bytes)
+    //   bits   GUID presence in order 7,1,2,0,4,5,6,3, then FlushBits
+    //   bytes  GUID in order 7,1,3,4,6,5,0,2, each ^1, omitted when zero
+    //
+    // Verified byte-exact against two captured bodies, decoding to method 0
+    // (free-for-all) and 3 (group loot), both at threshold 2 (uncommon) with no
+    // master looter.
+    //
+    // CAVEAT: every captured body has an empty GUID mask, because a master
+    // looter is only carried for MASTER_LOOT. The GUID orders above therefore
+    // come from the client writer alone and are not corroborated by traffic. If
+    // a body with a non-empty mask ever appears, it decides them.
+    //
+    // The legacy reader took uint32 + raw ObjectGuid + uint32 with no marker,
+    // so it decoded the marker and method as one bogus 32-bit loot method.
+    auto fail = [&in]()
+    {
+        in.rfinish();
+        return false;
+    };
+
+    // marker + method + threshold + mask
+    if (in.rpos() != 0 || in.size() - in.rpos() < 7)
+    {
+        return fail();
+    }
+
+    uint8 marker = 0;
+    uint8 method = 0;
+    uint32 threshold = 0;
+    in >> marker;
+    if (marker != 0x7F)
+    {
+        return fail();
+    }
+    in >> method;
+    in >> threshold;
+
+    // Both are cast straight onto enums by the caller. NOT_GROUP_TYPE_LOOT is
+    // internal and must never arrive from the wire.
+    if (method >= NOT_GROUP_TYPE_LOOT || threshold > ITEM_QUALITY_HEIRLOOM)
+    {
+        return fail();
+    }
+
+    static uint8 const maskOrder[8] = { 7, 1, 2, 0, 4, 5, 6, 3 };
+    static uint8 const byteOrder[8] = { 7, 1, 3, 4, 6, 5, 0, 2 };
+
+    bool present[8] = { false };
+    for (size_t i = 0; i < 8; ++i)
+    {
+        present[maskOrder[i]] = in.ReadBit();
+    }
+    in.ResetBitReader();
+
+    size_t presentCount = 0;
+    for (size_t i = 0; i < 8; ++i)
+    {
+        if (present[i])
+        {
+            ++presentCount;
+        }
+    }
+
+    if (in.size() - in.rpos() != presentCount)
+    {
+        return fail();
+    }
+
+    uint8 bytes[8] = { 0 };
+    bool canonical = true;
+    for (size_t i = 0; i < 8; ++i)
+    {
+        uint8 const index = byteOrder[i];
+        if (!present[index])
+        {
+            continue;
+        }
+        uint8 raw = 0;
+        in >> raw;
+        if (raw == 1)
+        {
+            canonical = false;
+        }
+        bytes[index] = raw ^ 1;
+    }
+
+    if (!canonical || in.rpos() != in.size())
+    {
+        return fail();
+    }
+
+    Request parsed;
+    parsed.method = method;
+    parsed.threshold = threshold;
+
+    uint64 rawGuid = 0;
+    for (size_t i = 0; i < 8; ++i)
+    {
+        rawGuid |= uint64(bytes[i]) << (i * 8);
+    }
+    parsed.looterGuid = ObjectGuid(rawGuid);
+
+    out = parsed;
+    return true;
+}
+
+namespace
+{
+    /// Shared shape of the 18414 group-management requests: a 0x7F family
+    /// marker, a bit-packed GUID presence mask, then the present bytes each
+    /// XORed with one. Only the mask and byte orders differ per opcode.
+    /// `leadingByte`, when given, is read BEFORE the marker. Most of the family
+    /// leads with the marker, but CMSG_GROUP_CHANGE_SUB_GROUP puts its subgroup
+    /// number first and the marker second.
+    bool ReadMarkedGuid(WorldPacket& in, uint8 const (&maskOrder)[8],
+        uint8 const (&byteOrder)[8], ObjectGuid& guid, bool* extraBit,
+        size_t extraBitPosition, uint8* leadingByte = nullptr)
+    {
+        // The mask is 8 bits normally, but a caller supplying extraBit reads
+        // NINE, which spills into a second byte. Budgeting one byte for the
+        // mask let a two-byte body reach the ninth ReadBit and throw past the
+        // end instead of being refused cleanly.
+        size_t const fixed = (leadingByte ? 3u : 2u) + (extraBit ? 1u : 0u);
+        if (in.rpos() != 0 || in.size() - in.rpos() < fixed)
+        {
+            return false;
+        }
+
+        if (leadingByte)
+        {
+            in >> *leadingByte;
+        }
+
+        uint8 marker = 0;
+        in >> marker;
+        if (marker != 0x7F)
+        {
+            return false;
+        }
+
+        bool present[8] = { false };
+        size_t maskIndex = 0;
+        size_t const total = extraBit ? 9 : 8;
+        for (size_t i = 0; i < total; ++i)
+        {
+            bool const bit = in.ReadBit();
+            if (extraBit && i == extraBitPosition)
+            {
+                *extraBit = bit;
+                continue;
+            }
+            // Guards a future caller passing an extraBitPosition beyond the
+            // mask: without this, maskOrder[8] is an out-of-bounds read and
+            // present[] an out-of-bounds write.
+            if (maskIndex >= 8)
+            {
+                return false;
+            }
+            present[maskOrder[maskIndex++]] = bit;
+        }
+        in.ResetBitReader();
+
+        size_t presentCount = 0;
+        for (size_t i = 0; i < 8; ++i)
+        {
+            if (present[i])
+            {
+                ++presentCount;
+            }
+        }
+
+        // Exact tail: the mask is the only thing that may describe the length.
+        if (in.size() - in.rpos() != presentCount)
+        {
+            return false;
+        }
+
+        uint8 bytes[8] = { 0 };
+        for (size_t i = 0; i < 8; ++i)
+        {
+            uint8 const index = byteOrder[i];
+            if (!present[index])
+            {
+                continue;
+            }
+            uint8 raw = 0;
+            in >> raw;
+            // A raw one would decode to zero and contradict its presence bit.
+            if (raw == 1)
+            {
+                return false;
+            }
+            bytes[index] = raw ^ 1;
+        }
+
+        if (in.rpos() != in.size())
+        {
+            return false;
+        }
+
+        uint64 rawGuid = 0;
+        for (size_t i = 0; i < 8; ++i)
+        {
+            rawGuid |= uint64(bytes[i]) << (i * 8);
+        }
+        guid = ObjectGuid(rawGuid);
+        return true;
+    }
+}
+
+bool MopGroupPromotePackets::ParseSetLeader(WorldPacket& in, SetLeaderRequest& out)
+{
+    // Build 18414 writer sub_668775, vtable D63170 slot 1; slot 2 sub_661A93
+    // writes opcode 5563. Marker, mask order 1,7,0,2,5,3,4,6, byte order
+    // 1,5,7,6,0,2,4,3. Verified byte-exact against a captured 7-byte body.
+    static uint8 const maskOrder[8] = { 1, 7, 0, 2, 5, 3, 4, 6 };
+    static uint8 const byteOrder[8] = { 1, 5, 7, 6, 0, 2, 4, 3 };
+
+    SetLeaderRequest parsed;
+    if (!ReadMarkedGuid(in, maskOrder, byteOrder, parsed.targetGuid, nullptr, 0))
+    {
+        in.rfinish();
+        return false;
+    }
+
+    out = parsed;
+    return true;
+}
+
+bool MopGroupPromotePackets::ParseAssistant(WorldPacket& in, AssistantRequest& out)
+{
+    // Build 18414 writer sub_668266, vtable D636FC slot 1; slot 2 sub_661913
+    // writes opcode 6295. Mask order 2,0,6,3,1,[promote],4,5,7 -- the promote
+    // flag is a NINTH BIT at position 5, not a trailing byte. Byte order
+    // 5,1,0,7,3,6,2,4.
+    //
+    // Prior research read the last byte of a captured 8-byte body as the
+    // promote/demote value; it is a GUID byte, which is why the body is 8 bytes
+    // and not 9. Verified byte-exact against that same capture.
+    static uint8 const maskOrder[8] = { 2, 0, 6, 3, 1, 4, 5, 7 };
+    static uint8 const byteOrder[8] = { 5, 1, 0, 7, 3, 6, 2, 4 };
+
+    AssistantRequest parsed;
+    if (!ReadMarkedGuid(in, maskOrder, byteOrder, parsed.targetGuid, &parsed.promote, 5))
+    {
+        in.rfinish();
+        return false;
+    }
+
+    out = parsed;
+    return true;
+}
+
+bool MopLfgLeavePackets::ParseRequest(WorldPacket& in, Request& out)
+{
+    // Build 18414 writer sub_6674C9 (Wow.exe.c:879339-879394). Layout:
+    //
+    //   uint32 ticketType
+    //   uint32 ticketFlags
+    //   uint32 ticketTime
+    //   uint32 clientQueueId
+    //   bits   GUID presence in index order 6,0,2,3,1,5,4,7, then alignment
+    //   bytes  GUID in index order 2,0,4,6,3,1,5,7, each ^1, omitted when zero
+    //
+    // Exact size is 17 + popcount(GUID). Verified byte-exact against four real
+    // captured bodies, including the 17-byte zero-mask form a client sends when
+    // it has no ticket -- so an empty mask is legitimate and must parse, not be
+    // rejected.
+    //
+    // CAVEAT: retail coverage carries only two distinct nonzero masks, so GUID
+    // indices 4 and 5 are never present in any captured body. Their positions
+    // rest on the writer alone.
+    auto fail = [&in]()
+    {
+        in.rfinish();
+        return false;
+    };
+
+    if (in.rpos() != 0 || in.size() < 17)
+    {
+        return fail();
+    }
+
+    Request parsed;
+    in >> parsed.ticketType;
+    in >> parsed.ticketFlags;
+    in >> parsed.ticketTime;
+    in >> parsed.clientQueueId;
+
+    static uint8 const maskOrder[8] = { 6, 0, 2, 3, 1, 5, 4, 7 };
+    static uint8 const byteOrder[8] = { 2, 0, 4, 6, 3, 1, 5, 7 };
+
+    bool present[8] = { false };
+    for (uint8 index : maskOrder)
+    {
+        present[index] = in.ReadBit();
+    }
+    in.ResetBitReader();
+
+    size_t presentCount = 0;
+    for (size_t i = 0; i < 8; ++i)
+    {
+        if (present[i])
+        {
+            ++presentCount;
+        }
+    }
+
+    if (in.size() - in.rpos() != presentCount)
+    {
+        return fail();
+    }
+
+    uint8 bytes[8] = { 0 };
+    for (uint8 index : byteOrder)
+    {
+        if (!present[index])
+        {
+            continue;
+        }
+        uint8 raw = 0;
+        in >> raw;
+        if (raw == 1)
+        {
+            return fail();
+        }
+        bytes[index] = raw ^ 1;
+    }
+
+    if (in.rpos() != in.size())
+    {
+        return fail();
+    }
+
+    uint64 rawGuid = 0;
+    for (size_t i = 0; i < 8; ++i)
+    {
+        rawGuid |= uint64(bytes[i]) << (i * 8);
+    }
+    parsed.ticketGuid = ObjectGuid(rawGuid);
+
+    out = parsed;
+    return true;
+}
+
+bool MopGroupPromotePackets::BuildRolePollInform(WorldPacket& out, RolePollInform const& inform)
+{
+    // The prompt a role check sends to every member. Layout:
+    //
+    //   bits   GUID mask 5,7,3,1,2,0,4,6, then FlushBits
+    //   bytes  GUID[7]
+    //          uint8 party index
+    //          GUID[6],[5],[0],[1],[4],[2],[3]
+    //
+    // Each present byte is written ^1 and omitted when zero, so exact size is
+    // 2 + popcount(GUID).
+    //
+    // Verified byte-exact against three captured bodies:
+    //   7C 05 01 E6 9C 4C 04        (7 B, index 1)
+    //   7D 06 00 81 62 F6 76 04     (8 B, index 0)
+    //   7D 06 00 81 69 F9 6D 05     (8 B, index 0)
+    //
+    // Note the second byte is GUID[7], NOT a count. It equals popcount in all
+    // three samples purely because every captured mask is 0x7C or 0x7D; reading
+    // it as a length field was an earlier mistake this comment exists to
+    // prevent repeating.
+    uint64 const rawGuid = inform.initiatorGuid.GetRawValue();
+    auto guidByte = [rawGuid](uint8 index)
+    {
+        return uint8((rawGuid >> (index * 8)) & 0xFF);
+    };
+
+    static uint8 const maskOrder[8] = { 5, 7, 3, 1, 2, 0, 4, 6 };
+    static uint8 const tailOrder[7] = { 6, 5, 0, 1, 4, 2, 3 };
+
+    out.Initialize(SMSG_GROUP_ROLE_POLL_INFORM, 2 + 8);
+    for (uint8 index : maskOrder)
+    {
+        out.WriteBit(guidByte(index) != 0);
+    }
+    out.FlushBits();
+
+    auto writeGuidByte = [&out, &guidByte](uint8 index)
+    {
+        uint8 const value = guidByte(index);
+        if (value != 0)
+        {
+            out << uint8(value ^ 1);
+        }
+    };
+
+    writeGuidByte(7);
+    out << uint8(inform.partyIndex);
+    for (uint8 index : tailOrder)
+    {
+        writeGuidByte(index);
+    }
+
+    return true;
+}
+
+bool MopGroupPromotePackets::ParsePartyAssignment(WorldPacket& in, PartyAssignmentRequest& out)
+{
+    // Build 18414 writer sub_665D70, vtable D63430 slot 1; slot 2 sub_66105D
+    // writes opcode 6146. Layout:
+    //
+    //   uint8  assignment, 0 main tank / 1 main assist
+    //   uint8  0x7F marker
+    //   bits   mask 5,6,2,3,1,0,4,7 then the APPLY flag as a ninth bit,
+    //          then FlushBits
+    //   bytes  guid 2,5,1,0,6,3,4,7, each ^1, omitted when zero
+    //
+    // Verified byte-exact against 00 7F 3D 00 34 27 59 04 05 -- assignment 0,
+    // apply clear, five present GUID bytes.
+    //
+    // A reference fork names the second byte "partyindex"; the captured body
+    // shows 0x7F, the same family marker as the rest of these requests.
+    //
+    // The legacy reader took uint8 + uint8 + raw ObjectGuid, so it read the
+    // marker as the apply flag and never found the GUID at all.
+    static uint8 const maskOrder[8] = { 5, 6, 2, 3, 1, 0, 4, 7 };
+    static uint8 const byteOrder[8] = { 2, 5, 1, 0, 6, 3, 4, 7 };
+
+    PartyAssignmentRequest parsed;
+    uint8 assignment = 0;
+    bool apply = false;
+    if (!ReadMarkedGuid(in, maskOrder, byteOrder, parsed.targetGuid, &apply, 8, &assignment))
+    {
+        in.rfinish();
+        return false;
+    }
+
+    // Only main tank and main assist exist; the handler switches on this.
+    if (assignment > 1)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    parsed.assignment = assignment;
+    parsed.apply = apply;
+    out = parsed;
+    return true;
+}
+
+bool MopGroupPromotePackets::ParseChangeSubGroup(WorldPacket& in, ChangeSubGroupRequest& out)
+{
+    // Build 18414 writer sub_66920A, vtable D63250 slot 1; slot 2 sub_661D90
+    // writes opcode 6041. The subgroup number LEADS and the 0x7F marker is
+    // second -- the only member of this family that does not lead with the
+    // marker. Mask order 1,4,6,3,7,2,0,5, byte order 2,6,1,5,3,4,0,7.
+    //
+    // Verified byte-exact against a captured body: 05 7F 9E 88 E8 07 A6 07,
+    // decoding to subgroup 5 with five present GUID bytes.
+    //
+    // Two reference forks disagree on the two leading bytes and the binary
+    // settles it: one reads them as PartyIndex then groupNr, which takes the
+    // 0x7F marker as the subgroup number and so rejects every request against
+    // MAX_RAID_SUBGROUPS. The order below is what the client actually writes.
+    //
+    // The legacy reader took a std::string first, so it would have read the
+    // subgroup byte 0x05 as a string length.
+    static uint8 const maskOrder[8] = { 1, 4, 6, 3, 7, 2, 0, 5 };
+    static uint8 const byteOrder[8] = { 2, 6, 1, 5, 3, 4, 0, 7 };
+
+    ChangeSubGroupRequest parsed;
+    uint8 subGroup = 0;
+    if (!ReadMarkedGuid(in, maskOrder, byteOrder, parsed.targetGuid, nullptr, 0, &subGroup))
+    {
+        in.rfinish();
+        return false;
+    }
+
+    if (subGroup >= MAX_RAID_SUBGROUPS)
+    {
+        in.rfinish();
+        return false;
+    }
+
+    parsed.subGroup = subGroup;
+    out = parsed;
+    return true;
+}
+
+bool MopGroupPromotePackets::BuildSetLeader(WorldPacket& out, SetLeaderBroadcast const& broadcast)
+{
+    // The 18414 body is a plain byte then a SIX-BIT name length then the raw
+    // name, NOT the NUL-terminated string the inherited sender wrote. Recovered
+    // from three captured bodies whose second byte is exactly (length << 2):
+    //
+    //   0x20 -> 8  "Jazharka"        (10 B)
+    //   0x18 -> 6  "Shaoli"          ( 8 B)
+    //   0x5C -> 23 "Réést????-Darksorrow" (25 B)
+    //
+    // Exact size is 2 + nameLength, which reproduces all three.
+    if (broadcast.leaderName.empty() || broadcast.leaderName.size() >= (size_t(1) << 6))
+    {
+        return false;
+    }
+
+    out.Initialize(SMSG_GROUP_SET_LEADER, 2 + broadcast.leaderName.size());
+    out << uint8(broadcast.partyIndex);
+    out.WriteBits(uint32(broadcast.leaderName.size()), 6);
+    out.FlushBits();
+    out.append(broadcast.leaderName.data(), broadcast.leaderName.size());
+    return true;
+}
+
+bool MopGroupInvitePackets::BuildInvite(WorldPacket& out, Invite const& invite)
+{
+    // Build 18414 popup grammar, recovered from the client reader and proved
+    // byte-exact against real captured bodies (58 B capture-000033/196326 and
+    // 76 B capture-000033/63033, plus 62 B and 102 B in the derivation brief).
+    //
+    // MSB-first packed header, then a byte-aligned tail. Exact size is
+    //   32 + compactRealmLen + displayRealmLen + inviterNameLen + popcount(GUID)
+    // which reproduces all four observed lengths and pins the field boundaries
+    // independently of what the scalars are called.
+    //
+    // The inherited builder this replaces came from mangosthree in 2012. It was
+    // not repairable: it wrote ONE realm length at nine bits where the client
+    // reads TWO at eight, a seven-bit name length where the client reads six, a
+    // 24-bit count where the client reads 22, and omitted the uint64 and four
+    // uint32 scalars entirely. Its ceiling was 43 bytes against an observed
+    // minimum of 56 over 134 packets.
+    //
+    // A reference fork writes the second realm length as zero and omits the
+    // second string; retail bodies refute that, so it is not followed here.
+    //
+    // ONE POSITION IS NOT PROVEN BY CAPTURED TRAFFIC. GUID byte [4] is written
+    // before the display realm string here, on the derivation's client-reader
+    // provenance. A packet parser recovered from a neighbouring build places it
+    // after that string instead. Every observed body -- all four fixtures and
+    // both extremes of the 56..102 range -- has byte [4] absent, so the two
+    // orderings emit identical bytes and no capture can separate them. It is
+    // unobservable for ordinary player GUIDs, whose byte [4] is zero, but if a
+    // body ever appears with [4] present, that sample decides it and this is the
+    // line to revisit.
+    if (invite.inviterName.size() >= (size_t(1) << 6) ||
+        invite.compactRealmName.size() >= (size_t(1) << 8) ||
+        invite.displayRealmName.size() >= (size_t(1) << 8))
+    {
+        return false;
+    }
+
+    uint64 const rawGuid = invite.inviterGuid.GetRawValue();
+    auto guidByte = [rawGuid](uint8 index)
+    {
+        return uint8((rawGuid >> (index * 8)) & 0xFF);
+    };
+
+    out.Initialize(SMSG_GROUP_INVITE);
+
+    out.WriteBits(uint32(invite.compactRealmName.size()), 8);
+    out.WriteBits(uint32(invite.displayRealmName.size()), 8);
+    out.WriteBit(guidByte(2) != 0);
+    out.WriteBit(invite.flagA);
+    out.WriteBits(uint32(invite.inviterName.size()), 6);
+    out.WriteBit(guidByte(7) != 0);
+    out.WriteBit(guidByte(5) != 0);
+    out.WriteBit(invite.notAlreadyInGroup);
+    out.WriteBit(invite.flagB);
+    out.WriteBit(guidByte(1) != 0);
+    out.WriteBit(invite.crossRealmName);
+    out.WriteBit(invite.realmTransferWarning);
+    out.WriteBits(0, 22);                                   // extraCount
+    out.WriteBit(guidByte(3) != 0);
+    out.WriteBit(guidByte(0) != 0);
+    out.WriteBit(guidByte(4) != 0);
+    out.WriteBit(guidByte(6) != 0);
+    out.FlushBits();
+
+    // WriteByteSeq emits (value ^ 1) and writes nothing for a zero byte, which
+    // is what makes the presence bits above load-bearing.
+    auto writeGuidByte = [&out, &guidByte](uint8 index)
+    {
+        uint8 const value = guidByte(index);
+        if (value != 0)
+        {
+            out << uint8(value ^ 1);
+        }
+    };
+
+    writeGuidByte(6);
+    if (!invite.compactRealmName.empty())
+    {
+        out.append(invite.compactRealmName.data(), invite.compactRealmName.size());
+    }
+    writeGuidByte(7);
+    writeGuidByte(2);
+    writeGuidByte(0);
+    out << uint64(invite.accountId);
+    out << uint32(invite.virtualRealmAddress);
+    out << uint32(invite.realmId);
+    writeGuidByte(1);
+    writeGuidByte(5);
+    writeGuidByte(4);
+    if (!invite.displayRealmName.empty())
+    {
+        out.append(invite.displayRealmName.data(), invite.displayRealmName.size());
+    }
+    out << uint32(0);                                       // reserved, zero in every observed body
+    if (!invite.inviterName.empty())
+    {
+        out.append(invite.inviterName.data(), invite.inviterName.size());
+    }
+    writeGuidByte(3);
+    out << uint32(0);                                       // reserved, zero in every observed body
+
+    return true;
+}
+
 //===================================================
 //============== Roll ===============================
 //===================================================
@@ -486,6 +1214,7 @@ bool Group::LoadMemberFromDB(uint32 guidLow, uint8 subgroup, bool assistant)
     member.group     = subgroup;
     member.assistant = assistant;
     member.readyCheckHasResponded = false;
+    member.roles     = 0;
     m_memberSlots.push_back(member);
 
     SubGroupCounterIncrease(subgroup);
@@ -514,6 +1243,68 @@ void Group::ConvertToRaid()
         {
             player->UpdateForQuestWorldObjects();
         }
+}
+
+/**
+ * @brief Converts a raid back to an ordinary party.
+ *
+ * The 18414 client offers this as a separate unit-popup button, ConvertToParty,
+ * which shares CMSG_GROUP_RAID_CONVERT with ConvertToRaid and is distinguished
+ * only by a single cleared bit.
+ *
+ * @return false when the group cannot be converted, so the caller can refuse
+ *         rather than silently do nothing.
+ */
+bool Group::ConvertToParty()
+{
+    if (!isRaidGroup())
+    {
+        return false;
+    }
+
+    // A party has no subgroups, so anyone parked outside the first one would be
+    // unreachable in the party frame. Refuse rather than move people silently.
+    for (member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
+    {
+        if (citr->group != 0)
+        {
+            return false;
+        }
+    }
+
+    if (m_memberSlots.size() > MAX_GROUP_SIZE)
+    {
+        return false;
+    }
+
+    m_groupType = GroupType(m_groupType & ~GROUPTYPE_RAID);
+
+    // Raid-only rank must not survive the downgrade. An assistant keeps the
+    // uninvite right granted by Player::CanUninviteFromGroup, which has no raid
+    // test, so a former assistant could kick anyone in what is now a 5-man
+    // party while the client shows them as an ordinary member.
+    for (member_witerator itr = m_memberSlots.begin(); itr != m_memberSlots.end(); ++itr)
+    {
+        itr->assistant = false;
+    }
+    m_mainTankGuid.Clear();
+    m_mainAssistantGuid.Clear();
+
+    if (!isBGGroup())
+    {
+        CharacterDatabase.PExecute("UPDATE `groups` SET `groupType` = %u WHERE `groupId`='%u'", uint8(m_groupType), m_Id);
+    }
+    SendUpdate();
+
+    // Raid membership gates some quest object states, so the same refresh the
+    // raid direction performs is needed coming back.
+    for (member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
+        if (Player* player = sObjectMgr.GetPlayer(citr->guid))
+        {
+            player->UpdateForQuestWorldObjects();
+        }
+
+    return true;
 }
 
 /**
@@ -748,9 +1539,14 @@ uint32 Group::RemoveMember(ObjectGuid guid, uint8 removeMethod)
 
         if (leaderChanged)
         {
-            WorldPacket data(SMSG_GROUP_SET_LEADER, (m_memberSlots.front().name.size() + 1));
-            data << m_memberSlots.front().name;
-            BroadcastPacket(&data, true);
+            MopGroupPromotePackets::SetLeaderBroadcast broadcast;
+            broadcast.leaderName = m_memberSlots.front().name;
+
+            WorldPacket data;
+            if (MopGroupPromotePackets::BuildSetLeader(data, broadcast))
+            {
+                BroadcastPacket(&data, true);
+            }
         }
 
         SendUpdate();
@@ -795,9 +1591,14 @@ void Group::ChangeLeader(ObjectGuid guid)
 
     _setLeader(guid);
 
-    WorldPacket data(SMSG_GROUP_SET_LEADER, slot->name.size() + 1);
-    data << slot->name;
-    BroadcastPacket(&data, true);
+    MopGroupPromotePackets::SetLeaderBroadcast broadcast;
+    broadcast.leaderName = slot->name;
+
+    WorldPacket data;
+    if (MopGroupPromotePackets::BuildSetLeader(data, broadcast))
+    {
+        BroadcastPacket(&data, true);
+    }
     SendUpdate();
 }
 
@@ -1720,6 +2521,9 @@ void Group::SendUpdateToPlayer(ObjectGuid guid)
             record.status |= MEMBER_STATUS_PVP;
         record.subgroup = citr->group;
         record.flags = uint8(GetFlags(*citr));
+        // The roster has always carried a per-member role byte; nothing ever
+        // filled it, so every member reported "no role" regardless of choice.
+        record.roles = citr->roles;
         update.members.push_back(record);
     }
 

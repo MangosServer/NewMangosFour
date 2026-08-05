@@ -122,12 +122,27 @@ bool Group::_addMember(ObjectGuid guid, const char* name, bool isAssistant, uint
     member.assistant = isAssistant;
     member.lastMap   = lastMap;
     member.readyCheckHasResponded = false;
+    member.roles     = 0;
     m_memberSlots.push_back(member);
 
     SubGroupCounterIncrease(group);
 
     if (player)
     {
+        // Drop any pending invite record for this player as well as the pointer
+        // back to it. Clearing only SetGroupInvite leaves a RAW Player* in
+        // m_invitees that nothing can ever remove: Player::UninviteFromGroup
+        // early-returns once m_groupInvite is NULL, and the only two erase sites
+        // are RemoveInvite/RemoveAllInvites. The dangling entry then outlives the
+        // player, and Group::GetInvited reads it while RemoveAllInvites WRITES
+        // through it.
+        //
+        // Reachable because ObjectAccessor::FindPlayer defaults to inWorld=true,
+        // so a leader who is mid-teleport (removed from the map, worldport ack
+        // not yet arrived) is invisible to the RemoveInvite call in
+        // HandleGroupInviteResponseOpcode while still being found here, which
+        // uses inWorld=false.
+        m_invitees.erase(player);
         player->SetGroupInvite(NULL);
         // if player is in group and he is being added to BG raid group, then call SetBattleGroundRaid()
         if (player->GetGroup() && isBGGroup())

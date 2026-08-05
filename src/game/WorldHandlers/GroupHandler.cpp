@@ -93,28 +93,25 @@ void WorldSession::SendPartyResult(PartyOperation operation, const std::string& 
 
 void WorldSession::SendGroupInvite(Player* player, bool alreadyInGroup /*= false*/)
 {
-    WorldPacket data(SMSG_GROUP_INVITE, 21);                // guess size
-    data.WriteBit(0);
-    data.WriteGuidMask<0, 3, 2>(player->GetObjectGuid());
-    data.WriteBit(!alreadyInGroup);
-    data.WriteGuidMask<6, 5>(player->GetObjectGuid());
-    data.WriteBits(0, 9);                                   // realm name length
-    data.WriteGuidMask<4>(player->GetObjectGuid());
-    data.WriteBits(strlen(player->GetName()), 7);
-    data.WriteBits(0, 24);                                  // count
-    data.WriteBit(0);
-    data.WriteGuidMask<1, 7>(player->GetObjectGuid());
+    // Every field beyond the inviter's name and GUID is deliberately left at
+    // its default. FrameXML UIParent.lua:800 picks the dialog from these:
+    // any role bit shows the LFG invite popup, and the cross-realm flag shows
+    // PARTY_INVITE_XREALM. One realm means neither applies, so an ordinary
+    // invite must clear both or the invitee sees the wrong dialog. The two
+    // realm strings and the three identity scalars serve the cross-realm route
+    // and stay empty/zero here; the ordinary popup reads only the name.
+    MopGroupInvitePackets::Invite invite;
+    invite.inviterGuid = player->GetObjectGuid();
+    invite.inviterName = player->GetName();
+    invite.notAlreadyInGroup = !alreadyInGroup;
 
-    data.WriteGuidBytes<1, 4>(player->GetObjectGuid());
-    data << uint32(GameTime::GetGameTimeMS());
-    data << uint32(0) << uint32(0);
-    data.WriteGuidBytes<6, 0, 2, 3>(player->GetObjectGuid());
-    // for(int i = 0; i < count; ++i)
-    //    data << uint32(0);
-    data.WriteGuidBytes<5>(player->GetObjectGuid());
-    data.WriteGuidBytes<7>(player->GetObjectGuid());
-    data.append(player->GetName(), strlen(player->GetName()));
-    data << uint32(0);
+    WorldPacket data;
+    if (!MopGroupInvitePackets::BuildInvite(data, invite))
+    {
+        sLog.outError("SendGroupInvite: refusing to send a malformed 18414 invite popup for %s",
+                      player->GetGuidStr().c_str());
+        return;
+    }
 
     SendPacket(&data);
 }
@@ -230,8 +227,12 @@ void WorldSession::HandleGroupInviteOpcode(WorldPacket& recv_data)
     {
         SendPartyResult(PARTY_OP_INVITE, membername, ERR_ALREADY_IN_GROUP_S);
 
-        // tell the player that they were invited but it failed as they were already in a group
-        player->GetSession()->SendGroupInvite(player, true);
+        // Tell the target they were invited but it failed because they are
+        // already grouped. The popup names the INVITER -- passing `player` here
+        // made the target's own name appear in their own invite dialog. That was
+        // inert while SMSG_GROUP_INVITE was dropped by the send gate; admitting
+        // the packet put it on the wire.
+        player->GetSession()->SendGroupInvite(_player, true);
 
         return;
     }
@@ -377,9 +378,13 @@ void WorldSession::HandleGroupInviteResponseOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleGroupUninviteGuidOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid guid;
-    recv_data >> guid;
-    recv_data.read_skip<std::string>();                     // reason
+    MopGroupUninvitePackets::Request request;
+    if (!MopGroupUninvitePackets::ParseRequest(recv_data, request))
+    {
+        return;
+    }
+
+    ObjectGuid const guid = request.targetGuid;
 
     // can't uninvite yourself
     if (guid == GetPlayer()->GetObjectGuid())
@@ -401,6 +406,16 @@ void WorldSession::HandleGroupUninviteGuidOpcode(WorldPacket& recv_data)
         return;
     }
 
+    // Nobody may kick the leader. Player::CanUninviteFromGroup grants the right
+    // to any assistant with no leader test, and the client offers the Remove
+    // entry in this case (UnitPopup.lua only hides assistant-on-assistant and
+    // leader-on-self), so the server is the only thing that can refuse it.
+    if (grp->IsLeader(guid))
+    {
+        SendPartyResult(PARTY_OP_LEAVE, "", ERR_NOT_LEADER);
+        return;
+    }
+
     if (grp->IsMember(guid))
     {
         Player::RemoveFromGroup(grp, guid);
@@ -416,61 +431,6 @@ void WorldSession::HandleGroupUninviteGuidOpcode(WorldPacket& recv_data)
     SendPartyResult(PARTY_OP_LEAVE, "", ERR_TARGET_NOT_IN_GROUP_S);
 }
 
-/**
- * @brief Uninvites a group member or invitee by player name.
- *
- * @param recv_data The received opcode packet.
- */
-void WorldSession::HandleGroupUninviteOpcode(WorldPacket& recv_data)
-{
-    std::string membername;
-    recv_data >> membername;
-
-    // Unlike the invite request, this packet carries no separate realm field,
-    // so a name that came from a click rather than the keyboard arrives as
-    // "Name-Realm" and must be stripped before the lookup.
-    StripHomeRealmSuffix(membername);
-
-    // player not found
-    if (!normalizePlayerName(membername))
-    {
-        return;
-    }
-
-    // can't uninvite yourself
-    if (GetPlayer()->GetName() == membername)
-    {
-        sLog.outError("WorldSession::HandleGroupUninviteOpcode: leader %s tried to uninvite himself from the group.", GetPlayer()->GetGuidStr().c_str());
-        return;
-    }
-
-    PartyResult res = GetPlayer()->CanUninviteFromGroup();
-    if (res != ERR_PARTY_RESULT_OK)
-    {
-        SendPartyResult(PARTY_OP_LEAVE, "", res);
-        return;
-    }
-
-    Group* grp = GetPlayer()->GetGroup();
-    if (!grp)
-    {
-        return;
-    }
-
-    if (ObjectGuid guid = grp->GetMemberGuid(membername))
-    {
-        Player::RemoveFromGroup(grp, guid);
-        return;
-    }
-
-    if (Player* plr = grp->GetInvited(membername))
-    {
-        plr->UninviteFromGroup();
-        return;
-    }
-
-    SendPartyResult(PARTY_OP_LEAVE, membername, ERR_TARGET_NOT_IN_GROUP_S);
-}
 
 /**
  * @brief Changes the leader of the current group.
@@ -479,8 +439,13 @@ void WorldSession::HandleGroupUninviteOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleGroupSetLeaderOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid guid;
-    recv_data >> guid;
+    MopGroupPromotePackets::SetLeaderRequest request;
+    if (!MopGroupPromotePackets::ParseSetLeader(recv_data, request))
+    {
+        return;
+    }
+
+    ObjectGuid const guid = request.targetGuid;
 
     Group* group = GetPlayer()->GetGroup();
     if (!group)
@@ -535,10 +500,11 @@ void WorldSession::HandleGroupDisbandOpcode(WorldPacket& /*recv_data*/)
  */
 void WorldSession::HandleLootMethodOpcode(WorldPacket& recv_data)
 {
-    uint32 lootMethod;
-    ObjectGuid lootMaster;
-    uint32 lootThreshold;
-    recv_data >> lootMethod >> lootMaster >> lootThreshold;
+    MopGroupLootMethodPackets::Request request;
+    if (!MopGroupLootMethodPackets::ParseRequest(recv_data, request))
+    {
+        return;
+    }
 
     Group* group = GetPlayer()->GetGroup();
     if (!group)
@@ -551,12 +517,25 @@ void WorldSession::HandleLootMethodOpcode(WorldPacket& recv_data)
     {
         return;
     }
+
+    // A master looter who is not in the group would be unreachable for every
+    // later loot decision, so refuse rather than store an unusable GUID. The
+    // client only carries one for MASTER_LOOT; any other method clears it.
+    ObjectGuid looter;
+    if (request.method == MASTER_LOOT)
+    {
+        if (!request.looterGuid || !group->IsMember(request.looterGuid))
+        {
+            return;
+        }
+        looter = request.looterGuid;
+    }
     /********************/
 
-    // everything is fine, do it
-    group->SetLootMethod((LootMethod)lootMethod);
-    group->SetLooterGuid(lootMaster);
-    group->SetLootThreshold((ItemQualities)lootThreshold);
+    // everything is fine, do it. Both values were range-checked while parsing.
+    group->SetLootMethod((LootMethod)request.method);
+    group->SetLooterGuid(looter);
+    group->SetLootThreshold((ItemQualities)request.threshold);
     group->SendUpdate();
 }
 
@@ -638,11 +617,33 @@ void WorldSession::HandleMinimapPingOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleRandomRollOpcode(WorldPacket& recv_data)
 {
+    // Build 18414 writer sub_66748A, vtable D62DF0 slot 1; slot 2 sub_661642
+    // writes opcode 2211. The wire order is MAXIMUM then MINIMUM, then the 0x7F
+    // family marker -- not minimum-first as inherited, and not eight bytes:
+    //
+    //   64 00 00 00 | 01 00 00 00 | 7F      = /roll 1 100
+    //
+    // Read in the inherited order this yielded minimum=100, maximum=1, which
+    // tripped the range check below and dropped every roll in silence. The
+    // trailing marker also has to be consumed or the packet reports unprocessed
+    // tail data.
+    if (recv_data.size() != 9)
+    {
+        return;
+    }
+
     uint32 minimum, maximum, roll;
-    recv_data >> minimum;
+    uint8 marker = 0;
     recv_data >> maximum;
+    recv_data >> minimum;
+    recv_data >> marker;
 
     /** error handling **/
+    if (marker != 0x7F)
+    {
+        return;
+    }
+
     if (minimum > maximum || maximum > 10000)               // < 32768 for urand call
     {
         return;
@@ -707,8 +708,28 @@ void WorldSession::HandleRaidTargetUpdateOpcode(WorldPacket& recv_data)
  *
  * @param recv_data The received opcode packet.
  */
-void WorldSession::HandleGroupRaidConvertOpcode(WorldPacket& /*recv_data*/)
+void WorldSession::HandleGroupRaidConvertOpcode(WorldPacket& recv_data)
 {
+    // ONE opcode carries BOTH directions. Build 18414 writer sub_688B4B (vtable
+    // D634B8 slot 1, slot 2 sub_66113B writes 812) emits a single bit and
+    // flushes it, so the whole body is one byte: 0x80 set, 0x00 clear.
+    //
+    // The polarity is taken from the client's own Lua natives, which are
+    // identical apart from that value:
+    //
+    //   sub_9056D2  ConvertToRaid    v5 = 1   -> 0x80
+    //   sub_905736  ConvertToParty   v5 = 0   -> 0x00
+    //
+    // Discarding the body -- as this handler did while it was unregistered --
+    // would make "Convert to Party" convert to raid instead.
+    bool toRaid = false;
+    if (recv_data.size() != 1)
+    {
+        return;
+    }
+    toRaid = recv_data.ReadBit();
+    recv_data.ResetBitReader();
+
     Group* group = GetPlayer()->GetGroup();
     if (!group)
     {
@@ -720,6 +741,14 @@ void WorldSession::HandleGroupRaidConvertOpcode(WorldPacket& /*recv_data*/)
         return;
     }
 
+    // A dungeon-finder group is owned by the LFG state machine, which tracks
+    // its own composition; converting it out from under that would leave the
+    // two disagreeing.
+    if (group->isLFGGroup())
+    {
+        return;
+    }
+
     /** error handling **/
     if (!group->IsLeader(GetPlayer()->GetObjectGuid()) || group->GetMembersCount() < 2)
     {
@@ -727,9 +756,28 @@ void WorldSession::HandleGroupRaidConvertOpcode(WorldPacket& /*recv_data*/)
     }
     /********************/
 
-    // everything is fine, do it (is it 0 (PARTY_OP_INVITE) correct code)
+    if (toRaid)
+    {
+        if (group->isRaidGroup())
+        {
+            return;
+        }
+
+        SendPartyResult(PARTY_OP_INVITE, "", ERR_PARTY_RESULT_OK);
+        group->ConvertToRaid();
+        return;
+    }
+
+    // Coming back the other way can fail -- a member parked outside the first
+    // subgroup would be unreachable in a party frame -- so report rather than
+    // appear to succeed.
+    if (!group->ConvertToParty())
+    {
+        SendPartyResult(PARTY_OP_INVITE, "", ERR_NOT_LEADER);
+        return;
+    }
+
     SendPartyResult(PARTY_OP_INVITE, "", ERR_PARTY_RESULT_OK);
-    group->ConvertToRaid();
 }
 
 /**
@@ -739,16 +787,13 @@ void WorldSession::HandleGroupRaidConvertOpcode(WorldPacket& /*recv_data*/)
  */
 void WorldSession::HandleGroupChangeSubGroupOpcode(WorldPacket& recv_data)
 {
-    std::string name;
-    uint8 groupNr;
-    recv_data >> name;
-
-    recv_data >> groupNr;
-
-    if (groupNr >= MAX_RAID_SUBGROUPS)
+    MopGroupPromotePackets::ChangeSubGroupRequest request;
+    if (!MopGroupPromotePackets::ParseChangeSubGroup(recv_data, request))
     {
         return;
     }
+
+    uint8 const groupNr = request.subGroup;
 
     // we will get correct pointer for group here, so we don't have to check if group is BG raid
     Group* group = GetPlayer()->GetGroup();
@@ -768,17 +813,30 @@ void WorldSession::HandleGroupChangeSubGroupOpcode(WorldPacket& recv_data)
     }
     /********************/
 
+    // Subgroups only exist in a raid. ConvertToParty leaves m_subGroupsCounts
+    // allocated, so HasFreeSlotSubGroup still answers true for a party and this
+    // handler -- unlike the assistant and party-assignment ones -- had no raid
+    // test of its own.
+    if (!group->isRaidGroup())
+    {
+        return;
+    }
+
+    // The 18414 request identifies the target by GUID, so there is no name to
+    // resolve and no chance of moving a same-named character in another group.
+    if (!group->IsMember(request.targetGuid))
+    {
+        return;
+    }
+
     // everything is fine, do it
-    if (Player* player = sObjectMgr.GetPlayer(name.c_str()))
+    if (Player* player = sObjectMgr.GetPlayer(request.targetGuid))
     {
         group->ChangeMembersGroup(player, groupNr);
     }
     else
     {
-        if (ObjectGuid guid = sObjectMgr.GetPlayerGuidByName(name.c_str()))
-        {
-            group->ChangeMembersGroup(guid, groupNr);
-        }
+        group->ChangeMembersGroup(request.targetGuid, groupNr);
     }
 }
 
@@ -789,10 +847,11 @@ void WorldSession::HandleGroupChangeSubGroupOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandleGroupAssistantLeaderOpcode(WorldPacket& recv_data)
 {
-    ObjectGuid guid;
-    uint8 flag;
-    recv_data >> guid;
-    recv_data >> flag;
+    MopGroupPromotePackets::AssistantRequest request;
+    if (!MopGroupPromotePackets::ParseAssistant(recv_data, request))
+    {
+        return;
+    }
 
     Group* group = GetPlayer()->GetGroup();
     if (!group)
@@ -805,10 +864,218 @@ void WorldSession::HandleGroupAssistantLeaderOpcode(WorldPacket& recv_data)
     {
         return;
     }
+
+    // Assistant is a raid concept, and the target must actually be in the
+    // group -- otherwise an arbitrary GUID would be stored against a raid slot.
+    if (!group->isRaidGroup() || !group->IsMember(request.targetGuid))
+    {
+        return;
+    }
     /********************/
 
     // everything is fine, do it
-    group->SetAssistant(guid, (flag == 0 ? false : true));
+    group->SetAssistant(request.targetGuid, request.promote);
+}
+
+/**
+ * @brief Handles the raid "Everyone is Assistant" toggle.
+ *
+ * @param recv_data The received opcode packet.
+ */
+void WorldSession::HandleGroupEveryoneIsAssistantOpcode(WorldPacket& recv_data)
+{
+    // Build 18414 writer sub_666B59, vtable D62E40 slot 1; slot 2 sub_661450
+    // writes opcode 481. The whole body is a 0x7F marker byte then a single
+    // bit, flushed -- two bytes.
+    //
+    // No corpus packet exists for this opcode at 18414, so the layout rests on
+    // the client writer alone. It is a rare action rather than an invented
+    // value: the writer is present in the binary and the UI exposes the toggle.
+    if (recv_data.size() != 2)
+    {
+        return;
+    }
+
+    uint8 marker = 0;
+    recv_data >> marker;
+    if (marker != 0x7F)
+    {
+        return;
+    }
+
+    bool const apply = recv_data.ReadBit();
+    recv_data.ResetBitReader();
+
+    Group* group = GetPlayer()->GetGroup();
+    if (!group)
+    {
+        return;
+    }
+
+    // Unlike individual promotion, this one is the leader's alone -- an
+    // assistant could otherwise promote the whole raid to their own rank.
+    if (!group->IsLeader(GetPlayer()->GetObjectGuid()))
+    {
+        return;
+    }
+
+    group->SetEveryoneIsAssistant(apply);
+}
+
+/**
+ * @brief Handles a player choosing their own LFG role.
+ *
+ * @param recv_data The received opcode packet.
+ */
+void WorldSession::HandleGroupSetRolesOpcode(WorldPacket& recv_data)
+{
+    // Build 18414 writer sub_665BD9, vtable D6369C slot 1; slot 2 sub_660FCB
+    // writes opcode 6802. Layout:
+    //
+    //   uint8  0x7F marker
+    //   uint32 role bitmask
+    //   bits   GUID mask 2,0,7,4,1,3,6,5, then FlushBits
+    //   bytes  GUID 1,5,2,6,7,0,4,3, each ^1, omitted when zero
+    //
+    // Verified byte-exact against 7F 08 00 00 00 EC C9 3D 05 E9 04.
+    if (recv_data.rpos() != 0 || recv_data.size() < 6)
+    {
+        recv_data.rfinish();
+        return;
+    }
+
+    uint8 marker = 0;
+    uint32 roles = 0;
+    recv_data >> marker;
+    if (marker != 0x7F)
+    {
+        recv_data.rfinish();
+        return;
+    }
+    recv_data >> roles;
+
+    static uint8 const maskOrder[8] = { 2, 0, 7, 4, 1, 3, 6, 5 };
+    static uint8 const byteOrder[8] = { 1, 5, 2, 6, 7, 0, 4, 3 };
+
+    bool present[8] = { false };
+    for (uint8 index : maskOrder)
+    {
+        present[index] = recv_data.ReadBit();
+    }
+    recv_data.ResetBitReader();
+
+    size_t presentCount = 0;
+    for (size_t i = 0; i < 8; ++i)
+    {
+        if (present[i])
+        {
+            ++presentCount;
+        }
+    }
+
+    if (recv_data.size() - recv_data.rpos() != presentCount)
+    {
+        recv_data.rfinish();
+        return;
+    }
+
+    uint8 bytes[8] = { 0 };
+    for (uint8 index : byteOrder)
+    {
+        if (!present[index])
+        {
+            continue;
+        }
+        uint8 raw = 0;
+        recv_data >> raw;
+        if (raw == 1)
+        {
+            recv_data.rfinish();
+            return;
+        }
+        bytes[index] = raw ^ 1;
+    }
+
+    uint64 rawGuid = 0;
+    for (size_t i = 0; i < 8; ++i)
+    {
+        rawGuid |= uint64(bytes[i]) << (i * 8);
+    }
+    ObjectGuid const target(rawGuid);
+
+    Group* group = GetPlayer()->GetGroup();
+    if (!group)
+    {
+        return;
+    }
+
+    // A player always sets their OWN role, and a leader or assistant may set
+    // anyone's. The client drives both from the same menu: UnitPopup.lua:1732
+    // passes the right-clicked unit to UnitSetRole, and :1195 shows the Set Role
+    // submenu when isLeader, isAssistant, or the unit is the player. The client
+    // binary agrees -- UnitSetRole compares the target to the caller's own GUID
+    // and, when they differ, requires the caller's group rank to be leader or
+    // assistant before sending the TARGET's GUID.
+    //
+    // An earlier version accepted only the sender's own GUID, on the stated but
+    // wrong premise that the body always carries it. That silently discarded
+    // every role a leader assigned.
+    ObjectGuid const subject = target ? target : GetPlayer()->GetObjectGuid();
+    if (subject != GetPlayer()->GetObjectGuid())
+    {
+        if (!group->IsLeader(GetPlayer()->GetObjectGuid()) &&
+            !group->IsAssistant(GetPlayer()->GetObjectGuid()))
+        {
+            return;
+        }
+
+        if (!group->IsMember(subject))
+        {
+            return;
+        }
+    }
+
+    // Only tank, healer and damage exist; anything else is not a role the
+    // roster or the dungeon finder can represent.
+    uint8 const accepted = uint8(roles & (PLAYER_ROLE_TANK | PLAYER_ROLE_HEALER | PLAYER_ROLE_DAMAGE));
+    if (uint32(accepted) != roles)
+    {
+        return;
+    }
+
+    group->SetMemberRoles(subject, accepted);
+}
+
+/**
+ * @brief Handles a leader or assistant starting a role check.
+ *
+ * @param recv_data The received opcode packet.
+ */
+void WorldSession::HandleGroupInitiateRolePollOpcode(WorldPacket& recv_data)
+{
+    // Build 18414 writer sub_6696A8, vtable D63110 slot 1; slot 2 sub_660E1F
+    // writes opcode 6274. The whole body is a single byte.
+    if (recv_data.size() != 1)
+    {
+        return;
+    }
+
+    uint8 partyIndex = 0;
+    recv_data >> partyIndex;
+
+    Group* group = GetPlayer()->GetGroup();
+    if (!group)
+    {
+        return;
+    }
+
+    if (!group->IsLeader(GetPlayer()->GetObjectGuid()) &&
+        !group->IsAssistant(GetPlayer()->GetObjectGuid()))
+    {
+        return;
+    }
+
+    group->BeginRolePoll(GetPlayer()->GetObjectGuid());
 }
 
 /**
@@ -818,13 +1085,15 @@ void WorldSession::HandleGroupAssistantLeaderOpcode(WorldPacket& recv_data)
  */
 void WorldSession::HandlePartyAssignmentOpcode(WorldPacket& recv_data)
 {
-    uint8 role;
-    uint8 apply;
-    ObjectGuid guid;
-    recv_data >> role >> apply;                             // role 0 = Main Tank, 1 = Main Assistant
-    recv_data >> guid;
+    MopGroupPromotePackets::PartyAssignmentRequest request;
+    if (!MopGroupPromotePackets::ParsePartyAssignment(recv_data, request))
+    {
+        return;
+    }
 
-    DEBUG_LOG("MSG_PARTY_ASSIGNMENT");
+    uint8 const role = request.assignment;                  // 0 = Main Tank, 1 = Main Assistant
+    bool const apply = request.apply;
+    ObjectGuid const guid = request.targetGuid;
 
     Group* group = GetPlayer()->GetGroup();
     if (!group)
@@ -833,7 +1102,17 @@ void WorldSession::HandlePartyAssignmentOpcode(WorldPacket& recv_data)
     }
 
     /** error handling **/
-    if (!group->IsLeader(GetPlayer()->GetObjectGuid()))
+    // Assistants may set these too, matching the client, which shows the menu
+    // entries for leader and assistant alike.
+    if (!group->IsLeader(GetPlayer()->GetObjectGuid()) &&
+        !group->IsAssistant(GetPlayer()->GetObjectGuid()))
+    {
+        return;
+    }
+
+    // Main tank and main assist are raid roles, and an arbitrary GUID would be
+    // stored against a slot nothing can later clear.
+    if (!group->isRaidGroup() || !group->IsMember(guid))
     {
         return;
     }

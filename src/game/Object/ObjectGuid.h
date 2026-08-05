@@ -125,7 +125,30 @@ class ObjectGuid
             return HighGuid(IsLargeHigh(high) ? high :
                 (m_guid >> 52) & 0xFFF);
         }
-        uint32   GetEntry() const { return HasEntry() ? uint32((m_guid >> 32) & UI64LIT(0xFFFF)) : 0; }
+        /// The entry field is 20 bits wide, not 16.
+        ///
+        /// The constructor packs `entry << 32` and the high guid at `<< 52`, so bits
+        /// 32..51 belong to the entry. Masking 0xFFFF read only 16 of them, so every
+        /// creature or gameobject with an entry >= 65536 reported a wrong one -- and
+        /// wrong in a way that looks plausible rather than obviously broken: NPC 66685
+        /// truncated to 1149, which is a different real NPC. A large share of MoP
+        /// content sits above that boundary. Storage was always correct, which is why
+        /// affected creatures behave normally in game; only this accessor truncated.
+        ///
+        /// The guild case is load-bearing, not defensive. IsLargeHigh is true only for
+        /// HIGHGUID_GUILD, which is stored at `<< 48` and so genuinely has just 16 bits
+        /// free above the entry. HasEntry() also returns true for guild guids -- they
+        /// fall through its `default:` branch even though they never carry an entry --
+        /// so widening unguarded would make a guild guid read the low nibble of its own
+        /// high guid instead of 0.
+        ///
+        /// 20 bits allows up to 1048575, comfortably above any MoP entry.
+        uint32   GetEntry() const
+        {
+            return HasEntry()
+                   ? uint32((m_guid >> 32) & (IsLargeHigh() ? UI64LIT(0xFFFF) : UI64LIT(0xFFFFF)))
+                   : 0;
+        }
         uint32   GetCounter()  const
         {
             return HasEntry()

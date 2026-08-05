@@ -48,7 +48,9 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
     //       - look into splitting this into 2 fns- one for player case, one for group
     Group* pGroup = plr->GetGroup();
     ObjectGuid guid = (pGroup) ? pGroup->GetObjectGuid() : plr->GetObjectGuid();
-    uint32 randomDungeonID; // used later if random dungeon has been chosen
+    // Assigned only on the random-dungeon branch, but read unconditionally
+    // further down, so it must not start indeterminate.
+    uint32 randomDungeonID = 0; // used later if random dungeon has been chosen
 
     LFGPlayers* currentInfo = GetPlayerOrPartyData(guid);
 
@@ -91,20 +93,16 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         for (std::set<uint32>::iterator it = dungeons.begin(); it != dungeons.end(); ++it)
         {
             LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(*it);
+            // The dungeon ids arrive from the client. LookupEntry returns NULL
+            // for an unknown one, so dereferencing it unchecked is a remote
+            // crash. That became reachable when this branch indexed
+            // LfgDungeons.dbc by id: while it was indexed by row ordinal every
+            // id below the record count found *something*, but the id space is
+            // sparse, running to 774 with 432 holes.
             if (!dungeon)
             {
-                // These ids come off the wire, and this lookup can now return NULL where it
-                // never used to. While LfgDungeons.dbc was indexed by row ordinal, every id
-                // below the record count found *something*, so the missing check was survivable
-                // by accident. Indexing by id is correct but leaves the id space sparse -- it
-                // runs to 774 with 432 holes -- so any client sending an id in a hole would
-                // dereference NULL here.
-                //
-                // Refused rather than skipped: an id the DBC does not know is not a slot this
-                // server can offer, and ERR_LFG_INVALID_SLOT is what the rest of this loop
-                // already returns for a slot it will not take.
                 result = ERR_LFG_INVALID_SLOT;
-                continue;
+                break;
             }
 
             switch (dungeon->TypeID)

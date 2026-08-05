@@ -1142,6 +1142,175 @@ void InitializeOpcodes()
     DefS(SMSG_GROUP_LIST, "SMSG_GROUP_LIST");
     DefC(CMSG_GROUP_INVITE_RESPONSE, "CMSG_GROUP_INVITE_RESPONSE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGroupInviteResponseOpcode);
 
+    // The invite request and its popup are promoted TOGETHER, which is the whole
+    // point of the pairing rule: the request is the only path by which a group
+    // can be created at all, and it is worthless unless the invitee's client can
+    // be told about it. Until now the response half was registered while the ask
+    // half was not, so an invite was dropped before reaching its handler and the
+    // invitee saw nothing.
+    //
+    // SMSG_GROUP_INVITE is admitted in IsEnterWorldConverted alongside this, on
+    // a body rebuilt from the client reader and proved byte-exact against real
+    // captured popups. The inherited builder it replaces could not have been
+    // admitted safely -- its ceiling was 43 bytes against an observed minimum
+    // of 56.
+    //
+    // Known gap, deliberately not hidden: SMSG_PARTY_COMMAND_RESULT is still
+    // unadmitted, so a REFUSED invite ("no such player", "already in a group")
+    // produces no message to the inviter. A successful invite is unaffected.
+    // That reply is the next pair in this wave.
+    DefC(CMSG_GROUP_INVITE, "CMSG_GROUP_INVITE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGroupInviteOpcode);
+    DefS(SMSG_GROUP_INVITE, "SMSG_GROUP_INVITE");
+
+    // Leaving a group. The 18414 client sends 0x1798 for "Leave Party" --
+    // observed live, logged as an unhandled opcode -- and its reply
+    // SMSG_GROUP_DESTROYED 0x1B27 is an EMPTY body, which the corpus confirms
+    // at min = max = 0 bytes over 100 packets. Group.cpp already initialises it
+    // to zero length, so there is no layout to derive and nothing to misparse.
+    //
+    // The request body is likewise not a risk: HandleGroupDisbandOpcode ignores
+    // it entirely, so the single byte the client sends cannot be misread. The
+    // corpus records exactly 1 byte across 393 packets.
+    //
+    // Registration and admission are paired here for the same reason as the
+    // invite: leaving is worthless if the client is never told the group is
+    // gone, and it would sit in a party frame it no longer belongs to.
+    DefC(CMSG_GROUP_DISBAND, "CMSG_GROUP_DISBAND", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGroupDisbandOpcode);
+    DefS(SMSG_GROUP_DESTROYED, "SMSG_GROUP_DESTROYED");
+
+    // The shared result message for EVERY group operation -- invite, uninvite,
+    // leader change, disband. Until now it was built and dropped, so a refused
+    // operation told the player nothing.
+    //
+    // Unusually, its inherited flat body is already correct at 18414: this
+    // opcode never went bit-packed. Verified against two captured bodies,
+    //
+    //   21 B  01 00 00 00 | 00 | 1A 00 00 00 | 00000000 | 8x00
+    //         op=1, name="", result=26
+    //   29 B  02 00 00 00 | "Jazharka" 00 | 00 00 00 00 | 00000000 | 8x00
+    //         op=2, name="Jazharka", result=0
+    //
+    // which is exactly uint32 operation, NUL-terminated name, uint32 result,
+    // uint32 LFD cooldown, ObjectGuid -- the layout SendPartyResult already
+    // writes, sizes included. It is admitted unchanged; do NOT "convert" it to
+    // a packed body, because the client reads it flat.
+    DefS(SMSG_PARTY_COMMAND_RESULT, "SMSG_PARTY_COMMAND_RESULT");
+
+    // Removing a member. The 18414 client sends 0x0CE1 -- observed live -- and
+    // NOT CMSG_GROUP_UNINVITE 0x1076, which is a stale pre-18414 enum the client
+    // never emits. Its reply SMSG_GROUP_UNINVITE 0x1313 is an empty body,
+    // confirmed by the corpus at min = max = 0 over 86 packets.
+    //
+    // The reader was rebuilt for this: the legacy one took a RAW ObjectGuid and
+    // skipped a std::string, while the real body is a 0x7F marker, a bit-packed
+    // GUID and an 8-bit-length reason string. Registering it against the old
+    // reader would have misparsed rather than failed.
+    DefC(CMSG_GROUP_UNINVITE_GUID, "CMSG_GROUP_UNINVITE_GUID", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGroupUninviteGuidOpcode);
+    DefS(SMSG_GROUP_UNINVITE, "SMSG_GROUP_UNINVITE");
+
+    // Loot rules. One opcode gates three separate leader controls -- the loot
+    // method submenu, "set as master looter", and the loot threshold submenu --
+    // plus five slash commands, all of which did nothing.
+    //
+    // Its reply needs no admission of its own: the handler answers with
+    // Group::SendUpdate, and SMSG_GROUP_LIST already carries lootMethod,
+    // lootThreshold and the master-looter GUID, so the display half has been
+    // working all along with nothing able to change it.
+    //
+    // The reader was rebuilt: the legacy one took uint32 + raw ObjectGuid +
+    // uint32 with no marker, so it folded the 0x7F marker and the method byte
+    // into a single bogus 32-bit loot method.
+    DefC(CMSG_LOOT_METHOD, "CMSG_LOOT_METHOD", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLootMethodOpcode);
+
+    // Promotion. Both requests use the same 0x7F marker plus packed GUID family
+    // as uninvite and loot rules, on readers rebuilt from their client writers.
+    // The assistant flag is a NINTH BIT inside the mask, not a trailing byte.
+    //
+    // SMSG_GROUP_SET_LEADER is admitted with them and its body was rebuilt: the
+    // inherited sender wrote a NUL-terminated name, while the client reads a
+    // byte then a SIX-BIT length then the raw name. Three captured bodies whose
+    // second byte is exactly (length << 2) pin it.
+    //
+    // Assistant answers over the already-admitted SMSG_GROUP_LIST, so it needs
+    // no admission of its own.
+    DefC(CMSG_GROUP_SET_LEADER, "CMSG_GROUP_SET_LEADER", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGroupSetLeaderOpcode);
+    DefS(SMSG_GROUP_SET_LEADER, "SMSG_GROUP_SET_LEADER");
+    DefC(CMSG_GROUP_ASSISTANT_LEADER, "CMSG_GROUP_ASSISTANT_LEADER", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGroupAssistantLeaderOpcode);
+
+    // /roll and /random. Everything except the request constant was already in
+    // place: the handler validates its own range, and SMSG_RANDOM_ROLL 0x141A is
+    // a converted body that is already admitted. The value we HAD, MSG_RANDOM_ROLL
+    // 0x0905, is a 4.3.4 carry-over the 18414 client never sends -- registering
+    // that would have bound the handler to an opcode nothing emits, which looks
+    // like a working feature that simply never fires.
+    DefC(CMSG_RANDOM_ROLL, "CMSG_RANDOM_ROLL", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleRandomRollOpcode);
+
+    // Moving a raid member between subgroups. Same family as the others, but
+    // the subgroup number LEADS and the 0x7F marker is second. Answers over the
+    // already-admitted SMSG_GROUP_LIST, so no reply admission is needed.
+    //
+    // The legacy reader took a std::string first, so it would have read the
+    // subgroup byte as a string length.
+    DefC(CMSG_GROUP_CHANGE_SUB_GROUP, "CMSG_GROUP_CHANGE_SUB_GROUP", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGroupChangeSubGroupOpcode);
+
+    // Converting between party and raid. ONE opcode carries BOTH directions,
+    // distinguished by a single bit -- 0x80 to raid, 0x00 to party -- which is
+    // why this was held until the handler stopped discarding its body. The
+    // polarity comes from the client's own Lua natives, identical apart from
+    // that value (sub_9056D2 ConvertToRaid sets it, sub_905736 ConvertToParty
+    // clears it).
+    //
+    // Group::ConvertToParty is new; only the raid direction existed before, so
+    // "Convert to Party" had nothing to call even once the bit was read.
+    // Answers over the already-admitted SMSG_GROUP_LIST and
+    // SMSG_PARTY_COMMAND_RESULT.
+    DefC(CMSG_GROUP_RAID_CONVERT, "CMSG_GROUP_RAID_CONVERT", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGroupRaidConvertOpcode);
+
+    // Main tank and main assist. The value we had, MSG_PARTY_ASSIGNMENT 0x0424,
+    // is a 4.3.4 carry-over the 18414 client never sends -- the third stale
+    // value found in this surface, after CMSG_GROUP_UNINVITE and
+    // MSG_RANDOM_ROLL. The real one is CMSG_SET_PARTY_ASSIGNMENT 0x1802.
+    //
+    // Reader rebuilt: the apply flag is a ninth mask bit, not the second byte,
+    // which the legacy reader took it for before failing to find the GUID at
+    // all. Answers over the already-admitted SMSG_GROUP_LIST.
+    DefC(CMSG_SET_PARTY_ASSIGNMENT, "CMSG_SET_PARTY_ASSIGNMENT", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandlePartyAssignmentOpcode);
+
+    // The raid "Everyone is Assistant" toggle. Body is a 0x7F marker and one
+    // bit. This one has ZERO corpus traffic at 18414, so unlike the rest of
+    // this wave its layout rests on the client writer alone -- a rare action
+    // rather than an invented value, since the writer is in the binary and the
+    // UI exposes the toggle. Answers over the already-admitted SMSG_GROUP_LIST.
+    DefC(CMSG_SET_EVERYONE_IS_ASSISTANT, "CMSG_SET_EVERYONE_IS_ASSISTANT", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGroupEveryoneIsAssistantOpcode);
+
+    // Roles and the role check. Both were UNDECLARED -- the client sends them
+    // and they were logged as unhandled UNKNOWN opcodes.
+    //
+    // SMSG_GROUP_LIST has always carried a per-member role byte, but nothing
+    // filled it, so every member reported "no role" no matter what they picked.
+    // Storing the choice is what makes the roster meaningful, which is why no
+    // separate reply needs admitting.
+    DefC(CMSG_GROUP_SET_ROLES, "CMSG_GROUP_SET_ROLES", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGroupSetRolesOpcode);
+    // The role check is now complete: the request is parsed and authorised, and
+    // SMSG_GROUP_ROLE_POLL_INFORM 0x1007 carries the prompt to every member.
+    // Its body was recovered from two reference implementations that agree and
+    // verified byte-exact against three captured bodies.
+    DefC(CMSG_GROUP_INITIATE_ROLE_POLL, "CMSG_GROUP_INITIATE_ROLE_POLL", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleGroupInitiateRolePollOpcode);
+    DefS(SMSG_GROUP_ROLE_POLL_INFORM, "SMSG_GROUP_ROLE_POLL_INFORM");
+
+    // NOT registered, deliberately: CMSG_SET_DUNGEON_DIFFICULTY 0x1A36 and
+    // CMSG_SET_RAID_DIFFICULTY 0x0591. Both values are binary-proved and both
+    // handlers exist with their reply SMSGs already admitted, so they look ready.
+    // They are not.
+    //
+    // The client sends a RAW Difficulty.dbc DifficultyID, while the internal
+    // Difficulty enum is 0-based (DUNGEON_DIFFICULTY_NORMAL = 0,
+    // RAID_DIFFICULTY_10MAN_NORMAL = 0). The handlers cast one onto the other with
+    // Difficulty(mode). No raw id except 0 equals its own internal mode, so a
+    // player choosing Heroic would land on whatever internal mode the raw id
+    // collides with. The translation lives in the unmerged instance-difficulty
+    // work; these two are held until it lands.
+
     // Wave 15 stable-pet list request, list response, and operation result.
     DefC(CMSG_REQUEST_STABLED_PETS, "CMSG_REQUEST_STABLED_PETS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleListStabledPetsOpcode);
     DefS(SMSG_PET_STABLE_LIST, "SMSG_PET_STABLE_LIST");
@@ -1328,6 +1497,12 @@ void InitializeOpcodes()
     // and its 22-bit dungeon count is bounded against the body's own remaining
     // length before anything is allocated from it.
     DefC(CMSG_LFG_JOIN, "CMSG_LFG_JOIN", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgJoinOpcode);
+
+    // Leaving the queue. Registered WITH the join being wired, because a
+    // player who can queue and cannot cancel is worse off than one who
+    // cannot queue at all. Body is a ticket echo verified byte-exact against
+    // four captured bodies, including the 17-byte zero-mask form.
+    DefC(CMSG_LFG_LEAVE, "CMSG_LFG_LEAVE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgLeaveOpcode);
 
     // The mailbox family and the guild-bank tab query. Each inherited reader took
     // a raw ObjectGuid first; at 18414 all four pack it and the scalars lead. The

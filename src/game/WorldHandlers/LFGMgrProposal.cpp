@@ -299,6 +299,14 @@ bool LFGMgr::IsProposalSameGroup(LFGProposal const& proposal)
         ObjectGuid plrGuid = it->first;
 
         Player* pPlayer = sObjectAccessor.FindPlayer(plrGuid);
+        // A queued player who logged out, or who is mid-teleport, is not found.
+        // This runs BEFORE the offline-skip loop in SendDungeonProposal, so one
+        // absent member would crash the whole proposal.
+        if (!pPlayer)
+        {
+            continue;
+        }
+
         if (Group* pGroup = pPlayer->GetGroup())
         {
             ObjectGuid grpGuid = pGroup->GetObjectGuid();
@@ -954,7 +962,10 @@ void LFGMgr::HandleBossKilled(Player* pPlayer)
             // check if player did a random dungeon
             uint32 randomDungeonId = 0;
             LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(status->dungeonID);
-            if (dungeon->TypeID == LFG_TYPE_RANDOM_DUNGEON || IsSeasonal(dungeon->Flags))
+            // A stored dungeon id that no longer resolves -- stale group state,
+            // or a DBC that changed under a saved group -- would crash the
+            // reward path rather than simply pay nothing.
+            if (dungeon && (dungeon->TypeID == LFG_TYPE_RANDOM_DUNGEON || IsSeasonal(dungeon->Flags)))
             {
                 randomDungeonId = dungeon->ID;
             }

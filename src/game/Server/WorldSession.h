@@ -1938,7 +1938,6 @@ class WorldSession
 
         void HandleGroupInviteOpcode(WorldPacket& recvPacket);
         void HandleGroupInviteResponseOpcode(WorldPacket& recvPacket);
-        void HandleGroupUninviteOpcode(WorldPacket& recvPacket);
         void HandleGroupUninviteGuidOpcode(WorldPacket& recvPacket);
         void HandleGroupSetLeaderOpcode(WorldPacket& recvPacket);
         void HandleGroupDisbandOpcode(WorldPacket& recvPacket);
@@ -1955,6 +1954,9 @@ class WorldSession
         void HandleGroupRequestJoinUpdates(WorldPacket& recv_data);
         void HandleGroupChangeSubGroupOpcode(WorldPacket& recv_data);
         void HandleGroupAssistantLeaderOpcode(WorldPacket& recv_data);
+        void HandleGroupEveryoneIsAssistantOpcode(WorldPacket& recv_data);
+        void HandleGroupSetRolesOpcode(WorldPacket& recv_data);
+        void HandleGroupInitiateRolePollOpcode(WorldPacket& recv_data);
         void HandlePartyAssignmentOpcode(WorldPacket& recv_data);
 
         void HandlePetitionBuyOpcode(WorldPacket& recv_data);

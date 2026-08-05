@@ -187,7 +187,149 @@ namespace MopGroupInvitePackets
         std::string targetName;
     };
 
+    /// The popup an invitee receives: SMSG_GROUP_INVITE.
+    ///
+    /// `inviterName` is the ONLY field the ordinary popup shows. FrameXML
+    /// `UIParent.lua:800` switches on the others and picks a DIFFERENT dialog:
+    /// any role bit routes to the LFG invite popup, and `crossRealmName` routes
+    /// to PARTY_INVITE_XREALM. A single-realm server must therefore leave both
+    /// clear, or an ordinary friend invite renders as the wrong dialog.
+    ///
+    /// The two realm strings and the three identity scalars exist for the
+    /// cross-realm route only. Their widths and positions are wire fact; the
+    /// names are semantic inference, and the client's ordinary path does not
+    /// surface them as Lua arguments at all.
+    struct Invite
+    {
+        ObjectGuid inviterGuid;
+        std::string inviterName;
+        std::string compactRealmName;                       // empty on one realm
+        std::string displayRealmName;                       // empty on one realm
+        uint64 accountId = 0;
+        uint32 virtualRealmAddress = 0;
+        uint32 realmId = 0;
+        bool notAlreadyInGroup = true;
+        bool crossRealmName = false;
+        bool realmTransferWarning = false;
+        bool flagA = false;
+        bool flagB = false;
+    };
+
     bool ParseResponse(WorldPacket& in, Response& out);
+    bool ParseRequest(WorldPacket& in, Request& out);
+    bool BuildInvite(WorldPacket& out, Invite const& invite);
+}
+
+namespace MopGroupUninvitePackets
+{
+    /// A parsed CMSG_GROUP_UNINVITE_GUID body.
+    ///
+    /// `reason` is free text the client collects for the vote-kick flow. It is
+    /// NOT authority: the target is chosen by `targetGuid`, and the caller must
+    /// still verify it is actually in the group.
+    struct Request
+    {
+        ObjectGuid targetGuid;
+        std::string reason;
+    };
+
+    bool ParseRequest(WorldPacket& in, Request& out);
+}
+
+namespace MopGroupLootMethodPackets
+{
+    /// A parsed CMSG_LOOT_METHOD body.
+    ///
+    /// `method` and `threshold` are validated against their enum ranges during
+    /// parsing, so the handler may cast them. `looterGuid` is only meaningful
+    /// for MASTER_LOOT and must still be checked for group membership.
+    struct Request
+    {
+        ObjectGuid looterGuid;
+        uint32 method = 0;
+        uint32 threshold = 0;
+    };
+
+    bool ParseRequest(WorldPacket& in, Request& out);
+}
+
+namespace MopGroupPromotePackets
+{
+    /// A parsed CMSG_GROUP_SET_LEADER body.
+    struct SetLeaderRequest
+    {
+        ObjectGuid targetGuid;
+    };
+
+    /// A parsed CMSG_GROUP_ASSISTANT_LEADER body.
+    ///
+    /// `promote` is a BIT inside the presence mask, not a trailing byte.
+    struct AssistantRequest
+    {
+        ObjectGuid targetGuid;
+        bool promote = false;
+    };
+
+    /// SMSG_GROUP_SET_LEADER: the broadcast naming the new leader.
+    struct SetLeaderBroadcast
+    {
+        std::string leaderName;
+        uint8 partyIndex = 1;                               // 1 in every observed body
+    };
+
+    /// A parsed CMSG_GROUP_CHANGE_SUB_GROUP body.
+    ///
+    /// Unusually for this family the subgroup number leads and the 0x7F marker
+    /// is second. `subGroup` is range-checked during parsing.
+    struct ChangeSubGroupRequest
+    {
+        ObjectGuid targetGuid;
+        uint8 subGroup = 0;
+    };
+
+    /// A parsed CMSG_SET_PARTY_ASSIGNMENT body: main tank / main assist.
+    ///
+    /// `apply` is the ninth mask bit. `assignment` is 0 for main tank and 1 for
+    /// main assist; anything else is refused during parsing.
+    struct PartyAssignmentRequest
+    {
+        ObjectGuid targetGuid;
+        uint8 assignment = 0;
+        bool apply = false;
+    };
+
+    /// SMSG_GROUP_ROLE_POLL_INFORM: the prompt each member receives when a
+    /// role check starts. `partyIndex` is 0 for the home group.
+    struct RolePollInform
+    {
+        ObjectGuid initiatorGuid;
+        uint8 partyIndex = 0;
+    };
+
+    bool BuildRolePollInform(WorldPacket& out, RolePollInform const& inform);
+    bool ParsePartyAssignment(WorldPacket& in, PartyAssignmentRequest& out);
+    bool ParseSetLeader(WorldPacket& in, SetLeaderRequest& out);
+    bool ParseAssistant(WorldPacket& in, AssistantRequest& out);
+    bool ParseChangeSubGroup(WorldPacket& in, ChangeSubGroupRequest& out);
+    bool BuildSetLeader(WorldPacket& out, SetLeaderBroadcast const& broadcast);
+}
+
+namespace MopLfgLeavePackets
+{
+    /// A parsed CMSG_LFG_LEAVE body.
+    ///
+    /// Every field is a client-supplied ticket echo. None of it is authority:
+    /// the server cancels the caller's OWN queue entry, so the ticket is only
+    /// useful for matching what the client thinks it is leaving.
+    struct Request
+    {
+        ObjectGuid ticketGuid;
+        uint32 ticketType = 0;
+        uint32 ticketFlags = 0;
+        uint32 ticketTime = 0;
+        uint32 clientQueueId = 0;
+    };
+
     bool ParseRequest(WorldPacket& in, Request& out);
 }
 
@@ -1187,6 +1329,11 @@ class Group
             bool        assistant;
             uint32      lastMap;
             bool        readyCheckHasResponded;
+            /* LFG role bitmask the player chose: tank, healer, damage.
+             * Defaulted here as well as at every add site: this value is
+             * transmitted in SMSG_GROUP_LIST, so an indeterminate byte reaches
+             * the wire and renders as arbitrary role icons. */
+            uint8       roles = 0;
         };
         typedef std::list<MemberSlot> MemberSlotList;
         typedef MemberSlotList::const_iterator member_citerator;
@@ -1330,6 +1477,7 @@ class Group
 
         // some additional raid methods
         void ConvertToRaid();
+        bool ConvertToParty();
 
         void SetBattlegroundGroup(BattleGround* bg)
         {
@@ -1356,6 +1504,106 @@ class Group
                 return;
             }
             if (_setAssistantFlag(guid, state))
+            {
+                SendUpdate();
+            }
+        }
+        /**
+         * @brief Applies or clears the assistant flag on every member at once.
+         *
+         * The 18414 client's "Everyone is Assistant" raid toggle. Note this is
+         * expressed through the SAME per-member flag as an individual promotion
+         * rather than a separate group-level state, because neither the Group
+         * type flags nor SMSG_GROUP_LIST carry one. The visible behaviour
+         * matches; the difference is that switching the toggle OFF clears
+         * individually promoted assistants too, since there is nothing
+         * recording which were set by hand.
+         *
+         * @param state true to make everyone an assistant, false to clear.
+         */
+        /**
+         * @brief Records the LFG role a member chose for themselves.
+         *
+         * SMSG_GROUP_LIST already transmits this per member, so the roster
+         * carries it once stored; there was simply no way to set it.
+         *
+         * @param guid  the member choosing a role.
+         * @param roles the role bitmask.
+         * @return true when the value changed.
+         */
+        bool SetMemberRoles(ObjectGuid guid, uint8 roles)
+        {
+            member_witerator slot = _getMemberWSlot(guid);
+            if (slot == m_memberSlots.end() || slot->roles == roles)
+            {
+                return false;
+            }
+
+            slot->roles = roles;
+            SendUpdate();
+            return true;
+        }
+        uint8 GetMemberRoles(ObjectGuid guid) const
+        {
+            member_citerator slot = _getMemberCSlot(guid);
+            return slot != m_memberSlots.end() ? slot->roles : uint8(0);
+        }
+        /**
+         * @brief Starts a role check: clears every chosen role and prompts the
+         *        whole group to choose again.
+         *
+         * The prompt is SMSG_GROUP_ROLE_POLL_INFORM, whose body was recovered
+         * from two reference implementations that agree and verified byte-exact
+         * against three captured bodies.
+         *
+         * Clearing is done FIRST so the roster and the prompt agree; an earlier
+         * version cleared roles and sent no prompt at all, which discarded
+         * people's choices to no visible effect.
+         *
+         * @param initiator the leader or assistant who started it.
+         */
+        void BeginRolePoll(ObjectGuid initiator)
+        {
+            for (member_witerator itr = m_memberSlots.begin(); itr != m_memberSlots.end(); ++itr)
+            {
+                itr->roles = 0;
+            }
+
+            MopGroupPromotePackets::RolePollInform inform;
+            inform.initiatorGuid = initiator;
+
+            WorldPacket data;
+            if (MopGroupPromotePackets::BuildRolePollInform(data, inform))
+            {
+                BroadcastPacket(&data, false);
+            }
+
+            // The roster carries the per-member roles, so it has to follow the
+            // prompt for the frames to show the check in progress.
+            SendUpdate();
+        }
+        void SetEveryoneIsAssistant(bool state)
+        {
+            if (!isRaidGroup())
+            {
+                return;
+            }
+
+            bool changed = false;
+            for (member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
+            {
+                // The leader is not an assistant to themselves.
+                if (citr->guid == m_leaderGuid)
+                {
+                    continue;
+                }
+                if (_setAssistantFlag(citr->guid, state))
+                {
+                    changed = true;
+                }
+            }
+
+            if (changed)
             {
                 SendUpdate();
             }

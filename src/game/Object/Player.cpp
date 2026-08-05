@@ -4570,9 +4570,26 @@ void Player::SendInitialPacketsAfterAddToMap()
     SendEnchantmentDurations();                             // must be after add to map
     SendItemDurations();                                    // must be after add to map
 
-    UpdateSpeed(MOVE_RUN, true, 1.0f, true);
-    UpdateSpeed(MOVE_SWIM, true, 1.0f, true);
-    UpdateSpeed(MOVE_FLIGHT, true, 1.0f, true);
+    // No speed re-sync here. The 18414 client keeps its movement speeds across a
+    // map change on its own, and the mover handshake above (SMSG_CLIENT_CONTROL_UPDATE
+    // then SMSG_MOVE_SET_ACTIVE_MOVER, answered by CMSG_SET_ACTIVE_MOVER) is what
+    // grants movement -- not a speed packet.
+    //
+    // 94e26af71 (2013) forced MOVE_RUN, MOVE_SWIM and MOVE_FLIGHT here to cure a client
+    // movement freeze after a map change. On this client that re-sync is not merely
+    // redundant, it is harmful: forcing three speeds makes the client re-baseline its
+    // speed state, and because walk was never in the batch it reverted to default. A
+    // player crossing a boundary with a modified walk speed was left desynced BY the
+    // fix, not despite it.
+    //
+    // Measured on 18414, same client and crossing, one variable changed:
+    //
+    //   three sends -> RUN/SWIM/FLIGHT acked, no walk ack, walk speed reverts
+    //   zero sends  -> no speed packets at all, every speed survives the transfer,
+    //                  movement normal, freeze does not reproduce
+    //
+    // Retail agrees: across five map changes in the 18414 capture corpus there is not
+    // one speed packet, and the nearest is 11-20 seconds later -- ordinary mounting.
 }
 
 /**
