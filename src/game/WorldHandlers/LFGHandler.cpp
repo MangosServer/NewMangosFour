@@ -582,8 +582,19 @@ void WorldSession::SendLfgProposalUpdate(LFGProposal const& proposal)
 void WorldSession::SendLfgTeleportError(uint8 error)
 {
     DEBUG_LOG("SMSG_LFG_TELEPORT_DENIED");
-    WorldPacket data(SMSG_LFG_TELEPORT_DENIED, 4);
-    data << uint32(error);
+
+    // One byte, not four. Every 18414 capture of this opcode in the corpus is exactly
+    // 1 byte (capture-000044 seq 70879 and 219256, capture-000465 seq 283035,
+    // capture-000628 seq 31349, capture-000873 seq 154730).
+    //
+    // NOT admitted by IsEnterWorldConverted, deliberately. The size is settled but the
+    // VALUE space is not: the one captured body carries 0x10 (16), while our
+    // LFGTeleportError enum stops at 8, so our codes are provably not the client's.
+    // Sending a correctly sized packet with a wrong code would show the player a
+    // confidently wrong reason, which is worse than the current silence. Admit this
+    // once the enum is derived from the client.
+    WorldPacket data(SMSG_LFG_TELEPORT_DENIED, 1);
+    data << uint8(error);
     SendPacket(&data);
 }
 
