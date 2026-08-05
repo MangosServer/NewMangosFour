@@ -1164,7 +1164,12 @@ enum OpcodesList
     SMSG_BATTLEFIELD_MANAGER_EJECTED             = 0x14E7,    // (legacy; no client leaf)
     CMSG_BATTLEFIELD_MANAGER_EXIT_REQUEST        = 0x08B3, // 5.4.8 18414 (Wow.exe binary, via CMSG_BATTLEFIELD_MGR_EXIT_REQUEST)
     SMSG_BATTLEFIELD_MANAGER_STATE_CHANGED       = 0x14E9,    // (legacy; no client leaf)
-    MSG_SET_RAID_DIFFICULTY                      = 0x0614,    // 4.3.4 15595 (no client leaf)
+    // MSG_SET_RAID_DIFFICULTY 0x0614 REMOVED. It was a 4.3.4 carry-over tagged "no client
+    // leaf", and it is refuted for 18414: no leaf in the binary, and zero occurrences across
+    // 1079 captures in either direction. The real inbound opcodes are declared with the other
+    // CMSG values below. Nothing referenced the enum -- only a stale DEBUG_LOG string.
+    CMSG_SET_DUNGEON_DIFFICULTY                  = 0x1A36,    // 5.4.8 18414 (Wow.exe body writer; one uint32 raw client DifficultyID)
+    CMSG_SET_RAID_DIFFICULTY                     = 0x0591,    // 5.4.8 18414 (Wow.exe body writer; one uint32 raw client DifficultyID; value is BIDIRECTIONAL, see SMSG_SET_RAID_DIFFICULTY)
     SMSG_XPGAIN                                  = 0x14EE,    // (legacy; no client leaf)
     SMSG_GMTICKET_RESPONSE_ERROR                 = 0x14EF,    // (legacy; no client leaf)
     SMSG_GMTICKET_GET_RESPONSE                   = 0x2E34,    // (legacy; no client leaf; unframable >0x1FFF)
@@ -1303,8 +1308,25 @@ enum OpcodesList
     SMSG_PET_BATTLE_FINISHED                     = 0x04BB,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_MIRROR_IMAGE_CREATURE_DATA              = 0x04D0,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_MIRROR_IMAGE_COMPONENTED_DATA           = 0x04D9,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
-    SMSG_SET_RAID_DIFFICULTY                     = 0x0591,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
-    SMSG_SET_DUNGEON_DIFFICULTY                  = 0x1283,    // 5.4.8 18414 (Wow.exe direct reader/handler; one uint32 difficulty)
+    // 0x0591 is BIDIRECTIONAL -- the same value carries the CMSG and the SMSG. It is absent
+    // from the perfect-hash SMSG dispatcher (sub_659694) because this client has a second
+    // SMSG delivery subsystem that bypasses it, so that absence is not evidence against the
+    // value, and the corpus rows flagged directionConflict are explained by the shared value
+    // rather than being catalogue defects.
+    SMSG_SET_RAID_DIFFICULTY                     = 0x0591,    // 5.4.8 18414 (Wow.exe; one uint32 RAW client DifficultyID)
+    // Dispatcher case 57, and case 57 has exactly ONE member -- brute-forced over all 65536
+    // u16 inputs against a hash validated first on the known 0x183B -> case 493 -> SMSG_MOTD
+    // anchor. Handler sub_6D8F3E has exactly one xref, inside that case.
+    //
+    // The reader sub_6D9F28 is NOT an opcode fingerprint: it is the shared constructor for
+    // every single-uint32 SMSG and has 50+ xrefs. The identification rests on the case index
+    // and the handler, not the reader.
+    //
+    // Payload is the RAW client DifficultyID. Across 954 build-18414 captures the value set is
+    // exactly {1 x512, 2 x424, 8 x18} -- the three DIFFICULTY_DUNGEON_* constants from
+    // FrameXML/Constants.lua, with ZERO occurrences of 0. The 18 occurrences of 8 are decisive:
+    // no internal 0-based dungeon mode can produce 8.
+    SMSG_SET_DUNGEON_DIFFICULTY                  = 0x1283,    // 5.4.8 18414 (Wow.exe case 57, unique; one uint32 RAW client DifficultyID)
     SMSG_WAIT_QUEUE_FINISH                       = 0x060E,    // 5.4.8 18414 (Wow.exe leaf; name fork tables)
     SMSG_BATTLE_PAY_START_PURCHASE_RESPONSE      = 0x0612,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)
     SMSG_PET_BATTLE_FIRST_ROUND                  = 0x0613,    // 5.4.8 18414 (Wow.exe leaf; name fork tables, low confidence)

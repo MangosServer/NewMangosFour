@@ -85,7 +85,7 @@ void WorldSession::HandleResetInstancesOpcode(WorldPacket& /*recv_data*/)
 
 void WorldSession::HandleSetDungeonDifficultyOpcode(WorldPacket& recv_data)
 {
-    DEBUG_LOG("WORLD: Received opcode MSG_SET_DUNGEON_DIFFICULTY");
+    DEBUG_LOG("WORLD: Received opcode CMSG_SET_DUNGEON_DIFFICULTY");
 
     // The client sends a RAW DifficultyID, not an internal mode.
     //
@@ -145,7 +145,7 @@ void WorldSession::HandleSetDungeonDifficultyOpcode(WorldPacket& recv_data)
 
 void WorldSession::HandleSetRaidDifficultyOpcode(WorldPacket& recv_data)
 {
-    DEBUG_LOG("WORLD: Received opcode MSG_SET_RAID_DIFFICULTY");
+    DEBUG_LOG("WORLD: Received opcode CMSG_SET_RAID_DIFFICULTY");
 
     // RAW DifficultyID from the client, as with the dungeon handler above. Also latent:
     // no DefC registration exists for this opcode either.
