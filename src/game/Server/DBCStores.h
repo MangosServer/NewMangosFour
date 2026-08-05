@@ -192,9 +192,11 @@ int32 ToInternalDifficulty(uint32 clientDifficultyId);
 uint32 ToClientDifficulty(Difficulty difficulty, bool isRaid);
 // Internal mode -> raw client DifficultyID for a SPECIFIC map. Use this, not the fixed table
 // above, for anything that reports a difficulty ALONGSIDE a map id -- raid lockouts, instance
-// binds, calendar entries. Seven 25-player-only TBC raids are canonicalised to internal 0 but
-// ship raw 4, so the fixed table would announce them as 10-player normal; retail sends 4, as
-// the SMSG_CALENDAR_RAID_LOCKOUT_REMOVED fixture for map 580 pins.
+// binds, calendar entries, reset warnings, transfer refusals. Eleven instanceable maps disagree
+// with the fixed table: the seven 25-player-only TBC raids, canonicalised to internal 0 but
+// shipping raw 4 (retail sends 4, as the SMSG_CALENDAR_RAID_LOCKOUT_REMOVED fixture for map 580
+// pins), and the four legacy 40-player raids 169/409/469/531, which ship raw 9 -- Difficulty.dbc
+// "40 Player" -- where the fixed table would call Molten Core a 10-player normal lockout.
 uint32 ToClientDifficultyForMap(uint32 mapId, Difficulty difficulty, bool isRaid);
 // Raw client DifficultyID -> internal mode, rejecting ids from the OTHER key space.
 // Use this for anything arriving from the client: the opcode says which field is being

@@ -110,7 +110,14 @@ void WorldSession::HandleCalendarGetCalendar(WorldPacket& /*recv_data*/)
             record.instanceGuid = state->GetInstanceGuid().GetRawValue();
             // RAW client DifficultyID on the wire, map-aware -- see ToClientDifficultyForMap.
             // The bind is stored under the internal mode, and this record names its map.
-            record.difficulty = ToClientDifficultyForMap(state->GetMapId(), state->GetDifficulty(), true);
+            //
+            // isRaid derived rather than hardcoded true: this loop walks m_boundInstances across
+            // every internal mode, so it can carry a five-man bind as well as a raid one. It only
+            // matters on the fallback path, where the map has no row for the tier, but a
+            // hardcoded true would answer from the raid table for a dungeon.
+            MapEntry const* stateMap = state->GetMapEntry();
+            record.difficulty = ToClientDifficultyForMap(state->GetMapId(), state->GetDifficulty(),
+                                                        stateMap && stateMap->IsRaid());
             record.resetRemaining = state->GetResetTime() > currTime ?
                 uint32(state->GetResetTime() - currTime) : 0;
             record.mapId = state->GetMapId();
@@ -1103,8 +1110,10 @@ void CalendarMgr::SendCalendarRaidLockoutRemove(Player* player, DungeonPersisten
     // Map-aware raw conversion. The retained retail body for map 580 carries difficulty 4,
     // which is Sunwell's own MapDifficulty row -- not the 3 the fixed raid table returns for
     // the internal 0 it is canonicalised to.
+    MapEntry const* saveMap = save->GetMapEntry();
     MopCalendarPackets::BuildCalendarRaidLockoutRemoved(data,
-        ToClientDifficultyForMap(save->GetMapId(), save->GetDifficulty(), true),
+        ToClientDifficultyForMap(save->GetMapId(), save->GetDifficulty(),
+                                 saveMap && saveMap->IsRaid()),
         save->GetMapId(), save->GetInstanceGuid().GetRawValue());
     player->SendDirectMessage(&data);
 }
@@ -1122,8 +1131,11 @@ void CalendarMgr::SendCalendarRaidLockoutAdd(Player* player, DungeonPersistentSt
     WorldPacket data(SMSG_CALENDAR_RAID_LOCKOUT_ADDED, 4 + 4 + 4 + 4 + 8);
     data << secsToTimeBitFields(currTime);
     data << uint32(save->GetMapId());
-    // RAW client DifficultyID, map-aware -- see ToClientDifficultyForMap.
-    data << uint32(ToClientDifficultyForMap(save->GetMapId(), save->GetDifficulty(), true));
+    // RAW client DifficultyID, map-aware -- see ToClientDifficultyForMap. isRaid derived
+    // rather than hardcoded, matching the sibling sites; it decides only the fallback.
+    MapEntry const* addMap = save->GetMapEntry();
+    data << uint32(ToClientDifficultyForMap(save->GetMapId(), save->GetDifficulty(),
+                                            addMap && addMap->IsRaid()));
     data << uint32(save->GetResetTime() - currTime);
     data << uint64(save->GetInstanceId());
     //data.hexlike();

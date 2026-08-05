@@ -341,14 +341,22 @@ dungeonEntries LFGMgr::FindRandomDungeonsForPlayer(uint32 level, uint8 expansion
  *
  * LfgDungeons.dbc carries a RAW client DifficultyID; `dungeonfinder_requirements`.`difficulty`
  * is an INTERNAL 0-based mode. Confirmed against the shipped world data rather than assumed:
- * every five-man map with two rows carries 0 and 1 (The Forge of Souls 632, Trial of the
- * Champion 650, Pit of Saron 658, Halls of Reflection 668), and Icecrown Citadel 631 carries 2
- * and 3. In the raw space those would be 1/2 and 5/6.
+ * every five-man map with two rows carries 0 and 1 -- Opening of the Dark Portal 269, The Forge
+ * of Souls 632, Trial of the Champion 650, Pit of Saron 658 and Halls of Reflection 668 -- and
+ * Icecrown Citadel 631 carries 2 and 3. In the raw space those would be 1/2 and 5/6.
+ *
+ * 269 is the clearest exhibit of the five and was missing from an earlier version of this list:
+ * its difficulty-1 row is the Black Morass heroic attunement, so a table keyed on raw ids would
+ * have had to carry it at 2.
  *
  * Passing the raw id shifted every lookup by one tier, in both directions:
  *
  *   an LFG NORMAL row (raw 1) fetched the (map, 1) row, which is the HEROIC requirement, so a
- *   player was held to heroic item level and achievements to queue for normal content;
+ *   player was held to the heroic item level and attunement quest to queue for normal content.
+ *   Item level and quests specifically: no five-man row in the table carries an achievement --
+ *   the only two that do are Icecrown Citadel's (631, 2) and (631, 3), a raid map that never
+ *   reaches this lookup because LFG_FORBIDDEN_RAID short-circuits above. The live five-man
+ *   gates are min_item_level 180 on 12 rows, 200 on 6 and 219 on 2;
  *   an LFG HEROIC row (raw 2) asked for (map, 2), which for a five-man is CHALLENGE and has no
  *   row at all, so the real heroic requirement was skipped entirely.
  *

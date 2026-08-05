@@ -1812,11 +1812,24 @@ uint32 ToClientDifficulty(Difficulty difficulty, bool isRaid)
  * names a map, because the raid table assumes 10-normal is 3 and 25-normal is 4, and seven
  * shipped raids break that assumption.
  *
- * The 25-player-only TBC raids -- Hyjal, Magtheridon, SSC, The Eye, Black Temple, Gruul and
- * Sunwell -- ship a single MapDifficulty row carrying raw 4, and BuildMapDifficultyLegacyIndex
- * canonicalises them to internal 0 so they are enterable at the tier every character defaults
- * to. Round-tripping internal 0 through the fixed table returns 3, announcing a 10-player
- * normal lockout for a raid that has no such tier.
+ * ELEVEN instanceable maps disagree with the fixed table, not the seven an earlier version of
+ * this comment named:
+ *
+ *   the seven 25-player-only TBC raids -- Hyjal 534, Magtheridon 544, SSC 548, The Eye 550,
+ *   Black Temple 564, Gruul 565 and Sunwell 580 -- each ship a single MapDifficulty row carrying
+ *   raw 4, and BuildMapDifficultyLegacyIndex canonicalises them to internal 0 so they are
+ *   enterable at the tier every character defaults to. The fixed table returns 3 for internal 0,
+ *   announcing a 10-player normal lockout for a raid that has no such tier;
+ *
+ *   and four legacy 40-player raids -- Emerald Dream 169, Molten Core 409, Blackwing Lair 469
+ *   and Ahn'Qiraj Temple 531 -- ship a single row carrying raw 9. Difficulty.dbc row 9 is
+ *   "40 Player", so these now report 9 where the fixed table said 3. That is the map-aware
+ *   answer being MORE right rather than merely different: Molten Core is a live 40-man lockout
+ *   and calling it 10-player normal is wrong in the raid browser and the calendar alike.
+ *
+ * Non-instanceable maps also differ numerically -- their raw rows carry 0 while the dungeon
+ * table starts at 1 -- but no lockout, bind or calendar entry names one, so they never reach a
+ * caller of this function.
  *
  * Retail disagrees, and there is a byte-exact fixture for it: the retained 18414
  * SMSG_CALENDAR_RAID_LOCKOUT_REMOVED bodies in mop_calendar_packets_test.cpp carry difficulty
