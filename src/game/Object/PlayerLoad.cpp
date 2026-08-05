@@ -1275,7 +1275,8 @@ InstancePlayerBind* Player::GetBoundInstance(uint32 mapid, Difficulty difficulty
 {
     // Some instances only have one difficulty -- fold to it rather than answering "no bind".
     //
-    // Group::GetBoundInstance already does exactly this, under the same comment. This one
+    // Group::GetBoundInstance(mapid, player) already does exactly this, under the same comment.
+    // The Map* overload did not either, and is folded in the same change as this one. This one
     // returned NULL instead, and the two disagreeing is what makes it a defect rather than a
     // style difference: GetBoundInstanceSaveForSelfOrGroup consults the PLAYER bind first and
     // only falls through to the group bind, so a player whose own permanent bind was missed
@@ -1287,7 +1288,9 @@ InstancePlayerBind* Player::GetBoundInstance(uint32 mapid, Difficulty difficulty
     // path could then build a second instance for a raid they are already locked to.
     //
     // Folds to REGULAR_DIFFICULTY to match Group::GetBoundInstance, MapManager::CreateDungeonMap
-    // and Player::GetAreaTriggerLockStatus. All four now answer the same question the same way.
+    // and Player::GetAreaTriggerLockStatus. All FIVE bind/admission lookups now answer the same
+    // question the same way -- five, not four: Group::GetBoundInstance has two overloads and an
+    // earlier version of this comment counted only the one it had checked.
     if (!GetMapDifficultyData(mapid, difficulty))
     {
         if (difficulty == REGULAR_DIFFICULTY || !GetMapDifficultyData(mapid, REGULAR_DIFFICULTY))

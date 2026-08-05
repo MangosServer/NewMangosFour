@@ -4464,10 +4464,18 @@ void Player::SendInitialPacketsBeforeAddToMap()
 
     SendTalentsInfoData(false);
 
+    // RAW client DifficultyID, map-aware. The client treats this field as a DifficultyID and
+    // feeds it to GetDifficultyInfo(), so an internal mode names the wrong tier: on the seven
+    // 25-player-only TBC raids internal 0 would arrive as 0 rather than raw 4, and the client
+    // reads it as "5 Player" for a 25-man raid.
+    //
+    // This is the most reachable outbound difficulty field there is --
+    // SendInitialPacketsBeforeAddToMap runs on every login and every map change -- and it
+    // survived two earlier sweeps of the outbound boundaries.
     data.Initialize(SMSG_WORLD_SERVER_INFO, 10);
     MopWorldEntryPackets::BuildWorldServerInfo(data, 0,
         uint32(sWorld.GetNextWeeklyQuestsResetTime() - WEEK),
-        uint32(GetMap()->GetDifficulty()));
+        ToClientDifficultyForMap(GetMap()->GetId(), GetMap()->GetDifficulty(), GetMap()->IsRaid()));
     GetSession()->SendPacket(&data);
 
     SendInitialQuestSetup();

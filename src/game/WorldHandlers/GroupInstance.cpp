@@ -454,11 +454,25 @@ InstanceGroupBind* Group::GetBoundInstance(uint32 mapid, Player* player)
 
 InstanceGroupBind* Group::GetBoundInstance(Map* aMap, Difficulty difficulty)
 {
-    // some instances only have one difficulty
-    MapDifficultyEntry const* mapDiff = GetMapDifficultyData(aMap->GetId(), difficulty);
-    if (!mapDiff)
+    // Some instances only have one difficulty -- fold to it, as the sibling overload and
+    // Player::GetBoundInstance both do. This one returned NULL instead, which made three
+    // comments elsewhere claiming "every bind lookup folds" false.
+    //
+    // Not reachable today: MapManager::CreateDungeonMap folds before a DungeonMap exists, so
+    // every caller of this overload already holds a difficulty the map supports. It is closed
+    // anyway because the inconsistency is the hazard -- if a DungeonMap were ever built at an
+    // unsupported tier, Map.cpp's group-bind check would miss and the player could be bound to
+    // a second instance of a raid they are already locked to, which is the exact failure the
+    // sibling fold was added to prevent.
+    if (!GetMapDifficultyData(aMap->GetId(), difficulty))
     {
-        return NULL;
+        if (difficulty == REGULAR_DIFFICULTY ||
+            !GetMapDifficultyData(aMap->GetId(), REGULAR_DIFFICULTY))
+        {
+            return NULL;
+        }
+
+        difficulty = REGULAR_DIFFICULTY;
     }
 
     BoundInstancesMap::iterator itr = m_boundInstances[difficulty].find(aMap->GetId());
