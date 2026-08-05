@@ -1889,6 +1889,15 @@ uint32 ToClientDifficultyForMap(uint32 mapId, Difficulty difficulty, bool isRaid
     //
     // Latent today either way: ToInternalDifficulty refusing 11 and 12 is also what keeps
     // scenario maps out of every entry path, so only an admin teleport reaches one.
+    //
+    // Scenarios are not the only maps this catches, and an earlier claim that they were is
+    // withdrawn. Swept exhaustively over every map and tier rather than a chosen list: 36 maps
+    // change, the 34 scenarios plus two MAP_INSTANCE maps that ship no MapDifficulty row at all
+    // -- 627 "unused" and 637 "Abyssal Maw Exterior". Both previously reported the fixed table's
+    // 1, 2 or 8 and now report 0, which is the same correction for the same reason: a map with
+    // no tier has no tier to name. Nothing else moves -- Sunwell, Black Temple, Molten Core,
+    // Icecrown, the ordinary five-mans, End Time, the continents and Tol'Viron are all
+    // unchanged.
     for (uint32 tier = 0; tier < MAX_DIFFICULTY; ++tier)
     {
         if (GetMapDifficultyData(mapId, Difficulty(tier)))
