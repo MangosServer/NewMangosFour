@@ -713,6 +713,36 @@ static void NormalizeStaleChallengeInstances()
         CharacterDatabase.DirectPExecute(
             "UPDATE `instance` SET `difficulty` = '%u', `resettime` = '0' WHERE `id` = '%u'",
             uint32(DUNGEON_DIFFICULTY_HEROIC), stale[i]);
+
+        // Bring the BOUND characters and groups up to heroic with it, or the bind is preserved
+        // in a form nothing can reach.
+        //
+        // A bind is stored under the INSTANCE's tier -- Player::BindToInstance indexes
+        // m_boundInstances[state->GetDifficulty()] -- but looked up under the PLAYER's selected
+        // tier, in GetBoundInstanceSaveForSelfOrGroup. The characters update clamps a stale
+        // selection of 2 to 0, so after this rewrite the instance and its bind sit at 1 while
+        // the owner asks at 0. On an ordinary dungeon that has a normal row the lookup succeeds
+        // and does NOT fold, so it searches tier 0 and misses the bind entirely: the character
+        // is treated as having no state, is relocated out of the instance at load, and can then
+        // create a second one for a lockout they already hold.
+        //
+        // Narrow on purpose. The blanket clamp to NORMAL stays right for everyone else, because
+        // a character left at HEROIC cannot enter a normal-only dungeon while the difficulty
+        // setter is unregistered. Only a character actually bound to one of these rewritten
+        // saves needs heroic, and for them it is not a preference but the tier their lockout
+        // lives at.
+        CharacterDatabase.DirectPExecute(
+            "UPDATE `characters` SET `dungeon_difficulty` = '%u' WHERE `guid` IN "
+            "(SELECT `guid` FROM `character_instance` WHERE `instance` = '%u')",
+            uint32(DUNGEON_DIFFICULTY_HEROIC), stale[i]);
+
+        // Joined on leaderGuid, NOT groupId: `group_instance` keys on the leader, and
+        // ObjectMgrInstanceData's own loader joins `groups`.`leaderGUID` to
+        // `group_instance`.`leaderGUID`.
+        CharacterDatabase.DirectPExecute(
+            "UPDATE `groups` SET `difficulty` = '%u' WHERE `leaderGuid` IN "
+            "(SELECT `leaderGuid` FROM `group_instance` WHERE `instance` = '%u')",
+            uint32(DUNGEON_DIFFICULTY_HEROIC), stale[i]);
     }
 
     if (!stale.empty())
