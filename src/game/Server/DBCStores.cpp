@@ -1887,8 +1887,12 @@ uint32 ToClientDifficultyForMap(uint32 mapId, Difficulty difficulty, bool isRaid
     // are in the corpus for this field -- so if scenarios are ever implemented this becomes a
     // real conversion rather than a floor.
     //
-    // Latent today either way: ToInternalDifficulty refusing 11 and 12 is also what keeps
-    // scenario maps out of every entry path, so only an admin teleport reaches one.
+    // Latent today, and not for the reason an earlier version of this comment gave. It said only
+    // an admin teleport reaches a scenario. Nothing does: MapManager::IsValidMAP is false for a
+    // dungeon-type map with no `instance_template` row, and the shipped world data carries 119
+    // such rows and none for any scenario map, so Player::TeleportTo fails its very first check
+    // for a GM as readily as for anyone else. That is a world-DB fact rather than a code
+    // invariant, so it is a reason this is unreachable today, not a guarantee it stays so.
     //
     // Scenarios are not the only maps this catches, and an earlier claim that they were is
     // withdrawn. Swept exhaustively over every map and tier rather than a chosen list: 36 maps

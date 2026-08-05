@@ -744,22 +744,39 @@ static void NormalizeStaleChallengeInstances()
         // clamps back to NORMAL; and a character of 70+ whose group is NOT bound to this save,
         // whom _LoadGroup moves to that group's tier instead.
         //
-        // Neither miss is corruption. The clamped value is written back by the next character
-        // save, so the row self-corrects to what the core will actually honour rather than
-        // holding a tier nothing will load.
+        // Neither miss is corruption. `characters`.`dungeon_difficulty` has exactly one
+        // functional reader in the tree -- the clamp itself -- and Player::SaveToDB rewrites the
+        // whole row from the in-memory value, so for a stripped cohort this UPDATE is
+        // unobservable: nothing can read the heroic value before it is overwritten.
         //
-        // The sub-70 case is a real gap and is left open deliberately. Such a character can only
-        // have acquired a heroic five-man bind by being taken into one by a group -- they cannot
-        // select heroic themselves, and Group::SetDungeonDifficulty skips members under 70 -- so
-        // the way back in is the same group, whose own bind the statement below repairs and whose
-        // tier _LoadGroup will not apply to them either. Alone they are clamped to NORMAL, which
-        // is the tier a sub-70 should be on. Making the personal bind reachable regardless of
-        // selected tier is NOT the fix: it would also drag a 70+ character with a heroic lockout
-        // into their heroic instance when they deliberately chose to run the place on normal.
+        // The cohort it DOES reach pays a price worth stating. A rescued owner is pinned at
+        // HEROIC with no way out on their own, because the difficulty setter is unregistered,
+        // and Player::GetAreaTriggerLockStatus derives isRegularTargetMap from the player's own
+        // tier -- the fold does not recompute it -- so its level gate refuses them entry to
+        // five-mans of any expansion whose cap they have not reached. One group join clears it.
         //
-        // Closing it properly means teaching the login clamps that a difficulty backed by a
-        // permanent bind is not merely a UI preference, which is a change to shared login
-        // ordering and does not belong in this branch.
+        // The sub-70 case is a real gap, left open on scope. Be exact about why, because two
+        // earlier versions of this comment were not:
+        //
+        //   Rejoining the group does NOT make the bind reachable. Group::GetBoundInstance keys
+        //   its lookup on the PLAYER's tier, not the group's, so both legs of
+        //   GetBoundInstanceSaveForSelfOrGroup miss for a sub-70 sitting at NORMAL. Neither fold
+        //   rescues it either: 64 five-man maps carry both raw 1 and raw 2, so the NORMAL lookup
+        //   succeeds and no fold fires. MapManager then resolves at the player's tier and
+        //   CREATES at the group's, i.e. a duplicate instance, and DungeonMap::Add re-keys on the
+        //   map's tier and reaches a MANGOS_ASSERT -- which in a Release build is a log line, so
+        //   the player is silently added to the duplicate.
+        //
+        // That is a pre-existing core defect this rescue re-exposes for one upgrade cohort, not
+        // one it invents, and the fix is a one-liner in Group::GetBoundInstance rather than
+        // anything here. It is deferred because it wants a live check first: a sub-70 in a 70+
+        // heroic group must land in the SAME instance id as the group.
+        //
+        // Do NOT "fix" it by teaching the login clamps that a bind-backed difficulty outranks the
+        // level clamp, which an earlier version of this comment proposed. `dungeon_difficulty` is
+        // a single global per-character selector, so raising a sub-70 to HEROIC to reach one
+        // lockout trips that same area-trigger gate on every five-man of the expansion and locks
+        // them out of normal dungeons they can run today. That is a regression, not a fix.
         CharacterDatabase.DirectPExecute(
             "UPDATE `characters` SET `dungeon_difficulty` = '%u' WHERE `guid` IN "
             "(SELECT `guid` FROM `character_instance` WHERE `instance` = '%u')",
