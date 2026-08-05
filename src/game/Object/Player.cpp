@@ -4464,14 +4464,23 @@ void Player::SendInitialPacketsBeforeAddToMap()
 
     SendTalentsInfoData(false);
 
-    // RAW client DifficultyID, map-aware. The client treats this field as a DifficultyID and
-    // feeds it to GetDifficultyInfo(), so an internal mode names the wrong tier: on the seven
-    // 25-player-only TBC raids internal 0 would arrive as 0 rather than raw 4, and the client
-    // reads it as "5 Player" for a 25-man raid.
+    // RAW client DifficultyID, map-aware -- proved from the wire, not inferred from the UI.
     //
-    // This is the most reachable outbound difficulty field there is --
-    // SendInitialPacketsBeforeAddToMap runs on every login and every map change -- and it
-    // survived two earlier sweeps of the outbound boundaries.
+    // Across 2554 build-18414 captures of this opcode the field carries
+    // {0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 14}. The values 7 (LFR), 11 and 12 (scenarios) and
+    // 14 (flexible) are decisive: no internal mode can produce them, because internal modes
+    // stop at 3. 8 and 9 are raw-only too. So the field is the raw client id, and sending
+    // GetMap()->GetDifficulty() named the wrong tier -- on the seven 25-player-only TBC raids
+    // internal 0 went out as 0 where retail sends raw 4, and the client read a 25-man raid as
+    // "5 Player".
+    //
+    // The 10/14/18-byte size split in the corpus is the optional-field presence bits, which sit
+    // AFTER this field, so the offset and the key space are the same in all three shapes.
+    //
+    // This is the most reachable outbound difficulty there is -- SendInitialPacketsBeforeAddToMap
+    // runs on every login and every map change -- and it survived two sweeps of the outbound
+    // boundaries because they grepped near packet builders and this passes the value as a bare
+    // argument.
     data.Initialize(SMSG_WORLD_SERVER_INFO, 10);
     MopWorldEntryPackets::BuildWorldServerInfo(data, 0,
         uint32(sWorld.GetNextWeeklyQuestsResetTime() - WEEK),
