@@ -59,11 +59,17 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
     // proposal window has no queue data, skipped that cleanup entirely, and got a
     // SECOND live entry. If the first proposal then completed, CreateDungeonGroup put
     // them in a dungeon group while they were still queued for another.
-    LFGPlayerStatus const existingStatus = GetPlayerStatus(plr->GetObjectGuid());
-    if (existingStatus.state == LFG_STATE_PROPOSAL)
+    // Gated on a proposal that ACTUALLY EXISTS, not on the status flag alone.
+    //
+    // The flag is written in several places and cleared in fewer, so trusting it meant
+    // any path that failed to reset it locked the player out of the dungeon finder until
+    // relog -- which is exactly what happened when the success path forgot to tear the
+    // queue entry down. Asking m_proposalMap directly cannot go stale: if there is no
+    // live proposal listing this player, there is nothing to protect.
+    if (HasLiveProposalFor(plr->GetObjectGuid()))
     {
         partyForbidden noneForbidden;
-        plr->GetSession()->SendLfgJoinResult(ERR_LFG_NO_LFG_OBJECT, existingStatus.state, noneForbidden);
+        plr->GetSession()->SendLfgJoinResult(ERR_LFG_NO_LFG_OBJECT, LFG_STATE_PROPOSAL, noneForbidden);
         return;
     }
 

@@ -498,6 +498,27 @@ void LFGMgr::ProposalUpdate(uint32 proposalID, ObjectGuid plrGuid, bool accepted
     }
 
     CreateDungeonGroup(proposal);
+
+    // Tear the queue entry down. TryFormGroup deliberately KEEPS it alive for the
+    // lifetime of the proposal so a decline or timeout can put the survivors back --
+    // but on success nobody put it back, so it sat in m_playerData forever with
+    // currentState LFG_STATE_PROPOSAL, and every member's stored status stayed at
+    // LFG_STATE_PROPOSAL too. JoinLFG refuses that state, so a player who successfully
+    // entered a dungeon could never queue again until relog. Observed live: five
+    // rejected CMSG_LFG_JOIN attempts after one successful proposal.
+    ObjectGuid const queueGuid = proposal->queueGuid;
+    for (roleMap::const_iterator it = proposal->currentRoles.begin();
+         it != proposal->currentRoles.end(); ++it)
+    {
+        // They are in the dungeon now, not queued. TeleportToDungeon sets this too for
+        // the players it actually moves, but a member whose teleport was denied must not
+        // be left reading LFG_STATE_PROPOSAL either.
+        SetPlayerState(it->first, LFG_STATE_IN_DUNGEON);
+    }
+
+    m_queueSet.erase(queueGuid);
+    m_playerData.erase(queueGuid);
+
     m_proposalMap.erase(proposal->id);
 }
 

@@ -1128,6 +1128,10 @@ public:
      */
     ObjectGuid FindQueueEntryContaining(ObjectGuid plrGuid) const;
 
+    /// Is there a proposal still awaiting this player's answer? Authoritative, unlike
+    /// the LFG_STATE_PROPOSAL status flag, which several paths can leave stale.
+    bool HasLiveProposalFor(ObjectGuid plrGuid) const;
+
     /**
      * @brief Take a single player out of whichever queue entry holds them, recomputing
      *        that entry's needed roles, and drop the entry if it is left empty.

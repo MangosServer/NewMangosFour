@@ -785,6 +785,19 @@ void LFGMgr::AddToWaitMap(uint8 role, std::set<uint32> dungeons)
     }
 }
 
+bool LFGMgr::HasLiveProposalFor(ObjectGuid plrGuid) const
+{
+    for (proposalMap::const_iterator it = m_proposalMap.begin(); it != m_proposalMap.end(); ++it)
+    {
+        if (it->second.answers.find(plrGuid) != it->second.answers.end())
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 ObjectGuid LFGMgr::FindQueueEntryContaining(ObjectGuid plrGuid) const
 {
     // Their own key first: that is the common case and it is O(1).
