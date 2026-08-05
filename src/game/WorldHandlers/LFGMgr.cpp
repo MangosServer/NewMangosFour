@@ -965,6 +965,13 @@ void LFGMgr::CancelProposal(uint32 proposalId, std::set<ObjectGuid> const& culpr
 
     // The players responsible leave the dungeon finder outright -- the client says so:
     // "You have been removed from the queue because you did not accept the invitation."
+    //
+    // The entry keyed by proposal.queueGuid is deliberately NOT erased in this loop.
+    // A culprit is very often the entry key itself -- the solo player whose entry did
+    // the absorbing, or the single queuer in a `.debug dungeon` proposal -- and erasing
+    // m_playerData[queueGuid] here destroyed the node `entry` points into, which the
+    // survivor check below then read. An ordinary decline was a use-after-free on the
+    // world thread.
     for (std::set<ObjectGuid>::const_iterator bad = culprits.begin(); bad != culprits.end(); ++bad)
     {
         if (entry)
@@ -976,9 +983,15 @@ void LFGMgr::CancelProposal(uint32 proposalId, std::set<ObjectGuid> const& culpr
         SetPlayerUpdateType(*bad, LFG_UPDATE_LEAVE);
         SendLfgUpdate(*bad, GetPlayerStatus(*bad), false);
 
+        m_playerStatusMap.erase(*bad);
+
+        if (*bad == proposal.queueGuid)
+        {
+            continue;   // handled below, after `entry` is finished with
+        }
+
         m_queueSet.erase(*bad);
         m_playerData.erase(*bad);
-        m_playerStatusMap.erase(*bad);
     }
 
     if (!entry || entry->currentRoles.empty())
@@ -1023,7 +1036,29 @@ void LFGMgr::RemoveOldProposals()
     // -- and JoinLFG refuses that state, so they could not re-queue until relog.
     for (std::vector<uint32>::const_iterator it = expired.begin(); it != expired.end(); ++it)
     {
-        CancelProposal(*it, std::set<ObjectGuid>());
+        proposalMap::const_iterator prop = m_proposalMap.find(*it);
+        if (prop == m_proposalMap.end())
+        {
+            continue;
+        }
+
+        // Whoever did not answer is the culprit, exactly as a decliner would be.
+        //
+        // Cancelling with an empty culprit set requeued the entry UNCHANGED, including
+        // the member who never responded. The role counts were still complete, so the
+        // very next tick re-formed the same proposal and timed out again -- trapping the
+        // players who did accept in a permanent timeout loop.
+        std::set<ObjectGuid> silent;
+        for (proposalAnswerMap::const_iterator ans = prop->second.answers.begin();
+             ans != prop->second.answers.end(); ++ans)
+        {
+            if (ans->second != LFG_ANSWER_AGREE || !sObjectAccessor.FindPlayer(ans->first))
+            {
+                silent.insert(ans->first);
+            }
+        }
+
+        CancelProposal(*it, silent);
     }
 }
 

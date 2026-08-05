@@ -265,9 +265,21 @@ void LFGMgr::SendDungeonProposal(ObjectGuid queueGuid, LFGPlayers* lfgGroup)
         }
 
         newProposal.answers[plrGuid] = LFG_ANSWER_PENDING;
+    }
 
-        // then send SMSG_LFG_PROPOSAL_UPDATE
-        pPlayer->GetSession()->SendLfgProposalUpdate(newProposal);
+    // Sent only once the proposal is COMPLETE.
+    //
+    // This used to sit inside the loop above, which is still filling `groups` and
+    // `answers`. Since the packet serialises those maps, every recipient except the last
+    // one received an opening proposal that omitted the members added after them -- so
+    // the ready popup showed an incomplete group until somebody answered.
+    for (roleMap::const_iterator it = lfgGroup->currentRoles.begin();
+         it != lfgGroup->currentRoles.end(); ++it)
+    {
+        if (Player* pMember = sObjectAccessor.FindPlayer(it->first))
+        {
+            pMember->GetSession()->SendLfgProposalUpdate(newProposal);
+        }
     }
 
     // then if group guid is set, call Group::SetAsLfgGroup()
@@ -463,7 +475,15 @@ void LFGMgr::ProposalUpdate(uint32 proposalID, ObjectGuid plrGuid, bool accepted
         Player* pProposalPlayer = sObjectAccessor.FindPlayer(proposalPlrGuid);
         if (!pProposalPlayer)
         {
-            continue;
+            // Accepted, then logged out before the last answer arrived. allOkay still
+            // passed because their answer was already AGREE, and skipping them here
+            // built a SHORT group and teleported it while groupStatus recorded a role
+            // for someone who was never added. Cancel instead: the absent member is the
+            // culprit and everyone else goes back to the queue.
+            std::set<ObjectGuid> absent;
+            absent.insert(proposalPlrGuid);
+            CancelProposal(proposal->id, absent);
+            return;
         }
 
         if (sendProposalUpdate)

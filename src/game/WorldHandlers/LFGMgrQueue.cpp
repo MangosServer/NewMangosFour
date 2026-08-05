@@ -73,7 +73,14 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         return;
     }
 
-    LFGPlayers* currentInfo = GetPlayerOrPartyData(guid);
+    // Keyed on whichever entry LISTS this player, not on their own guid.
+    //
+    // A solo queuer already absorbed into somebody else's entry has no m_playerData
+    // under their own guid, so this lookup missed, the duplicate cleanup below was
+    // skipped, and the solo branch built a SECOND live entry while the merged one still
+    // listed them -- two queue entries for one player, and potentially two proposals.
+    ObjectGuid const existingEntryGuid = pGroup ? guid : FindQueueEntryContaining(guid);
+    LFGPlayers* currentInfo = existingEntryGuid ? GetPlayerOrPartyData(existingEntryGuid) : nullptr;
 
     // check if we actually have info on the player/group right now
     if (currentInfo)
@@ -83,17 +90,15 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         // are they already queued?
         if (currentInfo->currentState == LFG_STATE_QUEUED)
         {
-            // remove from that queue so they can later join this one
-            queueSet::iterator qItr = m_queueSet.find(guid);
-            if (qItr != m_queueSet.end())
-            {
-                m_queueSet.erase(qItr);
-            }
-            // note: do we need to send a packet telling them the current queue is over?
+            // Take them out of whatever they are in now so they can join this instead.
+            // RemovePlayerFromQueue rather than a bare m_queueSet.erase, because the
+            // entry may be shared with other players who must stay queued.
+            RemovePlayerFromQueue(guid);
+            currentInfo = nullptr;
         }
 
         // are they already in a dungeon?
-        if (groupCurrentlyInDungeon)
+        if (currentInfo && groupCurrentlyInDungeon)
         {
             std::set<uint32> currentDungeon = currentInfo->dungeonList;
 
