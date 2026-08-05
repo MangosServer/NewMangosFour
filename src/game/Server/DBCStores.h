@@ -190,6 +190,13 @@ int32 ToInternalDifficulty(uint32 clientDifficultyId);
 // key space -- an observed SMSG_SET_RAID_DIFFICULTY body carries 9, which is a legacy
 // 40-player raid and cannot be an internal mode at all, since those stop at 3.
 uint32 ToClientDifficulty(Difficulty difficulty, bool isRaid);
+// Raw client DifficultyID -> internal mode, rejecting ids from the OTHER key space.
+// Use this for anything arriving from the client: the opcode says which field is being
+// set, so a raid id in a dungeon request is malformed, not translatable. A plain range
+// check does not catch it -- raw 5 (10-player heroic raid) translates to internal 2 and
+// would pass as DUNGEON_DIFFICULTY_CHALLENGE, which ToInternalDifficulty deliberately
+// never produces.
+int32 ToInternalDifficultyChecked(uint32 clientDifficultyId, bool isRaid);
 // True when (mapId, clientDifficultyId) is a row the OLD raw-keyed reset scheduler could have
 // written into `instance_reset`. A migration PREDICATE, not an accessor -- it returns no row, so it
 // is not a way around the tree-wide ban on raw-keyed lookups. Used to tell a genuine stale raw row

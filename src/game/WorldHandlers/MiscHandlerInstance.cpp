@@ -97,10 +97,14 @@ void WorldSession::HandleSetDungeonDifficultyOpcode(WorldPacket& recv_data)
     uint32 clientDifficultyId;
     recv_data >> clientDifficultyId;
 
-    int32 const internalMode = ToInternalDifficulty(clientDifficultyId);
+    // Checked against the DUNGEON key space specifically. A bare ToInternalDifficulty plus
+    // a range test is not enough: raw 5 is 10-player heroic RAID, translates to internal 2,
+    // passes `< MAX_DUNGEON_DIFFICULTY` and would set DUNGEON_DIFFICULTY_CHALLENGE -- which
+    // is deliberately unreachable, since no spawn on a challenge map carries bit 2.
+    int32 const internalMode = ToInternalDifficultyChecked(clientDifficultyId, false);
     if (internalMode < 0 || internalMode >= MAX_DUNGEON_DIFFICULTY)
     {
-        sLog.outError("WorldSession::HandleSetDungeonDifficultyOpcode: player %d sent client difficulty %u, which has no internal dungeon mode!",
+        sLog.outError("WorldSession::HandleSetDungeonDifficultyOpcode: player %d sent client difficulty %u, which is not a dungeon tier!",
                       _player->GetGUIDLow(), clientDifficultyId);
         return;
     }
@@ -152,10 +156,12 @@ void WorldSession::HandleSetRaidDifficultyOpcode(WorldPacket& recv_data)
     uint32 clientDifficultyId;
     recv_data >> clientDifficultyId;
 
-    int32 const internalMode = ToInternalDifficulty(clientDifficultyId);
+    // Checked against the RAID key space, for the mirror reason: raw 2 is 5-man heroic and
+    // would otherwise translate to internal 1 and be accepted as a 25-player normal raid.
+    int32 const internalMode = ToInternalDifficultyChecked(clientDifficultyId, true);
     if (internalMode < 0 || internalMode >= MAX_RAID_DIFFICULTY)
     {
-        sLog.outError("WorldSession::HandleSetRaidDifficultyOpcode: player %d sent client difficulty %u, which has no internal raid mode!",
+        sLog.outError("WorldSession::HandleSetRaidDifficultyOpcode: player %d sent client difficulty %u, which is not a raid tier!",
                       _player->GetGUIDLow(), clientDifficultyId);
         return;
     }

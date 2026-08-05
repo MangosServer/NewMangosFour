@@ -1722,6 +1722,53 @@ ContentLevels GetContentLevelsForMapAndZone(uint32 mapId, uint32 zoneId)
  * is non-zero, and test an actual challenge map rather than trusting the mask.
  */
 /**
+ * @brief Raw client DifficultyID -> internal mode, REJECTING ids from the other key space.
+ *
+ * ToInternalDifficulty is context-free by design: the reset scheduler and the encounter
+ * predicate both need to translate whatever a DBC row happens to carry. An inbound packet
+ * is different. The client tells us which FIELD it is setting by which opcode it uses, so
+ * a raw id belonging to the other space is not a value to translate -- it is a malformed
+ * request.
+ *
+ * Without this, the dungeon setter accepts raid ids: raw 5 is 10-player heroic RAID, which
+ * translates to internal 2, passes a `< MAX_DUNGEON_DIFFICULTY` range test, and sets
+ * DUNGEON_DIFFICULTY_CHALLENGE -- a mode ToInternalDifficulty deliberately refuses to
+ * produce, because no spawn on a challenge map carries bit 2 and admitting it opens an
+ * empty instance. A range check cannot catch that; only knowing which space the id came
+ * from can.
+ *
+ * @return internal mode, or -1 if the id does not belong to the requested space.
+ */
+int32 ToInternalDifficultyChecked(uint32 clientDifficultyId, bool isRaid)
+{
+    if (isRaid)
+    {
+        switch (clientDifficultyId)
+        {
+            case 3:                                         // raid 10 normal
+            case 4:                                         // raid 25 normal
+            case 5:                                         // raid 10 heroic
+            case 6:                                         // raid 25 heroic
+            case 9:                                         // legacy 40-player raids
+                return ToInternalDifficulty(clientDifficultyId);
+            default:
+                return -1;
+        }
+    }
+
+    switch (clientDifficultyId)
+    {
+        case 1:                                             // 5-man normal
+        case 2:                                             // 5-man heroic
+            return ToInternalDifficulty(clientDifficultyId);
+        // Raw 8 (5-man challenge) is absent on purpose, matching ToInternalDifficulty.
+        // Raw 0 is continents/battlegrounds/arenas and is not a dungeon tier a player sets.
+        default:
+            return -1;
+    }
+}
+
+/**
  * @brief Internal 0-based mode -> the raw client DifficultyID to put on the wire.
  *
  * Round-trips through ToInternalDifficulty for every value it returns, which is asserted
@@ -1841,6 +1888,26 @@ static uint32 ClientDifficultyFallback(uint32 clientDifficultyId)
  */
 bool IsLegacyRawResetKey(uint32 mapId, uint32 clientDifficultyId)
 {
+    // Reject anything that cannot be a raw key BEFORE building the pair.
+    //
+    // MAKE_PAIR32 packs the difficulty into the low 16 bits, so a junk value silently
+    // truncates: 65538 becomes 2, which is a real raw DifficultyID. On a map carrying a
+    // legacy raw-2 reset row that hand-edited junk would then be accepted as PROOF the
+    // whole table is raw-keyed, and LoadResetTimes would delete every reset row in it.
+    //
+    // That is precisely the blast radius this predicate exists to avoid -- it was
+    // narrowed once already, from "any invalid row condemns the table" to "only a row
+    // that looks raw-keyed does" -- so the truncation has to be closed or the narrowing
+    // is defeated by the same one junk row.
+    //
+    // The shipped MapDifficulty.dbc uses raw ids 0..14, so 0xFFFF is a generous bound
+    // rather than a tight one; it is chosen to match exactly what MAKE_PAIR32 can carry,
+    // which is the actual failure being prevented.
+    if (clientDifficultyId > 0xFFFF)
+    {
+        return false;
+    }
+
     MapDifficultyMap::const_iterator itr = sMapDifficultyMap.find(MAKE_PAIR32(mapId, clientDifficultyId));
     if (itr == sMapDifficultyMap.end())
     {
