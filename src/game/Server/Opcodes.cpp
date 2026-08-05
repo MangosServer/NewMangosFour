@@ -1303,13 +1303,22 @@ void InitializeOpcodes()
     // handlers exist with their reply SMSGs already admitted, so they look ready.
     // They are not.
     //
-    // The client sends a RAW Difficulty.dbc DifficultyID, while the internal
-    // Difficulty enum is 0-based (DUNGEON_DIFFICULTY_NORMAL = 0,
-    // RAID_DIFFICULTY_10MAN_NORMAL = 0). The handlers cast one onto the other with
-    // Difficulty(mode). No raw id except 0 equals its own internal mode, so a
-    // player choosing Heroic would land on whatever internal mode the raw id
-    // collides with. The translation lives in the unmerged instance-difficulty
-    // work; these two are held until it lands.
+    // The translation blocker is CLOSED. The client sends a RAW Difficulty.dbc
+    // DifficultyID while the internal Difficulty enum is 0-based, and the handlers
+    // used to cast one onto the other; they now call ToInternalDifficultyChecked,
+    // which converts and rejects an id belonging to the other key space.
+    //
+    // What holds them is a different, still-open gap: both handlers call
+    // ResetInstances(INSTANCE_RESET_CHANGE_DIFFICULTY, ...), so accepting one of
+    // these tears down the player's or group's instance binds. The two packets that
+    // report that outcome -- SMSG_INSTANCE_RESET and SMSG_INSTANCE_RESET_FAILED --
+    // are NOT admitted by WorldSession::IsEnterWorldConverted, so they are built and
+    // dropped. Registering these now would silently destroy binds and tell the
+    // player nothing, whether it succeeded or failed.
+    //
+    // That is the same reason CMSG_RESET_INSTANCES is held below, and it is the
+    // condition to re-check before registering either of these -- NOT "has the
+    // instance-difficulty work landed", which it now has.
 
     // Wave 15 stable-pet list request, list response, and operation result.
     DefC(CMSG_REQUEST_STABLED_PETS, "CMSG_REQUEST_STABLED_PETS", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleListStabledPetsOpcode);
