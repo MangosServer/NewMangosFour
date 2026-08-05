@@ -227,7 +227,12 @@ void Player::SendInstanceResetWarning(uint32 mapid, Difficulty difficulty, uint3
     WorldPacket data(SMSG_RAID_INSTANCE_MESSAGE, 4 + 4 + 4 + 4);
     data << uint32(type);
     data << uint32(mapid);
-    data << uint32(difficulty);                             // difficulty
+    // RAW client DifficultyID, map-aware. This packet names its map, so the map's own
+    // MapDifficulty row decides -- see ToClientDifficultyForMap. The client keys this field
+    // into Difficulty.dbc, so an internal mode either misses or resolves to another tier:
+    // internal 0 on a raid would read as "5 Player" rather than the 10-player normal it means.
+    MapEntry const* warnMap = sMapStore.LookupEntry(mapid);
+    data << uint32(ToClientDifficultyForMap(mapid, difficulty, warnMap && warnMap->IsRaid()));
     data << uint32(time);
     if (type == RAID_INSTANCE_WELCOME)
     {
