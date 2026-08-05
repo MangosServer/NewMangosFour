@@ -1850,6 +1850,26 @@ uint32 ToClientDifficultyForMap(uint32 mapId, Difficulty difficulty, bool isRaid
         return mapDiff->DifficultyID;
     }
 
+    // A map that is not an instance has no tier, and the raw id for that is 0 -- NOT whatever
+    // the dungeon table returns for the internal mode it was handed.
+    //
+    // This matters because the fallback is otherwise reached constantly. Continents mostly do
+    // carry a raw-0 MapDifficulty row, so they answer above -- but Eastern Kingdoms, map 0, has
+    // no row at all, and it is the busiest map in the game. Falling through to the dungeon table
+    // returned 1 there, telling the client Stormwind was a 5-man normal tier on every login and
+    // every map change. Four of the 116 non-instanceable maps have no row, as do 29 of the 34
+    // scenario maps.
+    //
+    // The corpus agrees: 1890 of the 2554 SMSG_WORLD_SERVER_INFO bodies carry 0, which is what
+    // an outdoor map reports.
+    MapEntry const* mapEntry = sMapStore.LookupEntry(mapId);
+    if (!mapEntry || !mapEntry->IsDungeon())
+    {
+        return 0;
+    }
+
+    // An instanceable map that simply lacks a row for THIS tier still gets the table, which is
+    // the best available answer for a caller holding a tier the map does not define.
     return ToClientDifficulty(difficulty, isRaid);
 }
 

@@ -2978,7 +2978,13 @@ void DungeonMap::SendResetWarnings(uint32 timeLeft) const
 {
     for (MapRefManager::const_iterator itr = m_mapRefManager.begin(); itr != m_mapRefManager.end(); ++itr)
     {
-        itr->getSource()->SendInstanceResetWarning(GetId(), itr->getSource()->GetDifficulty(IsRaid()), timeLeft);
+        // The MAP's difficulty, not the player's selected one. This warning is about THIS
+        // instance, and since the area trigger folds a missing tier to REGULAR_DIFFICULTY the
+        // two can differ: a group left on 10-heroic that entered Sunwell -- a single-tier raid
+        // whose only row is raw 4 -- is standing in a REGULAR instance while still selecting
+        // internal 2. Passing the selection made the conversion miss the map's row and fall
+        // back to the fixed raid table, announcing raw 5 for a lockout that is raw 4.
+        itr->getSource()->SendInstanceResetWarning(GetId(), GetDifficulty(), timeLeft);
     }
 }
 
