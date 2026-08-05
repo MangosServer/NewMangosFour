@@ -583,6 +583,26 @@ LFGPlayerStatus LFGMgr::GetPlayerStatus(ObjectGuid guid)
 bool LFGMgr::GetStatusPacketData(ObjectGuid queueGuid, ObjectGuid playerGuid, LFGStatusPacketData& data) const
 {
     playerData::const_iterator queue = m_playerData.find(queueGuid);
+
+    // A merged solo queuer has no entry of their own: MergeGroups folds them into the
+    // absorbing entry and erases theirs. The direct lookup then missed, the caller was
+    // handed a default-constructed struct, and their SMSG_LFG_UPDATE_STATUS went out
+    // with zero roles, zero needed counts and a zero join time -- which is most of the
+    // dungeon finder UI blank while the absorbing player's looked perfectly normal.
+    //
+    // So fall back to whichever entry actually LISTS this player.
+    if (queue == m_playerData.end())
+    {
+        for (playerData::const_iterator it = m_playerData.begin(); it != m_playerData.end(); ++it)
+        {
+            if (it->second.currentRoles.find(playerGuid) != it->second.currentRoles.end())
+            {
+                queue = it;
+                break;
+            }
+        }
+    }
+
     if (queue == m_playerData.end())
         return false;
 

@@ -1187,8 +1187,32 @@ void LFGMgr::SendQueueStatus()
                 {
                     uint32 dungeonId = *queueInfo->dungeonList.begin();
 
+                    // Each recipient must be told about THEIR OWN queue, not the
+                    // merged entry's key.
+                    //
+                    // The key is whichever entry did the absorbing, so after two solo
+                    // players merge it is one of their guids. The other player joined
+                    // under their own guid -- that is what SMSG_LFG_UPDATE_STATUS sent
+                    // them as requesterGuid -- and a queue status arriving under a
+                    // stranger's identity does not match the queue their client is
+                    // tracking, so it is ignored: no role counts, no average wait, a
+                    // placeholder time in queue, and most of the minimap eye's tooltip
+                    // missing. The absorbing player saw none of this, because for them
+                    // the merged key IS their own guid.
+                    //
+                    // Mirrors SendLfgUpdate: a party member's queue is keyed by the
+                    // group guid, everyone else by their own.
+                    ObjectGuid memberQueueGuid = rItr->first;
+                    if (Group* pGroup = pPlayer->GetGroup())
+                    {
+                        if (pGroup->GetObjectGuid() == *itr)
+                        {
+                            memberQueueGuid = *itr;
+                        }
+                    }
+
                     LFGQueueStatus status;
-                    status.queueGuid = itr->GetRawValue();
+                    status.queueGuid = memberQueueGuid.GetRawValue();
                     status.dungeonID        = dungeonId;
                     status.neededTanks      = queueInfo->neededTanks;
                     status.neededHeals      = queueInfo->neededHealers;
