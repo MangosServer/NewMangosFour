@@ -358,17 +358,38 @@ void LFGMgr::ProposalUpdate(uint32 proposalID, ObjectGuid plrGuid, bool accepted
     LFGProposalAnswer plrAnswer = (LFGProposalAnswer)accepted;
     proposal->answers[plrGuid] = plrAnswer;
 
-    // If the player declined, the proposal is over -- return immediately.
+    // A decline cancels the WHOLE proposal, for everyone.
     //
-    // Two bugs lived in falling through here. ProposalDeclined can erase the proposal
-    // from m_proposalMap, destroying the object `proposal` points into, and everything
-    // below then iterates and writes through that dangling pointer. And when it does
-    // NOT erase, it removes the decliner from `answers`, so the allOkay loop no longer
-    // sees them: four accepts plus one decline in a five-man read as unanimous, built a
-    // FOUR-man group and teleported it in.
+    // Three bugs lived in the old fall-through. ProposalDeclined can erase the proposal
+    // from m_proposalMap, destroying the object `proposal` points into, and the code
+    // below then iterated and wrote through that dangling pointer. When it did NOT
+    // erase -- the non-premade path -- it removed the decliner from `answers`, so the
+    // allOkay loop no longer saw them: four accepts plus one decline in a five-man read
+    // as unanimous, built a FOUR-man group and teleported it in. And simply returning
+    // early left the other members holding a proposal window that never closed.
+    //
+    // So: mark it failed, tell everyone still listed so their windows close, run the
+    // per-player teardown, then erase the proposal unconditionally.
     if (plrAnswer == LFG_ANSWER_DENY)
     {
+        uint32 const cancelledId = proposal->id;
+
+        proposal->state = LFG_PROPOSAL_FAILED;
+
+        for (proposalAnswerMap::const_iterator itr = proposal->answers.begin();
+             itr != proposal->answers.end(); ++itr)
+        {
+            if (Player* pMember = sObjectAccessor.FindPlayer(itr->first))
+            {
+                pMember->GetSession()->SendLfgProposalUpdate(*proposal);
+            }
+        }
+
         ProposalDeclined(plrGuid, proposal);
+
+        // Unconditional. The premade path erased it and the solo path did not, which is
+        // what left a stale proposal able to complete short on a later accept.
+        m_proposalMap.erase(cancelledId);
         return;
     }
 
@@ -499,6 +520,16 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
         }
     }
 
+    // Looked up BEFORE anything is created. This used to sit after group creation, so
+    // an unknown dungeon id returned having already new'd a Group, run Create (a group
+    // id plus an INSERT INTO groups) and registered it with ObjectMgr -- leaking the
+    // object and stranding its rows, with the proposal also left in m_proposalMap.
+    LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(proposal->dungeonID);
+    if (!dungeon)
+    {
+        return;
+    }
+
     Group* pGroup = nullptr;
 
     if (proposal->groupRawGuid)
@@ -559,13 +590,18 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
 
         // Detach from any prior group BEFORE creating, so Create does not run against a
         // player their old group still lists.
+        //
+        // Player::RemoveFromGroup, not Group::RemoveMember directly: pulling a member
+        // out of a two-man group makes RemoveMember Disband it, and Disband does not
+        // delete the object or unregister it. The helper is the codebase's own
+        // convention for exactly this and handles RemoveGroup plus delete.
         for (playerGroupMap::const_iterator it = proposal->groups.begin();
              it != proposal->groups.end(); ++it)
         {
             Player* pMember = sObjectAccessor.FindPlayer(it->first);
             if (pMember && pMember->GetGroup())
             {
-                pMember->GetGroup()->RemoveMember(it->first, 0);
+                Player::RemoveFromGroup(pMember->GetGroup(), it->first);
             }
         }
 
@@ -595,7 +631,7 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
 
         if (Group* existing = pMember->GetGroup())
         {
-            existing->RemoveMember(it->first, 0);
+            Player::RemoveFromGroup(existing, it->first);
         }
 
         pGroup->AddMember(it->first, pMember->GetName());
@@ -868,17 +904,10 @@ void LFGMgr::ProposalDeclined(ObjectGuid guid, LFGProposal* proposal)
         }
     }
 
-    if (!leaveGroupLFG)
-    {
-        proposal->currentRoles.erase(guid);
-        proposal->answers.erase(guid);
-        proposal->groups.erase(guid);
-    }
-    else
-    {
-        m_proposalMap.erase(proposal->id);
-    }
-
+    // The proposal is erased by ProposalUpdate, which owns it -- erasing here destroyed
+    // the object our caller still holds a pointer to. Nor is there any point pruning the
+    // decliner out of currentRoles/answers/groups any more: the whole proposal is torn
+    // down either way, and pruning was exactly what let the survivors read as unanimous.
     LeaveLFG(pPlayer, leaveGroupLFG);
 }
 

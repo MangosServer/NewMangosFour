@@ -24,6 +24,7 @@
  */
 
 #include <algorithm>
+#include <set>
 #include <vector>
 
 #include "DBCEnums.h"
@@ -483,7 +484,15 @@ namespace
     // Assigning each player exactly one of the roles they offered needs backtracking, not
     // a greedy pass: given a tank-only player and a tank-or-healer player, handing the
     // tank slot to the hybrid first strands the specialist even though a valid assignment
-    // exists. With at most 5 players and 3 roles the search is bounded by 3^5.
+    // exists.
+    //
+    // The search is MEMOISED, and that is not an optimisation. Plain backtracking is
+    // exponential in the number of players, and this is not a five-man-only path: raid
+    // finder rows ask for 2/6/17 and flexible raid for 0/0/25, so a 25-player entry of
+    // hybrids would explore on the order of 3^25 states and hang the world thread --
+    // LFGMgr::Update runs on it. Keying failures on (index, remaining quota) collapses
+    // that to at most (players+1) x (tank+1) x (healer+1) x (damage+1) states, a few
+    // thousand even for the largest shipped composition.
     struct RoleQuota
     {
         uint8 tank;
@@ -493,13 +502,29 @@ namespace
         uint32 Total() const { return uint32(tank) + healer + damage; }
     };
 
+    /// Pack (index, remaining quota) into one key for the failure memo.
+    uint64 RoleStateKey(size_t index, RoleQuota const& remaining)
+    {
+        return (uint64(index) << 24)
+             | (uint64(remaining.tank) << 16)
+             | (uint64(remaining.healer) << 8)
+             | uint64(remaining.damage);
+    }
+
     bool AssignRolesRecursive(std::vector<uint8> const& masks, size_t index, RoleQuota remaining,
-                              RoleQuota& leftover)
+                              RoleQuota& leftover, std::set<uint64>& deadEnds)
     {
         if (index == masks.size())
         {
             leftover = remaining;   // what is still open once everyone present is placed
             return true;
+        }
+
+        // Already proved unsatisfiable from this exact state.
+        uint64 const key = RoleStateKey(index, remaining);
+        if (deadEnds.find(key) != deadEnds.end())
+        {
+            return false;
         }
 
         static uint8 const candidates[3] = { PLAYER_ROLE_TANK, PLAYER_ROLE_HEALER, PLAYER_ROLE_DAMAGE };
@@ -522,13 +547,14 @@ namespace
             }
 
             --(*slot);
-            if (AssignRolesRecursive(masks, index + 1, remaining, leftover))
+            if (AssignRolesRecursive(masks, index + 1, remaining, leftover, deadEnds))
             {
                 return true;
             }
             ++(*slot);
         }
 
+        deadEnds.insert(key);
         return false;
     }
 
@@ -565,7 +591,9 @@ namespace
         });
 
         leftover = quota;
-        return AssignRolesRecursive(masks, 0, quota, leftover);
+
+        std::set<uint64> deadEnds;
+        return AssignRolesRecursive(masks, 0, quota, leftover, deadEnds);
     }
 
     /// The role composition a dungeon actually wants, straight off its DBC row.

@@ -52,6 +52,21 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
     // further down, so it must not start indeterminate.
     uint32 randomDungeonID = 0; // used later if random dungeon has been chosen
 
+    // Refuse a fresh queue while a proposal for this player is still open.
+    //
+    // The duplicate cleanup below is guarded on currentInfo, and TryFormGroup erases
+    // m_playerData the moment a proposal is sent -- so a player sitting on an open
+    // proposal window has no queue data, skipped that cleanup entirely, and got a
+    // SECOND live entry. If the first proposal then completed, CreateDungeonGroup put
+    // them in a dungeon group while they were still queued for another.
+    LFGPlayerStatus const existingStatus = GetPlayerStatus(plr->GetObjectGuid());
+    if (existingStatus.state == LFG_STATE_PROPOSAL)
+    {
+        partyForbidden noneForbidden;
+        plr->GetSession()->SendLfgJoinResult(ERR_LFG_NO_LFG_OBJECT, existingStatus.state, noneForbidden);
+        return;
+    }
+
     LFGPlayers* currentInfo = GetPlayerOrPartyData(guid);
 
     // check if we actually have info on the player/group right now

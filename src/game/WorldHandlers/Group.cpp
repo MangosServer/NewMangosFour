@@ -688,7 +688,10 @@ bool MopLfgProposalResponsePackets::ParseRequest(WorldPacket& in, Request& out)
 
     out.guidA = ObjectGuid(rawA);
     out.guidB = ObjectGuid(rawB);
-    return true;
+
+    // Every byte must be accounted for. Leftover tail means the mask was misread and
+    // the GUIDs are wrong, which is worse than refusing the packet.
+    return in.rpos() == in.size();
 }
 
 bool MopLfgSetRolesPackets::ParseRequest(WorldPacket& in, Request& out)
@@ -703,7 +706,11 @@ bool MopLfgSetRolesPackets::ParseRequest(WorldPacket& in, Request& out)
 
     in >> out.roles;
     in >> out.roleCheckCounter;
-    return true;
+
+    // The body is exactly 5 bytes. A longer one is not this packet, and accepting it
+    // would leave unread tail data -- the cheapest signal there is that a body was read
+    // wrongly, so it must not be swallowed silently.
+    return in.rpos() == in.size();
 }
 
 bool MopLfgLeavePackets::ParseRequest(WorldPacket& in, Request& out)
