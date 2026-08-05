@@ -603,6 +603,94 @@ bool MopGroupPromotePackets::ParseAssistant(WorldPacket& in, AssistantRequest& o
     return true;
 }
 
+bool MopLfgProposalResponsePackets::ParseRequest(WorldPacket& in, Request& out)
+{
+    // 16 flat bytes, then 17 bits (1 accept + 16 GUID mask), then up to 16 GUID bytes.
+    // The minimum body is therefore 16 + 3 = 19 bytes with both GUIDs entirely zero.
+    if (in.size() - in.rpos() < 19)
+    {
+        return false;
+    }
+
+    in >> out.proposalId;
+    in >> out.clientQueueId;
+    in >> out.flags;
+    in >> out.joinTime;
+
+    out.accepted = in.ReadBit();
+
+    uint8 maskA[8] = { 0 };
+    uint8 maskB[8] = { 0 };
+
+    // Mask order straight off the writer: A6 A0 A2 A4 B6 B7 A3 B4 A7 B1 A5 B0 A1 B2 B3 B5.
+    uint8* const maskOrder[16] =
+    {
+        &maskA[6], &maskA[0], &maskA[2], &maskA[4], &maskB[6], &maskB[7],
+        &maskA[3], &maskB[4], &maskA[7], &maskB[1], &maskA[5], &maskB[0],
+        &maskA[1], &maskB[2], &maskB[3], &maskB[5]
+    };
+
+    for (size_t i = 0; i < 16; ++i)
+    {
+        *maskOrder[i] = in.ReadBit() ? 1 : 0;
+    }
+
+    uint8 bytesA[8] = { 0 };
+    uint8 bytesB[8] = { 0 };
+
+    // Byte order, again off the writer: A3 A6 A4 A1 B7 B0 A7 B6 A5 B3 B1 B5 B4 A0 A2 B2.
+    struct Slot { uint8 const* mask; uint8* value; };
+    Slot const byteOrder[16] =
+    {
+        { &maskA[3], &bytesA[3] }, { &maskA[6], &bytesA[6] },
+        { &maskA[4], &bytesA[4] }, { &maskA[1], &bytesA[1] },
+        { &maskB[7], &bytesB[7] }, { &maskB[0], &bytesB[0] },
+        { &maskA[7], &bytesA[7] }, { &maskB[6], &bytesB[6] },
+        { &maskA[5], &bytesA[5] }, { &maskB[3], &bytesB[3] },
+        { &maskB[1], &bytesB[1] }, { &maskB[5], &bytesB[5] },
+        { &maskB[4], &bytesB[4] }, { &maskA[0], &bytesA[0] },
+        { &maskA[2], &bytesA[2] }, { &maskB[2], &bytesB[2] }
+    };
+
+    // Bound the read before touching it: a truncated body must be refused, not read
+    // past its end.
+    size_t present = 0;
+    for (size_t i = 0; i < 16; ++i)
+    {
+        if (*byteOrder[i].mask)
+        {
+            ++present;
+        }
+    }
+
+    if (in.size() - in.rpos() < present)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < 16; ++i)
+    {
+        if (*byteOrder[i].mask)
+        {
+            uint8 value = 0;
+            in >> value;
+            *byteOrder[i].value = uint8(value ^ 1);   // WriteByteSeq obfuscation
+        }
+    }
+
+    uint64 rawA = 0;
+    uint64 rawB = 0;
+    for (size_t i = 0; i < 8; ++i)
+    {
+        rawA |= uint64(bytesA[i]) << (i * 8);
+        rawB |= uint64(bytesB[i]) << (i * 8);
+    }
+
+    out.guidA = ObjectGuid(rawA);
+    out.guidB = ObjectGuid(rawB);
+    return true;
+}
+
 bool MopLfgSetRolesPackets::ParseRequest(WorldPacket& in, Request& out)
 {
     // Fixed 5 bytes. Refuse anything else rather than reading past the end -- a short

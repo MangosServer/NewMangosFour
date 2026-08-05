@@ -224,6 +224,35 @@ void WorldSession::HandleLfgSetRolesOpcode(WorldPacket& recv_data)
     sLFGMgr.PerformRoleCheck(plr, pGroup, uint8(request.roles & 0xFF));
 }
 
+void WorldSession::HandleLfgProposalResponseOpcode(WorldPacket& recv_data)
+{
+    DEBUG_LOG("CMSG_LFG_PROPOSAL_RESPONSE");
+
+    // Without this a proposal could be built and sent but never answered -- the accept
+    // and decline buttons both did nothing, because the reply was dropped at the
+    // dispatcher with no handler and no registration.
+    MopLfgProposalResponsePackets::Request request;
+    if (!MopLfgProposalResponsePackets::ParseRequest(recv_data, request))
+    {
+        sLog.outError("Malformed CMSG_LFG_PROPOSAL_RESPONSE body from %s.", GetPlayerName());
+        return;
+    }
+
+    Player* plr = GetPlayer();
+    if (!plr)
+    {
+        return;
+    }
+
+    DEBUG_LOG("CMSG_LFG_PROPOSAL_RESPONSE: %s %s proposal %u.",
+              GetPlayerName(), request.accepted ? "accepted" : "declined", request.proposalId);
+
+    // Answer on behalf of the CALLER, keyed on our own proposal id. The GUIDs and the
+    // queue triplet in the body are echoes of what we sent and carry no authority; a
+    // client that returns a different guidA must not be able to answer for someone else.
+    sLFGMgr.ProposalUpdate(request.proposalId, plr->GetObjectGuid(), request.accepted);
+}
+
 void WorldSession::HandleLfgGetStatusOpcode(WorldPacket& /*recv_data*/)
 {
     DEBUG_LOG("CMSG_LFG_GET_STATUS");

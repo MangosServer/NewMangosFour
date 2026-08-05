@@ -2210,6 +2210,7 @@ class WorldSession
         void HandleLfgJoinOpcode(WorldPacket& recv_data);
         void HandleLfgLeaveOpcode(WorldPacket& recv_data);
         void HandleLfgSetRolesOpcode(WorldPacket& recv_data);
+        void HandleLfgProposalResponseOpcode(WorldPacket& recv_data);
         void HandleLfgGetStatusOpcode(WorldPacket& recv_data);
         void HandleLfgLockInfoRequestOpcode(WorldPacket& recv_data);
         void HandleSetLfgCommentOpcode(WorldPacket& recv_data);

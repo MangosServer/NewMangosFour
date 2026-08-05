@@ -360,6 +360,33 @@ namespace MopLfgSetRolesPackets
     bool ParseRequest(WorldPacket& in, Request& out);
 }
 
+namespace MopLfgProposalResponsePackets
+{
+    /// A parsed CMSG_LFG_PROPOSAL_RESPONSE body.
+    ///
+    /// Derived from the client's own body writer sub_66A29E -- vtable slot 1 behind the
+    /// opcode thunk sub_6622E8, which writes 7581 (0x1D9D). GUID A lives at this+24..31
+    /// and GUID B at this+48..55.
+    ///
+    /// Everything except `accepted` is an echo of the SMSG_LFG_PROPOSAL_UPDATE the
+    /// server sent: capture-000059 seq 2063770 echoes proposalId 11132, clientQueueId
+    /// 37743, flags 3 and joinTime 1409232359 straight back from seq 2063424 in the same
+    /// capture, along with both GUIDs. None of it is authority -- the server answers on
+    /// behalf of the CALLER and keys on its own proposal id.
+    struct Request
+    {
+        ObjectGuid guidA;           // the sender's group, or the sender
+        ObjectGuid guidB;           // instance-side GUID; echoed, never trusted
+        uint32 proposalId = 0;
+        uint32 clientQueueId = 0;
+        uint32 flags = 0;
+        uint32 joinTime = 0;
+        bool accepted = false;
+    };
+
+    bool ParseRequest(WorldPacket& in, Request& out);
+}
+
 namespace MopGroupMarkerPackets
 {
     struct MinimapPingRequest

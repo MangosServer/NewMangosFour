@@ -1163,6 +1163,21 @@ void World::Update(uint32 diff)
         Player::DeleteOldCharacters();
     }
 
+    ///- Match queued dungeon finder entries and expire stale role checks.
+    //
+    // The WUPDATE_LFGMGR timer was configured at startup but never consumed, so
+    // LFGMgr::Update had no caller anywhere in the tree: players could join the queue
+    // and nothing ever looked at it again. Ticking it is deliberately the LAST step of
+    // the dungeon finder work, not the first, because everything it reaches had to be
+    // correct before it ran -- the reaper it calls first erased while iterating, the
+    // matchmaker it calls next could not form a group under any input, and the proposal
+    // it can now send read two uninitialised members to choose a branch.
+    if (m_timers[WUPDATE_LFGMGR].Passed())
+    {
+        m_timers[WUPDATE_LFGMGR].Reset();
+        sLFGMgr.Update();
+    }
+
     // execute callbacks from sql queries that were queued recently
     UpdateResultQueue();
 
