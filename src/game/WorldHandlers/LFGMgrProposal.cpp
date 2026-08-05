@@ -195,7 +195,7 @@ bool LFGMgr::ValidateGroupRoles(roleMap groupMap, std::set<uint32> const& dungeo
 }
 
 //todo: remove from queue, update queue average settings
-void LFGMgr::SendDungeonProposal(LFGPlayers* lfgGroup)
+void LFGMgr::SendDungeonProposal(ObjectGuid queueGuid, LFGPlayers* lfgGroup)
 {
     ++m_proposalId; // increment number to make a new proposal id
 
@@ -212,15 +212,12 @@ void LFGMgr::SendDungeonProposal(LFGPlayers* lfgGroup)
     newProposal.joinedQueue = lfgGroup->joinedTime;
     newProposal.createdTime = time(NULL);
 
-    // Which queue entry this came from, so a failure can put the survivors back.
-    for (playerData::const_iterator it = m_playerData.begin(); it != m_playerData.end(); ++it)
-    {
-        if (&it->second == lfgGroup)
-        {
-            newProposal.queueGuid = it->first;
-            break;
-        }
-    }
+    // Which queue entry this came from, so a failure can put the survivors back. Passed
+    // in rather than recovered by scanning m_playerData for a matching address: the
+    // caller already knows the key, and identifying a map entry by the address of its
+    // value is the kind of thing that quietly stops working the first time anyone copies
+    // the struct.
+    newProposal.queueGuid = queueGuid;
 
     bool premadeGroup = IsProposalSameGroup(newProposal);
 
@@ -355,6 +352,41 @@ bool LFGMgr::IsProposalSameGroup(LFGProposal const& proposal)
 }
 
 // From a CMSG_LFG_PROPOSAL_RESPONSE call
+/// A decline cancels the proposal, but it does NOT eject everyone.
+///
+/// The client states all three outcomes plainly:
+///   ERR_LFG_PROPOSAL_FAILED         "Someone has declined the invite. You have been
+///                                    returned to the front of the queue."
+///   ERR_LFG_PROPOSAL_DECLINED_SELF  "You have been removed from the queue because you
+///                                    did not accept the invitation."
+///   ERR_LFG_PROPOSAL_DECLINED_PARTY "...because someone in your party did not accept."
+///
+/// So the decliner leaves, their premade leaves with them, and everyone else is
+/// requeued. An earlier version of this removed everyone, which is why the queue entry
+/// is now kept alive for the lifetime of the proposal -- there has to be something left
+/// to put people back into.
+void LFGMgr::DeclineProposal(ObjectGuid plrGuid, LFGProposal* proposal)
+{
+    std::set<ObjectGuid> culprits;
+    culprits.insert(plrGuid);
+
+    // A premade is removed alongside the member who declined for it.
+    playerGroupMap::const_iterator declinerGroup = proposal->groups.find(plrGuid);
+    if (declinerGroup != proposal->groups.end() && declinerGroup->second)
+    {
+        for (playerGroupMap::const_iterator it = proposal->groups.begin();
+             it != proposal->groups.end(); ++it)
+        {
+            if (it->second == declinerGroup->second)
+            {
+                culprits.insert(it->first);
+            }
+        }
+    }
+
+    CancelProposal(proposal->id, culprits);
+}
+
 void LFGMgr::ProposalUpdate(uint32 proposalID, ObjectGuid plrGuid, bool accepted)
 {
     //note: create a group here if it doesn't exist and everyone accepted proposal
@@ -384,39 +416,9 @@ void LFGMgr::ProposalUpdate(uint32 proposalID, ObjectGuid plrGuid, bool accepted
     LFGProposalAnswer plrAnswer = (LFGProposalAnswer)accepted;
     proposal->answers[plrGuid] = plrAnswer;
 
-    // A decline cancels the proposal, but it does NOT eject everyone.
-    //
-    // The client states all three outcomes plainly:
-    //   ERR_LFG_PROPOSAL_FAILED         "Someone has declined the invite. You have been
-    //                                    returned to the front of the queue."
-    //   ERR_LFG_PROPOSAL_DECLINED_SELF  "You have been removed from the queue because you
-    //                                    did not accept the invitation."
-    //   ERR_LFG_PROPOSAL_DECLINED_PARTY "...because someone in your party did not accept."
-    //
-    // So the decliner leaves, their premade leaves with them, and everyone else is
-    // requeued. An earlier version of this removed everyone, which is why the queue
-    // entry is now kept alive for the lifetime of the proposal -- there has to be
-    // something left to put people back into.
     if (plrAnswer == LFG_ANSWER_DENY)
     {
-        std::set<ObjectGuid> culprits;
-        culprits.insert(plrGuid);
-
-        // A premade is removed alongside the member who declined for it.
-        playerGroupMap::const_iterator declinerGroup = proposal->groups.find(plrGuid);
-        if (declinerGroup != proposal->groups.end() && declinerGroup->second)
-        {
-            for (playerGroupMap::const_iterator it = proposal->groups.begin();
-                 it != proposal->groups.end(); ++it)
-            {
-                if (it->second == declinerGroup->second)
-                {
-                    culprits.insert(it->first);
-                }
-            }
-        }
-
-        CancelProposal(proposal->id, culprits);
+        DeclineProposal(plrGuid, proposal);
         return;
     }
 

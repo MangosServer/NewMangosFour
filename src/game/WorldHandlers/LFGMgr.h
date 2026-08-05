@@ -1114,6 +1114,9 @@ public:
     /// Cancel proposals nobody answered within LFG_TIME_PROPOSAL.
     void RemoveOldProposals();
 
+    /// The decline half of ProposalUpdate: work out who is responsible and cancel.
+    void DeclineProposal(ObjectGuid plrGuid, LFGProposal* proposal);
+
     /// Does this queue entry contain at least one game master? Scopes `.debug dungeon`.
     bool EntryHasGameMaster(LFGPlayers const* entry) const;
 
@@ -1229,7 +1232,7 @@ protected:
     void MergeGroups(ObjectGuid guidOne, ObjectGuid guidTwo, std::set<uint32> compatibleDungeons);
 
     /// Send a proposal to each member of a group
-    void SendDungeonProposal(LFGPlayers* lfgGroup);
+    void SendDungeonProposal(ObjectGuid queueGuid, LFGPlayers* lfgGroup);
 
     /// Tell a group member that someone else just confirmed their role
     void SendRoleChosen(ObjectGuid plrGuid, ObjectGuid confirmedGuid, uint8 roles);

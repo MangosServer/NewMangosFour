@@ -867,7 +867,7 @@ bool LFGMgr::TryFormGroup(ObjectGuid guid)
     m_queueSet.erase(guid);
     entry->currentState = LFG_STATE_PROPOSAL;
 
-    SendDungeonProposal(entry);
+    SendDungeonProposal(guid, entry);
     return true;
 }
 
