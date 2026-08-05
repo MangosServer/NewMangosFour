@@ -160,7 +160,22 @@ namespace MopLfgPackets
     bool ParseLfrSearchRequest(WorldPacket& in, LfrSearchRequest& request);
     void BuildEmptyLfrSearchResponse(WorldPacket& out, LfrSearchRequest const& request);
     bool ParseLockInfoRequest(WorldPacket& in, bool& forPlayer);
+    /// One entry of the lock array at the tail of SMSG_LFG_PLAYER_INFO.
+    struct PlayerLockInfo
+    {
+        /// (TypeID << 24) | dungeonId -- the same value LfgDungeonsEntry::Entry() produces.
+        uint32 dungeonEntry = 0;
+        /// LFGForbiddenTypes, which are the client's LFG_INSTANCE_INVALID_CODES verbatim.
+        uint32 lockStatus = 0;
+        /// Only meaningful for the gear-score reasons, where the client formats them as
+        /// "Requires: %2$d. Currently %3$d." Zero for every other reason, and zero in all
+        /// 206 records of the reference capture.
+        uint32 subReason1 = 0;
+        uint32 subReason2 = 0;
+    };
+
     void BuildEmptyPlayerInfo(WorldPacket& out);
+    void BuildPlayerInfo(WorldPacket& out, std::vector<PlayerLockInfo> const& locks);
     void BuildEmptyPartyInfo(WorldPacket& out);
 }
 
@@ -515,6 +530,52 @@ inline bool MopLfgPackets::ParseLockInfoRequest(WorldPacket& in,
     in.read_skip<uint8>();
     forPlayer = in.ReadBit();
     return in.rpos() == in.size();
+}
+
+inline void MopLfgPackets::BuildPlayerInfo(WorldPacket& out,
+    std::vector<PlayerLockInfo> const& locks)
+{
+    // SMSG_LFG_PLAYER_INFO with a populated lock list.
+    //
+    // Sent ONLY in reply to CMSG_LFG_LOCK_INFO_REQUEST -- it is not pushed at login. In
+    // capture-000006 the two pair seven-for-seven, and the client asks at world-enter
+    // (CMSG_LFG_GET_STATUS then CMSG_LFG_LOCK_INFO_REQUEST at adjacent sequence numbers).
+    //
+    // Layout verified byte-exact against capture-000006 seq 1953, a 6068-byte reply to a
+    // max-level character:
+    //
+    //   bits   WriteBits(lockCount, 20)      -> 206
+    //          WriteBit(hasPlayerGuid)       -> 0
+    //          WriteBits(randomDungeonCount, 17) -> 35
+    //          FlushBits                     -> 38 bits, 5 bytes
+    //   ...random dungeon reward records, variable length...
+    //   tail   lockCount x 16 bytes, flat and unpacked:
+    //              uint32 dungeonEntry   (TypeID << 24) | id
+    //              uint32 lockStatus
+    //              uint32 subReason1
+    //              uint32 subReason2
+    //
+    // The locks sit at the TAIL, after the random records. With zero randoms the two are
+    // adjacent, which is what makes a locks-only reply coherent: the client installs the
+    // lock list and raises LFG_LOCK_INFO_RECEIVED whether or not any random rows follow,
+    // so none of the reward plumbing is needed to make the eligibility filter work.
+    //
+    // Why this matters: LFGList_DefaultFilterFunction shows a dungeon when
+    // `not LFGLockList[dungeonID]`, and LFGLockList is built from this array. Sending it
+    // empty told the client nothing is locked, so every dungeon in the game appeared in
+    // the finder and players could queue for content they cannot enter.
+    out.WriteBits(uint32(locks.size()), 20);
+    out.WriteBit(false);                // has player GUID -- 0 in the reference capture
+    out.WriteBits(0, 17);               // random dungeon count; see above
+    out.FlushBits();
+
+    for (std::vector<PlayerLockInfo>::const_iterator it = locks.begin(); it != locks.end(); ++it)
+    {
+        out << uint32(it->dungeonEntry);
+        out << uint32(it->lockStatus);
+        out << uint32(it->subReason1);
+        out << uint32(it->subReason2);
+    }
 }
 
 inline void MopLfgPackets::BuildEmptyPlayerInfo(WorldPacket& out)

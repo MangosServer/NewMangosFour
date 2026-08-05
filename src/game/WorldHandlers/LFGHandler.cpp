@@ -293,10 +293,42 @@ void WorldSession::HandleLfgLockInfoRequestOpcode(WorldPacket& recv_data)
 
 void WorldSession::SendLfgPlayerLockInfo()
 {
-    // The legacy LFG manager cannot express the 18414 random-dungeon reward
-    // records. Send the binary-proven empty shape instead of guessed fields.
-    WorldPacket data(SMSG_LFG_PLAYER_INFO, 5);
-    MopLfgPackets::BuildEmptyPlayerInfo(data);
+    Player* plr = GetPlayer();
+    if (!plr)
+    {
+        return;
+    }
+
+    // The eligibility data the client needs to grey out content it cannot enter.
+    //
+    // FindRandomDungeonsNotForPlayer already computes exactly this: a map keyed by
+    // LfgDungeonsEntry::Entry() -- which IS the wire's dungeonEntry field -- with an
+    // LFGForbiddenTypes value, and those codes are the client's LFG_INSTANCE_INVALID_CODES
+    // verbatim (2 LEVEL_TOO_LOW, 3 LEVEL_TOO_HIGH, 1025 MISSING_ITEM, 1031 NOT_IN_SEASON
+    // and so on). So no translation is required in either direction.
+    dungeonForbidden const locked = sLFGMgr.FindRandomDungeonsNotForPlayer(plr);
+
+    std::vector<MopLfgPackets::PlayerLockInfo> locks;
+    locks.reserve(locked.size());
+
+    for (dungeonForbidden::const_iterator it = locked.begin(); it != locked.end(); ++it)
+    {
+        MopLfgPackets::PlayerLockInfo entry;
+        entry.dungeonEntry = it->first;
+        entry.lockStatus = it->second;
+        // subReason1/2 stay zero. They carry the required and current item level for the
+        // gear-score reasons; all 206 records of the reference capture have them zero.
+        locks.push_back(entry);
+    }
+
+    // 5-byte header plus 16 bytes per lock. The reference reply was 6068 bytes for 206
+    // locks and 35 random records; ours is locks-only, so 5 + 16 * n.
+    WorldPacket data(SMSG_LFG_PLAYER_INFO, 5 + locks.size() * 16);
+    MopLfgPackets::BuildPlayerInfo(data, locks);
+
+    DEBUG_LOG("SMSG_LFG_PLAYER_INFO: %s, %u locked dungeon(s), %u bytes.",
+              GetPlayerName(), uint32(locks.size()), uint32(data.size()));
+
     SendPacket(&data);
 }
 
