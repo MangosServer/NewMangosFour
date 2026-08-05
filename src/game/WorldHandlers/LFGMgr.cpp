@@ -785,6 +785,61 @@ void LFGMgr::AddToWaitMap(uint8 role, std::set<uint32> dungeons)
     }
 }
 
+ObjectGuid LFGMgr::FindQueueEntryContaining(ObjectGuid plrGuid) const
+{
+    // Their own key first: that is the common case and it is O(1).
+    playerData::const_iterator own = m_playerData.find(plrGuid);
+    if (own != m_playerData.end())
+    {
+        return plrGuid;
+    }
+
+    // Otherwise they were merged into somebody else's entry, or queued as part of a
+    // party keyed by the group guid.
+    for (playerData::const_iterator it = m_playerData.begin(); it != m_playerData.end(); ++it)
+    {
+        if (it->second.currentRoles.find(plrGuid) != it->second.currentRoles.end())
+        {
+            return it->first;
+        }
+    }
+
+    return ObjectGuid();
+}
+
+void LFGMgr::RemovePlayerFromQueue(ObjectGuid plrGuid)
+{
+    ObjectGuid const entryGuid = FindQueueEntryContaining(plrGuid);
+
+    m_playerStatusMap.erase(plrGuid);
+
+    if (!entryGuid)
+    {
+        m_queueSet.erase(plrGuid);
+        m_playerData.erase(plrGuid);
+        return;
+    }
+
+    LFGPlayers* entry = GetPlayerOrPartyData(entryGuid);
+    if (!entry)
+    {
+        return;
+    }
+
+    entry->currentRoles.erase(plrGuid);
+
+    // Last one out takes the entry with them.
+    if (entry->currentRoles.empty())
+    {
+        m_queueSet.erase(entryGuid);
+        m_playerData.erase(entryGuid);
+        return;
+    }
+
+    // The survivors need one fewer of whatever this player was covering.
+    UpdateNeededRoles(entryGuid, entry);
+}
+
 bool LFGMgr::EntryHasGameMaster(LFGPlayers const* entry) const
 {
     if (!entry)

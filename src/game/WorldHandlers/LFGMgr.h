@@ -1117,6 +1117,23 @@ public:
     /// The decline half of ProposalUpdate: work out who is responsible and cancel.
     void DeclineProposal(ObjectGuid plrGuid, LFGProposal* proposal);
 
+    /**
+     * @brief The key of the queue entry that LISTS this player.
+     *
+     * After a merge an absorbed player has no entry under their own guid -- MergeGroups
+     * folds them into the absorbing entry and erases theirs -- so anything keyed on the
+     * player's own guid silently misses them.
+     *
+     * @return the entry key, or an empty guid if the player is not queued anywhere.
+     */
+    ObjectGuid FindQueueEntryContaining(ObjectGuid plrGuid) const;
+
+    /**
+     * @brief Take a single player out of whichever queue entry holds them, recomputing
+     *        that entry's needed roles, and drop the entry if it is left empty.
+     */
+    void RemovePlayerFromQueue(ObjectGuid plrGuid);
+
     /// Does this queue entry contain at least one game master? Scopes `.debug dungeon`.
     bool EntryHasGameMaster(LFGPlayers const* entry) const;
 

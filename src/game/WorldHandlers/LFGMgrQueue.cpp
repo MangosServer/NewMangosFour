@@ -414,8 +414,9 @@ void LFGMgr::LeaveLFG(Player* plr, bool isGroup)
                     //todo: other state cases after they get implemented
                 }
 
-                m_playerData.erase(grpPlrGuid);
-                m_playerStatusMap.erase(grpPlrGuid);
+                // Same hazard as the solo path: a party member may be listed in an
+                // entry keyed by something other than their own guid.
+                RemovePlayerFromQueue(grpPlrGuid);
             }
         }
 
@@ -438,9 +439,14 @@ void LFGMgr::LeaveLFG(Player* plr, bool isGroup)
             // do other states after being implemented, if applicable for a single plr
         }
 
-        m_queueSet.erase(plrGuid);
-        m_playerData.erase(plrGuid);
-        m_playerStatusMap.erase(plrGuid);
+        // NOT `m_playerData.erase(plrGuid)`.
+        //
+        // A solo queuer who has already been merged into somebody else's entry has no
+        // data under their own guid, so erasing by it did nothing at all: the client was
+        // told LFG_UPDATE_LEAVE and cleared its UI while the server kept them queued
+        // inside the merged entry -- and would have pulled them into a later proposal
+        // for a dungeon they had left.
+        RemovePlayerFromQueue(plrGuid);
     }
 
 }
@@ -593,13 +599,10 @@ bool LFGMgr::GetStatusPacketData(ObjectGuid queueGuid, ObjectGuid playerGuid, LF
     // So fall back to whichever entry actually LISTS this player.
     if (queue == m_playerData.end())
     {
-        for (playerData::const_iterator it = m_playerData.begin(); it != m_playerData.end(); ++it)
+        ObjectGuid const containing = FindQueueEntryContaining(playerGuid);
+        if (containing)
         {
-            if (it->second.currentRoles.find(playerGuid) != it->second.currentRoles.end())
-            {
-                queue = it;
-                break;
-            }
+            queue = m_playerData.find(containing);
         }
     }
 
