@@ -785,6 +785,29 @@ void LFGMgr::AddToWaitMap(uint8 role, std::set<uint32> dungeons)
     }
 }
 
+bool LFGMgr::EntryHasGameMaster(LFGPlayers const* entry) const
+{
+    if (!entry)
+    {
+        return false;
+    }
+
+    for (roleMap::const_iterator it = entry->currentRoles.begin(); it != entry->currentRoles.end(); ++it)
+    {
+        Player* pPlayer = sObjectAccessor.FindPlayer(it->first);
+
+        // Account security, not `.gm on`. The operator should not have to make
+        // themselves untargetable just to test the dungeon finder.
+        if (pPlayer && pPlayer->GetSession() &&
+            pPlayer->GetSession()->GetSecurity() >= SEC_GAMEMASTER)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool LFGMgr::TryFormGroup(ObjectGuid guid)
 {
     LFGPlayers* entry = GetPlayerOrPartyData(guid);
@@ -793,7 +816,12 @@ bool LFGMgr::TryFormGroup(ObjectGuid guid)
         return false;
     }
 
-    if (entry->neededTanks || entry->neededHealers || entry->neededDps)
+    // `.debug dungeon` lets an entry containing a game master go without a full
+    // composition, so the operator can drive the whole proposal -> group -> teleport
+    // chain without finding four other people. Everyone else still needs a real group.
+    bool const debugComplete = m_debugMode != LFG_DEBUG_OFF && EntryHasGameMaster(entry);
+
+    if (!debugComplete && (entry->neededTanks || entry->neededHealers || entry->neededDps))
     {
         return false;
     }
@@ -1044,6 +1072,13 @@ bool LFGMgr::RoleMapsAreCompatible(LFGPlayers* groupOne, LFGPlayers* groupTwo,
         return false;
     }
 
+    // `.debug dungeon group`: an entry containing a game master takes whoever else is
+    // waiting, whatever they picked. The size cap above still applies, and the duplicate
+    // check below still applies -- only the role composition is waived, and only when a
+    // GM is involved.
+    bool const debugMerge = m_debugMode == LFG_DEBUG_GROUP &&
+                            (EntryHasGameMaster(groupOne) || EntryHasGameMaster(groupTwo));
+
     roleMap combined = groupOne->currentRoles;
     for (roleMap::const_iterator it = groupTwo->currentRoles.begin(); it != groupTwo->currentRoles.end(); ++it)
     {
@@ -1055,6 +1090,11 @@ bool LFGMgr::RoleMapsAreCompatible(LFGPlayers* groupOne, LFGPlayers* groupTwo,
     if (combined.size() != groupOne->currentRoles.size() + groupTwo->currentRoles.size())
     {
         return false;
+    }
+
+    if (debugMerge)
+    {
+        return true;
     }
 
     RoleQuota leftover;

@@ -277,6 +277,7 @@ ChatCommand* ChatHandler::getCommandTable()
         { "anim",           SEC_GAMEMASTER,     false, &ChatHandler::HandleDebugAnimCommand,                "", NULL },
         { "arena",          SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugArenaCommand,               "", NULL },
         { "bg",             SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugBattlegroundCommand,        "", NULL },
+        { "dungeon",        SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugDungeonCommand,             "", NULL },
         { "getitemstate",   SEC_ADMINISTRATOR,  false, &ChatHandler::HandleDebugGetItemStateCommand,        "", NULL },
         { "lootrecipient",  SEC_GAMEMASTER,     false, &ChatHandler::HandleDebugGetLootRecipientCommand,    "", NULL },
         { "losdebug",       SEC_GAMEMASTER,     false, &ChatHandler::HandleDebugLosCommand,                 "", NULL },

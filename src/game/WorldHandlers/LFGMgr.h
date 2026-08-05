@@ -691,6 +691,19 @@ enum LFGRoles
     PLAYER_ROLE_DAMAGE                           = 0x08
 };
 
+/// Dungeon finder debug modes, driven by `.debug dungeon`.
+///
+/// Every relaxation these enable is gated on the queue entry actually containing a game
+/// master. Relaxing the matchmaker globally would change how ordinary players match each
+/// other while the operator is testing, which is exactly what makes a debug switch
+/// untrustworthy.
+enum LFGDebugMode
+{
+    LFG_DEBUG_OFF                                = 0,      // normal matchmaking
+    LFG_DEBUG_SOLO                               = 1,      // a GM's entry completes alone
+    LFG_DEBUG_GROUP                              = 2       // a GM's entry also absorbs whoever else is waiting
+};
+
 /// Role amounts
 enum LFGRoleCount
 {
@@ -992,6 +1005,10 @@ public:
      */
     void SetPlayerState(ObjectGuid guid, LFGState state);
 
+    /// Current `.debug dungeon` mode; LFG_DEBUG_OFF unless an administrator enabled it.
+    LFGDebugMode GetDebugMode() const { return m_debugMode; }
+    void SetDebugMode(LFGDebugMode mode) { m_debugMode = mode; }
+
     /**
      * @brief Set the player's LFG update type
      *
@@ -1096,6 +1113,9 @@ public:
 
     /// Cancel proposals nobody answered within LFG_TIME_PROPOSAL.
     void RemoveOldProposals();
+
+    /// Does this queue entry contain at least one game master? Scopes `.debug dungeon`.
+    bool EntryHasGameMaster(LFGPlayers const* entry) const;
 
     /**
      * @brief Add the player or group to the Dungeon Finder queue
@@ -1257,6 +1277,7 @@ private:
 
     /// Proposal information
     uint32 m_proposalId;
+    LFGDebugMode m_debugMode = LFG_DEBUG_OFF;
     proposalMap m_proposalMap;
 };
 

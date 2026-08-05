@@ -35,6 +35,7 @@
  */
 
 #include "Common.h"
+#include "LFGMgr.h"
 #include "Database/DatabaseEnv.h"
 #include "WorldPacket.h"
 #include "Player.h"
@@ -1057,6 +1058,80 @@ bool ChatHandler::HandleDebugGetItemStateCommand(char* args)
  * @param args Command arguments.
  * @returns True if the command executed successfully, false otherwise.
  */
+/**
+ * @brief Handler for the `.debug dungeon` command.
+ *
+ * Mirrors `.debug bg`, which lets a battleground start 1v0 so it can be tested without
+ * finding nineteen other people. The dungeon finder has the same problem and worse: a
+ * normal five-man will not form until 1 tank, 1 healer and 3 damage are all present, so
+ * the proposal, group-creation and teleport paths are unreachable on a test realm.
+ *
+ *   .debug dungeon         a game master's queue entry completes on its own
+ *   .debug dungeon group   as above, and it also absorbs whoever else is waiting,
+ *                          whatever roles they picked
+ *   .debug dungeon off     back to normal matchmaking
+ *
+ * While any mode is active a game master leads the resulting dungeon group regardless of
+ * who holds the leader bit.
+ *
+ * The relaxations are scoped to entries that actually contain a game master, so ordinary
+ * players continue to match each other by the normal rules while this is on.
+ *
+ * @param args "group", "off", or empty for solo mode.
+ * @returns True if the command executed successfully, false otherwise.
+ */
+bool ChatHandler::HandleDebugDungeonCommand(char* args)
+{
+    char* mode = ExtractLiteralArg(&args);
+
+    LFGDebugMode newMode = LFG_DEBUG_SOLO;
+    if (mode)
+    {
+        if (!stricmp(mode, "group"))
+        {
+            newMode = LFG_DEBUG_GROUP;
+        }
+        else if (!stricmp(mode, "off"))
+        {
+            newMode = LFG_DEBUG_OFF;
+        }
+        else
+        {
+            SendSysMessage("Usage: .debug dungeon [group|off]");
+            SetSentErrorMessage(true);
+            return false;
+        }
+    }
+    else if (sLFGMgr.GetDebugMode() != LFG_DEBUG_OFF)
+    {
+        // Bare `.debug dungeon` toggles off when something is already on, so the command
+        // behaves like `.debug bg` when used without arguments.
+        newMode = LFG_DEBUG_OFF;
+    }
+
+    sLFGMgr.SetDebugMode(newMode);
+
+    switch (newMode)
+    {
+        case LFG_DEBUG_SOLO:
+            SendSysMessage("Dungeon finder debug ON: a game master's queue entry now forms a group on its own.");
+            break;
+        case LFG_DEBUG_GROUP:
+            SendSysMessage("Dungeon finder debug ON (group): a game master's entry now also takes whoever else is queued, whatever roles they picked.");
+            break;
+        default:
+            SendSysMessage("Dungeon finder debug OFF: normal matchmaking.");
+            break;
+    }
+
+    if (newMode != LFG_DEBUG_OFF)
+    {
+        SendSysMessage("Ordinary players still match by the normal rules; only entries containing a game master are affected.");
+    }
+
+    return true;
+}
+
 bool ChatHandler::HandleDebugBattlegroundCommand(char* /*args*/)
 {
     sBattleGroundMgr.ToggleTesting();

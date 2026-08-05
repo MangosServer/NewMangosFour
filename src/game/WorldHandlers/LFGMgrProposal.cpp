@@ -537,8 +537,27 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
     //
     // Resolve the leader ONCE, up front, and require them to be online.
     ObjectGuid leaderGuid;
+
+    // With `.debug dungeon` active a game master leads the dungeon regardless of who
+    // carries the LEADER bit, so the operator always has control of the group they are
+    // testing. Checked first, so it wins outright.
+    if (m_debugMode != LFG_DEBUG_OFF)
+    {
+        for (roleMap::const_iterator it = proposal->currentRoles.begin();
+             it != proposal->currentRoles.end(); ++it)
+        {
+            Player* pPlayer = sObjectAccessor.FindPlayer(it->first);
+            if (pPlayer && pPlayer->GetSession() &&
+                pPlayer->GetSession()->GetSecurity() >= SEC_GAMEMASTER)
+            {
+                leaderGuid = it->first;
+                break;
+            }
+        }
+    }
+
     for (roleMap::const_iterator it = proposal->currentRoles.begin();
-         it != proposal->currentRoles.end(); ++it)
+         !leaderGuid && it != proposal->currentRoles.end(); ++it)
     {
         if ((it->second & PLAYER_ROLE_LEADER) && sObjectAccessor.FindPlayer(it->first))
         {
