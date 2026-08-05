@@ -528,19 +528,32 @@ void DungeonResetScheduler::LoadGlobalResetTimes(uint32 diff)
     // So the table is validated as a WHOLE, but the trigger is narrow, and BOTH halves of that
     // matter. An earlier revision of this code got each of them wrong in turn.
     //
-    // The trigger is DEFINITIVE evidence only: a stored value >= MAX_DIFFICULTY. Nothing but the
-    // raw key space can put one there. The first attempt condemned the table on ANY invalid row,
-    // which is far too broad -- a map dropped from the DBC or one hand-edited row would discard
-    // every legitimate reset time, and that is NOT free. The rebuild below computes
+    // The trigger is IsLegacyRawResetKey: the stored (map, value) pair is itself a real,
+    // reset-bearing RAW MapDifficulty tier -- which is precisely what the old raw-keyed
+    // scheduler wrote, and what this build never writes. It is NOT "value >= MAX_DIFFICULTY",
+    // which an earlier revision used and which this comment described for longer than the code
+    // did. That older test was both too broad and too narrow: out-of-range is not evidence of
+    // the raw key space (a hand edit is out of range too), and it missed raw 2 and 3 entirely.
+    //
+    // The first attempt was broader still and condemned the table on ANY invalid row. That is
+    // far too much -- a map dropped from the DBC, or one hand-edited row, would discard every
+    // legitimate reset time, and that is NOT free. The rebuild below computes
     // `today + period + diff`, so wiping a valid row moves that lockout boundary by up to a full
     // reset period. Calling this table "just a cache" was wrong. Non-definitive invalid rows are
     // therefore deleted individually, exactly as before, and leave the rest of the table alone.
     //
-    // When definitive evidence IS present, every row is suspect and all of them go, because the
-    // 14 ambiguous ones cannot be identified. That is sound for a table the old build wrote in
-    // full: a 10/25 raid ships raw 3, 4, 5 and 6 with a global reset, so raw 4/5/6 are there to
-    // find. Verified against MapDifficulty.dbc -- of the 14 maps with an ambiguous raw-3 row,
-    // ZERO lack a definitive >= MAX_DIFFICULTY row.
+    // Note the trigger is strong evidence, not proof: a hand-written row that happens to name a
+    // real raw reset-bearing tier would also fire it. That is accepted deliberately. Such a row
+    // is indistinguishable from one the old scheduler wrote, and the cost of acting on it is a
+    // single rebuild of a table this code can regenerate in full.
+    //
+    // When the trigger fires, every row is suspect and all of them go, because the 14 ambiguous
+    // ones cannot be identified. That is sound for a table the old build wrote in full, and it
+    // is measured rather than assumed: re-derived against the shipped MapDifficulty.dbc, the old
+    // scheduler wrote 136 rows across 88 maps, of which 122 fail the internal check and every one
+    // of those trips IsLegacyRawResetKey by construction. The remaining 14 are the ambiguous
+    // raw-3 rows, on 14 maps -- and ZERO of those maps lack a proving row elsewhere in the same
+    // table, so the condemnation reaches all of them.
     //
     // Sniffing alone is NOT sufficient, and the durable answer is a version bump rather than
     // anything in this function. DBC co-occurrence is not TABLE co-occurrence: a legacy table can
@@ -605,9 +618,9 @@ void DungeonResetScheduler::LoadGlobalResetTimes(uint32 diff)
 
     if (rawKeySpaceProven)
     {
-        // A stored value >= MAX_DIFFICULTY proves this table was keyed on raw client
-        // DifficultyIDs, so the rows that DID validate cannot be trusted either -- see above --
-        // and none of them is applied.
+        // A stored (map, value) pair that is itself a reset-bearing RAW MapDifficulty tier is
+        // what the old raw-keyed scheduler wrote and what this build never writes, so the rows
+        // that DID validate cannot be trusted either -- see above -- and none is applied.
         sLog.outString("DungeonResetScheduler::LoadGlobalResetTimes: `instance_reset` holds raw client "
                        "DifficultyIDs; discarding all %u remaining row(s) and rebuilding. Global instance "
                        "lockout boundaries are recomputed once. If this recurs, run "
