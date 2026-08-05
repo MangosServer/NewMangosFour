@@ -176,12 +176,18 @@ void WorldSession::HandleLfgLeaveOpcode(WorldPacket& recv_data)
         return;
     }
 
-    // A grouped player leaves on behalf of the group, which is how the queue
-    // stores it -- JoinLFG keys group entries by the GROUP guid.
+    // A grouped player leaves on behalf of the group, which is how the queue stores it
+    // -- JoinLFG keys group entries by the GROUP guid.
+    //
+    // The test used to be `pGroup && pGroup->IsLeader(...)`, which sent a non-leader
+    // down the SOLO branch. That branch erases m_playerData[playerGuid], and for a
+    // grouped queuer no such entry exists: the party's real entry, keyed by the group
+    // guid, was left in the queue untouched while the client was told it had left.
+    // Whether a non-leader may cancel for the party is a permission question, answered
+    // in LeaveLFG, not a reason to cancel the wrong thing.
     Group* pGroup = plr->GetGroup();
-    bool const isGroup = pGroup && pGroup->IsLeader(plr->GetObjectGuid());
 
-    sLFGMgr.LeaveLFG(plr, isGroup);
+    sLFGMgr.LeaveLFG(plr, pGroup != nullptr);
 }
 
 void WorldSession::HandleLfgSetRolesOpcode(WorldPacket& recv_data)

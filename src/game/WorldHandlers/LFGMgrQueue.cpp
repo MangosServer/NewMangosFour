@@ -458,7 +458,9 @@ LFGProposal* LFGMgr::GetProposalData(uint32 proposalID)
 
 LfgJoinResult LFGMgr::GetJoinResult(Player* plr)
 {
-    LfgJoinResult result;
+    // Initialised. `LfgJoinResult result;` was read uninitialised when a group had
+    // members but every getSource() returned null.
+    LfgJoinResult result = ERR_LFG_OK;
     Group* pGroup = plr->GetGroup();
 
     /* Reasons for not entering:
@@ -484,6 +486,21 @@ LfgJoinResult LFGMgr::GetJoinResult(Player* plr)
     else if (plr->HasAura(LFG_COOLDOWN_SPELL))
     {
         result = ERR_LFG_RANDOM_COOLDOWN_PLAYER;
+    }
+    else if (plr->getLevel() < 15)
+    {
+        // The level test previously lived only in the group branch, so a solo player
+        // below 15 was never checked at all.
+        result = ERR_LFG_CANT_USE_DUNGEONS;
+    }
+
+    // Whatever the caller's own verdict is, it stands. The solo branch below used to
+    // end in an unconditional `result = ERR_LFG_OK`, throwing away every check above
+    // it: a solo player with Dungeon Deserter, on LFG cooldown, in a battleground, in
+    // an arena or below level 15 was always admitted.
+    if (result != ERR_LFG_OK)
+    {
+        return result;
     }
 
     if (pGroup)
@@ -516,10 +533,10 @@ LfgJoinResult LFGMgr::GetJoinResult(Player* plr)
                     {
                         result = ERR_LFG_RANDOM_COOLDOWN_PARTY;
                     }
-                    else
-                    {
-                        result = ERR_LFG_OK;
-                    }
+                    // No `else { result = ERR_LFG_OK; }` here. Assigning per member meant
+                    // only the LAST iterated member's verdict survived, so a party
+                    // containing one deserter was admitted whenever the last member
+                    // happened to be clean.
 
                     ++currentMemberCount;
                 }
@@ -530,10 +547,6 @@ LfgJoinResult LFGMgr::GetJoinResult(Player* plr)
                 result = ERR_LFG_MEMBERS_NOT_PRESENT;
             }
         }
-    }
-    else
-    {
-        result = ERR_LFG_OK;
     }
 
     return result;
