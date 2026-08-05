@@ -333,6 +333,16 @@ class DungeonResetScheduler
         void Update();
 
         void ResetAllRaid();
+    private:                                                // internals
+        /// Reads, migrates and applies the persisted `instance_reset` rows.
+        ///
+        /// Split out of LoadResetTimes because the key-space migration it carries is a
+        /// self-contained concern with a long rationale, and folding it inline pushed that
+        /// function past the size the rest of this file keeps to. Nothing else calls it.
+        ///
+        /// @param diff the configured instance reset hour, already converted to seconds.
+        void LoadGlobalResetTimes(uint32 diff);
+
     private:                                                // fields
         MapPersistentStateManager& m_InstanceSaves;
 

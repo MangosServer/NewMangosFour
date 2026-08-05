@@ -487,6 +487,154 @@ time_t DungeonResetScheduler::CalculateNextResetTime(MapDifficultyEntry const* m
 }
 
 /**
+ * @brief Reads, migrates and applies the persisted `instance_reset` rows.
+ *
+ * Split out of LoadResetTimes: the key-space migration below is a self-contained concern
+ * carrying a long rationale, and inlining it made that function considerably larger than
+ * anything else in this file.
+ *
+ * @param diff The configured instance reset hour, already converted to seconds.
+ */
+void DungeonResetScheduler::LoadGlobalResetTimes(uint32 diff)
+{
+    QueryResult* result = CharacterDatabase.Query("SELECT `mapid`, `difficulty`, `resettime` FROM `instance_reset`");
+    if (!result)
+    {
+        return;
+    }
+
+    // `instance_reset`.`difficulty` holds an INTERNAL 0-based mode, the same key space as
+    // `instance`.`difficulty`, DungeonPersistentState::GetDifficulty and
+    // m_resetTimeByMapDifficulty. The scheduler below writes it from the legacy index.
+    //
+    // A build that keyed this table on RAW client DifficultyIDs wrote a different key space into
+    // the same column, and the two overlap, so this is a migration and not just validation.
+    // Row-by-row validation is not sufficient, which an earlier revision of this code got wrong:
+    //
+    //   * The old scheduler enumerated the raw map and skipped RaidDuration == 0, so it could
+    //     write 136 rows across 88 maps, with stored values 2, 3, 4, 5, 6 and 9.
+    //   * Read as internal modes, 122 of those are detectable: 4, 5, 6 and 9 exceed
+    //     MAX_DIFFICULTY, and raw 2 resolves to internal 2, which since challenge mode stopped
+    //     being translated has no legacy-index entry at all. (An earlier comment here claimed
+    //     nine raw-2 challenge rows survived and that the RaidDuration test was what caught
+    //     them. Both halves are obsolete -- `!resetDiff` already rejects them.)
+    //   * 14 are NOT detectable. Raw 3 is raid 10-normal; internal 3 is raid 25-heroic. On the
+    //     14 maps carrying both with a global reset, a stale 10-normal timestamp validates
+    //     perfectly as a 25-heroic one, reaches SetResetTimeFor, and then suppresses the fresh
+    //     initialisation the scheduler below would otherwise do -- because that loop only fills
+    //     tiers with no reset time yet. No per-row test can tell those 14 apart from a row we
+    //     wrote ourselves; the value is legal in both key spaces.
+    //
+    // So the table is validated as a WHOLE, but the trigger is narrow, and BOTH halves of that
+    // matter. An earlier revision of this code got each of them wrong in turn.
+    //
+    // The trigger is DEFINITIVE evidence only: a stored value >= MAX_DIFFICULTY. Nothing but the
+    // raw key space can put one there. The first attempt condemned the table on ANY invalid row,
+    // which is far too broad -- a map dropped from the DBC or one hand-edited row would discard
+    // every legitimate reset time, and that is NOT free. The rebuild below computes
+    // `today + period + diff`, so wiping a valid row moves that lockout boundary by up to a full
+    // reset period. Calling this table "just a cache" was wrong. Non-definitive invalid rows are
+    // therefore deleted individually, exactly as before, and leave the rest of the table alone.
+    //
+    // When definitive evidence IS present, every row is suspect and all of them go, because the
+    // 14 ambiguous ones cannot be identified. That is sound for a table the old build wrote in
+    // full: a 10/25 raid ships raw 3, 4, 5 and 6 with a global reset, so raw 4/5/6 are there to
+    // find. Verified against MapDifficulty.dbc -- of the 14 maps with an ambiguous raw-3 row,
+    // ZERO lack a definitive >= MAX_DIFFICULTY row.
+    //
+    // Sniffing alone is NOT sufficient, and the durable answer is a version bump rather than
+    // anything in this function. DBC co-occurrence is not TABLE co-occurrence: a legacy table can
+    // hold an ambiguous raw-3 row with its raw-4/5/6 companions already gone -- after a partial
+    // startup, manual cleanup, or one run of an earlier row-by-row version of this very
+    // migration, which deleted exactly those detectable rows one at a time. Such a table passes
+    // everything below, the stale 10-normal timestamp is applied as 25-heroic, and the rebuild is
+    // suppressed. No inspection of row contents can catch it.
+    //
+    // So CHAR_DB_STRUCTURE_NR is bumped to 2, and the matching characters update deletes this
+    // table and advances `db_version`. A version or structure mismatch is FATAL in
+    // Database::CheckDatabaseVersion, so an un-migrated database cannot start -- which is the
+    // point. Bumping CONTENT instead would not do: a content lag is only a warning there, and
+    // the affected database would start silently.
+    //
+    // The detection below is therefore belt-and-braces for a database that reaches this code
+    // anyway, and the log line names the statement to run.
+    std::vector<std::pair<uint32 /*mapid*/, std::pair<uint32 /*difficulty*/, uint64 /*resettime*/> > > resetRows;
+    bool rawKeySpaceProven = false;
+
+    do
+    {
+        Field* fields = result->Fetch();
+
+        uint32 mapid            = fields[0].GetUInt32();
+        uint32 difficulty       = fields[1].GetUInt32();
+        uint64 oldresettime     = fields[2].GetUInt64();
+
+        MapEntry const* mapEntry = sMapStore.LookupEntry(mapid);
+        MapDifficultyEntry const* resetDiff = difficulty < MAX_DIFFICULTY
+            ? GetMapDifficultyData(mapid, Difficulty(difficulty))
+            : NULL;
+
+        if (!mapEntry || !mapEntry->IsDungeon() || !resetDiff || !resetDiff->RaidDuration)
+        {
+            sLog.outError("DungeonResetScheduler::LoadGlobalResetTimes: invalid mapid(%u)/difficulty(%u) pair in instance_reset!", mapid, difficulty);
+
+            if (IsLegacyRawResetKey(mapid, difficulty))
+            {
+                // This row is exactly what the old raw-keyed scheduler wrote: a raw reset-bearing
+                // (map, tier) pair. Flag the table; the row goes with the rest of it below.
+                //
+                // Not `difficulty >= MAX_DIFFICULTY`, which an earlier revision used. Out of
+                // internal range is not evidence of the raw key space -- an arbitrary hand edit
+                // is out of range too, and treating that as proof condemns a whole table of valid
+                // reset times over one junk row, which is the blast radius this trigger exists to
+                // avoid.
+                rawKeySpaceProven = true;
+            }
+            else
+            {
+                // Invalid for some unrelated reason. Drop just this row, as this code always did.
+                CharacterDatabase.DirectPExecute("DELETE FROM `instance_reset` WHERE `mapid` = '%u' AND `difficulty` = '%u'", mapid, difficulty);
+            }
+            continue;
+        }
+
+        resetRows.push_back(std::make_pair(mapid, std::make_pair(difficulty, oldresettime)));
+    }
+    while (result->NextRow());
+    delete result;
+
+    if (rawKeySpaceProven)
+    {
+        // A stored value >= MAX_DIFFICULTY proves this table was keyed on raw client
+        // DifficultyIDs, so the rows that DID validate cannot be trusted either -- see above --
+        // and none of them is applied.
+        sLog.outString("DungeonResetScheduler::LoadGlobalResetTimes: `instance_reset` holds raw client "
+                       "DifficultyIDs; discarding all %u remaining row(s) and rebuilding. Global instance "
+                       "lockout boundaries are recomputed once. If this recurs, run "
+                       "\"DELETE FROM `instance_reset`;\" once against the characters database.",
+                       uint32(resetRows.size()));
+        CharacterDatabase.DirectExecute("DELETE FROM `instance_reset`");
+        resetRows.clear();
+    }
+
+    for (size_t i = 0; i < resetRows.size(); ++i)
+    {
+        uint32 mapid          = resetRows[i].first;
+        uint32 difficulty     = resetRows[i].second.first;
+        uint64 oldresettime   = resetRows[i].second.second;
+
+        // update the reset time if the hour in the configs changes
+        uint64 newresettime = (oldresettime / DAY) * DAY + diff;
+        if (oldresettime != newresettime)
+        {
+            CharacterDatabase.DirectPExecute("UPDATE `instance_reset` SET `resettime` = '" UI64FMTD "' WHERE `mapid` = '%u' AND `difficulty` = '%u'", newresettime, mapid, difficulty);
+        }
+
+        SetResetTimeFor(mapid, Difficulty(difficulty), newresettime);
+    }
+}
+
+/**
  * @brief Loads and schedules persisted dungeon reset times.
  */
 void DungeonResetScheduler::LoadResetTimes()
@@ -563,139 +711,7 @@ void DungeonResetScheduler::LoadResetTimes()
 
     // load the global respawn times for raid/heroic instances
     uint32 diff = sWorld.getConfig(CONFIG_UINT32_INSTANCE_RESET_TIME_HOUR) * HOUR;
-    result = CharacterDatabase.Query("SELECT `mapid`, `difficulty`, `resettime` FROM `instance_reset`");
-    if (result)
-    {
-        // `instance_reset`.`difficulty` holds an INTERNAL 0-based mode, the same key space as
-        // `instance`.`difficulty`, DungeonPersistentState::GetDifficulty and
-        // m_resetTimeByMapDifficulty. The scheduler below writes it from the legacy index.
-        //
-        // A build that keyed this table on RAW client DifficultyIDs wrote a different key space into
-        // the same column, and the two overlap, so this is a migration and not just validation.
-        // Row-by-row validation is not sufficient, which an earlier revision of this code got wrong:
-        //
-        //   * The old scheduler enumerated the raw map and skipped RaidDuration == 0, so it could
-        //     write 136 rows across 88 maps, with stored values 2, 3, 4, 5, 6 and 9.
-        //   * Read as internal modes, 122 of those are detectable: 4, 5, 6 and 9 exceed
-        //     MAX_DIFFICULTY, and raw 2 resolves to internal 2, which since challenge mode stopped
-        //     being translated has no legacy-index entry at all. (An earlier comment here claimed
-        //     nine raw-2 challenge rows survived and that the RaidDuration test was what caught
-        //     them. Both halves are obsolete -- `!resetDiff` already rejects them.)
-        //   * 14 are NOT detectable. Raw 3 is raid 10-normal; internal 3 is raid 25-heroic. On the
-        //     14 maps carrying both with a global reset, a stale 10-normal timestamp validates
-        //     perfectly as a 25-heroic one, reaches SetResetTimeFor, and then suppresses the fresh
-        //     initialisation the scheduler below would otherwise do -- because that loop only fills
-        //     tiers with no reset time yet. No per-row test can tell those 14 apart from a row we
-        //     wrote ourselves; the value is legal in both key spaces.
-        //
-        // So the table is validated as a WHOLE, but the trigger is narrow, and BOTH halves of that
-        // matter. An earlier revision of this code got each of them wrong in turn.
-        //
-        // The trigger is DEFINITIVE evidence only: a stored value >= MAX_DIFFICULTY. Nothing but the
-        // raw key space can put one there. The first attempt condemned the table on ANY invalid row,
-        // which is far too broad -- a map dropped from the DBC or one hand-edited row would discard
-        // every legitimate reset time, and that is NOT free. The rebuild below computes
-        // `today + period + diff`, so wiping a valid row moves that lockout boundary by up to a full
-        // reset period. Calling this table "just a cache" was wrong. Non-definitive invalid rows are
-        // therefore deleted individually, exactly as before, and leave the rest of the table alone.
-        //
-        // When definitive evidence IS present, every row is suspect and all of them go, because the
-        // 14 ambiguous ones cannot be identified. That is sound for a table the old build wrote in
-        // full: a 10/25 raid ships raw 3, 4, 5 and 6 with a global reset, so raw 4/5/6 are there to
-        // find. Verified against MapDifficulty.dbc -- of the 14 maps with an ambiguous raw-3 row,
-        // ZERO lack a definitive >= MAX_DIFFICULTY row.
-        //
-        // Sniffing alone is NOT sufficient, and the durable answer is a version bump rather than
-        // anything in this function. DBC co-occurrence is not TABLE co-occurrence: a legacy table can
-        // hold an ambiguous raw-3 row with its raw-4/5/6 companions already gone -- after a partial
-        // startup, manual cleanup, or one run of an earlier row-by-row version of this very
-        // migration, which deleted exactly those detectable rows one at a time. Such a table passes
-        // everything below, the stale 10-normal timestamp is applied as 25-heroic, and the rebuild is
-        // suppressed. No inspection of row contents can catch it.
-        //
-        // So CHAR_DB_STRUCTURE_NR is bumped to 2, and the matching characters update deletes this
-        // table and advances `db_version`. A version or structure mismatch is FATAL in
-        // Database::CheckDatabaseVersion, so an un-migrated database cannot start -- which is the
-        // point. Bumping CONTENT instead would not do: a content lag is only a warning there, and
-        // the affected database would start silently.
-        //
-        // The detection below is therefore belt-and-braces for a database that reaches this code
-        // anyway, and the log line names the statement to run.
-        std::vector<std::pair<uint32 /*mapid*/, std::pair<uint32 /*difficulty*/, uint64 /*resettime*/> > > resetRows;
-        bool rawKeySpaceProven = false;
-
-        do
-        {
-            Field* fields = result->Fetch();
-
-            uint32 mapid            = fields[0].GetUInt32();
-            uint32 difficulty       = fields[1].GetUInt32();
-            uint64 oldresettime     = fields[2].GetUInt64();
-
-            MapEntry const* mapEntry = sMapStore.LookupEntry(mapid);
-            MapDifficultyEntry const* resetDiff = difficulty < MAX_DIFFICULTY
-                ? GetMapDifficultyData(mapid, Difficulty(difficulty))
-                : NULL;
-
-            if (!mapEntry || !mapEntry->IsDungeon() || !resetDiff || !resetDiff->RaidDuration)
-            {
-                sLog.outError("MapPersistentStateManager::LoadResetTimes: invalid mapid(%u)/difficulty(%u) pair in instance_reset!", mapid, difficulty);
-
-                if (IsLegacyRawResetKey(mapid, difficulty))
-                {
-                    // This row is exactly what the old raw-keyed scheduler wrote: a raw reset-bearing
-                    // (map, tier) pair. Flag the table; the row goes with the rest of it below.
-                    //
-                    // Not `difficulty >= MAX_DIFFICULTY`, which an earlier revision used. Out of
-                    // internal range is not evidence of the raw key space -- an arbitrary hand edit
-                    // is out of range too, and treating that as proof condemns a whole table of valid
-                    // reset times over one junk row, which is the blast radius this trigger exists to
-                    // avoid.
-                    rawKeySpaceProven = true;
-                }
-                else
-                {
-                    // Invalid for some unrelated reason. Drop just this row, as this code always did.
-                    CharacterDatabase.DirectPExecute("DELETE FROM `instance_reset` WHERE `mapid` = '%u' AND `difficulty` = '%u'", mapid, difficulty);
-                }
-                continue;
-            }
-
-            resetRows.push_back(std::make_pair(mapid, std::make_pair(difficulty, oldresettime)));
-        }
-        while (result->NextRow());
-        delete result;
-
-        if (rawKeySpaceProven)
-        {
-            // A stored value >= MAX_DIFFICULTY proves this table was keyed on raw client
-            // DifficultyIDs, so the rows that DID validate cannot be trusted either -- see above --
-            // and none of them is applied.
-            sLog.outString("MapPersistentStateManager::LoadResetTimes: `instance_reset` holds raw client "
-                           "DifficultyIDs; discarding all %u remaining row(s) and rebuilding. Global instance "
-                           "lockout boundaries are recomputed once. If this recurs, run "
-                           "\"DELETE FROM `instance_reset`;\" once against the characters database.",
-                           uint32(resetRows.size()));
-            CharacterDatabase.DirectExecute("DELETE FROM `instance_reset`");
-            resetRows.clear();
-        }
-
-        for (size_t i = 0; i < resetRows.size(); ++i)
-        {
-            uint32 mapid          = resetRows[i].first;
-            uint32 difficulty     = resetRows[i].second.first;
-            uint64 oldresettime   = resetRows[i].second.second;
-
-            // update the reset time if the hour in the configs changes
-            uint64 newresettime = (oldresettime / DAY) * DAY + diff;
-            if (oldresettime != newresettime)
-            {
-                CharacterDatabase.DirectPExecute("UPDATE `instance_reset` SET `resettime` = '" UI64FMTD "' WHERE `mapid` = '%u' AND `difficulty` = '%u'", newresettime, mapid, difficulty);
-            }
-
-            SetResetTimeFor(mapid, Difficulty(difficulty), newresettime);
-        }
-    }
+    LoadGlobalResetTimes(diff);
 
     // clean expired instances, references to them will be deleted in CleanupInstances
     // must be done before calculating new reset times
