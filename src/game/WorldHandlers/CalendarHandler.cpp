@@ -29,6 +29,7 @@
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "Opcodes.h"
+#include "DBCStores.h"
 #include "MapPersistentStateMgr.h"
 #include "Calendar.h"
 #include "ObjectMgr.h"
@@ -107,7 +108,9 @@ void WorldSession::HandleCalendarGetCalendar(WorldPacket& /*recv_data*/)
             DungeonPersistentState const* state = bound.second.state;
             MopCalendarPackets::CalendarListLockout record;
             record.instanceGuid = state->GetInstanceGuid().GetRawValue();
-            record.difficulty = state->GetDifficulty();
+            // RAW client DifficultyID on the wire, map-aware -- see ToClientDifficultyForMap.
+            // The bind is stored under the internal mode, and this record names its map.
+            record.difficulty = ToClientDifficultyForMap(state->GetMapId(), state->GetDifficulty(), true);
             record.resetRemaining = state->GetResetTime() > currTime ?
                 uint32(state->GetResetTime() - currTime) : 0;
             record.mapId = state->GetMapId();
@@ -1097,8 +1100,12 @@ void CalendarMgr::SendCalendarRaidLockoutRemove(Player* player, DungeonPersisten
 
     DEBUG_LOG("SMSG_CALENDAR_RAID_LOCKOUT_REMOVED [%s]", player->GetObjectGuid().GetString().c_str());
     WorldPacket data(SMSG_CALENDAR_RAID_LOCKOUT_REMOVED, 17);
+    // Map-aware raw conversion. The retained retail body for map 580 carries difficulty 4,
+    // which is Sunwell's own MapDifficulty row -- not the 3 the fixed raid table returns for
+    // the internal 0 it is canonicalised to.
     MopCalendarPackets::BuildCalendarRaidLockoutRemoved(data,
-        save->GetDifficulty(), save->GetMapId(), save->GetInstanceGuid().GetRawValue());
+        ToClientDifficultyForMap(save->GetMapId(), save->GetDifficulty(), true),
+        save->GetMapId(), save->GetInstanceGuid().GetRawValue());
     player->SendDirectMessage(&data);
 }
 
@@ -1115,7 +1122,8 @@ void CalendarMgr::SendCalendarRaidLockoutAdd(Player* player, DungeonPersistentSt
     WorldPacket data(SMSG_CALENDAR_RAID_LOCKOUT_ADDED, 4 + 4 + 4 + 4 + 8);
     data << secsToTimeBitFields(currTime);
     data << uint32(save->GetMapId());
-    data << uint32(save->GetDifficulty());
+    // RAW client DifficultyID, map-aware -- see ToClientDifficultyForMap.
+    data << uint32(ToClientDifficultyForMap(save->GetMapId(), save->GetDifficulty(), true));
     data << uint32(save->GetResetTime() - currTime);
     data << uint64(save->GetInstanceId());
     //data.hexlike();

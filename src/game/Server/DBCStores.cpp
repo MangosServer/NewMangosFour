@@ -1804,6 +1804,42 @@ uint32 ToClientDifficulty(Difficulty difficulty, bool isRaid)
     }
 }
 
+/**
+ * @brief Internal mode -> the raw client DifficultyID for a SPECIFIC map.
+ *
+ * ToClientDifficulty answers from a fixed table, which is right for a tier that belongs to no
+ * particular map -- the difficulty a player or group is set to. It is WRONG for anything that
+ * names a map, because the raid table assumes 10-normal is 3 and 25-normal is 4, and seven
+ * shipped raids break that assumption.
+ *
+ * The 25-player-only TBC raids -- Hyjal, Magtheridon, SSC, The Eye, Black Temple, Gruul and
+ * Sunwell -- ship a single MapDifficulty row carrying raw 4, and BuildMapDifficultyLegacyIndex
+ * canonicalises them to internal 0 so they are enterable at the tier every character defaults
+ * to. Round-tripping internal 0 through the fixed table returns 3, announcing a 10-player
+ * normal lockout for a raid that has no such tier.
+ *
+ * Retail disagrees, and there is a byte-exact fixture for it: the retained 18414
+ * SMSG_CALENDAR_RAID_LOCKOUT_REMOVED bodies in mop_calendar_packets_test.cpp carry difficulty
+ * 4 for map 580, The Sunwell. So the map's own row is the authority, not the table.
+ *
+ * Falls back to the fixed table when the map has no row for the tier, which is the best
+ * available answer for a caller holding a tier the map does not define.
+ *
+ * @param mapId      The map the difficulty is being reported for.
+ * @param difficulty The internal 0-based mode.
+ * @param isRaid     Used only by the fallback.
+ * @return The raw client DifficultyID to put on the wire.
+ */
+uint32 ToClientDifficultyForMap(uint32 mapId, Difficulty difficulty, bool isRaid)
+{
+    if (MapDifficultyEntry const* mapDiff = GetMapDifficultyData(mapId, difficulty))
+    {
+        return mapDiff->DifficultyID;
+    }
+
+    return ToClientDifficulty(difficulty, isRaid);
+}
+
 int32 ToInternalDifficulty(uint32 clientDifficultyId)
 {
     switch (clientDifficultyId)

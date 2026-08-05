@@ -190,6 +190,12 @@ int32 ToInternalDifficulty(uint32 clientDifficultyId);
 // key space -- an observed SMSG_SET_RAID_DIFFICULTY body carries 9, which is a legacy
 // 40-player raid and cannot be an internal mode at all, since those stop at 3.
 uint32 ToClientDifficulty(Difficulty difficulty, bool isRaid);
+// Internal mode -> raw client DifficultyID for a SPECIFIC map. Use this, not the fixed table
+// above, for anything that reports a difficulty ALONGSIDE a map id -- raid lockouts, instance
+// binds, calendar entries. Seven 25-player-only TBC raids are canonicalised to internal 0 but
+// ship raw 4, so the fixed table would announce them as 10-player normal; retail sends 4, as
+// the SMSG_CALENDAR_RAID_LOCKOUT_REMOVED fixture for map 580 pins.
+uint32 ToClientDifficultyForMap(uint32 mapId, Difficulty difficulty, bool isRaid);
 // Raw client DifficultyID -> internal mode, rejecting ids from the OTHER key space.
 // Use this for anything arriving from the client: the opcode says which field is being
 // set, so a raid id in a dungeon request is malformed, not translatable. A plain range
