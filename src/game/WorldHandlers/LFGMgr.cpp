@@ -333,6 +333,45 @@ dungeonEntries LFGMgr::FindRandomDungeonsForPlayer(uint32 level, uint8 expansion
     return randomDungeons;
 }
 
+/**
+ * @brief The `dungeonfinder_requirements` row for an LfgDungeons entry, or NULL.
+ *
+ * This is the third DBC-to-world-table join that crosses the difficulty key spaces, and it
+ * has to translate for the same reason the other two do.
+ *
+ * LfgDungeons.dbc carries a RAW client DifficultyID; `dungeonfinder_requirements`.`difficulty`
+ * is an INTERNAL 0-based mode. Confirmed against the shipped world data rather than assumed:
+ * every five-man map with two rows carries 0 and 1 (Halls of Reflection 632, Trial of the
+ * Champion 650, Pit of Saron 658, Forge of Souls 668), and Icecrown Citadel 631 carries 2 and
+ * 3. In the raw space those would be 1/2 and 5/6.
+ *
+ * Passing the raw id shifted every lookup by one tier, in both directions:
+ *
+ *   an LFG NORMAL row (raw 1) fetched the (map, 1) row, which is the HEROIC requirement, so a
+ *   player was held to heroic item level and achievements to queue for normal content;
+ *   an LFG HEROIC row (raw 2) asked for (map, 2), which for a five-man is CHALLENGE and has no
+ *   row at all, so the real heroic requirement was skipped entirely.
+ *
+ * Too strict where it should be lenient and absent where it should bite -- and this branch is
+ * what makes it systematic. While LfgDungeons.dbc was indexed by row ordinal the whole entry
+ * was the wrong dungeon, MapID included, so the lookup missed on noise. Correcting the index
+ * lines the MapID up and leaves the tier one out.
+ *
+ * A row whose tier has no internal mode yields NULL, which reads as "no requirement". That is
+ * the pre-existing behaviour for a missing row and is safe here: JoinLFG refuses such a slot
+ * outright at admission, so nothing untranslatable reaches a queue on the strength of it.
+ */
+static DungeonFinderRequirements const* GetDungeonFinderRequirementsFor(LfgDungeonsEntry const* dungeon)
+{
+    int32 const mode = ToInternalDifficulty(dungeon->DifficultyID);
+    if (mode < 0)
+    {
+        return NULL;
+    }
+
+    return sObjectMgr.GetDungeonFinderRequirements(uint32(dungeon->MapID), uint32(mode));
+}
+
 dungeonForbidden LFGMgr::FindRandomDungeonsNotForPlayer(Player* plr)
 {
     uint32 level = plr->getLevel();
@@ -367,7 +406,7 @@ dungeonForbidden LFGMgr::FindRandomDungeonsNotForPlayer(Player* plr)
             {
                 forbiddenReason = (uint32)LFG_FORBIDDEN_NOT_IN_SEASON;
             }
-            else if (DungeonFinderRequirements const* req = sObjectMgr.GetDungeonFinderRequirements((uint32)dungeon->MapID, dungeon->DifficultyID))
+            else if (DungeonFinderRequirements const* req = GetDungeonFinderRequirementsFor(dungeon))
             {
                 if (req->minItemLevel && (plr->GetEquipGearScore(false,false) < req->minItemLevel))
                 {
