@@ -731,6 +731,22 @@ static void NormalizeStaleChallengeInstances()
         // setter is unregistered. Only a character actually bound to one of these rewritten
         // saves needs heroic, and for them it is not a preference but the tier their lockout
         // lives at.
+        //
+        // It does NOT reach every bound owner, and the two it misses are both correct to miss.
+        // Player::LoadFromDB clamps anyone under LEVELREQUIREMENT_HEROIC (70) back to NORMAL,
+        // and Player::_LoadGroup replaces the loaded value with the group's tier for anyone at
+        // or above it. So this persists only for an ungrouped character of 70 or more.
+        //
+        // Leave both alone rather than working around them. A sub-70 character cannot enter a
+        // heroic dungeon at all, so a reachable heroic bind would buy them nothing and the clamp
+        // is the state they should be in. A grouped character follows their group by design --
+        // GetBoundInstanceSaveForSelfOrGroup consults the group bind when the personal one does
+        // not answer -- and the group's own bind is rewritten by the statement below.
+        //
+        // The honest scope, then: this converts the case that was previously broken for
+        // everyone into one that works for ungrouped level-70+ owners, which is the only cohort
+        // for whom a heroic five-man lockout is usable. It is a strict improvement, not a
+        // complete one, and the earlier claim that it "carries the owner with it" was too broad.
         CharacterDatabase.DirectPExecute(
             "UPDATE `characters` SET `dungeon_difficulty` = '%u' WHERE `guid` IN "
             "(SELECT `guid` FROM `character_instance` WHERE `instance` = '%u')",
