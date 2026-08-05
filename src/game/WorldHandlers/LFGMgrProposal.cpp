@@ -291,8 +291,16 @@ void LFGMgr::SendDungeonProposal(LFGPlayers* lfgGroup)
 
 bool LFGMgr::IsProposalSameGroup(LFGProposal const& proposal)
 {
+    // True only when EVERY member is in the SAME existing group.
+    //
+    // This used to skip ungrouped players entirely, so a two-man party matched with
+    // three solo queuers returned true -- the proposal was then treated as a premade
+    // and CreateDungeonGroup reused the party's group without ever adding the solos.
+    // It also returned true when nobody was grouped at all, because isSameGroup started
+    // true and had no way to become false.
     bool firstLoop = true;
     bool isSameGroup = true;
+    bool anyGrouped = false;
 
     ObjectGuid priorGroupGuid;
 
@@ -310,28 +318,27 @@ bool LFGMgr::IsProposalSameGroup(LFGProposal const& proposal)
             continue;
         }
 
-        if (Group* pGroup = pPlayer->GetGroup())
+        Group* pGroup = pPlayer->GetGroup();
+        if (!pGroup)
         {
-            ObjectGuid grpGuid = pGroup->GetObjectGuid();
+            return false;   // an ungrouped member means this is not one existing group
+        }
 
-            if (firstLoop)
-            {
-                priorGroupGuid = grpGuid;
-                firstLoop = false;
-            }
-            else
-            {
-                if (isSameGroup)
-                {
-                    if (grpGuid != priorGroupGuid)
-                    {
-                        isSameGroup = false;
-                    }
-                }
-            }
+        anyGrouped = true;
+        ObjectGuid grpGuid = pGroup->GetObjectGuid();
+
+        if (firstLoop)
+        {
+            priorGroupGuid = grpGuid;
+            firstLoop = false;
+        }
+        else if (grpGuid != priorGroupGuid)
+        {
+            isSameGroup = false;
         }
     }
-    return isSameGroup;
+
+    return anyGrouped && isSameGroup;
 }
 
 // From a CMSG_LFG_PROPOSAL_RESPONSE call
@@ -351,10 +358,18 @@ void LFGMgr::ProposalUpdate(uint32 proposalID, ObjectGuid plrGuid, bool accepted
     LFGProposalAnswer plrAnswer = (LFGProposalAnswer)accepted;
     proposal->answers[plrGuid] = plrAnswer;
 
-    // If the player declined, the proposal is over
+    // If the player declined, the proposal is over -- return immediately.
+    //
+    // Two bugs lived in falling through here. ProposalDeclined can erase the proposal
+    // from m_proposalMap, destroying the object `proposal` points into, and everything
+    // below then iterates and writes through that dangling pointer. And when it does
+    // NOT erase, it removes the decliner from `answers`, so the allOkay loop no longer
+    // sees them: four accepts plus one decline in a five-man read as unanimous, built a
+    // FOUR-man group and teleported it in.
     if (plrAnswer == LFG_ANSWER_DENY)
     {
         ProposalDeclined(plrGuid, proposal);
+        return;
     }
 
     for (proposalAnswerMap::iterator it = proposal->answers.begin(); it != proposal->answers.end(); ++it)
@@ -455,133 +470,139 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
         return;
     }
 
+    // Rewritten. The previous version had four independent defects on this one path:
+    //
+    //  - The leader search looped over every role-flagged member calling Group::Create
+    //    with no break, so two merged premades carrying two LEADER bits ran Create
+    //    twice on one object. Each call does its own GenerateGroupLowGuid plus an
+    //    INSERT INTO groups in its own transaction, orphaning the first group id and
+    //    stranding that id's group_member rows.
+    //  - If a leader bit was set but every leader-flagged player was offline, Create
+    //    never ran while AddMember still did -- building a group with id 0 and an empty
+    //    leader guid, which was then inserted into m_groupSet.
+    //  - The existing-group branch called no AddMember at all, so the commonest LFD
+    //    composition (one premade plus solo queuers) dequeued the solos, told them a
+    //    group was found, and never put them in one.
+    //  - Nothing registered the group with ObjectMgr, so GetGroupById could not find
+    //    it, it leaked at shutdown, and the boot path called RemoveGroup on a group
+    //    that had never been added.
+    //
+    // Resolve the leader ONCE, up front, and require them to be online.
+    ObjectGuid leaderGuid;
+    for (roleMap::const_iterator it = proposal->currentRoles.begin();
+         it != proposal->currentRoles.end(); ++it)
+    {
+        if ((it->second & PLAYER_ROLE_LEADER) && sObjectAccessor.FindPlayer(it->first))
+        {
+            leaderGuid = it->first;
+            break;
+        }
+    }
+
     Group* pGroup = nullptr;
 
-    if (!proposal->groupRawGuid)
+    if (proposal->groupRawGuid)
     {
-        bool leaderIsSet = false;
-        bool leaderRoleIsSet = HasLeaderFlag(proposal->currentRoles);
-        ObjectGuid leaderGuid;
-
-        pGroup = new Group();
-
-        for (playerGroupMap::iterator it = proposal->groups.begin(); it != proposal->groups.end(); ++it)
-        {
-            // remove plr from group w/ guid it->second
-            // set leader on first loop, then set leaderisset to true
-            ObjectGuid pGroupPlrGuid = it->first;
-            Player* pGroupPlr = sObjectAccessor.FindPlayer(pGroupPlrGuid);
-
-            if (pGroupPlr && it->second)
-            {
-                Group* existingGroup = pGroupPlr->GetGroup();
-                if (existingGroup)
-                {
-                    existingGroup->RemoveMember(pGroupPlrGuid, 0);
-                }
-            }
-
-            if (pGroupPlr && !leaderIsSet)
-            {
-                bool currentPlrIsLeader = false;
-                if (leaderRoleIsSet)
-                {
-                    for (roleMap::iterator itr = proposal->currentRoles.begin(); itr != proposal->currentRoles.end(); ++itr)
-                    {
-                        if (itr->second & PLAYER_ROLE_LEADER)
-                        {
-                            leaderGuid = itr->first;
-                            Player* leaderRef = sObjectAccessor.FindPlayer(leaderGuid);
-
-                            if (leaderRef)
-                            {
-                                pGroup->Create(leaderRef->GetObjectGuid(), leaderRef->GetName());
-                                currentPlrIsLeader = (pGroupPlrGuid == leaderGuid);
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    pGroup->Create(pGroupPlrGuid, pGroupPlr->GetName());
-                }
-
-                if (!currentPlrIsLeader)
-                {
-                    pGroup->AddMember(pGroupPlrGuid, pGroupPlr->GetName());
-                }
-
-                leaderIsSet = true;
-            }
-            else if (leaderIsSet && pGroupPlr && pGroupPlrGuid != leaderGuid)
-            {
-                pGroup->AddMember(pGroupPlrGuid, pGroupPlr->GetName());
-            }
-        }
-        pGroup->SetAsLfgGroup();
-    }
-    else
-    {
+        // Reuse the premade group the proposal was built around.
         Player* pGroupLeader = sObjectAccessor.FindPlayer(ObjectGuid(proposal->groupLeaderGuid));
-
-        // Check if the group leader was found before accessing their group
         if (pGroupLeader)
         {
             pGroup = pGroupLeader->GetGroup();
         }
-        else
+
+        // The stored leader may have logged out between proposal and acceptance. Fall
+        // back to any online member still in that same group.
+        if (!pGroup)
         {
-            // Log that the group leader is missing and fall back to creating a new group
-            // In the future, we should determine the right actions for this scenario.
-            // LOG_ERROR("LFGMgr::CreateDungeonGroup", "Group leader with GUID %u not found. Creating new group.", proposal->groupLeaderGuid);
-
-            // Attempt to create a new group using the first available player in the proposal group
-            if (!proposal->groups.empty())
+            for (playerGroupMap::const_iterator it = proposal->groups.begin();
+                 it != proposal->groups.end(); ++it)
             {
-                ObjectGuid fallbackLeaderGuid = proposal->groups.begin()->first;
-                Player* fallbackLeader = sObjectAccessor.FindPlayer(fallbackLeaderGuid);
-
-                if (fallbackLeader)
+                if (it->second.GetRawValue() != proposal->groupRawGuid)
                 {
-                    pGroup = new Group();
-                    pGroup->Create(fallbackLeader->GetObjectGuid(), fallbackLeader->GetName());
-                    pGroup->SetAsLfgGroup();
+                    continue;
+                }
 
-                    // Add remaining members to the new group
-                    for (playerGroupMap::iterator it = proposal->groups.begin(); it != proposal->groups.end(); ++it)
+                if (Player* pMember = sObjectAccessor.FindPlayer(it->first))
+                {
+                    pGroup = pMember->GetGroup();
+                    if (pGroup)
                     {
-                        ObjectGuid pGroupPlrGuid = it->first;
-                        if (pGroupPlrGuid != fallbackLeaderGuid)
-                        {
-                            Player* pGroupPlr = sObjectAccessor.FindPlayer(pGroupPlrGuid);
-                            if (pGroupPlr)
-                            {
-                                pGroup->AddMember(pGroupPlrGuid, pGroupPlr->GetName());
-                            }
-                        }
+                        break;
                     }
                 }
-                else
-                {
-                    // If no valid players are found, we return without proceeding
-                    // In the future, we should determine the right actions for this scenario.
-                    // LOG_ERROR("LFGMgr::CreateDungeonGroup", "No valid players found to create a fallback group.");
-                    return;
-                }
-            }
-            else
-            {
-                // Log if there are no players in the proposal groups map
-                // In the future, we should determine the right actions for this scenario.
-                // LOG_ERROR("LFGMgr::CreateDungeonGroup", "Proposal groups map is empty, cannot create fallback group.");
-                return;
             }
         }
     }
 
-    // Set dungeon difficulty for group
+    if (!pGroup)
+    {
+        // No group to reuse: build one. The leader is whoever carries the LEADER bit
+        // and is online, else the first online member.
+        if (!leaderGuid)
+        {
+            for (playerGroupMap::const_iterator it = proposal->groups.begin();
+                 it != proposal->groups.end(); ++it)
+            {
+                if (sObjectAccessor.FindPlayer(it->first))
+                {
+                    leaderGuid = it->first;
+                    break;
+                }
+            }
+        }
+
+        Player* pLeader = sObjectAccessor.FindPlayer(leaderGuid);
+        if (!pLeader)
+        {
+            return;     // everyone went offline; nothing to build
+        }
+
+        // Detach from any prior group BEFORE creating, so Create does not run against a
+        // player their old group still lists.
+        for (playerGroupMap::const_iterator it = proposal->groups.begin();
+             it != proposal->groups.end(); ++it)
+        {
+            Player* pMember = sObjectAccessor.FindPlayer(it->first);
+            if (pMember && pMember->GetGroup())
+            {
+                pMember->GetGroup()->RemoveMember(it->first, 0);
+            }
+        }
+
+        pGroup = new Group();
+        if (!pGroup->Create(pLeader->GetObjectGuid(), pLeader->GetName()))
+        {
+            delete pGroup;
+            return;
+        }
+
+        pGroup->SetAsLfgGroup();
+        sObjectMgr.AddGroup(pGroup);
+    }
+
+    // Everyone in the proposal who is not already in this group joins it. That covers
+    // both paths: a freshly created group needs every non-leader added, and a reused
+    // premade needs the solo queuers that were matched into it.
+    ObjectGuid const groupGuid = pGroup->GetObjectGuid();
+    for (playerGroupMap::const_iterator it = proposal->groups.begin();
+         it != proposal->groups.end(); ++it)
+    {
+        Player* pMember = sObjectAccessor.FindPlayer(it->first);
+        if (!pMember || pGroup->IsMember(it->first))
+        {
+            continue;
+        }
+
+        if (Group* existing = pMember->GetGroup())
+        {
+            existing->RemoveMember(it->first, 0);
+        }
+
+        pGroup->AddMember(it->first, pMember->GetName());
+    }
+
     LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(proposal->dungeonID);
-    if (!dungeon || !pGroup)
+    if (!dungeon)
     {
         return;
     }
@@ -656,6 +677,7 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
 
     m_groupSet.insert(groupGuid);
     m_groupStatusMap[groupGuid] = groupStatus;
+
     TeleportToDungeon(dungeon->ID, pGroup);
 
     pGroup->SendUpdate();
@@ -976,6 +998,15 @@ void LFGMgr::HandleBossKilled(Player* pPlayer)
             // get rewards
             uint32 groupPlrLevel = pGroupPlr->getLevel();
             const DungeonFinderRewards* rewards = sObjectMgr.GetDungeonFinderRewards(groupPlrLevel); // Fetch base xp/money reward
+            if (!rewards)
+            {
+                // Unconditionally dereferenced below. dungeonfinder_rewards ships 66
+                // rows covering levels 15-80, so every level 81-90 character -- i.e.
+                // every MoP-relevant one -- crashed the world server on a tracked boss
+                // kill. No row means no base reward, not a crash.
+                continue;
+            }
+
             ItemRewards itemRewards = GetDungeonItemRewards(status->dungeonID, type);                // fetch item reward
 
             int32 multiplier;                                                                        // base reward modifier
