@@ -68,7 +68,7 @@
     // the update could write. Harmless -- CheckDatabaseVersion only PRINTS the description
     // and gates on version/structure -- but it made the mismatch banner advertise an
     // expected value no database could ever hold.
-    #define CHAR_DB_UPDATE_DESCRIPT     "instance_reset key space"
+    #define CHAR_DB_UPDATE_DESCRIPT     "difficulty key spaces"
 
     #define WORLD_DB_VERSION_NR         "23"
     #define WORLD_DB_STRUCTURE_NR       "3"
