@@ -414,6 +414,17 @@ void LFGMgr::ProposalUpdate(uint32 proposalID, ObjectGuid plrGuid, bool accepted
         for (std::vector<ObjectGuid>::const_iterator itr = members.begin();
              itr != members.end(); ++itr)
         {
+            // Tell them they are out of the queue BEFORE the status entry goes, since
+            // the update is built from it. Closing the proposal window is not enough on
+            // its own: without an explicit LEAVE the client keeps showing itself as
+            // queued for a queue that no longer exists.
+            SetPlayerState(*itr, LFG_STATE_NONE);
+            SetPlayerUpdateType(*itr, LFG_UPDATE_LEAVE);
+
+            bool const wasGrouped = m_playerData.find(*itr) != m_playerData.end() &&
+                                    m_playerData[*itr].isGroup;
+            SendLfgUpdate(*itr, GetPlayerStatus(*itr), wasGrouped);
+
             m_queueSet.erase(*itr);
             m_playerData.erase(*itr);
             m_playerStatusMap.erase(*itr);
