@@ -93,7 +93,15 @@ const char ItemRandomPropertiesfmt[]="nxiiiiis";                    // 5.3.0 Che
 const char ItemRandomSuffixfmt[]="nsxiiiiiiiiii";                   // 5.3.0 Checked
 const char ItemReforgefmt[]="nifif";
 const char ItemSetEntryfmt[]="dsxxxxxxxxxxxxxxxxxiiiiiiiiiiiiiiiiii"; // 5.3.0 Checked
-const char LfgDungeonsEntryfmt[] = "isiiiiiiiiiisiiisiiiiiiiiiiii";
+// First column is 'n' (DBC_FF_IND), not 'i'. 'n' marks the INDEX column, which is
+// what makes DBCFileLoader::AutoProduceData build indexTable keyed by ID; with a plain
+// 'i' it finds no index column and falls back to numbering rows 0..recordCount-1.
+// This store is looked up by dungeon ID everywhere, so every LookupEntry was returning
+// the Nth ROW instead: LookupEntry(6) gave row 6 = id 12 "Stormwind Stockade" rather
+// than id 6 "Deadmines", and CreateDungeonGroup then fed that 12 back in to get row 12
+// = id 26 "Maraudon", map 349. It also capped GetNumRows() at 343 instead of maxId+1,
+// so the loops that walk the id space never saw more than half the dungeons.
+const char LfgDungeonsEntryfmt[] = "nsiiiiiiiiiisiiisiiiiiiiiiiii";
 const char LiquidTypefmt[] = "nxxixixxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // 5.3.0 Checked
 const char LockEntryfmt[] = "niiiiiiiiiiiiiiiiiiiiiiiixxxxxxxx";    // 5.3.0 Checked
 const char MailTemplateEntryfmt[]="nxs";                            // 5.3.0 Checked
