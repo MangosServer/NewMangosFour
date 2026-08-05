@@ -173,6 +173,25 @@ AreaLockStatus Player::GetAreaTriggerLockStatus(AreaTrigger const* at, Difficult
     bool isRegularTargetMap = !mapEntry->IsDungeon() || GetDifficulty(mapEntry->IsRaid()) == REGULAR_DIFFICULTY;
 
     MapDifficultyEntry const* mapDiff = GetMapDifficultyData(at->target_mapId, difficulty);
+    if (mapEntry->IsDungeon() && !mapDiff && difficulty != REGULAR_DIFFICULTY)
+    {
+        // Some instances only have one difficulty, and the tier a player is set to is not
+        // necessarily one of them. The 25-player-only TBC raids -- Hyjal, Magtheridon, SSC,
+        // The Eye, Black Temple, Gruul and Sunwell -- ship a single MapDifficulty row and
+        // instantiate as REGULAR_DIFFICULTY, so a group left on "25 Player" asks for a tier
+        // that has no row.
+        //
+        // This is not a new rule. MapManager::CreateDungeonMap, Group::GetBoundInstance and
+        // Player::GetBoundInstance all already fold a missing tier back to the regular one;
+        // only this admission gate did not, so it refused entry to maps the paths behind it
+        // would have opened. Folding here makes the gate agree with them.
+        //
+        // Note this deliberately does NOT touch isRegularTargetMap above: that is computed
+        // from the player's own difficulty and drives the heroic key and quest requirements,
+        // which are a separate question from whether the map has a row at all.
+        mapDiff = GetMapDifficultyData(at->target_mapId, REGULAR_DIFFICULTY);
+    }
+
     if (mapEntry->IsDungeon() && !mapDiff)
     {
         return AREA_LOCKSTATUS_MISSING_DIFFICULTY;

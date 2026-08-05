@@ -725,9 +725,15 @@ void DungeonResetScheduler::LoadResetTimes()
     // AddPersistentState, by MovementHandler's reset warning and by the
     // DungeonPersistentState::GetDifficulty() comparison in _ResetOrWarnAll. Keying it
     // on raw client ids made all three wrong, because no raw id except 0 equals its own
-    // internal mode: 129 of the 143 reset-bearing tiers missed the table outright and
+    // internal mode: 122 of the 136 reset-bearing tiers missed the table outright and
     // the remaining 14 (internal 3 against raw id 3) picked raid 10-normal's row while
     // claiming to be 25-heroic.
+    //
+    // 136, not the 143 an earlier revision of this comment gave. That count was measured
+    // while BuildMapDifficultyLegacyIndex left the seven 25-player-only TBC raids holding
+    // two keys apiece, so it counted this loop's own duplicate rows as though they were
+    // real tiers. The widening is a move rather than a copy now, and 136 is the number of
+    // physical lockouts that actually exist.
     MapDifficultyMap const& legacyMap = GetMapDifficultyLegacyMap();
     for (MapDifficultyMap::const_iterator itr = legacyMap.begin(); itr != legacyMap.end(); ++itr)
     {

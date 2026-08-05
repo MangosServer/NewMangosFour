@@ -2118,6 +2118,36 @@ static void BuildMapDifficultyLegacyIndex()
             ToInternalDifficulty(mapDiff->DifficultyID) == 1)
         {
             sMapDifficultyLegacyMap[regular] = mapDiff;
+
+            // MOVE, not copy. Leaving the mode-1 key in place gives one physical lockout two
+            // key spaces, and both halves of that are live on shipped data:
+            //
+            //   * LoadResetTimes iterates this whole index, so each of the seven maps produced
+            //     TWO `instance_reset` rows and TWO scheduled reset events -- 143 reset-bearing
+            //     tiers where there are only 136 -- at every startup, with no player involved.
+            //   * Worse, a group set to "25 Player" resolves mode 1, finds this duplicate,
+            //     passes the area trigger, and instantiates at spawn mode 1. Every creature and
+            //     gameobject on these maps carries spawnMask 1, which is mode 0 ONLY, so the
+            //     group binds itself to a completely empty raid. MapManager::CreateDungeonMap's
+            //     "some instances only have one difficulty" fold cannot save them, because the
+            //     duplicate makes the lookup succeed.
+            //
+            // Erasing it leaves exactly one canonical key at mode 0, which is the mode these
+            // raids are meant to instantiate as -- they ship one MapDifficulty row and one set
+            // of spawns. Player::GetAreaTriggerLockStatus folds a mode-1 request back to
+            // REGULAR_DIFFICULTY so a 25 Player selection still admits, rather than being
+            // refused now that the key is gone.
+            //
+            // Guarded on identity rather than erasing blind: two raw rows can map to the same
+            // internal mode, and only the row that was just promoted should be withdrawn. No
+            // shipped raid carries such a pair -- these seven have exactly one row each -- so
+            // this is future-proofing, not a case being handled.
+            uint32 const promoted = MAKE_PAIR32(mapDiff->MapID, 1u);
+            MapDifficultyMap::const_iterator itrPromoted = sMapDifficultyLegacyMap.find(promoted);
+            if (itrPromoted != sMapDifficultyLegacyMap.end() && itrPromoted->second == mapDiff)
+            {
+                sMapDifficultyLegacyMap.erase(promoted);
+            }
         }
     }
 }
@@ -2159,8 +2189,11 @@ MapDifficultyEntry const* GetMapDifficultyData(uint32 mapId, Difficulty difficul
  * `instance_reset`, the reset events and m_resetTimeByMapDifficulty on raw client
  * ids, while AddPersistentState, MovementHandler and DungeonPersistentState all read
  * those same structures with internal modes. Since no raw id except 0 equals its own
- * internal mode, 129 of the 143 reset-bearing tiers missed outright and the other 14
+ * internal mode, 122 of the 136 reset-bearing tiers missed outright and the other 14
  * silently picked another tier's row.
+ *
+ * 136 rather than the 143 an earlier revision gave: that count was taken while the
+ * widening below still left seven raids double-keyed, so it counted duplicates as tiers.
  */
 MapDifficultyMap const& GetMapDifficultyLegacyMap()
 {
