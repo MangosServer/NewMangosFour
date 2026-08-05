@@ -927,8 +927,23 @@ inline bool MopPartyUpdatePackets::BuildPartyUpdate(WorldPacket& out,
     out.WriteByteSeq(MopGroupPacketDetail::GuidByte(leaderGuid, 0));
     if (update.hasInstanceDifficulty)
     {
-        out << update.raidDifficulty;
+        // DUNGEON first, then RAID. The struct declares them the other way round and this used
+        // to write them in declaration order, which is transposed on the wire.
+        //
+        // Retail settles it. Two 18414 bodies, both with the pair immediately after the
+        // leader-GUID byte and before memberData:
+        //   capture-000006 seq 1424  ... d0 | 02 00 00 00 | 03 00 00 00 | 04 02 01 05 ...
+        //   capture-000020 seq 2096  ... 63 | 01 00 00 00 | 03 00 00 00 | 04 02 01 04 ...
+        // Raw 1 and 2 are five-man tiers and raw 3 is a raid tier, so the first field is the
+        // dungeon difficulty and the second is the raid one. No other reading is possible --
+        // a party difficulty of 3 does not exist.
+        //
+        // Harmless until the values became meaningful. While both fields carried internal modes
+        // they were 0 for nearly every group, and 0 matches no instance row, so the client read
+        // them as unset. Converting them to raw ids put two VALID ids into swapped slots, which
+        // is worse: the client's GetDungeonDifficultyID would answer 3, a raid-only id.
         out << update.dungeonDifficulty;
+        out << update.raidDifficulty;
     }
     out.append(memberData);
     out.WriteByteSeq(MopGroupPacketDetail::GuidByte(groupGuid, 1));
