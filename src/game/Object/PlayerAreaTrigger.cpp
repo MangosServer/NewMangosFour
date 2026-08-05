@@ -189,6 +189,23 @@ AreaLockStatus Player::GetAreaTriggerLockStatus(AreaTrigger const* at, Difficult
         // Note this deliberately does NOT touch isRegularTargetMap above: that is computed
         // from the player's own difficulty and drives the heroic key and quest requirements,
         // which are a separate question from whether the map has a row at all.
+        //
+        // KNOWN GAP, and the shape of it matters because the obvious fix is wrong. This folds
+        // DOWNWARD only. Three five-mans have no regular tier to fold to -- End Time (938),
+        // Well of Eternity (939) and Hour of Twilight (940) each ship a single MapDifficulty
+        // row, raw 2, so their only internal key is 1. Every character sits at internal 0,
+        // because the difficulty setter opcode is still unregistered, so all three stay
+        // unenterable. They were equally unenterable before this branch, along with every
+        // other instance, so nothing regresses -- but they are not fixed either.
+        //
+        // Do NOT fix that by extending BuildMapDifficultyLegacyIndex's widening to dungeons.
+        // Every creature and gameobject on those three maps carries spawnMask 2, which is
+        // internal mode 1 alone; giving them a mode-0 key would admit the player to an
+        // instance with nothing in it, which is precisely the failure the widening was just
+        // changed from a copy to a move to prevent. Entering them correctly means resolving
+        // the player to mode 1, which has to drive MapManager::CreateDungeonMap as well as
+        // this gate, and most likely means registering the difficulty setter first. That is
+        // follow-up work, not a fold.
         mapDiff = GetMapDifficultyData(at->target_mapId, REGULAR_DIFFICULTY);
     }
 

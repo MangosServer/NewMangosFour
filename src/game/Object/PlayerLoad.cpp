@@ -1273,11 +1273,29 @@ void Player::_LoadBoundInstances(QueryResult* result)
  */
 InstancePlayerBind* Player::GetBoundInstance(uint32 mapid, Difficulty difficulty)
 {
-    // some instances only have one difficulty
-    MapDifficultyEntry const* mapDiff = GetMapDifficultyData(mapid, difficulty);
-    if (!mapDiff)
+    // Some instances only have one difficulty -- fold to it rather than answering "no bind".
+    //
+    // Group::GetBoundInstance already does exactly this, under the same comment. This one
+    // returned NULL instead, and the two disagreeing is what makes it a defect rather than a
+    // style difference: GetBoundInstanceSaveForSelfOrGroup consults the PLAYER bind first and
+    // only falls through to the group bind, so a player whose own permanent bind was missed
+    // here silently inherited the group's, or none at all.
+    //
+    // It became reachable when the 25-player-only TBC raids were canonicalized to
+    // REGULAR_DIFFICULTY. A group set to 25 Player now asks for internal mode 1 on a map that
+    // has only mode 0, so this lookup missed the very bind the player holds, and the entrance
+    // path could then build a second instance for a raid they are already locked to.
+    //
+    // Folds to REGULAR_DIFFICULTY to match Group::GetBoundInstance, MapManager::CreateDungeonMap
+    // and Player::GetAreaTriggerLockStatus. All four now answer the same question the same way.
+    if (!GetMapDifficultyData(mapid, difficulty))
     {
-        return NULL;
+        if (difficulty == REGULAR_DIFFICULTY || !GetMapDifficultyData(mapid, REGULAR_DIFFICULTY))
+        {
+            return NULL;
+        }
+
+        difficulty = REGULAR_DIFFICULTY;
     }
 
     BoundInstancesMap::iterator itr = m_boundInstances[difficulty].find(mapid);
@@ -1436,10 +1454,20 @@ void Player::SendRaidInfo()
             if (itr->second.perm)
             {
                 DungeonPersistentState* state = itr->second.state;
+                MapEntry const* stateMap = state->GetMapEntry();
                 MopRaidInstancePackets::RaidInstance record;
                 record.instanceGuid = state->GetInstanceGuid();
                 record.mapId = state->GetMapId();
-                record.difficulty = state->GetDifficulty();
+                // RAW client DifficultyID on the wire. The bind is keyed on the internal mode
+                // -- m_boundInstances is indexed by it -- so this is a boundary and has to
+                // convert.
+                //
+                // Map-aware, because this record names a map: the seven 25-player-only TBC
+                // raids are canonicalised to internal 0 but ship raw 4, and the fixed table
+                // would report them as 10-player normal.
+                record.difficulty = ToClientDifficultyForMap(state->GetMapId(),
+                                                             state->GetDifficulty(),
+                                                             stateMap && stateMap->IsRaid());
                 record.resetTime = uint32(state->GetResetTime() - now);
                 record.completedEncounters = state->GetCompletedEncountersMask();
                 record.expired = true;
