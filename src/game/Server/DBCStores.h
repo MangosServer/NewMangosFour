@@ -184,8 +184,8 @@ int32 ToInternalDifficulty(uint32 clientDifficultyId);
 // separate fields with two separate opcodes.
 //
 // Every packet that reports a difficulty to the client MUST go through this. Retail never
-// sends 0 for SMSG_SET_DUNGEON_DIFFICULTY: 954 build-18414 captures carry only 1 (x512) and
-// 2 (x424), and FrameXML/Constants.lua declares DIFFICULTY_DUNGEON_NORMAL = 1,
+// sends 0 for SMSG_SET_DUNGEON_DIFFICULTY: across 954 build-18414 captures the value set is
+// exactly {1 x512, 2 x424, 8 x18}, and FrameXML/Constants.lua declares DIFFICULTY_DUNGEON_NORMAL = 1,
 // DIFFICULTY_DUNGEON_HEROIC = 2, DIFFICULTY_DUNGEON_CHALLENGE = 8. The raid side is the same
 // key space -- an observed SMSG_SET_RAID_DIFFICULTY body carries 9, which is a legacy
 // 40-player raid and cannot be an internal mode at all, since those stop at 3.

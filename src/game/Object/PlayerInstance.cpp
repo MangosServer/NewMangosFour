@@ -87,8 +87,13 @@ void Player::SendDungeonDifficulty(bool /*IsInGroup*/)
     //
     // This sent GetDungeonDifficulty() straight out, so a character on normal difficulty
     // reported 0 -- a value retail never sends. Across 954 build-18414 captures of this
-    // opcode the payload is only ever 1 (x512) or 2 (x424), and FrameXML/Constants.lua
-    // declares DIFFICULTY_DUNGEON_NORMAL = 1 and DIFFICULTY_DUNGEON_HEROIC = 2.
+    // opcode the value set is exactly {1 x512, 2 x424, 8 x18}, and FrameXML/Constants.lua
+    // declares DIFFICULTY_DUNGEON_NORMAL = 1, DIFFICULTY_DUNGEON_HEROIC = 2 and
+    // DIFFICULTY_DUNGEON_CHALLENGE = 8. Zero occurrences of 0.
+    //
+    // The 18 occurrences of 8 were omitted here and in DBCStores.h, which left both quoting
+    // 954 captures against 936 packets. They matter: 8 is the value that proves the payload
+    // cannot be an internal mode, since no internal dungeon mode can produce it.
     WorldPacket data(SMSG_SET_DUNGEON_DIFFICULTY, 4);
     MopCompactPackets::BuildSetDungeonDifficulty(data, ToClientDifficulty(GetDungeonDifficulty(), false));
     GetSession()->SendPacket(&data);

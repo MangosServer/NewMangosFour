@@ -341,9 +341,9 @@ dungeonEntries LFGMgr::FindRandomDungeonsForPlayer(uint32 level, uint8 expansion
  *
  * LfgDungeons.dbc carries a RAW client DifficultyID; `dungeonfinder_requirements`.`difficulty`
  * is an INTERNAL 0-based mode. Confirmed against the shipped world data rather than assumed:
- * every five-man map with two rows carries 0 and 1 (Halls of Reflection 632, Trial of the
- * Champion 650, Pit of Saron 658, Forge of Souls 668), and Icecrown Citadel 631 carries 2 and
- * 3. In the raw space those would be 1/2 and 5/6.
+ * every five-man map with two rows carries 0 and 1 (The Forge of Souls 632, Trial of the
+ * Champion 650, Pit of Saron 658, Halls of Reflection 668), and Icecrown Citadel 631 carries 2
+ * and 3. In the raw space those would be 1/2 and 5/6.
  *
  * Passing the raw id shifted every lookup by one tier, in both directions:
  *
@@ -352,10 +352,19 @@ dungeonEntries LFGMgr::FindRandomDungeonsForPlayer(uint32 level, uint8 expansion
  *   an LFG HEROIC row (raw 2) asked for (map, 2), which for a five-man is CHALLENGE and has no
  *   row at all, so the real heroic requirement was skipped entirely.
  *
- * Too strict where it should be lenient and absent where it should bite -- and this branch is
- * what makes it systematic. While LfgDungeons.dbc was indexed by row ordinal the whole entry
- * was the wrong dungeon, MapID included, so the lookup missed on noise. Correcting the index
- * lines the MapID up and leaves the tier one out.
+ * Too strict where it should be lenient and absent where it should bite.
+ *
+ * It is PRE-EXISTING, not something this branch caused. An earlier version of this comment
+ * claimed the row-ordinal indexing had made the lookup miss on noise and that correcting the
+ * index turned it systematic. That is false, and measurably so: this function enumerates
+ * 0..GetNumRows()-1 and reads MapID, DifficultyID and TypeID off ONE row pointer, so with 343
+ * rows and no duplicate ids both index modes visit every row exactly once and the same 33 rows
+ * reach the requirements table with the same wrong tier key either way. The claim was carried
+ * over from a genuinely index-sensitive site -- CreateDungeonGroup, which looks a row up by a
+ * client-supplied id -- where it does hold.
+ *
+ * It is fixed here because this is the branch that separates the two key spaces, not because
+ * the branch created it.
  *
  * A row whose tier has no internal mode yields NULL, which reads as "no requirement". That is
  * the pre-existing behaviour for a missing row and is safe here: JoinLFG refuses such a slot
@@ -479,8 +488,10 @@ void LFGMgr::UpdateNeededRoles(ObjectGuid guid, LFGPlayers* information)
         //
         // Same raw-vs-internal confusion as GetDungeonType: LfgDungeons.dbc DifficultyID is a raw
         // client id, so comparing it to DUNGEON_DIFFICULTY_NORMAL (internal 0) matched only rows
-        // carrying raw 0 -- the 59 continent-style rows -- and never raw 1, which is what a 5-man
-        // normal dungeon actually is. The 90 normal-dungeon rows therefore left neededTanks,
+        // carrying raw 0 -- 60 of them -- and never raw 1, which is what a 5-man normal dungeon
+        // actually is. 60 rather than the 59 given before: the old comparison had no TypeID
+        // filter, so its match set included id 358, 10v10 Rated Battleground, which is raid-typed.
+        // 59 is the non-raid subset, which is not what the code being described matched. The 90 normal-dungeon rows therefore left neededTanks,
         // neededHealers and neededDps at their default, so the role counts were never initialised
         // for the one case this branch claims to handle.
         // ...and only for FIVE-MAN rows. NORMAL_TANK_OR_HEALER_COUNT and NORMAL_DAMAGE_COUNT are 1,
