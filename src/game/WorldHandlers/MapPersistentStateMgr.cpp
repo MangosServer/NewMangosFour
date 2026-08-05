@@ -732,21 +732,34 @@ static void NormalizeStaleChallengeInstances()
         // saves needs heroic, and for them it is not a preference but the tier their lockout
         // lives at.
         //
-        // It does NOT reach every bound owner, and the two it misses are both correct to miss.
-        // Player::LoadFromDB clamps anyone under LEVELREQUIREMENT_HEROIC (70) back to NORMAL,
-        // and Player::_LoadGroup replaces the loaded value with the group's tier for anyone at
-        // or above it. So this persists only for an ungrouped character of 70 or more.
+        // Which owners this actually reaches, measured rather than assumed -- two earlier
+        // versions of this comment got the cohort wrong in both directions.
         //
-        // Leave both alone rather than working around them. A sub-70 character cannot enter a
-        // heroic dungeon at all, so a reachable heroic bind would buy them nothing and the clamp
-        // is the state they should be in. A grouped character follows their group by design --
-        // GetBoundInstanceSaveForSelfOrGroup consults the group bind when the personal one does
-        // not answer -- and the group's own bind is rewritten by the statement below.
+        // REACHED: an ungrouped character of level 70 or more, where the value simply survives
+        // login; and a grouped character of 70 or more whose GROUP is bound to the same save,
+        // because the `groups` statement below sets that group to heroic and Player::_LoadGroup
+        // syncs every member of 70+ from it.
         //
-        // The honest scope, then: this converts the case that was previously broken for
-        // everyone into one that works for ungrouped level-70+ owners, which is the only cohort
-        // for whom a heroic five-man lockout is usable. It is a strict improvement, not a
-        // complete one, and the earlier claim that it "carries the owner with it" was too broad.
+        // NOT REACHED: a character under LEVELREQUIREMENT_HEROIC (70), whom Player::LoadFromDB
+        // clamps back to NORMAL; and a character of 70+ whose group is NOT bound to this save,
+        // whom _LoadGroup moves to that group's tier instead.
+        //
+        // Neither miss is corruption. The clamped value is written back by the next character
+        // save, so the row self-corrects to what the core will actually honour rather than
+        // holding a tier nothing will load.
+        //
+        // The sub-70 case is a real gap and is left open deliberately. Such a character can only
+        // have acquired a heroic five-man bind by being taken into one by a group -- they cannot
+        // select heroic themselves, and Group::SetDungeonDifficulty skips members under 70 -- so
+        // the way back in is the same group, whose own bind the statement below repairs and whose
+        // tier _LoadGroup will not apply to them either. Alone they are clamped to NORMAL, which
+        // is the tier a sub-70 should be on. Making the personal bind reachable regardless of
+        // selected tier is NOT the fix: it would also drag a 70+ character with a heroic lockout
+        // into their heroic instance when they deliberately chose to run the place on normal.
+        //
+        // Closing it properly means teaching the login clamps that a difficulty backed by a
+        // permanent bind is not merely a UI preference, which is a change to shared login
+        // ordering and does not belong in this branch.
         CharacterDatabase.DirectPExecute(
             "UPDATE `characters` SET `dungeon_difficulty` = '%u' WHERE `guid` IN "
             "(SELECT `guid` FROM `character_instance` WHERE `instance` = '%u')",
