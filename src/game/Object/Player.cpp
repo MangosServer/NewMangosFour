@@ -4466,7 +4466,8 @@ void Player::SendInitialPacketsBeforeAddToMap()
 
     // RAW client DifficultyID, map-aware -- proved from the wire, not inferred from the UI.
     //
-    // Across 2554 build-18414 captures of this opcode the field carries
+    // Across 2554 build-18414 PACKETS of this opcode -- spread over 246 of the 263 captures,
+    // not 2554 captures -- the field carries
     // {0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 14}. The values 7 (LFR), 11 and 12 (scenarios) and
     // 14 (flexible) are decisive: no internal mode can produce them, because internal modes
     // stop at 3. 8 and 9 are raw-only too. So the field is the raw client id, and sending
@@ -4481,9 +4482,17 @@ void Player::SendInitialPacketsBeforeAddToMap()
     // heroic dungeons reported themselves as normal. The claim that a 25-man raid read as
     // "5 Player" was wrong on both halves and is withdrawn.
     //
-    // The 10/14/18-byte size split in the corpus is optional-field presence. The offset is
-    // stable across all three shapes -- verified by decoding one body of each size -- so the
-    // key space conclusion holds for every sample.
+    // The 10/14/18-byte size split in the corpus is optional-field presence, and the offset is
+    // stable across all three shapes -- 14-byte 80 00 10 94 bc 53 | 02 00 00 00 | 05 00 00 00
+    // and 18-byte 90 00 10 09 cf 53 | 07 00 00 00 | 19 00 00 00 80 00 00 00 both put the
+    // difficulty at 6.
+    //
+    // That stability is OBSERVED, not structural, and an earlier version of this comment claimed
+    // the wrong reason for it. The optionals do not all follow the field: sub_6F470B reads the
+    // one gated by read-order bit 1 BEFORE the u8 and both u32s, so a body with that bit set
+    // would shift the difficulty. It is clear in all 2554 samples -- the leading byte is only
+    // 0x00, 0x80 or 0x90 -- so the conclusion holds for everything observed, but a future body
+    // with that bit set would not decode at offset 6.
     //
     // ONLY instances convert. Off an instance the map's spawn mode is ALREADY the value retail
     // sends, and translating it is wrong in both directions:
