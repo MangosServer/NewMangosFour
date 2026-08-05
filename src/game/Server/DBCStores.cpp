@@ -1828,8 +1828,11 @@ uint32 ToClientDifficulty(Difficulty difficulty, bool isRaid)
  *   and calling it 10-player normal is wrong in the raid browser and the calendar alike.
  *
  * Non-instanceable maps also differ numerically -- their raw rows carry 0 while the dungeon
- * table starts at 1 -- but no lockout, bind or calendar entry names one, so they never reach a
- * caller of this function.
+ * table starts at 1 -- but every caller names an instance: lockouts, binds, calendar entries,
+ * reset warnings and transfer refusals. SMSG_WORLD_SERVER_INFO briefly broke that rule and is
+ * the reason the guard below exists; it now converts only when the map is an instance and sends
+ * the spawn mode unconverted otherwise, because off an instance the spawn mode already IS the
+ * value retail sends.
  *
  * Retail disagrees, and there is a byte-exact fixture for it: the retained 18414
  * SMSG_CALENDAR_RAID_LOCKOUT_REMOVED bodies in mop_calendar_packets_test.cpp carry difficulty
