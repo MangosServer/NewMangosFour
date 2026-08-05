@@ -224,7 +224,21 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder* holder)
     SetLocationMapId(fields[15].GetUInt32());
 
     uint32 difficulty = fields[39].GetUInt32();
-    if (difficulty >= MAX_DUNGEON_DIFFICULTY || getLevel() < LEVELREQUIREMENT_HEROIC)
+    // Refuse CHALLENGE here as well, not just values past the end of the enum.
+    //
+    // This column used to hold a RAW client DifficultyID: the old dungeon finder cast
+    // LfgDungeonsEntry::DifficultyID straight into Difficulty, and Group::SetDungeonDifficulty
+    // persisted that through every member. Raw 2 means 5-man HEROIC, but internal 2 means
+    // CHALLENGE, so those saves now read as a mode this core deliberately never produces --
+    // ToInternalDifficulty refuses raw 8 because no spawn on a challenge map carries bit 2.
+    // Loading it unchanged asks GetMapDifficultyData for a challenge row that no ordinary
+    // heroic dungeon has, and the player is refused at the portal with no way to select out
+    // of it, since the difficulty setter opcode has no registered handler.
+    //
+    // The characters update clamps the stored values, but this is what makes it safe against
+    // a hand-edited row or a database that never ran it. If challenge mode is ever wired up,
+    // this bound has to be revisited along with ToInternalDifficulty.
+    if (difficulty > DUNGEON_DIFFICULTY_HEROIC || getLevel() < LEVELREQUIREMENT_HEROIC)
     {
         difficulty = DUNGEON_DIFFICULTY_NORMAL;
     }

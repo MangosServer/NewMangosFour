@@ -434,7 +434,10 @@ bool Group::LoadGroupFromDB(Field* fields)
     }
 
     uint32 diff = fields[14].GetUInt8();
-    if (diff >= MAX_DUNGEON_DIFFICULTY)
+    // Refuse CHALLENGE here too -- `groups`.`difficulty` was written from the same raw cast
+    // as `characters`.`dungeon_difficulty`, so it carries the same stale key space. See the
+    // matching clamp in Player::LoadFromDB for why internal 2 is not loadable.
+    if (diff > DUNGEON_DIFFICULTY_HEROIC)
     {
         diff = DUNGEON_DIFFICULTY_NORMAL;
     }
