@@ -648,6 +648,70 @@ void DungeonResetScheduler::LoadGlobalResetTimes(uint32 diff)
 }
 
 /**
+ * @brief Rewrites stale challenge-mode instance rows to heroic, before anything deletes them.
+ *
+ * `instance`.`difficulty` holds an internal mode, but a build predating the key-space split
+ * could put a RAW id there: the old dungeon finder cast an LfgDungeons DifficultyID straight
+ * into Difficulty, Group::SetDungeonDifficulty pushed it to the members, and
+ * MapManager::CreateDungeonMap then created and saved the instance under it. Raw 2 means 5-man
+ * HEROIC, and it was the one value that could get a character into a five-man at all on such a
+ * build, because the old raw-keyed lookup accepted it while the default 0 matched nothing.
+ *
+ * Read as an internal mode, 2 is CHALLENGE, and no ordinary heroic dungeon has a challenge row.
+ * Both validators treat that as a corrupt bind and DELETE it -- Player::_LoadBoundInstances at
+ * login, and the `instance` sweep below at startup. So the upgrade would quietly destroy
+ * `character_instance` rows for exactly the characters that had been able to run dungeons.
+ *
+ * Rewriting to HEROIC is what the value always meant, and it is unconditionally safe rather than
+ * being safe only during an upgrade: challenge mode is unreachable in this core by design --
+ * ToInternalDifficulty refuses raw 8, and both load clamps reject internal 2 -- so a dungeon-map
+ * instance at internal 2 is a value this build cannot produce, whenever it was written.
+ *
+ * Raids are deliberately untouched. Internal 2 there is 10-player heroic, a legitimate tier on
+ * 14 shipped maps, so the same numeric value is real data and must not be rewritten.
+ */
+static void NormalizeStaleChallengeInstances()
+{
+    QueryResult* result = CharacterDatabase.Query(
+        "SELECT `id`, `map` FROM `instance` WHERE `difficulty` = 2");
+    if (!result)
+    {
+        return;
+    }
+
+    std::vector<uint32> stale;
+    do
+    {
+        Field* fields = result->Fetch();
+        uint32 const id = fields[0].GetUInt32();
+        uint32 const mapid = fields[1].GetUInt32();
+
+        MapEntry const* mapEntry = sMapStore.LookupEntry(mapid);
+        if (mapEntry && mapEntry->IsDungeon() && !mapEntry->IsRaid())
+        {
+            stale.push_back(id);
+        }
+    }
+    while (result->NextRow());
+    delete result;
+
+    for (size_t i = 0; i < stale.size(); ++i)
+    {
+        CharacterDatabase.DirectPExecute(
+            "UPDATE `instance` SET `difficulty` = '%u' WHERE `id` = '%u'",
+            uint32(DUNGEON_DIFFICULTY_HEROIC), stale[i]);
+    }
+
+    if (!stale.empty())
+    {
+        sLog.outString("MapPersistentStateManager: rewrote %u five-man instance save(s) from the "
+                       "unreachable challenge mode to heroic, which is what the stored raw id "
+                       "meant. Their character and group binds are preserved.",
+                       uint32(stale.size()));
+    }
+}
+
+/**
  * @brief Loads and schedules persisted dungeon reset times.
  */
 void DungeonResetScheduler::LoadResetTimes()
@@ -655,6 +719,10 @@ void DungeonResetScheduler::LoadResetTimes()
     time_t now = time(NULL);
     time_t today = (now / DAY) * DAY;
     time_t nextWeek = today + (7 * DAY);
+
+    // Must run before the `instance` sweep below and before any character logs in, because both
+    // validators DELETE a bind whose difficulty has no MapDifficulty row.
+    NormalizeStaleChallengeInstances();
 
     // NOTE: Use DirectPExecute for tables that will be queried later
 
