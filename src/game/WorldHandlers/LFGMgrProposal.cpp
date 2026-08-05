@@ -23,6 +23,8 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include <vector>
+
 #include "DBCEnums.h"
 #include "DBCStores.h"
 #include "DBCStructure.h"
@@ -385,7 +387,37 @@ void LFGMgr::ProposalUpdate(uint32 proposalID, ObjectGuid plrGuid, bool accepted
             }
         }
 
+        // Snapshot the membership before ProposalDeclined, which calls LeaveLFG and can
+        // mutate the maps we need to walk afterwards.
+        std::vector<ObjectGuid> members;
+        members.reserve(proposal->answers.size());
+        for (proposalAnswerMap::const_iterator itr = proposal->answers.begin();
+             itr != proposal->answers.end(); ++itr)
+        {
+            members.push_back(itr->first);
+        }
+
         ProposalDeclined(plrGuid, proposal);
+
+        // Clear EVERY member's dungeon finder state, not just the decliner's.
+        //
+        // ProposalDeclined calls LeaveLFG for the decliner alone, so without this the
+        // other members stayed at LFG_STATE_PROPOSAL for ever: their queue entry was
+        // already erased when the proposal fired, nothing else resets them, and JoinLFG
+        // now refuses a player in that state -- which would have left them unable to use
+        // the dungeon finder again until relog.
+        //
+        // Everyone leaving on a decline is deliberate. Retail puts the non-decliners
+        // back in the queue, but their queue data is gone by this point and rebuilding
+        // it is a separate piece of work; leaving LFG cleanly is correct-but-less, and
+        // is visible to the player rather than silent.
+        for (std::vector<ObjectGuid>::const_iterator itr = members.begin();
+             itr != members.end(); ++itr)
+        {
+            m_queueSet.erase(*itr);
+            m_playerData.erase(*itr);
+            m_playerStatusMap.erase(*itr);
+        }
 
         // Unconditional. The premade path erased it and the solo path did not, which is
         // what left a stale proposal able to complete short on a later accept.
