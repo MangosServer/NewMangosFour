@@ -28,6 +28,8 @@
 #include "DBCStructure.h"
 #include "GameEventMgr.h"
 #include "Group.h"
+#include <sstream>
+
 #include "LFGMgr.h"
 #include "Object.h"
 #include "Player.h"
@@ -301,6 +303,21 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
             }
         }
 
+        // Diagnostic: what survived the eligibility filter, and what was removed.
+        {
+            std::ostringstream kept;
+            for (std::set<uint32>::const_iterator it = dungeons.begin(); it != dungeons.end(); ++it)
+            {
+                kept << (it == dungeons.begin() ? "" : ",") << *it;
+            }
+
+            partyForbidden::const_iterator lockedFor = partyLockedDungeons.find(guid);
+
+            DEBUG_LOG("LFG JoinLFG: %s isRandom=%u randomId=%u kept={%s} lockedCount=%u",
+                      plr->GetName(), uint32(isRandom), randomDungeonID, kept.str().c_str(),
+                      uint32(lockedFor != partyLockedDungeons.end() ? lockedFor->second.size() : 0));
+        }
+
         if (!dungeons.empty())
         {
             partyLockedDungeons.clear();
@@ -376,6 +393,16 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         // set up a role map and then an lfgplayer struct
         roleMap playerRole;
         playerRole[guid] = (uint8)roles;
+
+        {
+            std::ostringstream stored;
+            for (std::set<uint32>::const_iterator it = dungeons.begin(); it != dungeons.end(); ++it)
+            {
+                stored << (it == dungeons.begin() ? "" : ",") << *it;
+            }
+            DEBUG_LOG("LFG JoinLFG: solo entry for %s stores dungeons={%s}",
+                      plr->GetName(), stored.str().c_str());
+        }
 
         LFGPlayers playerInfo(LFG_STATE_QUEUED, dungeons, playerRole, comments, false, time(NULL), 0, 0, 0);
         m_playerData[guid] = playerInfo;

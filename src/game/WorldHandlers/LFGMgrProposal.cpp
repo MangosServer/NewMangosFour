@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include <sstream>
 #include <vector>
 
 #include "DBCEnums.h"
@@ -218,6 +219,17 @@ void LFGMgr::SendDungeonProposal(ObjectGuid queueGuid, LFGPlayers* lfgGroup)
     // value is the kind of thing that quietly stops working the first time anyone copies
     // the struct.
     newProposal.queueGuid = queueGuid;
+
+    {
+        std::ostringstream avail;
+        for (std::set<uint32>::const_iterator it = lfgGroup->dungeonList.begin();
+             it != lfgGroup->dungeonList.end(); ++it)
+        {
+            avail << (it == lfgGroup->dungeonList.begin() ? "" : ",") << *it;
+        }
+        DEBUG_LOG("LFG SendDungeonProposal: entry dungeons={%s} -> chose %u (entry 0x%08X)",
+                  avail.str().c_str(), newProposal.dungeonID, GetDungeonEntry(newProposal.dungeonID));
+    }
 
     bool premadeGroup = IsProposalSameGroup(newProposal);
 
@@ -860,6 +872,9 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
         }
         else
         {
+            sLog.outError("LFG TeleportToDungeon: no map entrance trigger for map %u "
+                          "(dungeon %u) -- areatrigger_teleport has no row targeting it",
+                          mapID, dungeonID);
             err = LFG_TELEPORTERROR_INVALID_LOCATION;
         }
     }
@@ -906,10 +921,14 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
 
             if (err != LFG_TELEPORTERROR_OK)
             {
+                sLog.outError("LFG TeleportToDungeon: %s DENIED, dungeon %u map %u, group error %u",
+                              pGroupPlr->GetName(), dungeonID, mapID, uint32(err));
                 pGroupPlr->GetSession()->SendLfgTeleportError(err);
             }
             else if (plrErr != LFG_TELEPORTERROR_OK)
             {
+                sLog.outError("LFG TeleportToDungeon: %s DENIED, dungeon %u map %u, player error %u",
+                              pGroupPlr->GetName(), dungeonID, mapID, uint32(plrErr));
                 pGroupPlr->GetSession()->SendLfgTeleportError(plrErr);
             }
             else
