@@ -697,8 +697,21 @@ static void NormalizeStaleChallengeInstances()
 
     for (size_t i = 0; i < stale.size(); ++i)
     {
+        // `resettime` is cleared in the same statement, and leaving it was a real defect.
+        //
+        // DungeonPersistentState::GetResetTimeForDB zeroes the column only for raids and for
+        // DUNGEON_DIFFICULTY_HEROIC, so a five-man save stored at internal 2 -- neither of
+        // those -- was written with a NON-ZERO per-instance reset. Rewriting only the
+        // difficulty would leave (heroic, resettime > 0), a combination this code never
+        // produces: the first query in LoadResetTimes selects `WHERE resettime > 0`, so the
+        // converted save would be scheduled as a RESET_EVENT_NORMAL_DUNGEON and
+        // AddPersistentState would honour that stale per-instance boundary instead of the
+        // heroic global one.
+        //
+        // Zero is what GetResetTimeForDB would have written had the save been stored as heroic
+        // in the first place, which is the state this rewrite is reconstructing.
         CharacterDatabase.DirectPExecute(
-            "UPDATE `instance` SET `difficulty` = '%u' WHERE `id` = '%u'",
+            "UPDATE `instance` SET `difficulty` = '%u', `resettime` = '0' WHERE `id` = '%u'",
             uint32(DUNGEON_DIFFICULTY_HEROIC), stale[i]);
     }
 
