@@ -1871,9 +1871,33 @@ uint32 ToClientDifficultyForMap(uint32 mapId, Difficulty difficulty, bool isRaid
         return 0;
     }
 
-    // An instanceable map that simply lacks a row for THIS tier still gets the table, which is
-    // the best available answer for a caller holding a tier the map does not define.
-    return ToClientDifficulty(difficulty, isRaid);
+    // A map with NO resolvable tier at all is also 0. The fixed table is only an answer for a
+    // map that HAS tiers but not the one asked for.
+    //
+    // Scenarios are why this is needed, and note IsDungeon() is true for them -- it covers
+    // MAP_INSTANCE, MAP_RAID and MAP_SCENARIO -- so the guard above does not catch them. All 34
+    // scenario maps miss the index: only 5 carry a MapDifficulty row at all, those rows carry
+    // raw 11 and 12, and ToInternalDifficulty has no internal mode for either, so none of them
+    // appears in the internal index at any tier. Without this they fell through to the five-man
+    // table and reported raw 1, i.e. "party, Normal", on a scenario.
+    //
+    // 0 rather than the real scenario id: this core cannot represent a scenario tier at all, so
+    // it has no internal value to convert and would be inventing one. 0 says "no tier", which is
+    // what a map we cannot represent honestly reports. Retail does send 11 and 12 here -- they
+    // are in the corpus for this field -- so if scenarios are ever implemented this becomes a
+    // real conversion rather than a floor.
+    //
+    // Latent today either way: ToInternalDifficulty refusing 11 and 12 is also what keeps
+    // scenario maps out of every entry path, so only an admin teleport reaches one.
+    for (uint32 tier = 0; tier < MAX_DIFFICULTY; ++tier)
+    {
+        if (GetMapDifficultyData(mapId, Difficulty(tier)))
+        {
+            return ToClientDifficulty(difficulty, isRaid);
+        }
+    }
+
+    return 0;
 }
 
 int32 ToInternalDifficulty(uint32 clientDifficultyId)
