@@ -1662,6 +1662,33 @@ uint32 Group::RemoveMember(ObjectGuid guid, uint8 removeMethod)
         }
 
         SendUpdate();
+
+        // Offer to backfill the slot that just opened.
+        //
+        // Retail sends SMSG_LFG_OFFER_CONTINUE alongside the roster-shrink
+        // SMSG_GROUP_LIST, in the same second -- capture-000326 seq 582508 and 582522,
+        // capture-000656 seq 255287/255318, capture-000913 seq 636664/636680. The order
+        // of the two varies between captures, so adjacency is real but strict ordering is
+        // not an invariant.
+        //
+        // Only while the run is still live: a group that has finished its dungeon has no
+        // slot worth filling, and one with no status is not in a run at all.
+        if (isLFGGroup())
+        {
+            if (uint32 const dungeonEntry = sLFGMgr.GetGroupDungeonEntry(GetObjectGuid()))
+            {
+                if (sLFGMgr.GetGroupLfgState(GetObjectGuid()) != LFG_STATE_FINISHED_DUNGEON)
+                {
+                    for (member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
+                    {
+                        if (Player* pMember = sObjectMgr.GetPlayer(citr->guid))
+                        {
+                            pMember->GetSession()->SendLfgOfferContinue(dungeonEntry);
+                        }
+                    }
+                }
+            }
+        }
     }
     // if group before remove <= 2 disband it
     else

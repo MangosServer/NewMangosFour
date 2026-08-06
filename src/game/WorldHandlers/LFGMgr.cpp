@@ -1089,6 +1089,9 @@ void LFGMgr::RemoveOldProposals()
             }
         }
 
+        DEBUG_LOG("LFG RemoveOldProposals: proposal %u expired after %u s with %u "
+                  "unanswered member(s); cancelling",
+                  *it, uint32(LFG_TIME_PROPOSAL), uint32(silent.size()));
         CancelProposal(*it, silent);
     }
 }

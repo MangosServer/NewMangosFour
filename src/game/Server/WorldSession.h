@@ -1568,6 +1568,7 @@ class WorldSession
         void SendLfgRoleChosen(uint64 rawGuid, uint8 roles);
         void SendLfgProposalUpdate(LFGProposal const& proposal);
         void SendLfgTeleportError(uint8 error);
+        void SendLfgOfferContinue(uint32 dungeonEntry);
         void SendLfgRewards(LFGRewards const& rewards);
         void SendLfgBootUpdate(LFGBoot const& boot);
         void SendPartyResult(PartyOperation operation, const std::string& member, PartyResult res);

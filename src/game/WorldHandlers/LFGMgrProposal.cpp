@@ -923,6 +923,21 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
         groupStatus.randomDungeonID = proposal->dungeonID;
     }
 
+    // Carry forward what the run has already achieved.
+    //
+    // This assignment replaces every field, so re-forming a proposal around a group that
+    // is ALREADY running -- which is what a backfill does -- reset madeProgress to false.
+    // The group would then be back inside its protected opening, and anyone leaving after
+    // that would take Dungeon Deserter for a run whose first boss was long dead.
+    if (LFGGroupStatus const* existing = GetGroupStatus(groupGuid))
+    {
+        groupStatus.madeProgress = groupStatus.madeProgress || existing->madeProgress;
+        if (!groupStatus.randomDungeonID)
+        {
+            groupStatus.randomDungeonID = existing->randomDungeonID;
+        }
+    }
+
     m_groupSet.insert(groupGuid);
     m_groupStatusMap[groupGuid] = groupStatus;
 
@@ -949,17 +964,24 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
     // cooldown below.
     LFGGroupStatus const* runStatus = GetGroupStatus(pGroup->GetObjectGuid());
 
-    Player* pGroupLeader = sObjectAccessor.FindPlayer(pGroup->GetLeaderGuid());
-
-    if (pGroupLeader && pGroupLeader->GetMapId() == mapID) // Already in the dungeon
-    {
-        // set teleport location to that of the group leader
-        x = pGroupLeader->GetPositionX();
-        y = pGroupLeader->GetPositionY();
-        z = pGroupLeader->GetPositionZ();
-        o = pGroupLeader->GetOrientation();
-    }
-    else
+    // ALWAYS the entrance trigger -- never a group member's position.
+    //
+    // This used to drop a joining player on the group leader if the leader was already
+    // inside. Retail does not do that. Every SMSG_NEW_WORLD arrival into an instanced map
+    // in the build-18414 corpus lands on ONE fixed coordinate per map, repeated across
+    // different captures, sessions and players:
+    //
+    //   map 959  (3657.3, 2551.9, 767.0)   captures 000059, 000326, 000656, 000913, 000476
+    //   map 994  (-3969.7, -2542.7, 26.8)  captures 000059, 000326, 000656
+    //   map 1004 (1124.6, 512.5, 1.0)      captures 000059, 000326, 000656, 000887, 000476
+    //   map 547  (122.4, -123.6, -0.3)     captures 000044, 000187
+    //
+    // A fixed per-map point that never varies is an entrance trigger. Teleporting to a
+    // member would scatter arrivals by however deep the group had pushed, and no instanced
+    // map in the corpus shows any scatter at all -- only open-world maps (0, 1, 530, 571,
+    // 870) do, which is hearthstones and portals. This was checked specifically in the ten
+    // captures that contain a backfill offer, since that is the case where the leader IS
+    // inside and the old code would have diverged.
     {
         if (AreaTrigger const* at = sObjectMgr.GetMapEntranceTrigger(mapID))
         {

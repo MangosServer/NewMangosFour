@@ -1131,6 +1131,8 @@ void InitializeOpcodes()
     // Direct 18414 leaf: periodic queue wait estimates and role vacancies.
     DefS(SMSG_LFG_QUEUE_STATUS, "SMSG_LFG_QUEUE_STATUS");
     DefS(SMSG_LFG_JOIN_RESULT, "SMSG_LFG_JOIN_RESULT");
+    // 4-byte body, a single packed dungeon entry -- see WorldSession::SendLfgOfferContinue.
+    DefS(SMSG_LFG_OFFER_CONTINUE, "SMSG_LFG_OFFER_CONTINUE");
     DefS(SMSG_LFG_PROPOSAL_UPDATE, "SMSG_LFG_PROPOSAL_UPDATE");
     DefS(SMSG_LFG_ROLE_CHECK_UPDATE, "SMSG_LFG_ROLE_CHECK_UPDATE");
     DefS(SMSG_LFG_TELEPORT_DENIED, "SMSG_LFG_TELEPORT_DENIED");

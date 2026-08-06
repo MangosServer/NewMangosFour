@@ -718,6 +718,28 @@ void WorldSession::SendLfgProposalUpdate(LFGProposal const& proposal)
     SendPacket(&data);
 }
 
+void WorldSession::SendLfgOfferContinue(uint32 dungeonEntry)
+{
+    // "A player has left your group. Would you like to find another player to finish %s?"
+    //
+    // The whole body is ONE uint32: the packed dungeon entry, (TypeID << 24) | id, which is
+    // exactly what LfgDungeonsEntry::Entry() returns. All 31 build-18414 bodies in the
+    // corpus are 4 bytes and decode that way -- capture-000044 seq 278015 = 0x0100008C
+    // (type 1, dungeon 140), capture-000059 seq 1946578 = 0x010001D4, capture-000133 seq
+    // 560202 = 0x0100014A, capture-000187 seq 109049 = 0x01000020. Every one is type 1.
+    //
+    // The client raises LFG_OFFER_CONTINUE from this and names the dungeon in the popup.
+    // Answering yes sends an ordinary CMSG_LFG_JOIN for that dungeon -- there is no
+    // separate backfill opcode. capture-000326 shows the whole episode: offer, then the
+    // normal join burst 43s later when the player accepted.
+    //
+    // We never sent this at all, so the prompt players saw was the client's own
+    // LFGBackfillCover driven by party state rather than by us.
+    WorldPacket data(SMSG_LFG_OFFER_CONTINUE, 4);
+    data << uint32(dungeonEntry);
+    SendPacket(&data);
+}
+
 void WorldSession::SendLfgTeleportError(uint8 error)
 {
     DEBUG_LOG("SMSG_LFG_TELEPORT_DENIED");
