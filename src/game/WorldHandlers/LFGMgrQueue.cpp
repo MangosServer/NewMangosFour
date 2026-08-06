@@ -380,41 +380,62 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
             dungeons.insert(randomDungeonID);
         }
 
+        // THE QUEUE ENTRY IS BUILT AND STORED BEFORE ANYTHING IS ANNOUNCED.
+        //
+        // The client files each LFG status body under a 20-byte RideTicket, not under a
+        // GUID: sub_90FEDB compares five dwords (Wow.exe.c:1591704) and sub_98D07D is
+        // get-OR-CREATE on that key. Two bodies for one queue carrying different tickets
+        // therefore produce TWO records -- and a later clearing body can only ever address
+        // one of them. The other is orphaned with queued = 1, which is an animating minimap
+        // eye that nothing can switch off.
+        //
+        // That is exactly what this function used to emit. The burst was sent from inside
+        // the membership loop, but the entry carrying the ticket was not stored until after
+        // it, so GetStatusPacketData missed on both the group key and
+        // FindQueueEntryContaining and the opener went out with ticketId = 0 and
+        // ticketTime = 0. PerformRoleCheck then sent reason 13 with the real ticket.
+        // Observed live: reason 24 with ticket 0 followed by reason 13 with ticket 1002 --
+        // two records, two "You are now queued in the Dungeon Finder" messages, and a
+        // queue the player could not leave.
+        //
+        // So: collect the roster, store the entry, and only then announce. The solo path
+        // was always immune because it stores before it sends.
         for (GroupReference* itr = pGroup->GetFirstMember(); itr != NULL; itr = itr->next())
         {
             if (Player* pGroupPlr = itr->getSource())
             {
-                // ROLECHECK, not NONE -- same reason as the solo path below. The update
-                // announced the join while reporting the state as NONE, and only moved to
-                // ROLECHECK for the stored copy afterwards.
-                // Reason 24, not 6 -- same correction the solo path already carries.
-                // Reason 6 is retail's re-queue-from-inside-a-dungeon reason (257 of 276
-                // observed joins open with 24 and none with 6), and BOTH 6 and 13 make the
-                // client display ERR_LFG_JOINED_QUEUE. Opening with 6 and then having
-                // PerformRoleCheck send 13 announced "You are now queued in the Dungeon
-                // Finder" TWICE -- once in chat and once centre-screen. Observed live.
-                LFGPlayerStatus overallStatus(LFG_STATE_ROLECHECK, LFG_UPDATE_JOIN_QUEUE_INITIAL, dungeons, comments);
-
-                pGroupPlr->GetSession()->SendLfgUpdate(true, overallStatus);
-
-                ObjectGuid plrGuid = pGroupPlr->GetObjectGuid();
-                roleCheck.currentRoles[plrGuid] = 0;
-
-                m_playerStatusMap[plrGuid] = overallStatus;
+                roleCheck.currentRoles[pGroupPlr->GetObjectGuid()] = 0;
             }
         }
 
-        // Stored AFTER the loop above, not before it. The stored copy used to be taken
-        // while currentRoles was still empty, so the role check the rest of the system
-        // saw listed nobody: PerformRoleCheck then found "everyone" had answered as soon
-        // as the FIRST member replied, and a five-man queued on a one-entry role map.
+        // Stored with a complete currentRoles. Taking the copy while it was still empty
+        // made the role check the rest of the system saw list nobody: PerformRoleCheck
+        // then found "everyone" had answered as soon as the FIRST member replied, and a
+        // five-man queued on a one-entry role map.
         m_roleCheckMap[guid] = roleCheck;
 
-        // used later if they enter the queue
         LFGPlayers groupInfo(LFG_STATE_NONE, dungeons, roleCheck.currentRoles, comments, false, time(NULL), 0, 0, 0);
         groupInfo.candidateDungeons = candidates;
         groupInfo.ticketId = AllocateTicketId();
         m_playerData[guid] = groupInfo;
+
+        for (GroupReference* itr = pGroup->GetFirstMember(); itr != NULL; itr = itr->next())
+        {
+            if (Player* pGroupPlr = itr->getSource())
+            {
+                // ROLECHECK, not NONE -- the update used to announce the join while
+                // reporting the state as NONE, correcting it only for the stored copy.
+                //
+                // Reason 24, not 6: 6 is retail's re-queue-from-inside-a-dungeon reason
+                // (257 of 276 observed joins open with 24 and none with 6), and BOTH 6 and
+                // 13 make the client display ERR_LFG_JOINED_QUEUE.
+                LFGPlayerStatus overallStatus(LFG_STATE_ROLECHECK, LFG_UPDATE_JOIN_QUEUE_INITIAL, dungeons, comments);
+
+                pGroupPlr->GetSession()->SendLfgUpdate(true, overallStatus);
+
+                m_playerStatusMap[pGroupPlr->GetObjectGuid()] = overallStatus;
+            }
+        }
 
         PerformRoleCheck(plr, pGroup, (uint8)roles);
     }

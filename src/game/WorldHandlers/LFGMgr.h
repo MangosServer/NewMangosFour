@@ -1443,6 +1443,58 @@ public:
     /// Non-zero, stable per queue entry, monotonic. See LFGPlayers::ticketId.
     uint32 AllocateTicketId() { return ++m_nextTicketId; }
 
+    /// The ticket a player's status bodies have been going out under.
+    ///
+    /// The client files each status body under a 20-byte RideTicket and looks records up
+    /// by comparing it whole, so every body about one queue MUST carry the same one. If a
+    /// later body carries a different ticket the client creates a second record instead of
+    /// updating the first, and the first can never be addressed again. Re-deriving the
+    /// ticket from live state cannot guarantee that: the entry may have been erased (a
+    /// merge folds an absorbed queuer's entry away) or not yet stored.
+    struct RetainedTicket
+    {
+        uint32 id = 0;
+        uint32 time = 0;
+    };
+    typedef std::unordered_map<ObjectGuid, RetainedTicket> retainedTicketMap;
+
+    /// FIRST WINS. Once a player's bodies have gone out under a ticket, every later body
+    /// about that queue must carry the same one or the client files a second record.
+    ///
+    /// Overwriting would reintroduce the very failure this exists to stop: MergeGroups
+    /// erases an absorbed solo queuer's entry, after which GetStatusPacketData falls back
+    /// to whichever entry now LISTS them -- the absorbing one -- and hands back a stranger's
+    /// ticket. Adopting it would strand that player's own join record for good.
+    ///
+    /// Cleared by ForgetTicket when the queue genuinely ends, so the next join starts fresh.
+    void RetainTicket(ObjectGuid plrGuid, uint32 id, uint32 time)
+    {
+        if (!id)
+        {
+            return;
+        }
+
+        RetainedTicket& t = m_retainedTickets[plrGuid];
+        if (!t.id)
+        {
+            t.id = id;
+            t.time = time;
+        }
+    }
+
+    bool GetRetainedTicket(ObjectGuid plrGuid, RetainedTicket& out) const
+    {
+        retainedTicketMap::const_iterator it = m_retainedTickets.find(plrGuid);
+        if (it == m_retainedTickets.end() || !it->second.id)
+        {
+            return false;
+        }
+        out = it->second;
+        return true;
+    }
+
+    void ForgetTicket(ObjectGuid plrGuid) { m_retainedTickets.erase(plrGuid); }
+
     /// Role-Related Functions
 
     /**
@@ -1556,6 +1608,7 @@ private:
     playerData m_playerData;
     queueSet   m_queueSet;
     uint32     m_nextTicketId;
+    retainedTicketMap m_retainedTickets;
 
     /// Dungeon Finder Status for players
     playerStatusMap m_playerStatusMap;

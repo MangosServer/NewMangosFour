@@ -494,8 +494,45 @@ void WorldSession::SendLfgUpdate(bool isGroup, LFGPlayerStatus status)
     update.queued = isQueued;
     update.requestedRoles = queueData.roles;
     update.updateReason = uint8(status.updateType);
-    update.ticketId = queueData.ticketId;
-    update.ticketTime = queueData.joinedTime;
+    // One ticket for the life of a queue, whatever happens to the entry underneath.
+    //
+    // The client keys its status records on the whole 20-byte RideTicket, so a body that
+    // carries a different ticket does not update the record -- it creates a second one and
+    // leaves the first stranded, queued and unclearable. GetStatusPacketData can legitimately
+    // miss (the entry was erased by a merge, or the caller is announcing before it is
+    // stored) and used to hand back a default-constructed struct, shipping ticketId = 0.
+    // Retail sends 0 in none of 5291 observed bodies.
+    //
+    // So: take the live ticket when there is one and remember it; otherwise reuse whatever
+    // this player's bodies have already gone out under.
+    // Remember the first ticket this player's bodies go out under, then use THAT for
+    // every later body -- including ones whose live lookup would now resolve elsewhere.
+    sLFGMgr.RetainTicket(playerGuid, queueData.ticketId, queueData.joinedTime);
+
+    LFGMgr::RetainedTicket retained;
+    if (sLFGMgr.GetRetainedTicket(playerGuid, retained))
+    {
+        update.ticketId = retained.id;
+        update.ticketTime = retained.time;
+    }
+    else
+    {
+        update.ticketId = queueData.ticketId;
+        update.ticketTime = queueData.joinedTime;
+        if (!update.ticketId)
+        {
+            sLog.outError("WORLD: SMSG_LFG_UPDATE_STATUS for %s has no ticket (reason %u); "
+                          "the client cannot file this body against its queue record.",
+                          GetPlayerName(), uint32(status.updateType));
+        }
+    }
+
+    // The terminal ends the queue, so the ticket must not survive into the next join --
+    // a stale one would make the new queue's bodies land on the old record.
+    if (status.updateType == LFG_UPDATE_LEAVE)
+    {
+        sLFGMgr.ForgetTicket(playerGuid);
+    }
 
     if (!status.dungeonList.empty())
         update.dungeonCategory = sLFGMgr.GetDungeonCategory(*status.dungeonList.begin());
