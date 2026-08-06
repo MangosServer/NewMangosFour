@@ -1598,10 +1598,17 @@ void LFGMgr::ApplyDungeonCooldown(Player* pPlayer)
     // payloads against 752 for Deserter (71041) -- roughly nine times as many, which is
     // what you expect when everyone who zones in gets one and only early leavers get the
     // other.
-    if (pPlayer && !pPlayer->HasAura(LFG_COOLDOWN_SPELL))
+    //
+    // Never cast on a player who is between maps. A far teleport removes them from the old
+    // map at once and m_currMap stays NULL until MSG_MOVE_WORLDPORT_ACK; Spell::CheckCast
+    // reads the caster's zone through Map::m_TerrainData and takes the world down on the
+    // null. Callers must apply this BEFORE starting the teleport, not after.
+    if (!pPlayer || !pPlayer->IsInWorld() || pPlayer->HasAura(LFG_COOLDOWN_SPELL))
     {
-        pPlayer->CastSpell(pPlayer, LFG_COOLDOWN_SPELL, true);
+        return;
     }
+
+    pPlayer->CastSpell(pPlayer, LFG_COOLDOWN_SPELL, true);
 }
 
 bool LFGMgr::IsPlayerInLfgDungeon(Player* pPlayer)
@@ -1660,6 +1667,18 @@ void LFGMgr::OnPlayerLeftDungeonGroup(Player* pPlayer)
     //
     // Accepting a proposal teleports the whole group in immediately, so "in the group but
     // never zoned in" is not a state a player can choose to sit in anyway.
+
+    // Same null-map hazard as ApplyDungeonCooldown: casting on a player whose far teleport
+    // has already begun dereferences a NULL Map inside Spell::CheckCast. Every current
+    // caller runs this BEFORE the leave teleport, so this is a backstop -- and a loud one,
+    // because if it ever fires a deserter walked away without the debuff.
+    if (!pPlayer->IsInWorld())
+    {
+        sLog.outError("LFG: %s left dungeon %u mid-teleport -- Deserter NOT applied, "
+                      "the caller must apply it before starting the teleport",
+                      pPlayer->GetName(), status->dungeonID);
+        return;
+    }
 
     DEBUG_LOG("LFG: %s left dungeon %u before any encounter was credited -- Deserter",
               pPlayer->GetName(), status->dungeonID);

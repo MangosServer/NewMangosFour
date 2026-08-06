@@ -1101,11 +1101,58 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
                 plrErr = LFG_TELEPORTERROR_INVALID_LOCATION;
             }
 
-            if (err == LFG_TELEPORTERROR_OK && plrErr == LFG_TELEPORTERROR_OK && pGroupPlr->GetMapId() != mapID)
+            // A far teleport already in flight must not be started again. TeleportTo only
+            // records m_teleport_dest and raises the far semaphore; m_mapId keeps the OLD
+            // value until MSG_MOVE_WORLDPORT_ACK arrives, so `GetMapId() != mapID` is still
+            // true for a player who is halfway through this very teleport. Clicking "Enter
+            // Dungeon" right after a proposal auto-entry reaches here a second time and
+            // would re-issue the teleport against a player who is no longer on any map.
+            if (err == LFG_TELEPORTERROR_OK && plrErr == LFG_TELEPORTERROR_OK &&
+                pGroupPlr->GetMapId() != mapID && !pGroupPlr->IsBeingTeleported())
             {
                 if (pGroupPlr->GetMap() && !pGroupPlr->GetMap()->IsDungeon() && !pGroupPlr->GetMap()->IsRaid() && !pGroupPlr->InBattleGround())
                 {
                     pGroupPlr->SetBattleGroundEntryPoint(); // store current position and such
+                }
+
+                // The 15-minute requeue cooldown is cast HERE, before the teleport, and not
+                // in the success branch below.
+                //
+                // A far TeleportTo removes the player from the old map immediately --
+                // Map::Remove calls ResetMap(), leaving m_currMap NULL until the client
+                // answers with MSG_MOVE_WORLDPORT_ACK. Spell::CheckCast then reads
+                // m_caster->GetZoneAndAreaId(), which goes through WorldObject::GetTerrain()
+                // and dereferences that NULL map. Confirmed from the crash dump of
+                // 2026-08-06 13:28:31: read of Map+0x8258 (m_TerrainData) off a null this,
+                // m_spellInfo->Id == 0x116A0 (71328), caster m_currMap == 0 while still
+                // holding its pre-teleport position on map 0.
+                //
+                // It only ever survived because ApplyDungeonCooldown no-ops when the aura is
+                // already present -- a character who had just run a random still had it, so
+                // the cast was skipped. The first fresh character to enter crashed the world.
+                //
+                // Casting first is also the correct semantics: the cooldown starts when the
+                // player ENTERS, and this block is exactly the "is about to enter" path. A
+                // member already standing on the dungeon's map is not entering and no longer
+                // takes a fresh cooldown.
+                //
+                // ONLY for a queue that was made through Random Dungeon.
+                //
+                // 71328 is the RANDOM cooldown. A player who queued for a specific
+                // dungeon did not take it on retail, and applying it to them is not a
+                // harmless over-approximation: it is the aura that blocks the next
+                // random queue, so a specific-dungeon run would lock the player out of
+                // random for 15 minutes they never owed.
+                //
+                // It also matters that the two systems stay independent. Deserter must
+                // never be conditional on this aura -- that was JadeCore's bug, and it
+                // exempts early leavers from specific-dungeon groups entirely.
+                //
+                // randomDungeonID is non-zero exactly when the queue was a random
+                // category, recorded at group creation from the proposal.
+                if (runStatus && runStatus->randomDungeonID)
+                {
+                    ApplyDungeonCooldown(pGroupPlr);
                 }
 
                 if (!pGroupPlr->TeleportTo(mapID, x, y, z, o))
@@ -1128,26 +1175,10 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
             }
             else
             {
+                // The cooldown is NOT applied here -- see the teleport block above. Casting
+                // anything on a player whose far teleport has already started dereferences a
+                // null Map.
                 SetPlayerState(pGroupPlr->GetObjectGuid(), LFG_STATE_IN_DUNGEON);
-
-                // ONLY for a queue that was made through Random Dungeon.
-                //
-                // 71328 is the RANDOM cooldown. A player who queued for a specific
-                // dungeon did not take it on retail, and applying it to them is not a
-                // harmless over-approximation: it is the aura that blocks the next
-                // random queue, so a specific-dungeon run would lock the player out of
-                // random for 15 minutes they never owed.
-                //
-                // It also matters that the two systems stay independent. Deserter must
-                // never be conditional on this aura -- that was JadeCore's bug, and it
-                // exempts early leavers from specific-dungeon groups entirely.
-                //
-                // randomDungeonID is non-zero exactly when the queue was a random
-                // category, recorded at group creation from the proposal.
-                if (runStatus && runStatus->randomDungeonID)
-                {
-                    ApplyDungeonCooldown(pGroupPlr);
-                }
             }
         }
     }
