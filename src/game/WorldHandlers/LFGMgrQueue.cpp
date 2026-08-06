@@ -647,6 +647,39 @@ LfgJoinResult LFGMgr::GetJoinResult(Player* plr)
     LfgJoinResult result = ERR_LFG_OK;
     Group* pGroup = plr->GetGroup();
 
+    // Is the caller ALREADY STANDING IN an LFG dungeon?
+    //
+    // Two distinct things arrive as an ordinary CMSG_LFG_JOIN from inside a run, and the
+    // Dungeon Cooldown must gate neither:
+    //
+    //   1. Backfill -- "A player has left your group. Would you like to find another
+    //      player to finish X?" -- replacing a member in the run they are in.
+    //   2. The leader re-queueing whatever is LEFT of a short-handed group for a
+    //      DIFFERENT dungeon, which retail also allows.
+    //
+    // The test is therefore "already inside", not "same dungeon": case 2 names a
+    // different dungeon entirely and must still be waived.
+    //
+    // Dungeon Cooldown exists to stop a player re-queuing for a new dungeon straight
+    // after ENTERING one from the outside. Applied to either case above it means the
+    // moment anyone leaves, the remaining players are refused both a replacement and a
+    // fresh run, and the group is simply dead -- exactly the complaint players had, and
+    // reproduced here as soon as the cooldown was wired up. The aura is invisible
+    // (confirmed by applying 71328 by hand: no icon at all), so the refusal arrives with
+    // nothing on the UI to explain it.
+    //
+    // Deserter is deliberately NOT waived. Its whole point is that the deserter cannot
+    // use the finder at all for its duration, wherever they happen to be standing.
+    bool alreadyInLfgDungeon = false;
+    if (pGroup && pGroup->isLFGGroup())
+    {
+        if (LFGGroupStatus const* groupStatus = GetGroupStatus(pGroup->GetObjectGuid()))
+        {
+            LfgDungeonsEntry const* runDungeon = sLfgDungeonsStore.LookupEntry(groupStatus->dungeonID);
+            alreadyInLfgDungeon = runDungeon && plr->GetMapId() == uint32(runDungeon->MapID);
+        }
+    }
+
     /* Reasons for not entering:
      *   Deserter spell
      *   Dungeon finder cooldown
@@ -667,7 +700,7 @@ LfgJoinResult LFGMgr::GetJoinResult(Player* plr)
     {
         result = ERR_LFG_CANT_USE_DUNGEONS;
     }
-    else if (plr->HasAura(LFG_COOLDOWN_SPELL))
+    else if (!alreadyInLfgDungeon && plr->HasAura(LFG_COOLDOWN_SPELL))
     {
         result = ERR_LFG_RANDOM_COOLDOWN_PLAYER;
     }
@@ -713,8 +746,11 @@ LfgJoinResult LFGMgr::GetJoinResult(Player* plr)
                     {
                         result = ERR_LFG_CANT_USE_DUNGEONS;
                     }
-                    else if (pGroupPlr->HasAura(LFG_COOLDOWN_SPELL))
+                    else if (!alreadyInLfgDungeon && pGroupPlr->HasAura(LFG_COOLDOWN_SPELL))
                     {
+                        // Waived for every member, not just the caller: they all entered
+                        // together, so they all hold the same cooldown, and gating on any
+                        // one of them refuses the backfill just as surely.
                         result = ERR_LFG_RANDOM_COOLDOWN_PARTY;
                     }
                     // No `else { result = ERR_LFG_OK; }` here. Assigning per member meant
