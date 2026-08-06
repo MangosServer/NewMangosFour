@@ -1006,6 +1006,26 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
         m_groupStatusMap[groupGuid] = groupStatus;
     }
 
+    // Announce the group BEFORE the teleport as well as after.
+    //
+    // SMSG_GROUP_LIST's LFG block is the ONLY thing the 18414 client reads for an
+    // in-progress run -- IsPartyLFG, GetPartyLFGID, HasLFGRestrictions and IsInLFGDungeon
+    // all hang off fields the group-list apply path is the sole writer of. Miss it and the
+    // player has no eye, no teleport options and no Vote Kick gate.
+    //
+    // The status is stored just above, so an update sent here already carries the block.
+    // The one AFTER the teleport does not reliably reach everyone: TeleportToDungeon far-
+    // teleports each member, which removes them from their map, and a member already in
+    // flight is not reached by the member walk. Observed live 2026-08-06 20:35:04 -- of two
+    // players entering Wailing Caverns together, only the second received an isLfg=1 body
+    // (81 bytes); the leader's last group list was 64 bytes with the flag clear, and he had
+    // no eye. It only showed up when queueing as a PARTY, because queueing separately adds
+    // and teleports members in a different order.
+    //
+    // Both calls are kept. This one guarantees every member holds the LFG block while they
+    // are all still in world; the one after covers state that only settles post-teleport.
+    pGroup->SendUpdate();
+
     TeleportToDungeon(dungeon->ID, pGroup);
 
     pGroup->SendUpdate();
