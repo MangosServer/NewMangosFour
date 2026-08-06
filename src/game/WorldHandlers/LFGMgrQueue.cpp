@@ -657,27 +657,34 @@ LfgJoinResult LFGMgr::GetJoinResult(Player* plr)
     //   2. The leader re-queueing whatever is LEFT of a short-handed group for a
     //      DIFFERENT dungeon, which retail also allows.
     //
-    // The test is therefore "already inside", not "same dungeon": case 2 names a
-    // different dungeon entirely and must still be waived.
+    // The test is therefore "this party came from the finder and its run is still live",
+    // not "same dungeon" and not "standing on the dungeon's map":
+    //   - case 2 names a different dungeon entirely, so a same-dungeon test refuses it;
+    //   - a leader who has already teleported OUT is off the map but still leading the
+    //     run, so a map test refuses them too.
+    //
+    // GROUPTYPE_LFD is the right signal and the server already keeps it: SetAsLfgGroup
+    // marks the group when the finder forms it, it is persisted in `groups`.`groupType`,
+    // and nothing ever clears it. Because nothing clears it, membership alone is not
+    // enough -- a finder group that has FINISHED its dungeon and stayed together is still
+    // flagged, and those players should serve their cooldown like anyone else. So the run
+    // must also still be live: a status exists and has not reached FINISHED_DUNGEON.
     //
     // Dungeon Cooldown exists to stop a player re-queuing for a new dungeon straight
-    // after ENTERING one from the outside. Applied to either case above it means the
-    // moment anyone leaves, the remaining players are refused both a replacement and a
-    // fresh run, and the group is simply dead -- exactly the complaint players had, and
-    // reproduced here as soon as the cooldown was wired up. The aura is invisible
+    // after ENTERING one from the outside. Neither case above is that. Applied to them it
+    // means the moment anyone leaves, the remaining players are refused both a replacement
+    // and a fresh run, and the group is simply dead -- exactly the complaint players had,
+    // and reproduced here as soon as the cooldown was wired up. The aura is invisible
     // (confirmed by applying 71328 by hand: no icon at all), so the refusal arrives with
     // nothing on the UI to explain it.
     //
     // Deserter is deliberately NOT waived. Its whole point is that the deserter cannot
     // use the finder at all for its duration, wherever they happen to be standing.
-    bool alreadyInLfgDungeon = false;
+    bool inLiveLfgRun = false;
     if (pGroup && pGroup->isLFGGroup())
     {
-        if (LFGGroupStatus const* groupStatus = GetGroupStatus(pGroup->GetObjectGuid()))
-        {
-            LfgDungeonsEntry const* runDungeon = sLfgDungeonsStore.LookupEntry(groupStatus->dungeonID);
-            alreadyInLfgDungeon = runDungeon && plr->GetMapId() == uint32(runDungeon->MapID);
-        }
+        LFGGroupStatus const* groupStatus = GetGroupStatus(pGroup->GetObjectGuid());
+        inLiveLfgRun = groupStatus && groupStatus->state != LFG_STATE_FINISHED_DUNGEON;
     }
 
     /* Reasons for not entering:
@@ -700,7 +707,7 @@ LfgJoinResult LFGMgr::GetJoinResult(Player* plr)
     {
         result = ERR_LFG_CANT_USE_DUNGEONS;
     }
-    else if (!alreadyInLfgDungeon && plr->HasAura(LFG_COOLDOWN_SPELL))
+    else if (!inLiveLfgRun && plr->HasAura(LFG_COOLDOWN_SPELL))
     {
         result = ERR_LFG_RANDOM_COOLDOWN_PLAYER;
     }
@@ -746,7 +753,7 @@ LfgJoinResult LFGMgr::GetJoinResult(Player* plr)
                     {
                         result = ERR_LFG_CANT_USE_DUNGEONS;
                     }
-                    else if (!alreadyInLfgDungeon && pGroupPlr->HasAura(LFG_COOLDOWN_SPELL))
+                    else if (!inLiveLfgRun && pGroupPlr->HasAura(LFG_COOLDOWN_SPELL))
                     {
                         // Waived for every member, not just the caller: they all entered
                         // together, so they all hold the same cooldown, and gating on any
