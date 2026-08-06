@@ -114,7 +114,21 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
     bool isRaid    = false;
     bool isDungeon = false;
 
-    LfgJoinResult result = GetJoinResult(plr);
+    // Whether the REQUEST is random decides whether the Dungeon Cooldown may refuse it.
+    // Determined here rather than inside GetJoinResult because the validation loop below
+    // that sets isRandom runs after the verdict is needed.
+    bool requestIsRandom = false;
+    for (std::set<uint32>::const_iterator it = dungeons.begin(); it != dungeons.end(); ++it)
+    {
+        LfgDungeonsEntry const* requested = sLfgDungeonsStore.LookupEntry(*it);
+        if (requested && requested->TypeID == LFG_TYPE_RANDOM_DUNGEON)
+        {
+            requestIsRandom = true;
+            break;
+        }
+    }
+
+    LfgJoinResult result = GetJoinResult(plr, requestIsRandom);
     if (result == ERR_LFG_OK)
     {
         // additional checks on dungeon selection
@@ -640,7 +654,7 @@ LFGProposal* LFGMgr::GetProposalData(uint32 proposalID)
     }
 }
 
-LfgJoinResult LFGMgr::GetJoinResult(Player* plr)
+LfgJoinResult LFGMgr::GetJoinResult(Player* plr, bool queueIsRandom)
 {
     // Initialised. `LfgJoinResult result;` was read uninitialised when a group had
     // members but every getSource() returned null.
@@ -707,8 +721,19 @@ LfgJoinResult LFGMgr::GetJoinResult(Player* plr)
     {
         result = ERR_LFG_CANT_USE_DUNGEONS;
     }
-    else if (!inLiveLfgRun && plr->HasAura(LFG_COOLDOWN_SPELL))
+    else if (queueIsRandom && !inLiveLfgRun && plr->HasAura(LFG_COOLDOWN_SPELL))
     {
+        // 71328 gates RANDOM queues only.
+        //
+        // It is the Random Dungeon cooldown in both directions: taken on entering
+        // through Random Dungeon, and spent preventing ANOTHER random queue while it
+        // runs. A specific-dungeon request is not what it exists to pace, and refusing
+        // one leaves the player unable to queue for anything at all for 15 minutes --
+        // with no icon to explain why, since the aura is invisible. Observed live:
+        // queueing for a single named dungeon was refused by a cooldown taken on an
+        // earlier random run.
+        //
+        // Note the result code says as much: ERR_LFG_RANDOM_COOLDOWN_PLAYER.
         result = ERR_LFG_RANDOM_COOLDOWN_PLAYER;
     }
     else if (plr->getLevel() < 15)
@@ -753,8 +778,9 @@ LfgJoinResult LFGMgr::GetJoinResult(Player* plr)
                     {
                         result = ERR_LFG_CANT_USE_DUNGEONS;
                     }
-                    else if (!inLiveLfgRun && pGroupPlr->HasAura(LFG_COOLDOWN_SPELL))
+                    else if (queueIsRandom && !inLiveLfgRun && pGroupPlr->HasAura(LFG_COOLDOWN_SPELL))
                     {
+                        // Random-only, as in the solo branch above.
                         // Waived for every member, not just the caller: they all entered
                         // together, so they all hold the same cooldown, and gating on any
                         // one of them refuses the backfill just as surely.

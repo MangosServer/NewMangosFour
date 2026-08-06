@@ -1214,7 +1214,10 @@ public:
      *
      * @param plr The pointer to the player
      */
-    LfgJoinResult GetJoinResult(Player* plr);
+    /// \param queueIsRandom the request contains a random category. The Dungeon
+    ///        Cooldown (71328) gates only random queues, so a specific-dungeon request
+    ///        must pass while it is active.
+    LfgJoinResult GetJoinResult(Player* plr, bool queueIsRandom);
 
     /**
      * @brief Fetch the playerstatus struct of a player on request, if existant
