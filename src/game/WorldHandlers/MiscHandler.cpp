@@ -362,10 +362,23 @@ void WorldSession::HandleWhoOpcode(WorldPacket& recv_data)
         entry.gender = gender;
         entry.classId = uint8(class_);
         entry.level = uint8(lvl);
-        // accountGuid is left empty: we do not model the battle.net account GUID, and
-        // the client only uses it for cross-realm grouping affordances the /who list
-        // does not need. nameVirtualRealm and guildVirtualRealm stay 0, which reads as
-        // "this realm" -- correct for a single-realm server.
+        // The virtual realm ids must be OUR realm, not zero.
+        //
+        // Before displaying, the client resolves every entry's realm through its realm
+        // cache (sub_621E5D against dword_1087180) and only reaches the display path once
+        // they all resolve; a zero address does not, so the whole list is silently held
+        // back. Retail's entries carry a real address -- capture-000135 seq 177672 sends
+        // 0x03010018 for the name and 0x0304000D for the guild.
+        //
+        // realmID is what the rest of this core already puts on the wire for the same
+        // field, e.g. Guild.cpp:1039 for the guild roster, so it is the consistent value
+        // rather than a new invention.
+        entry.nameVirtualRealm = realmID;
+        entry.guildVirtualRealm = realmID;
+
+        // accountGuid stays empty: we do not model the battle.net account GUID, and the
+        // client only uses it for cross-realm grouping affordances the /who list does not
+        // need.
         results.push_back(entry);
 
         ++clientcount;

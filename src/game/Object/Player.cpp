@@ -4235,13 +4235,15 @@ void Player::HandleStealthedUnitsDetection()
                 //
                 // The consequence is not a missing object, it is a POISONED one. With the
                 // guid in m_clientGUIDs, HaveAtClient() reports true, so
-                // WorldObjectChangeAccumulator happily builds VALUES update blocks for an
-                // object the client was never given. The 18414 client resolves the guid in
-                // that block (ObjectMgrClient.cpp, block type 0), finds nothing, replies
-                // CMSG_OBJECT_UPDATE_FAILED naming the guid -- and then ABANDONS THE REST OF
-                // THE PACKET, losing every create block queued behind it. Those objects are
-                // recorded as known too, so they never get another create, and the failure
-                // sustains itself until the player zones.
+                // WorldObjectChangeAccumulator builds VALUES update blocks for an object the
+                // client was never given. The 18414 client resolves the guid in that block
+                // (ObjectMgrClient.cpp, block type 0 -> sub_79DE32), finds nothing, and
+                // replies CMSG_OBJECT_UPDATE_FAILED naming the guid. It then skips the block
+                // (sub_79BC10 walks the update mask, discards the fields and returns 1, so
+                // the caller does not break) and carries on with the packet -- the damage is
+                // confined to that one object, but it is permanent: nothing ever removes the
+                // guid from m_clientGUIDs, so no create is ever sent again and the player
+                // stays invisible to that client until they zone.
                 //
                 // Observed live 2026-08-06: four of five clients in one instance each sent
                 // CMSG_OBJECT_UPDATE_FAILED 17 times, naming player guids 1 and 6 and a pet
