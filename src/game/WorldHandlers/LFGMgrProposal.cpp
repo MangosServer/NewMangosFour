@@ -1041,6 +1041,11 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
             else
             {
                 SetPlayerState(pGroupPlr->GetObjectGuid(), LFG_STATE_IN_DUNGEON);
+
+                // Retail starts the 15-minute requeue cooldown on ENTRY, separately from
+                // Deserter -- which is why spell 71328 outnumbers 71041 roughly nine to
+                // one in the corpus.
+                ApplyDungeonCooldown(pGroupPlr);
             }
         }
     }
@@ -1079,6 +1084,26 @@ void LFGMgr::TeleportPlayer(Player* pPlayer, bool out)
     // This guard sits in TeleportPlayer rather than at the call sites so that the
     // dropdown (CMSG_LFG_TELEPORT) and the leave path (CMSG_GROUP_DISBAND) are both
     // covered by one check that cannot be forgotten by a third caller.
+    // Per-player, deliberately -- NOT group-wide.
+    //
+    // Retail gates this on the caller alone: Wowpedia's Dungeon Finder page says players
+    // may teleport in and out at any time if THEY are not in combat, and WoWWiki gives the
+    // condition as "you won't be teleported if you are in combat, jumping or falling" --
+    // the same three per-player conditions TeleportToDungeon already checks below.
+    //
+    // A group-wide gate was written and then withdrawn. It closes a real hole (combat is
+    // per-unit, so a ranged dps who never took threat is not flagged and can leave mid-pull)
+    // but retail apparently does not close it, and wire fidelity wins here. If that hole
+    // ever needs closing, gate the LEAVE path rather than this function, and only on members
+    // standing on the dungeon's own map -- a member who already ported out and is fighting
+    // something in the world must not lock the players still inside.
+    //
+    // The check covers `in` as well as `out`: teleporting INTO a dungeon while fighting
+    // something outside it strands the mob and drops the player in still flagged.
+    //
+    // It sits in TeleportPlayer rather than at the call sites so the dropdown
+    // (CMSG_LFG_TELEPORT) and the leave path (CMSG_GROUP_DISBAND) are both covered by one
+    // check a third caller cannot forget.
     if (pPlayer->IsInCombat())
     {
         DEBUG_LOG("LFG TeleportPlayer: %s refused (%s) -- in combat",

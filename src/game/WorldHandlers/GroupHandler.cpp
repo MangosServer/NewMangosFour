@@ -511,6 +511,10 @@ void WorldSession::HandleGroupDisbandOpcode(WorldPacket& recv_data)
     // player is actually standing on the dungeon's map.
     if (pGroup->isLFGGroup())
     {
+        // Deserter BEFORE the teleport: OnPlayerLeftDungeonGroup only counts a player who
+        // is still standing on the dungeon's map, and TeleportPlayer is about to move
+        // them off it.
+        sLFGMgr.OnPlayerLeftDungeonGroup(GetPlayer());
         sLFGMgr.TeleportPlayer(GetPlayer(), true);
     }
 

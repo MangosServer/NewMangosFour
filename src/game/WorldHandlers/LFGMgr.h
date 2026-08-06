@@ -675,6 +675,7 @@ inline void MopLfgPackets::BuildEmptyPartyInfo(WorldPacket& out)
 
 
 struct LFGBoot;
+class Map;
 struct LFGGroupStatus;
 struct LFGPlayers;
 struct LFGPlayerStatus;
@@ -1082,6 +1083,18 @@ struct LFGGroupStatus //todo: check for this in joinlfg function, not lfgplayers
 {
     LFGState state;        // State of the group
     uint32 dungeonID;      // ID of the dungeon the group should be in (the RESOLVED one)
+    /// Has this run made enough progress that leaving is no longer desertion?
+    ///
+    /// MoP's rule protected the OPENING of a run: leave or get vote-kicked before the
+    /// group had engaged/killed a boss and you took Dungeon Deserter for 30 minutes;
+    /// after the first boss you could ordinarily leave clean. Blizzard deliberately kept
+    /// the exact predicate hidden and it had edge cases (boss combat, a wipe, or simply
+    /// enough time inside could satisfy it, and Heroic Scarlet Monastery was reported in
+    /// 2013 to keep awarding Deserter after its first boss when others did not), so this
+    /// tracks the one signal that is unambiguous and that we can actually observe: a
+    /// credited dungeon encounter.
+    bool madeProgress = false;
+
     /// The random category the group queued under, or 0 for a direct queue. Kept because
     /// SMSG_GROUP_LIST carries BOTH: slot A is the resolved dungeon and slot B the random
     /// row. Retail never puts a type-6 entry in slot A.
@@ -1314,6 +1327,18 @@ public:
     /// Drop a disbanded group's LFG status. Must run when the Group is torn down, not
     /// when its dungeon finishes -- see the note in HandleBossKilled.
     void ReleaseGroupLfgStatus(ObjectGuid groupGuid);
+
+    /// A dungeon encounter was credited on this map. Marks every LFG group with players
+    /// present as having made progress, so leaving no longer earns Dungeon Deserter, and
+    /// on the LAST encounter runs the completion/reward path.
+    void OnDungeonEncounterCredited(Map* map, bool lastEncounter);
+
+    /// Called when a player leaves an LFG group. Applies Dungeon Deserter if the run had
+    /// not yet made progress.
+    void OnPlayerLeftDungeonGroup(Player* pPlayer);
+
+    /// Applies the 15-minute requeue cooldown that retail starts when a player enters.
+    void ApplyDungeonCooldown(Player* pPlayer);
 
     /// Return the 5.4.8 LFG status category byte for a dungeon.
     uint8 GetDungeonCategory(uint32 ID);

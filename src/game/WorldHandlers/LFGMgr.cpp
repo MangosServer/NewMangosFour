@@ -1426,6 +1426,120 @@ uint32 LFGMgr::GetGroupDungeonEntry(ObjectGuid groupGuid)
     return status ? GetDungeonEntry(status->dungeonID) : 0;
 }
 
+void LFGMgr::OnDungeonEncounterCredited(Map* map, bool lastEncounter)
+{
+    if (!map)
+    {
+        return;
+    }
+
+    // Mark by GROUP, not by player: the run's progress belongs to the run. Collected
+    // first so a group with five members inside is only handled once.
+    std::set<ObjectGuid> lfgGroups;
+    Map::PlayerList const& players = map->GetPlayers();
+    for (Map::PlayerList::const_iterator it = players.begin(); it != players.end(); ++it)
+    {
+        Player* pPlayer = it->getSource();
+        if (!pPlayer)
+        {
+            continue;
+        }
+
+        Group* pGroup = pPlayer->GetGroup();
+        if (pGroup && pGroup->isLFGGroup())
+        {
+            lfgGroups.insert(pGroup->GetObjectGuid());
+        }
+    }
+
+    for (std::set<ObjectGuid>::const_iterator it = lfgGroups.begin(); it != lfgGroups.end(); ++it)
+    {
+        LFGGroupStatus* status = GetGroupStatus(*it);
+        if (!status)
+        {
+            continue;
+        }
+
+        if (!status->madeProgress)
+        {
+            status->madeProgress = true;
+            DEBUG_LOG("LFG: group %s has made progress; leaving no longer earns Deserter",
+                      it->GetString().c_str());
+        }
+    }
+
+    if (!lastEncounter)
+    {
+        return;
+    }
+
+    // The final encounter completes the run. This is the call site the
+    // "Place LFG reward here" comment in DungeonPersistentState::UpdateEncounterState
+    // was left for: HandleBossKilled has existed all along with NO caller anywhere in
+    // the tree, so no LFG run has ever paid its reward or reached
+    // LFG_STATE_FINISHED_DUNGEON.
+    for (Map::PlayerList::const_iterator it = players.begin(); it != players.end(); ++it)
+    {
+        Player* pPlayer = it->getSource();
+        if (!pPlayer)
+        {
+            continue;
+        }
+
+        Group* pGroup = pPlayer->GetGroup();
+        if (pGroup && pGroup->isLFGGroup() && GetGroupStatus(pGroup->GetObjectGuid()))
+        {
+            HandleBossKilled(pPlayer);
+            break;      // HandleBossKilled already walks the whole group
+        }
+    }
+}
+
+void LFGMgr::ApplyDungeonCooldown(Player* pPlayer)
+{
+    // Retail starts a 15-minute requeue cooldown when the player ENTERS, independently
+    // of Deserter. The corpus bears that out: spell 71328 appears in 6920 build-18414
+    // payloads against 752 for Deserter (71041) -- roughly nine times as many, which is
+    // what you expect when everyone who zones in gets one and only early leavers get the
+    // other.
+    if (pPlayer && !pPlayer->HasAura(LFG_COOLDOWN_SPELL))
+    {
+        pPlayer->CastSpell(pPlayer, LFG_COOLDOWN_SPELL, true);
+    }
+}
+
+void LFGMgr::OnPlayerLeftDungeonGroup(Player* pPlayer)
+{
+    if (!pPlayer)
+    {
+        return;
+    }
+
+    Group* pGroup = pPlayer->GetGroup();
+    if (!pGroup || !pGroup->isLFGGroup())
+    {
+        return;
+    }
+
+    LFGGroupStatus const* status = GetGroupStatus(pGroup->GetObjectGuid());
+    if (!status || status->madeProgress)
+    {
+        return;                 // past the protected opening -- leaving is free
+    }
+
+    // Only for someone actually standing in the dungeon. Leaving the group from outside
+    // -- never zoned in, or already ported out -- is not desertion.
+    LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(status->dungeonID);
+    if (!dungeon || pPlayer->GetMapId() != uint32(dungeon->MapID))
+    {
+        return;
+    }
+
+    DEBUG_LOG("LFG: %s left dungeon %u before any encounter was credited -- Deserter",
+              pPlayer->GetName(), status->dungeonID);
+    pPlayer->CastSpell(pPlayer, LFG_DESERTER_SPELL, true);
+}
+
 void LFGMgr::ReleaseGroupLfgStatus(ObjectGuid groupGuid)
 {
     m_groupStatusMap.erase(groupGuid);

@@ -45,6 +45,7 @@
  */
 
 #include "MapPersistentStateMgr.h"
+#include "LFGMgr.h"
 
 #include "SQLStorages.h"
 #include "Player.h"
@@ -434,11 +435,18 @@ void DungeonPersistentState::UpdateEncounterState(EncounterCreditType type, uint
             CharacterDatabase.PExecute("UPDATE `instance` SET `encountersMask` = '%u' WHERE `id` = '%u'", m_completedEncountersMask, GetInstanceId());
 
             DEBUG_LOG("DungeonPersistentState: Dungeon %s (Id %u) completed encounter %s", GetMap()->GetMapName(), GetInstanceId(), dbcEntry->Name_lang[sWorld.GetDefaultDbcLocale()]);
-            if (/*uint32 dungeonId =*/ iter->second->lastEncounterDungeon)
+
+            bool const isLastEncounter = iter->second->lastEncounterDungeon != 0;
+            if (isLastEncounter)
             {
                 DEBUG_LOG("DungeonPersistentState:: Dungeon %s (Instance-Id %u) completed last encounter %s", GetMap()->GetMapName(), GetInstanceId(), dbcEntry->Name_lang[sWorld.GetDefaultDbcLocale()]);
-                // Place LFG reward here
             }
+
+            // The dungeon finder's only view of run progress. A credited encounter clears
+            // the group to leave without Deserter, and the LAST one completes the run --
+            // which is what the "Place LFG reward here" note stood for. HandleBossKilled
+            // had no caller anywhere in the tree, so no LFG run had ever paid a reward.
+            sLFGMgr.OnDungeonEncounterCredited(GetMap(), isLastEncounter);
             return;
         }
     }
