@@ -279,6 +279,10 @@ static bool IsEnterWorldConverted(uint16 opcode)
         case SMSG_WEATHER:
         case SMSG_ALL_ACHIEVEMENT_DATA:  // Wave 5 Task 2 -- converted 6908c5f9e (MopAchievementPackets)
         case SMSG_CRITERIA_UPDATE:       // Isolated timed-expiry tombstone (MopAchievementPackets)
+        case SMSG_WHO:                   // 0x161B -- /who results (MopWhoPackets::BuildWhoResponse, converted).
+                                         // Body derived from the client's reader sub_720854 and its
+                                         // 536-byte JamWhoEntry; the empty form is the single 0x00 byte
+                                         // seen at capture-000059 seq 1637608.
             return true;
 
         // Control/transition packets that must ALWAYS reach the client while suppression is active:
