@@ -1426,6 +1426,18 @@ uint32 LFGMgr::GetGroupDungeonEntry(ObjectGuid groupGuid)
     return status ? GetDungeonEntry(status->dungeonID) : 0;
 }
 
+uint32 LFGMgr::GetGroupRandomDungeonEntry(ObjectGuid groupGuid)
+{
+    LFGGroupStatus const* status = GetGroupStatus(groupGuid);
+    return (status && status->randomDungeonID) ? GetDungeonEntry(status->randomDungeonID) : 0;
+}
+
+LFGState LFGMgr::GetGroupLfgState(ObjectGuid groupGuid)
+{
+    LFGGroupStatus const* status = GetGroupStatus(groupGuid);
+    return status ? status->state : LFG_STATE_NONE;
+}
+
 uint32 LFGMgr::GetDungeonEntry(uint32 ID)
 {
     LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(ID);

@@ -2615,16 +2615,49 @@ void Group::SendUpdateToPlayer(ObjectGuid guid)
     update.isLfg = isLFGGroup();
     if (update.isLfg)
     {
-        // Without this the LFG block went out with a ZERO dungeon entry. Retail carries
-        // the resolved dungeon there -- capture-000044 seq 6287 has 03 01 00 06, matching
-        // the entry in the same session's SMSG_LFG_UPDATE_STATUS -- and the 40-byte
-        // no-group form omits the block entirely rather than zero-filling it.
+        // The LFG block has TWO dungeon slots and they are not interchangeable.
         //
-        // Note this is the RESOLVED dungeon, not the request list: capture-000696 queued
-        // 15 dungeons and its GROUP_LIST still carries exactly one entry.
+        // Slot A (lfgDungeonEntry) is the gating one: it is what the client copies to
+        // party+232, which is precisely what IsPartyLFG() tests and GetPartyLFGID()
+        // returns, and every UI gate for the minimap eye and the Leave Dungeon entries
+        // runs through it. It carries type 1 in all 8475 retail packets whose block is
+        // populated -- never type 6 -- so it must be the RESOLVED dungeon. Ours is,
+        // because LFGGroupStatus records the concrete dungeon CreateDungeonGroup ran.
+        //
+        // Slot B (lfgTail) carries the random category, type 6, and is 0 for a direct
+        // queue. Worked example, capture-000044 seq 6287, block at payload offset 0x6E:
+        //   00 00 80 3F | 01 | 00 | 88 00 00 01 | 00 00 04 | 03 01 00 06
+        //   float=1.0   | b0 | b1 | A=0x01000088 | b2 b3 b4 | B=0x06000103
+        // An earlier revision of this comment cited 03 01 00 06 as evidence for slot A.
+        // Those bytes are slot B. The code was right and the citation was not.
+        //
+        // Sending isLfg with a zero A is WORSE than sending no block: the client copies
+        // it, party+232 becomes 0, and IsPartyLFG() is then false -- indistinguishable
+        // from having no LFG party at all.
         update.lfgDungeonEntry = sLFGMgr.GetGroupDungeonEntry(GetObjectGuid());
+        update.lfgTail = sLFGMgr.GetGroupRandomDungeonEntry(GetObjectGuid());
+
+        // b0 is the LFG state, and the client reads bit 0x02 of it as IsLFGComplete()
+        // (sub_90261A: *(party+228) & 2). Retail flips it 1 -> 2 at DUNGEON_FINISHED
+        // (capture-000720 seq 1074 -> 46476). We sent 0 always, so IsLFGComplete() was
+        // permanently false and UIParent.lua:4176's `IsPartyLFG() and not IsLFGComplete()`
+        // always fired the deserter warning on leaving.
+        LFGState const lfgState = sLFGMgr.GetGroupLfgState(GetObjectGuid());
+        update.lfgUnknownByte0 = (lfgState == LFG_STATE_FINISHED_DUNGEON) ? 2 : 1;
+
+        // b4 tracks the member count, observed as n-1 in 5192 of the sampled rows.
+        update.lfgUnknownByte4 = m_memberSlots.empty() ? 0 : uint8(m_memberSlots.size() - 1);
     }
+    // Retail's LFG groups send groupType 0x0C, i.e. GROUPTYPE_LFD (0x08) plus 0x04.
+    // Bit 0x04 is what the client returns from HasLFGRestrictions() (sub_9025EA reads
+    // party+216 & 4). We stored and sent 0x08 alone, so every LFG group reported having
+    // no restrictions. Set on the WIRE value only -- m_groupType is persisted and used
+    // in server-side logic, and widening the stored enum would change both.
     update.groupType = uint8(m_groupType);
+    if (update.isLfg)
+    {
+        update.groupType |= 0x04;
+    }
     update.partyIndex = player->GetOriginalGroup() == this ? 0 :
         uint8(isBGGroup() || isLFGGroup());
     update.sequence = m_groupUpdateCounter;

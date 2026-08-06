@@ -901,6 +901,12 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
     // Add group to our group set and group map, then teleport to the dungeon.
     // groupGuid is the one taken above; do not shadow it.
     LFGGroupStatus groupStatus(LFG_STATE_IN_DUNGEON, dungeon->ID, proposal->currentRoles, pGroup->GetLeaderGuid());
+    // Only when the two differ was this a random queue; proposal->dungeonID is the row the
+    // player actually picked, which for a random IS the category.
+    if (proposal->concreteDungeonID && proposal->dungeonID != proposal->concreteDungeonID)
+    {
+        groupStatus.randomDungeonID = proposal->dungeonID;
+    }
 
     m_groupSet.insert(groupGuid);
     m_groupStatusMap[groupGuid] = groupStatus;

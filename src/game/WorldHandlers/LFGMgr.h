@@ -1081,7 +1081,11 @@ struct LFGStatusPacketData
 struct LFGGroupStatus //todo: check for this in joinlfg function, not lfgplayers struct
 {
     LFGState state;        // State of the group
-    uint32 dungeonID;      // ID of the dungeon the group should be in
+    uint32 dungeonID;      // ID of the dungeon the group should be in (the RESOLVED one)
+    /// The random category the group queued under, or 0 for a direct queue. Kept because
+    /// SMSG_GROUP_LIST carries BOTH: slot A is the resolved dungeon and slot B the random
+    /// row. Retail never puts a type-6 entry in slot A.
+    uint32 randomDungeonID = 0;
     roleMap playerRoles;   // Container holding each player's objectguid and their roles
     ObjectGuid leaderGuid; // The group leader's object guid
 
@@ -1300,6 +1304,12 @@ public:
     /// dungeon, or 0 if it is not an LFG group. SMSG_GROUP_LIST carries this in its
     /// LFG block; retail never sends the block with a zero entry.
     uint32 GetGroupDungeonEntry(ObjectGuid groupGuid);
+
+    /// The random-category entry a group queued under, or 0. SMSG_GROUP_LIST slot B.
+    uint32 GetGroupRandomDungeonEntry(ObjectGuid groupGuid);
+
+    /// LFG state of a group, for the SMSG_GROUP_LIST state byte.
+    LFGState GetGroupLfgState(ObjectGuid groupGuid);
 
     /// Return the 5.4.8 LFG status category byte for a dungeon.
     uint8 GetDungeonCategory(uint32 ID);
