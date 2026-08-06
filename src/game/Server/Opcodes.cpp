@@ -916,6 +916,14 @@ void InitializeOpcodes()
     DefC(CMSG_NAME_QUERY, "CMSG_NAME_QUERY", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleNameQueryOpcode);
     DefS(SMSG_NAME_QUERY_RESPONSE, "SMSG_NAME_QUERY_RESPONSE");
 
+    // The /who list. Both bodies were rebuilt for 18414 -- see MopWhoPackets for the
+    // layouts and the captures they were verified against. HandleWhoOpcode has existed
+    // all along but was never registered, so /who has always been silent; registering
+    // it against the old 3.3.5 reader would have been worse than silence, which is why
+    // the reader was rewritten first.
+    DefC(CMSG_WHO, "CMSG_WHO", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleWhoOpcode);
+    DefS(SMSG_WHO, "SMSG_WHO");
+
     // Realm-name query. The 18414 client fires this from its name-cache path when a
     // queried character's realm is not yet in its RealmCache; until it is answered the
     // client parks the queried name and never commits it (the name shows "Unknown").

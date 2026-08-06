@@ -64,6 +64,7 @@
 #include "GuildMgr.h"
 #include "ObjectMgr.h"
 #include "LFGMgr.h"
+#include "Server/MopWhoPackets.h"
 #include "WorldSession.h"
 #include "Auth/BigNumber.h"
 #include "Auth/Sha1.h"
@@ -148,56 +149,43 @@ void WorldSession::HandleWhoOpcode(WorldPacket& recv_data)
 
     uint32 clientcount = 0;
 
-    uint32 level_min, level_max, racemask, classmask, zones_count, str_count;
-    uint32 zoneids[10];                                     // 10 is client limit
-    std::string player_name, guild_name;
-
-    recv_data >> level_min;                                 // maximal player level, default 0
-    recv_data >> level_max;                                 // minimal player level, default 100 (MAX_LEVEL)
-    recv_data >> player_name;                               // player name, case sensitive...
-
-    recv_data >> guild_name;                                // guild name, case sensitive...
-
-    recv_data >> racemask;                                  // race mask
-    recv_data >> classmask;                                 // class mask
-    recv_data >> zones_count;                               // zones count, client limit=10 (2.0.10)
-
-    if (zones_count > 10)
+    // Rebuilt for 18414. See MopWhoPackets for the derived layout and the five
+    // captures it was verified against. The inherited reader took a flat 3.3.5 body --
+    // two uint32s, two inline null-terminated strings, then masks and counts -- and
+    // shares no field order whatsoever with what this client sends, so registering it
+    // unchanged would have desynchronised the read stream on the first /who.
+    MopWhoPackets::WhoRequest request;
+    if (!MopWhoPackets::ParseWhoRequest(recv_data, request))
     {
-        return;                                             // can't be received from real client or broken packet
+        sLog.outError("WORLD: malformed CMSG_WHO from %s", GetPlayerName());
+        return;
     }
 
-    for (uint32 i = 0; i < zones_count; ++i)
-    {
-        uint32 temp;
-        recv_data >> temp;                                  // zone id, 0 if zone is unknown...
-        zoneids[i] = temp;
-        DEBUG_LOG("Zone %u: %u", i, zoneids[i]);
-    }
+    uint32 const racemask = request.raceMask;
+    uint32 const classmask = request.classMask;
+    uint32 const level_min = request.levelMin;
+    uint32 level_max = request.levelMax;
+    uint32 const zones_count = uint32(request.zoneIds.size());
+    uint32 const str_count = uint32(request.words.size());
+    std::string const& player_name = request.playerName;
+    std::string const& guild_name = request.guildName;
 
-    recv_data >> str_count;                                 // user entered strings count, client limit=4 (checked on 2.0.10)
-
-    if (str_count > 4)
-    {
-        return;                                             // can't be received from real client or broken packet
-    }
-
-    DEBUG_LOG("Minlvl %u, maxlvl %u, name %s, guild %s, racemask %u, classmask %u, zones %u, strings %u", level_min, level_max, player_name.c_str(), guild_name.c_str(), racemask, classmask, zones_count, str_count);
+    DEBUG_LOG("CMSG_WHO: minlvl %u, maxlvl %u, name '%s', guild '%s', realm '%s', "
+              "racemask 0x%X, classmask 0x%X, zones %u, words %u",
+              level_min, level_max, player_name.c_str(), guild_name.c_str(),
+              request.realmName.c_str(), racemask, classmask, zones_count, str_count);
 
     std::wstring str[4];                                    // 4 is client limit
     for (uint32 i = 0; i < str_count; ++i)
     {
-        std::string temp;
-        recv_data >> temp;                                  // user entered string, it used as universal search pattern(guild+player name)?
-
-        if (!Utf8toWStr(temp, str[i]))
+        if (!Utf8toWStr(request.words[i], str[i]))
         {
             continue;
         }
 
         wstrToLower(str[i]);
 
-        DEBUG_LOG("String %u: %s", i, temp.c_str());
+        DEBUG_LOG("String %u: %s", i, request.words[i].c_str());
     }
 
     std::wstring wplayer_name;
@@ -225,9 +213,11 @@ void WorldSession::HandleWhoOpcode(WorldPacket& recv_data)
     uint32 matchcount = 0;
     uint32 displaycount = 0;
 
-    WorldPacket data(SMSG_WHO, 50);                         // guess size
-    data << uint32(clientcount);                            // clientcount place holder, listed count
-    data << uint32(clientcount);                            // clientcount place holder, online count
+    // Collected first, then serialised. The 18414 reply is TWO passes over the result
+    // set -- a bit block for every entry, FlushBits, then a byte block for every entry
+    // -- so entries cannot be appended to the packet as they are matched the way the
+    // 3.3.5 body allowed.
+    std::vector<MopWhoPackets::WhoEntry> results;
 
     uint32 count = 0;
     sObjectAccessor.DoForAllPlayers([&](Player* pl)->void
@@ -293,7 +283,7 @@ void WorldSession::HandleWhoOpcode(WorldPacket& recv_data)
         bool z_show = true;
         for (uint32 i = 0; i < zones_count; ++i)
         {
-            if (zoneids[i] == pzoneid)
+            if (request.zoneIds[i] == pzoneid)
             {
                 z_show = true;
                 break;
@@ -362,23 +352,39 @@ void WorldSession::HandleWhoOpcode(WorldPacket& recv_data)
             return;
         }
 
-        data << pname;                                      // player name
-        data << gname;                                      // guild name
-        data << uint32(lvl);                                // player level
-        data << uint32(class_);                             // player class
-        data << uint32(race);                               // player race
-        data << uint8(gender);                              // player gender
-        data << uint32(pzoneid);                            // player zone id
+        MopWhoPackets::WhoEntry entry;
+        entry.playerGuid = pl->GetObjectGuid();
+        entry.guildGuid = pl->GetGuildId() ? ObjectGuid(HIGHGUID_GUILD, pl->GetGuildId()) : ObjectGuid();
+        entry.name = pname;
+        entry.guildName = gname;
+        entry.zoneId = pzoneid;
+        entry.race = uint8(race);
+        entry.gender = gender;
+        entry.classId = uint8(class_);
+        entry.level = uint8(lvl);
+        // accountGuid is left empty: we do not model the battle.net account GUID, and
+        // the client only uses it for cross-realm grouping affordances the /who list
+        // does not need. nameVirtualRealm and guildVirtualRealm stay 0, which reads as
+        // "this realm" -- correct for a single-realm server.
+        results.push_back(entry);
 
         ++clientcount;
     });
 
-    data.put(0, clientcount);                               // insert right count, listed count
-    data.put(4, count > 50 ? count : clientcount);          // insert right count, online count
+    // The 6-bit count caps a reply at 63 entries, and the client itself only stores 50
+    // (dword_12C6FB0 is clamped there in sub_A6BD8F). The match loop already stops at
+    // 50, so this is a belt-and-braces guard against ever overflowing the count field.
+    if (results.size() > 50)
+    {
+        results.resize(50);
+    }
 
-
+    WorldPacket data(SMSG_WHO, 1 + results.size() * 64);
+    MopWhoPackets::BuildWhoResponse(data, results);
     SendPacket(&data);
-    DEBUG_LOG("WORLD: Send SMSG_WHO Message");
+
+    DEBUG_LOG("WORLD: Sent SMSG_WHO with %u result(s) (%u online)",
+              uint32(results.size()), count);
 }
 
 /**
