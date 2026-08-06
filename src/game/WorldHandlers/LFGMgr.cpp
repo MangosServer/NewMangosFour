@@ -1200,9 +1200,26 @@ void LFGMgr::FindSpecificQueueMatches(ObjectGuid guid)
                 bool fullyCompatible = false;
                 std::set<uint32> compatibleDungeons;
 
-                for (std::set<uint32>::iterator dItr = matchInfo->dungeonList.begin(); dItr != matchInfo->dungeonList.end(); ++dItr)
+                // Compare what each entry can actually RUN, not what it asked for.
+                //
+                // A random queue stores only the CATEGORY row in dungeonList -- the
+                // expansion lives in candidateDungeons -- so intersecting dungeonList
+                // directly compared a category id against real dungeon ids and matched
+                // nothing. Random-vs-random happened to work because both carried the same
+                // category, and specific-vs-specific worked; RANDOM-VS-SPECIFIC could never
+                // match at all, which is most of what a random queuer exists to do, and it
+                // is also why a random queuer could never backfill a run pinned to its
+                // dungeon.
+                std::set<uint32> const& queueRunnable =
+                    queueInfo->candidateDungeons.empty() ? queueInfo->dungeonList
+                                                         : queueInfo->candidateDungeons;
+                std::set<uint32> const& matchRunnable =
+                    matchInfo->candidateDungeons.empty() ? matchInfo->dungeonList
+                                                         : matchInfo->candidateDungeons;
+
+                for (std::set<uint32>::const_iterator dItr = matchRunnable.begin(); dItr != matchRunnable.end(); ++dItr)
                 {
-                    if (queueInfo->dungeonList.find(*dItr) != queueInfo->dungeonList.end())
+                    if (queueRunnable.find(*dItr) != queueRunnable.end())
                     {
                         compatibleDungeons.insert(*dItr);
                     }
@@ -1334,6 +1351,26 @@ void LFGMgr::MergeGroups(ObjectGuid guidOne, ObjectGuid guidTwo, std::set<uint32
     // update the dungeon selection with the compatible ones
     mainGroup->dungeonList.clear();
     mainGroup->dungeonList = compatibleDungeons;
+
+    // Narrow the candidates to the same overlap.
+    //
+    // candidateDungeons is what PickConcreteDungeon draws from, and it was left holding
+    // the absorbing entry's full expansion -- so a merged entry could be proposed a
+    // dungeon the newly merged-in player had never asked for and may be locked out of.
+    // Intersecting keeps the pick inside what BOTH sides agreed to.
+    if (!mainGroup->candidateDungeons.empty())
+    {
+        std::set<uint32> narrowed;
+        for (std::set<uint32>::const_iterator it = compatibleDungeons.begin();
+             it != compatibleDungeons.end(); ++it)
+        {
+            if (mainGroup->candidateDungeons.find(*it) != mainGroup->candidateDungeons.end())
+            {
+                narrowed.insert(*it);
+            }
+        }
+        mainGroup->candidateDungeons = narrowed;
+    }
 
     // move players / roles into a single roleMap
     for (roleMap::iterator it = bufferGroup->currentRoles.begin(); it != bufferGroup->currentRoles.end(); ++it)
