@@ -811,7 +811,7 @@ enum LFGTimes
     // SECONDS, not milliseconds: waitForRoleTime is built from time(NULL),
     // so 45*IN_MILLISECONDS made a role check expire after 12.5 HOURS.
     LFG_TIME_ROLECHECK                           = 45,
-    LFG_TIME_BOOT                                = 120,
+    LFG_TIME_BOOT                                = 30,   // retail: 30 s in all 14 observed boot sessions
     LFG_TIME_PROPOSAL                            = 45,
 };
 

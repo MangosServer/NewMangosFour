@@ -225,6 +225,12 @@ static uint32 PickConcreteDungeon(uint32 queuedDungeonId, std::set<uint32> const
         return queuedDungeonId;                             // already a real dungeon
     }
 
+    // Collect every runnable member, then pick one at random.
+    //
+    // This used to return the first match. candidates is a std::set<uint32>, which is
+    // ordered ascending, so "random dungeon" deterministically produced the LOWEST
+    // dungeon id in the category every single time -- the same instance on every queue.
+    std::vector<uint32> runnable;
     for (std::set<uint32>::const_iterator it = candidates.begin(); it != candidates.end(); ++it)
     {
         if (*it == queuedDungeonId)
@@ -243,10 +249,15 @@ static uint32 PickConcreteDungeon(uint32 queuedDungeonId, std::set<uint32> const
             continue;
         }
 
-        return candidate->ID;
+        runnable.push_back(candidate->ID);
     }
 
-    return 0;
+    if (runnable.empty())
+    {
+        return 0;
+    }
+
+    return runnable[urand(0, uint32(runnable.size()) - 1)];
 }
 
 //todo: remove from queue, update queue average settings
@@ -585,20 +596,24 @@ void LFGMgr::ProposalUpdate(uint32 proposalID, ObjectGuid plrGuid, bool accepted
         LFGPlayerStatus proposalPlrStatus = GetPlayerStatus(proposalPlrGuid);
         proposalPlrStatus.updateType = LFG_UPDATE_GROUP_FOUND;
 
-        if (pProposalPlayer->GetGroup())
-        {
-            SendLfgUpdate(proposalPlrGuid, proposalPlrStatus, true);
-            RemoveFromQueue(pProposalPlayer->GetGroup()->GetObjectGuid()); // not the best way to handle this
-        }
-        else
-        {
-            SendLfgUpdate(proposalPlrGuid, proposalPlrStatus, false);
-            RemoveFromQueue(proposalPlrGuid);
-        }
+        // ONE key, used for both packets.
+        //
+        // The queue entry is owned by the player's CURRENT group if they have one --
+        // that is the same test JoinLFG used to key m_playerData -- so the GROUP_FOUND
+        // and the LEAVE that follows it must both be sent under that key. The LEAVE used
+        // to be sent TWICE, once in each form, on the theory that one of them would
+        // match. It cannot help: SendLfgUpdate picks requesterGuid from the isGroup flag,
+        // so the wrong-form copy names a queue the client is not tracking, and at accept
+        // time GetGroup() is still the player's OLD party rather than the LFG group being
+        // formed -- so the group-form copy could name a third guid again.
+        bool const queueIsGroupOwned = pProposalPlayer->GetGroup() != nullptr;
+
+        SendLfgUpdate(proposalPlrGuid, proposalPlrStatus, queueIsGroupOwned);
+        RemoveFromQueue(queueIsGroupOwned ? pProposalPlayer->GetGroup()->GetObjectGuid()
+                                          : proposalPlrGuid);
 
         proposalPlrStatus.updateType = LFG_UPDATE_LEAVE;
-        SendLfgUpdate(proposalPlrGuid, proposalPlrStatus, false);
-        SendLfgUpdate(proposalPlrGuid, proposalPlrStatus, true);
+        SendLfgUpdate(proposalPlrGuid, proposalPlrStatus, queueIsGroupOwned);
     }
 
     CreateDungeonGroup(proposal);
