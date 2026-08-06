@@ -1239,9 +1239,17 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
 void LFGMgr::TeleportPlayer(Player* pPlayer, bool out)
 {
     // Fetch necessary data first
+    // Every refusal below is INVISIBLE to the player: SMSG_LFG_TELEPORT_DENIED is not
+    // admitted (its value space is not derived -- see SendLfgTeleportError), so a refused
+    // teleport produces no packet at all. Log every one of them, or a player reporting
+    // "teleport out did nothing" leaves nothing behind to diagnose. Observed live
+    // 2026-08-06 21:04: two CMSG_LFG_TELEPORT from a player alone in Shadowfang Keep, no
+    // reply, no log line, and no way to tell which branch refused.
     Group* pGroup = pPlayer->GetGroup();
     if (!pGroup)
     {
+        sLog.outError("LFG TeleportPlayer: %s refused (%s) -- not in a group",
+                      pPlayer->GetName(), out ? "out" : "in");
         pPlayer->GetSession()->SendLfgTeleportError((uint8)LFG_TELEPORTERROR_INVALID_LOCATION);
         return;
     }
@@ -1249,6 +1257,9 @@ void LFGMgr::TeleportPlayer(Player* pPlayer, bool out)
     LFGGroupStatus* status = GetGroupStatus(pGroup->GetObjectGuid());
     if (!status)
     {
+        sLog.outError("LFG TeleportPlayer: %s refused (%s) -- group %s has no LFG status",
+                      pPlayer->GetName(), out ? "out" : "in",
+                      pGroup->GetObjectGuid().GetString().c_str());
         pPlayer->GetSession()->SendLfgTeleportError((uint8)LFG_TELEPORTERROR_INVALID_LOCATION);
         return;
     }
@@ -1304,6 +1315,22 @@ void LFGMgr::TeleportPlayer(Player* pPlayer, bool out)
         if (dungeon && pPlayer->GetMapId() == dungeon->MapID)
         {
             pPlayer->TeleportToBGEntryPoint();
+        }
+        else
+        {
+            // The silent branch. It fires when the run's recorded dungeon does not resolve
+            // to the map the player is standing on -- which is a REAL defect whenever it
+            // happens, not a legitimate refusal, because a player asking to leave a dungeon
+            // they are demonstrably inside should always be able to.
+            //
+            // The likeliest cause is a run whose dungeonID is a random CATEGORY row rather
+            // than the concrete dungeon that was entered: SendDungeonProposal has been seen
+            // to log "entry dungeons={258} -> chose 258 (entry 0x06000102)", i.e. TypeID 6,
+            // for a group that then zoned into Shadowfang Keep.
+            sLog.outError("LFG TeleportPlayer: %s refused (out) -- dungeon %u resolves to "
+                          "map %d but the player is on map %u; leaving them stranded",
+                          pPlayer->GetName(), status->dungeonID,
+                          dungeon ? int32(dungeon->MapID) : -1, pPlayer->GetMapId());
         }
         return;
     }
