@@ -5919,6 +5919,14 @@ class Player : public Unit
             m_pendingEmoteRefresh[guid] = EMOTE_REFRESH_DELAY_MS;
         }
 
+        /// Drop every queued refresh. Used when the client discards its object
+        /// manager wholesale (far teleport), which makes every pending target
+        /// unknown to it.
+        void ClearPendingEmoteRefresh()
+        {
+            m_pendingEmoteRefresh.clear();
+        }
+
         /// Client reported its loading screen appearing or disappearing.
         void SetAwaitingLoadScreen(bool loading)
         {

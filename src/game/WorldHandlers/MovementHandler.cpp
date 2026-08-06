@@ -174,6 +174,38 @@ void WorldSession::HandleMoveWorldportAckOpcode()
         return;
     }
 
+    // The client destroyed its entire object manager when it processed the
+    // SMSG_NEW_WORLD that this ack answers, so everything we believed it had is
+    // now gone. Forget it here, before anything else, because every failure path
+    // below re-teleports and so triggers another client-side wipe anyway.
+    //
+    // Leaving this stale is not cosmetic. HaveAtClient() drives the create
+    // decision, so an object that exists on BOTH the old and the new map and is
+    // still recorded here takes the "already at client" branch on arrival and is
+    // never re-created. The client has no object for it and nothing on our side
+    // ever notices -- permanently invisible, and drawn with the "out of phase"
+    // party icon, because UnitInPhase (sub_8A29C1) is an object-manager lookup
+    // rather than a phase comparison.
+    //
+    // Normally the stale entry is removed for us: the departing player stops
+    // being iterated on the old map, lands in VisibleNotifier's leftover set and
+    // is erased there. That only happens if an observer's notifier actually runs
+    // on the old map in the gap. When a whole LFG party is teleported into a
+    // dungeon they all leave within the same tick, so for the FIRST player out
+    // that gap never exists and no observer ever erases them.
+    //
+    // Measured, world-server_2026-08-07_00-06-06.log, all five entering Wailing
+    // Caverns at 00:10:31 -- Humanwarrior went first and is the only one with no
+    // "out of range" event against any observer, the only one with no create in
+    // the instance, and at 00:15:32 all four other clients reported
+    // CMSG_OBJECT_UPDATE_FAILED for exactly his guid.
+    GetPlayer()->m_clientGUIDs.clear();
+
+    // Same reasoning: these are queued value re-sends aimed at objects the
+    // client has just discarded. Delivering one now would only produce a
+    // spurious CMSG_OBJECT_UPDATE_FAILED for an object it is correct not to have.
+    GetPlayer()->ClearPendingEmoteRefresh();
+
     // get start teleport coordinates (will used later in fail case)
     WorldLocation old_loc;
     GetPlayer()->GetPosition(old_loc);
