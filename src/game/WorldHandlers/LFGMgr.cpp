@@ -1508,6 +1508,29 @@ void LFGMgr::ApplyDungeonCooldown(Player* pPlayer)
     }
 }
 
+bool LFGMgr::IsPlayerInLfgDungeon(Player* pPlayer)
+{
+    if (!pPlayer)
+    {
+        return false;
+    }
+
+    Group* pGroup = pPlayer->GetGroup();
+    if (!pGroup || !pGroup->isLFGGroup())
+    {
+        return false;
+    }
+
+    LFGGroupStatus const* status = GetGroupStatus(pGroup->GetObjectGuid());
+    if (!status)
+    {
+        return false;
+    }
+
+    LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(status->dungeonID);
+    return dungeon && pPlayer->GetMapId() == uint32(dungeon->MapID);
+}
+
 void LFGMgr::OnPlayerLeftDungeonGroup(Player* pPlayer)
 {
     if (!pPlayer)

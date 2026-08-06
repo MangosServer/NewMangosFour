@@ -1340,6 +1340,9 @@ public:
     /// not yet made progress.
     void OnPlayerLeftDungeonGroup(Player* pPlayer);
 
+    /// Is this player standing inside the dungeon of a live LFG run?
+    bool IsPlayerInLfgDungeon(Player* pPlayer);
+
     /// Applies the 15-minute requeue cooldown that retail starts when a player enters.
     void ApplyDungeonCooldown(Player* pPlayer);
 

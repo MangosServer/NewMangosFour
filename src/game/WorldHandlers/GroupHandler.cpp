@@ -511,9 +511,33 @@ void WorldSession::HandleGroupDisbandOpcode(WorldPacket& recv_data)
     // player is actually standing on the dungeon's map.
     if (pGroup->isLFGGroup())
     {
+        // REFUSE the leave outright while the player is fighting inside the dungeon.
+        //
+        // The teleport out is refused in combat, but the removal used to run anyway, so a
+        // player who clicked Leave Instance Group mid-fight was taken out of the group and
+        // left standing in the instance -- and the refusal is mute, because
+        // SMSG_LFG_TELEPORT_DENIED is not admitted. Observed live: "i did leave instance
+        // group on the leader, i just got removed but not teleported out", while stuck in
+        // a combat stance.
+        //
+        // Worse for everyone else: once the group is gone the remaining player has no LFG
+        // state at all, so the minimap eye disappears and with it the only way out.
+        // Observed in the same session -- "he had no dungeon finder eyeball to teleport out
+        // or anything at all".
+        //
+        // Removing the group is the irreversible half, so it must not happen when the
+        // half that gets the player out cannot. Refusing keeps the two consistent: the
+        // player stays in the group, still able to leave once combat ends.
+        if (GetPlayer()->IsInCombat() && sLFGMgr.IsPlayerInLfgDungeon(GetPlayer()))
+        {
+            SendPartyResult(PARTY_OP_LEAVE, GetPlayer()->GetName(), ERR_PARTY_RESULT_OK);
+            DEBUG_LOG("HandleGroupDisbandOpcode: %s refused -- in combat inside an LFG dungeon",
+                      GetPlayer()->GetName());
+            return;
+        }
+
         // Deserter BEFORE the teleport: OnPlayerLeftDungeonGroup only counts a player who
-        // is still standing on the dungeon's map, and TeleportPlayer is about to move
-        // them off it.
+        // is still in a live run, and the teleport is about to move them out of it.
         sLFGMgr.OnPlayerLeftDungeonGroup(GetPlayer());
         sLFGMgr.TeleportPlayer(GetPlayer(), true);
     }
