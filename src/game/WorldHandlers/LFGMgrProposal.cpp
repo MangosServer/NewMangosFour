@@ -1031,7 +1031,7 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
     pGroup->SendUpdate();
 }
 
-void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
+void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup, Player* onlyPlayer /*= NULL*/)
 {
     // if the group's leader is already in the dungeon, teleport anyone not in dungeon to them
     // if nobody is in the dungeon, teleport all to beginning of dungeon (sObjectMgr.GetMapEntranceTrigger(mapid [not dungeonid]))
@@ -1116,6 +1116,26 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
     {
         if (Player* pGroupPlr = itr->getSource())
         {
+            // A voluntary "Teleport to dungeon" moves the player who asked for it, nobody
+            // else. The group is still what decides WHERE -- the leader-or-any-member
+            // position resolved above is what puts a returning player back with the party
+            // rather than at the entrance -- but only the caller is moved.
+            //
+            // This used to rely on the map check further down to do the filtering, on the
+            // reasoning that everyone else is already inside so only the one who left would
+            // qualify. That assumption fails the moment the rest of the group is outside
+            // too: with the whole party in the world, every member qualifies and one
+            // player's eyeball drags all five in. Reported live -- ".tele group northshire"
+            // then any single member clicking Teleport to dungeon moved the entire group,
+            // from any member, not just the leader.
+            //
+            // The mandatory path (CreateDungeonGroup, on proposal accept) passes no
+            // onlyPlayer and still moves everyone, which is correct: that IS a group entry.
+            if (onlyPlayer && pGroupPlr != onlyPlayer)
+            {
+                continue;
+            }
+
             // further checks: player is dead, in vehicle, in battleground, on taxi, etc
             LFGTeleportError plrErr = LFG_TELEPORTERROR_OK;
 
@@ -1342,13 +1362,15 @@ void LFGMgr::TeleportPlayer(Player* pPlayer, bool out)
     // the function doing nothing. Observed live -- a player who ported out could not get
     // back, which is worse than not offering the option at all.
     //
-    // TeleportToDungeon is the same routine the proposal uses on group creation. It moves
-    // only members whose map is not already the dungeon's, so calling it for the whole
-    // group moves exactly the one player who left, and it carries the dead / falling /
-    // in-vehicle checks and the SMSG_LFG_TELEPORT_DENIED replies with it. It also prefers
-    // the group leader's position when the leader is already inside, which is what puts a
-    // returning player back with the group rather than at the entrance.
-    TeleportToDungeon(status->dungeonID, pGroup);
+    // TeleportToDungeon is the same routine the proposal uses on group creation, so it
+    // carries the dead / falling / in-vehicle checks and the SMSG_LFG_TELEPORT_DENIED
+    // replies with it, and it prefers a member already inside as the destination, which is
+    // what puts a returning player back with the group rather than at the entrance.
+    //
+    // Restricted to the caller. This is a voluntary, per-player action: the map check alone
+    // is NOT sufficient filtering, because when the rest of the group is also outside every
+    // member passes it and one player's eyeball teleports the whole party in.
+    TeleportToDungeon(status->dungeonID, pGroup, pPlayer);
 }
 
 LFGGroupStatus* LFGMgr::GetGroupStatus(ObjectGuid guid)

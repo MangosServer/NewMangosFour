@@ -1615,7 +1615,10 @@ protected:
     void CreateDungeonGroup(LFGProposal* proposal);
 
     /// Sends a group to the dungeon assigned to them
-    void TeleportToDungeon(uint32 dungeonID, Group* pGroup);
+    /// Teleport into the dungeon. Passing onlyPlayer restricts the move to that
+    /// member while still resolving the destination from the whole group; NULL
+    /// moves every eligible member, which is what a proposal accept needs.
+    void TeleportToDungeon(uint32 dungeonID, Group* pGroup, Player* onlyPlayer = NULL);
 
     /**
      * @brief Merges two players/groups/etc into one for dungeon assignment.
