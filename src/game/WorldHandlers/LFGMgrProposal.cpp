@@ -945,6 +945,10 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
     float x, y, z, o;
     LFGTeleportError err = LFG_TELEPORTERROR_OK;
 
+    // Whether this run came from a random category decides who takes the 15-minute
+    // cooldown below.
+    LFGGroupStatus const* runStatus = GetGroupStatus(pGroup->GetObjectGuid());
+
     Player* pGroupLeader = sObjectAccessor.FindPlayer(pGroup->GetLeaderGuid());
 
     if (pGroupLeader && pGroupLeader->GetMapId() == mapID) // Already in the dungeon
@@ -1042,10 +1046,24 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
             {
                 SetPlayerState(pGroupPlr->GetObjectGuid(), LFG_STATE_IN_DUNGEON);
 
-                // Retail starts the 15-minute requeue cooldown on ENTRY, separately from
-                // Deserter -- which is why spell 71328 outnumbers 71041 roughly nine to
-                // one in the corpus.
-                ApplyDungeonCooldown(pGroupPlr);
+                // ONLY for a queue that was made through Random Dungeon.
+                //
+                // 71328 is the RANDOM cooldown. A player who queued for a specific
+                // dungeon did not take it on retail, and applying it to them is not a
+                // harmless over-approximation: it is the aura that blocks the next
+                // random queue, so a specific-dungeon run would lock the player out of
+                // random for 15 minutes they never owed.
+                //
+                // It also matters that the two systems stay independent. Deserter must
+                // never be conditional on this aura -- that was JadeCore's bug, and it
+                // exempts early leavers from specific-dungeon groups entirely.
+                //
+                // randomDungeonID is non-zero exactly when the queue was a random
+                // category, recorded at group creation from the proposal.
+                if (runStatus && runStatus->randomDungeonID)
+                {
+                    ApplyDungeonCooldown(pGroupPlr);
+                }
             }
         }
     }
@@ -1302,6 +1320,17 @@ void LFGMgr::HandleBossKilled(Player* pPlayer)
         return;
     }
 
+    // Second guard on top of the encounter-bit check in UpdateEncounterState. Rewards
+    // are paid from here, so a run must complete exactly once however it is reached --
+    // a re-credited encounter, a script firing the same completion twice, or a future
+    // caller that does not know about the first guard.
+    if (status->state == LFG_STATE_FINISHED_DUNGEON)
+    {
+        DEBUG_LOG("LFG HandleBossKilled: group %s already finished; ignoring",
+                  groupGuid.GetString().c_str());
+        return;
+    }
+
     // set each player's lfgstate to LFG_STATE_FINISHED_DUNGEON
     // fetch reward info, and if it's the first dungeon of the day (per player),
     //    give them 2x the xp (or 1x if it's not the first), and the reward item
@@ -1315,6 +1344,16 @@ void LFGMgr::HandleBossKilled(Player* pPlayer)
         if (Player* pGroupPlr = itr->getSource())
         {
             SetPlayerState(pGroupPlr->GetObjectGuid(), LFG_STATE_FINISHED_DUNGEON);
+
+            // Completing the run resolves the random cooldown. Retail treats a finished
+            // dungeon as clearing it -- the restriction exists to pace entry into NEW
+            // random runs, and the player has now actually finished the one they took it
+            // for. Leaving it on would make a clean completion punish the player exactly
+            // as much as walking out at the door.
+            //
+            // Removed rather than left to expire so the group can immediately queue again,
+            // which is the whole point of finishing.
+            pGroupPlr->RemoveAurasDueToSpell(LFG_COOLDOWN_SPELL);
 
             // check if player did a random dungeon
             uint32 randomDungeonId = 0;

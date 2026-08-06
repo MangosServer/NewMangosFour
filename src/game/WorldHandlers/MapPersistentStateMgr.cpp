@@ -430,7 +430,16 @@ void DungeonPersistentState::UpdateEncounterState(EncounterCreditType type, uint
         // direct comparison against an internal mode -- see EncounterDifficultyMatches.
         if (iter->second->creditType == type && EncounterDifficultyMatches(dbcEntry->MapID, dbcEntry->DifficultyID, GetDifficulty()) && dbcEntry->MapID == GetMapId())
         {
-            m_completedEncountersMask |= 1 << dbcEntry->Bit;
+            uint32 const encounterBit = 1 << dbcEntry->Bit;
+            if (m_completedEncountersMask & encounterBit)
+            {
+                // Already credited. Returning here rather than re-applying makes the
+                // whole completion path idempotent: no repeated DB write, and above all
+                // no second LFG completion, which would pay the dungeon's rewards twice.
+                return;
+            }
+
+            m_completedEncountersMask |= encounterBit;
 
             CharacterDatabase.PExecute("UPDATE `instance` SET `encountersMask` = '%u' WHERE `id` = '%u'", m_completedEncountersMask, GetInstanceId());
 

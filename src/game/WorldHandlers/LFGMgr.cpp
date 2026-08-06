@@ -1522,18 +1522,25 @@ void LFGMgr::OnPlayerLeftDungeonGroup(Player* pPlayer)
     }
 
     LFGGroupStatus const* status = GetGroupStatus(pGroup->GetObjectGuid());
-    if (!status || status->madeProgress)
+    if (!status || status->state == LFG_STATE_FINISHED_DUNGEON || status->madeProgress)
     {
-        return;                 // past the protected opening -- leaving is free
+        return;                 // run finished, or past the protected opening
     }
 
-    // Only for someone actually standing in the dungeon. Leaving the group from outside
-    // -- never zoned in, or already ported out -- is not desertion.
-    LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(status->dungeonID);
-    if (!dungeon || pPlayer->GetMapId() != uint32(dungeon->MapID))
-    {
-        return;
-    }
+    // NOT gated on the player's current map.
+    //
+    // It used to require them to be standing on the dungeon's map, which handed out a
+    // free abandon: teleport out through the dropdown -- which is allowed -- then leave
+    // the group, and no Deserter. A player refused the entry teleport (dead, falling, in
+    // a vehicle) was exempt for the same reason while still holding a place in the run.
+    //
+    // Membership of a live finder run is the right test and the server already keeps it:
+    // GROUPTYPE_LFD is set when the finder forms the group, persisted in
+    // `groups`.`groupType`, and never cleared. Where the deserter happens to be standing
+    // when they quit is not the question.
+    //
+    // Accepting a proposal teleports the whole group in immediately, so "in the group but
+    // never zoned in" is not a state a player can choose to sit in anyway.
 
     DEBUG_LOG("LFG: %s left dungeon %u before any encounter was credited -- Deserter",
               pPlayer->GetName(), status->dungeonID);
