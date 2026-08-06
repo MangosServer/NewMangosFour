@@ -579,6 +579,13 @@ void InitializeOpcodes()
     DefC(CMSG_SETSHEATHED, "CMSG_SETSHEATHED", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleSetSheathedOpcode);
     DefC(CMSG_SET_SELECTION, "CMSG_SET_SELECTION", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleSetSelectionOpcode);
     DefC(CMSG_STANDSTATECHANGE, "CMSG_STANDSTATECHANGE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleStandStateChangeOpcode);
+    // The client reporting that it could not build an object we sent a VALUES
+    // update for. Body is a packed GUID; the 18414 writer is the packet class at
+    // off_D65304, whose header virtual sub_690E2A writes 4193 and whose body
+    // virtual sub_694863 emits mask 3,5,6,0,1,2,7,4 then bytes 0,6,5,7,2,1,3,4.
+    // Not present anywhere in the corpus, because a retail server does not
+    // provoke it. Ours does, so it is the only signal naming a broken object.
+    DefC(CMSG_OBJECT_UPDATE_FAILED, "CMSG_OBJECT_UPDATE_FAILED", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleObjectUpdateFailedOpcode);
     DefS(SMSG_STANDSTATE_UPDATE, "SMSG_STANDSTATE_UPDATE");
     DefC(CMSG_ATTACKSWING, "CMSG_ATTACKSWING", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleAttackSwingOpcode);
     // Body recovered from decoded 18414 corpus payloads, not from size

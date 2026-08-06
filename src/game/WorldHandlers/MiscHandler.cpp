@@ -630,6 +630,99 @@ void WorldSession::HandleSetSelectionOpcode(WorldPacket& recv_data)
 }
 
 /**
+ * @brief The client could not build an object we sent an update for.
+ *
+ * This is the client telling us our bookkeeping is wrong: it received a VALUES
+ * update for a GUID it has no object for, so it discarded the block. It keeps
+ * parsing the rest of the packet -- the client's sub_79BC10 walks the update
+ * mask, throws the fields away and returns 1, so the caller does not break out
+ * of the block loop -- but that one object is now permanently broken for that
+ * client, because nothing on our side ever notices and nothing re-sends a
+ * create.
+ *
+ * That is exactly the "out of phase" symptom: UnitInPhase (sub_8A29C1) is not a
+ * phase comparison at all, it is an object-manager lookup, so a party member the
+ * client has no object for is drawn with the phase icon and never rendered.
+ *
+ * Forgetting the GUID here makes the next visibility pass treat the object as
+ * unknown and send a fresh create, which repairs the client without a relog.
+ *
+ * Body from the 18414 writer (packet class off_D65304, header virtual
+ * sub_690E2A writes opcode 4193, body virtual sub_694863): a packed GUID with
+ * mask order 3,5,6,0,1,2,7,4 and byte order 0,6,5,7,2,1,3,4.
+ *
+ * @param recv_data The received opcode packet.
+ */
+void WorldSession::HandleObjectUpdateFailedOpcode(WorldPacket& recv_data)
+{
+    ObjectGuid guid;
+
+    guid[3] = recv_data.ReadBit();
+    guid[5] = recv_data.ReadBit();
+    guid[6] = recv_data.ReadBit();
+    guid[0] = recv_data.ReadBit();
+    guid[1] = recv_data.ReadBit();
+    guid[2] = recv_data.ReadBit();
+    guid[7] = recv_data.ReadBit();
+    guid[4] = recv_data.ReadBit();
+
+    recv_data.ReadByteSeq(guid[0]);
+    recv_data.ReadByteSeq(guid[6]);
+    recv_data.ReadByteSeq(guid[5]);
+    recv_data.ReadByteSeq(guid[7]);
+    recv_data.ReadByteSeq(guid[2]);
+    recv_data.ReadByteSeq(guid[1]);
+    recv_data.ReadByteSeq(guid[3]);
+    recv_data.ReadByteSeq(guid[4]);
+
+    if (!_player)
+    {
+        return;
+    }
+
+    if (guid == _player->GetObjectGuid())
+    {
+        // The client has lost its own player object. Nothing we resend can
+        // rebuild that, so say so loudly rather than pretend a create will fix
+        // it.
+        sLog.outError("HandleObjectUpdateFailedOpcode: %s could not build its OWN object %s",
+                      _player->GetGuidStr().c_str(), guid.GetString().c_str());
+        return;
+    }
+
+    // Drop the stale bookkeeping first, unconditionally. Even if we cannot
+    // repair the object right now, our record that the client has it is known
+    // to be false, and leaving it in place is what makes the breakage
+    // permanent.
+    _player->m_clientGUIDs.erase(guid);
+
+    if (!_player->IsInWorld())
+    {
+        sLog.outError("HandleObjectUpdateFailedOpcode: %s reported a missing object %s while not in world",
+                      _player->GetGuidStr().c_str(), guid.GetString().c_str());
+        return;
+    }
+
+    WorldObject* obj = _player->GetMap()->GetWorldObject(guid);
+    if (!obj)
+    {
+        // The object is gone from our side too, so the client is right to have
+        // no object for it. Erasing the guid above is the whole repair.
+        sLog.outError("HandleObjectUpdateFailedOpcode: %s has no object for %s, and neither do we",
+                      _player->GetGuidStr().c_str(), guid.GetString().c_str());
+        return;
+    }
+
+    sLog.outError("HandleObjectUpdateFailedOpcode: client of %s has no object for %s (%s); resending a create",
+                  _player->GetGuidStr().c_str(), guid.GetString().c_str(), obj->GetName());
+
+    if (obj->SendCreateUpdateToPlayer(_player))
+    {
+        _player->m_clientGUIDs.insert(guid);
+    }
+}
+
+/**
  * @brief Changes the player's stand state animation.
  *
  * @param recv_data The received opcode packet.
@@ -2193,39 +2286,3 @@ void WorldSession::HandleRequestHotfix(WorldPacket& recv_data)
     }
 }
 
-void WorldSession::HandleObjectUpdateFailedOpcode(WorldPacket& recvPacket)
-{
-    ObjectGuid guid;
-
-    guid[2] = recvPacket.ReadBit();
-    guid[3] = recvPacket.ReadBit();
-    guid[5] = recvPacket.ReadBit();
-    guid[0] = recvPacket.ReadBit();
-    guid[4] = recvPacket.ReadBit();
-    guid[7] = recvPacket.ReadBit();
-    guid[6] = recvPacket.ReadBit();
-    guid[1] = recvPacket.ReadBit();
-
-    recvPacket.ReadByteSeq(guid[1]);
-    recvPacket.ReadByteSeq(guid[2]);
-    recvPacket.ReadByteSeq(guid[5]);
-    recvPacket.ReadByteSeq(guid[0]);
-    recvPacket.ReadByteSeq(guid[3]);
-    recvPacket.ReadByteSeq(guid[4]);
-    recvPacket.ReadByteSeq(guid[6]);
-    recvPacket.ReadByteSeq(guid[7]);
-
-
-    DEBUG_LOG("WORLD: Received CMSG_OBJECT_UPDATE_FAILED from %s (%u) guid: %s", GetPlayerName(), GetAccountId(), guid.GetString().c_str());
-    if (_player->IsInWorld())
-    {
-        if (WorldObject* obj = _player->GetMap()->GetWorldObject(guid))
-        {
-            obj->SendCreateUpdateToPlayer(_player);
-        }
-    }
-    else
-    {
-        sLog.outError("WorldSession::HandleObjectUpdateFailedOpcode: received from player not in map");
-    }
-}
