@@ -1639,7 +1639,22 @@ uint32 Group::RemoveMember(ObjectGuid guid, uint8 removeMethod)
         CompleteReadyCheck();
 
     // remove member and change leader (if need) only if strong more 2 members _before_ member remove
-    if (GetMembersCount() > uint32(isBGGroup() ? 1 : 2))    // in BG group case allow 1 members group
+    //
+    // A dungeon finder group is allowed down to ONE member, exactly like a battleground
+    // group. Disbanding it strands the last player: with no group there is no LFG block in
+    // SMSG_GROUP_LIST, so the client loses the minimap eye, "Teleport out of dungeon" and
+    // "Leave Instance Group" -- and they are standing inside an instance with no way out
+    // short of walking or a hearthstone. Observed live twice on 2026-08-06: one player left
+    // a two-man run and the other was left inside with no eyeball at all.
+    //
+    // Keeping the group alive is also what the rest of the feature already assumes.
+    // SMSG_LFG_OFFER_CONTINUE ("a player has left your group, would you like to find
+    // another?") is sent to the REMAINING members from Group::RemoveMember, which is
+    // meaningless if the group it is offering to backfill has just been disbanded.
+    //
+    // The group still dies when the LAST member leaves: at one member this test is 1 > 1,
+    // which is false, so Disband runs as before.
+    if (GetMembersCount() > uint32((isBGGroup() || isLFGGroup()) ? 1 : 2))
     {
         bool leaderChanged = _removeMember(guid);
 
