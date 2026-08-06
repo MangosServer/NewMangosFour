@@ -419,6 +419,15 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         groupInfo.ticketId = AllocateTicketId();
         m_playerData[guid] = groupInfo;
 
+        // Every member's bodies go out under this entry's ticket from now on.
+        for (GroupReference* itr = pGroup->GetFirstMember(); itr != NULL; itr = itr->next())
+        {
+            if (Player* pGroupPlr = itr->getSource())
+            {
+                BeginTicket(pGroupPlr->GetObjectGuid(), groupInfo.ticketId, uint32(groupInfo.joinedTime));
+            }
+        }
+
         for (GroupReference* itr = pGroup->GetFirstMember(); itr != NULL; itr = itr->next())
         {
             if (Player* pGroupPlr = itr->getSource())
@@ -468,6 +477,7 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         playerInfo.candidateDungeons = candidates;
         playerInfo.ticketId = AllocateTicketId();
         m_playerData[guid] = playerInfo;
+        BeginTicket(guid, playerInfo.ticketId, uint32(playerInfo.joinedTime));
 
         // set up a status struct for client requests/updates
         //

@@ -527,22 +527,9 @@ void WorldSession::SendLfgUpdate(bool isGroup, LFGPlayerStatus status)
         }
     }
 
-    // The terminal ends the QUEUE, so the ticket must not survive into the next join --
-    // a stale one would make the new queue's bodies land on the old record.
-    //
-    // But not when the player is on their way INTO a dungeon: accepting a proposal also
-    // sends LFG_UPDATE_LEAVE (they have left the queue, not the session), and the client
-    // then probes with CMSG_LFG_GET_STATUS once it has zoned in. Dropping the ticket at
-    // the accept left that reply with nothing to quote and it went out with ticketId = 0.
-    // Observed at line 28568 of world-packets_2026-08-06_11-04-27: reason 15, ticket 0.
-    // Harmless there only because joined was 0; the same body with joined = 1 would create
-    // a record keyed all-zero that nothing could ever address.
-    if (status.updateType == LFG_UPDATE_LEAVE
-        && status.state != LFG_STATE_IN_DUNGEON
-        && status.state != LFG_STATE_FINISHED_DUNGEON)
-    {
-        sLFGMgr.ForgetTicket(playerGuid);
-    }
+    // NOTHING is forgotten here. The ticket belongs to the queue entry and is replaced by
+    // LFGMgr::BeginTicket when the next entry is built -- see the note there for why
+    // dropping it on a leave body left the client holding records nothing could address.
 
     if (!status.dungeonList.empty())
         update.dungeonCategory = sLFGMgr.GetDungeonCategory(*status.dungeonList.begin());

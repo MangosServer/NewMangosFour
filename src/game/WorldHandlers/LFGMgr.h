@@ -1495,6 +1495,26 @@ public:
 
     void ForgetTicket(ObjectGuid plrGuid) { m_retainedTickets.erase(plrGuid); }
 
+    /// Start a NEW queue for this player: overwrite whatever was retained.
+    ///
+    /// Ticket lifetime is tied to the QUEUE ENTRY, not to any packet. Dropping it when a
+    /// leave body goes out looked right and is not: the accept path also sends
+    /// LFG_UPDATE_LEAVE (the player left the queue, not the session), so the ticket went
+    /// away while the client's record was still live, and every later body -- including
+    /// the ones answering the player's own Leave Queue clicks -- had nothing to quote and
+    /// went out with ticketId = 0. The client cannot file those against any record, so the
+    /// eye stayed lit however many times it was clicked. Observed live at 11:31:09 with
+    /// five such refusals in a row.
+    ///
+    /// Overwriting here is safe precisely because it happens when a new entry is built:
+    /// the old queue is over, and the new one owns the player's records from now on.
+    void BeginTicket(ObjectGuid plrGuid, uint32 id, uint32 time)
+    {
+        RetainedTicket& t = m_retainedTickets[plrGuid];
+        t.id = id;
+        t.time = time;
+    }
+
     /// Role-Related Functions
 
     /**

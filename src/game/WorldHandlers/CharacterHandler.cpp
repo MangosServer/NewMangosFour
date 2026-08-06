@@ -1281,6 +1281,22 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     m_playerLoading = false;
 
+    // The player's OWN auras, now that sends are no longer suppressed.
+    //
+    // SendPacket drops every SMSG_AURA_UPDATE while m_playerLoading is true, on the
+    // stated grounds that "the full post-add snapshot replaces them once the target
+    // exists client-side". There is no such snapshot for yourself: SendAurasForTarget is
+    // reached only when some OTHER unit becomes visible (PlayerVisibility.cpp:260,
+    // GridNotifiers.cpp:145, Player.cpp:4234), never for the logging-in player.
+    //
+    // So every aura restored from character_aura was invisible until something happened
+    // to re-send it. Observed live: Dungeon Deserter kept blocking the finder -- the aura
+    // was in memory and in the database with 29 minutes left -- while the client showed
+    // no debuff and no timer at all, leaving the refusal unexplainable.
+    //
+    // This is not specific to LFG. It affects every timed aura a character logs in with.
+    pCurrChar->SendAurasForTarget(pCurrChar);
+
     // Used by Eluna
 #ifdef ENABLE_ELUNA
     if (Eluna* e = sWorld.GetEluna())
