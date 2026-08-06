@@ -1579,7 +1579,23 @@ protected:
     bool MatchesAreOfSameTeam(LFGPlayers* groupOne, LFGPlayers* groupTwo);
 
     /// Are the players in a proposal already grouped up?
-    bool IsProposalSameGroup(LFGProposal const& proposal);
+    /// Is this a finder group whose run is still live?
+    ///
+    /// GROUPTYPE_LFD is never cleared anywhere, so membership alone also matches a
+    /// finished run whose party stayed together -- hence the state test as well.
+    bool IsLiveLfgRun(Group* pGroup);
+
+    /// The group a proposal must be built INTO, or an empty guid to build a fresh one.
+    ///
+    /// Replaces IsProposalSameGroup, which asked the wrong question: it required EVERY
+    /// member to share one group, so a backfill (a live group plus one solo queuer) always
+    /// answered false and a brand new group was formed -- and with it a brand new instance.
+    /// It was also right to refuse a plain world premade, which this preserves: only a LIVE
+    /// FINDER RUN is continued, never an ordinary party.
+    ///
+    /// outLiveRuns > 1 means the matchmaker merged two live runs, which must not happen:
+    /// every fork treats that as hard-incompatible. Callers refuse rather than pick one.
+    ObjectGuid ResolveContinuingGroup(roleMap const& members, uint32& outLiveRuns);
 
     /// Update a proposal after a player refused to join
     void ProposalDeclined(ObjectGuid guid, LFGProposal* proposal);

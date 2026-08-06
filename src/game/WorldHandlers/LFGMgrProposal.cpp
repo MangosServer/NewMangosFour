@@ -314,7 +314,53 @@ void LFGMgr::SendDungeonProposal(ObjectGuid queueGuid, LFGPlayers* lfgGroup)
                   avail.str().c_str(), newProposal.dungeonID, GetDungeonEntry(newProposal.dungeonID));
     }
 
-    bool premadeGroup = IsProposalSameGroup(newProposal);
+    // Is this proposal CONTINUING an existing run, or forming a new group?
+    //
+    // A backfill is not a distinct protocol -- the client answers the offer with an
+    // ordinary CMSG_LFG_JOIN carrying the same dungeon slot -- so "this is a backfill" is
+    // server-side state only: one of the members belongs to a finder group whose run is
+    // still live.
+    uint32 liveRuns = 0;
+    ObjectGuid const continueGuid = ResolveContinuingGroup(lfgGroup->currentRoles, liveRuns);
+    if (liveRuns > 1)
+    {
+        // Two live runs in one proposal has no sane resolution -- whichever group were
+        // reused, the other's players would be torn out of a dungeon they are standing in.
+        // Every fork treats this as hard-incompatible; RoleMapsAreCompatible now refuses
+        // the merge, so reaching here means something upstream slipped.
+        sLog.outError("LFG SendDungeonProposal: %u live LFG runs in one proposal; refusing. "
+                      "The queue entry is left intact.", liveRuns);
+        return;
+    }
+
+    bool const continuing = !continueGuid.IsEmpty();
+    Group* continueGroup = continuing ? sObjectMgr.GetGroupById(continueGuid.GetCounter()) : NULL;
+    if (continuing && !continueGroup)
+    {
+        sLog.outError("LFG SendDungeonProposal: continuing group %s vanished; refusing.",
+                      continueGuid.GetString().c_str());
+        return;
+    }
+
+    if (continuing)
+    {
+        // PIN the dungeon to the one the group is standing in. Without this a random
+        // category re-rolls PickConcreteDungeon and proposes a DIFFERENT dungeon from the
+        // one the run is in -- the fork-unanimous isContinue pin.
+        if (LFGGroupStatus const* runStatus = GetGroupStatus(continueGuid))
+        {
+            newProposal.concreteDungeonID = runStatus->dungeonID;
+        }
+
+        // Set ONCE, from the resolved group -- not from whichever member happens to carry
+        // the leader role bit.
+        newProposal.groupRawGuid = continueGuid.GetRawValue();
+        newProposal.groupLeaderGuid = continueGroup->GetLeaderGuid().GetRawValue();
+    }
+
+    // isNew drives SendLfgProposalUpdate's `silent` and `inProposedGroup` flags
+    // (LFGHandler.cpp:684-685, :708-709), which were dead while this was hardcoded true.
+    newProposal.isNew = !continuing;
 
     // iterate through role map just so get everyone's guid
     for (roleMap::iterator it = lfgGroup->currentRoles.begin(); it != lfgGroup->currentRoles.end(); ++it)
@@ -334,17 +380,22 @@ void LFGMgr::SendDungeonProposal(ObjectGuid queueGuid, LFGPlayers* lfgGroup)
 
             SetPlayerUpdateType(plrGuid, LFG_UPDATE_PROPOSAL_BEGIN);
 
-            if (premadeGroup && pGroup->IsLeader(plrGuid))
-            {
-                newProposal.groupLeaderGuid = plrGuid.GetRawValue();
-            }
-
-            if (premadeGroup && !newProposal.groupRawGuid)
-            {
-                newProposal.groupRawGuid = grpGuid.GetRawValue();
-            }
-
+            // groupRawGuid / groupLeaderGuid are set ONCE above, from the resolved
+            // continuing group. They used to be filled in here from whichever member
+            // happened to carry the leader bit, which for a mixed proposal is arbitrary.
             newProposal.groups[plrGuid] = grpGuid;
+
+            // AUTO-ACCEPT the players already in the continuing run.
+            //
+            // This is mandatory, not a courtesy. With isNew = false, SendLfgProposalUpdate
+            // marks their proposal `silent` -- they get NO window to answer it. Leaving
+            // them PENDING would time the proposal out at 45 s every single time and turn
+            // a broken feature into a total one. They are already in the dungeon; they are
+            // not being asked anything.
+            if (continuing && grpGuid == continueGuid)
+            {
+                newProposal.answers[plrGuid] = LFG_ANSWER_AGREE;
+            }
 
             SendLfgUpdate(plrGuid, GetPlayerStatus(plrGuid), true);
         }
@@ -377,86 +428,54 @@ void LFGMgr::SendDungeonProposal(ObjectGuid queueGuid, LFGPlayers* lfgGroup)
         }
     }
 
-    // then if group guid is set, call Group::SetAsLfgGroup()
-    if (premadeGroup)
-    {
-        Player* pGroupLeader = sObjectAccessor.FindPlayer(ObjectGuid(newProposal.groupLeaderGuid));
-
-        if (pGroupLeader)
-        {
-            Group* pGroup = pGroupLeader->GetGroup();
-            if (pGroup)
-            {
-                pGroup->SetAsLfgGroup();
-            }
-            else
-            {
-                // Log an error: group not found for group leader
-                // In the future, we should determine the right actions for this scenario.
-            }
-        }
-        else
-        {
-            // Log an error: group leader not found
-            // In the future, we should determine the right actions for this scenario.
-        }
-    }
+    // No SetAsLfgGroup here.
+    //
+    // It existed to mark a PREMADE that was about to become a finder group. A continuing
+    // run is already flagged -- GROUPTYPE_LFD is set when the finder first formed it and
+    // is never cleared -- and a brand new group is flagged by CreateDungeonGroup when it
+    // builds one. Marking a plain world premade here was the behaviour that made an
+    // ordinary party start reporting itself as a dungeon-finder group.
 
     // also save the proposal
     m_proposalMap[newProposal.id] = newProposal;
 }
 
-bool LFGMgr::IsProposalSameGroup(LFGProposal const& proposal)
+bool LFGMgr::IsLiveLfgRun(Group* pGroup)
 {
-    // True only when EVERY member is in the SAME existing group.
-    //
-    // This used to skip ungrouped players entirely, so a two-man party matched with
-    // three solo queuers returned true -- the proposal was then treated as a premade
-    // and CreateDungeonGroup reused the party's group without ever adding the solos.
-    // It also returned true when nobody was grouped at all, because isSameGroup started
-    // true and had no way to become false.
-    bool firstLoop = true;
-    bool isSameGroup = true;
-    bool anyGrouped = false;
-
-    ObjectGuid priorGroupGuid;
-
-    // when this is called we don't have the groups part filled, so iterate via role map
-    for (roleMap::const_iterator it = proposal.currentRoles.begin(); it != proposal.currentRoles.end(); ++it)
+    if (!pGroup || !pGroup->isLFGGroup())
     {
-        ObjectGuid plrGuid = it->first;
+        return false;
+    }
 
-        Player* pPlayer = sObjectAccessor.FindPlayer(plrGuid);
-        // A queued player who logged out, or who is mid-teleport, is not found.
-        // This runs BEFORE the offline-skip loop in SendDungeonProposal, so one
-        // absent member would crash the whole proposal.
+    LFGGroupStatus const* status = GetGroupStatus(pGroup->GetObjectGuid());
+    return status && status->state != LFG_STATE_FINISHED_DUNGEON;
+}
+
+ObjectGuid LFGMgr::ResolveContinuingGroup(roleMap const& members, uint32& outLiveRuns)
+{
+    std::set<ObjectGuid> runs;
+
+    for (roleMap::const_iterator it = members.begin(); it != members.end(); ++it)
+    {
+        Player* pPlayer = sObjectAccessor.FindPlayer(it->first);
         if (!pPlayer)
         {
-            continue;
+            continue;       // logged out or mid-teleport; the caller skips them too
         }
 
-        Group* pGroup = pPlayer->GetGroup();
-        if (!pGroup)
+        if (Group* pGroup = pPlayer->GetGroup())
         {
-            return false;   // an ungrouped member means this is not one existing group
-        }
-
-        anyGrouped = true;
-        ObjectGuid grpGuid = pGroup->GetObjectGuid();
-
-        if (firstLoop)
-        {
-            priorGroupGuid = grpGuid;
-            firstLoop = false;
-        }
-        else if (grpGuid != priorGroupGuid)
-        {
-            isSameGroup = false;
+            if (IsLiveLfgRun(pGroup))
+            {
+                runs.insert(pGroup->GetObjectGuid());
+            }
         }
     }
 
-    return anyGrouped && isSameGroup;
+    outLiveRuns = uint32(runs.size());
+    return runs.size() == 1 ? *runs.begin() : ObjectGuid();
 }
+
 
 // From a CMSG_LFG_PROPOSAL_RESPONSE call
 /// A decline cancels the proposal, but it does NOT eject everyone.
@@ -726,34 +745,31 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
 
     if (proposal->groupRawGuid)
     {
-        // Reuse the premade group the proposal was built around.
-        Player* pGroupLeader = sObjectAccessor.FindPlayer(ObjectGuid(proposal->groupLeaderGuid));
-        if (pGroupLeader)
-        {
-            pGroup = pGroupLeader->GetGroup();
-        }
+        // Resolve by GROUP ID, not through the stored leader.
+        //
+        // The leader may have logged out, been promoted away, or left in the 45 seconds a
+        // proposal can sit open, and proposal->groups is a snapshot taken when it was
+        // built -- both are stale by the time anyone accepts. The group id is not.
+        pGroup = sObjectMgr.GetGroupById(ObjectGuid(proposal->groupRawGuid).GetCounter());
 
-        // The stored leader may have logged out between proposal and acceptance. Fall
-        // back to any online member still in that same group.
-        if (!pGroup)
+        // VALIDATE, then DOWNGRADE -- never refuse here.
+        //
+        // By the time this runs, ProposalUpdate has already told every member the group
+        // was found and dequeued them. Refusing now would leave them holding that message
+        // with nothing behind it, and CancelProposal with an empty culprit set requeues
+        // the entry unchanged and re-proposes forever.
+        //
+        // Downgrading is safe in every case it can fire: if the group disbanded there is
+        // nothing left to continue, and if it finished its dungeon then forming a fresh
+        // group for these players is exactly right.
+        if (!IsLiveLfgRun(pGroup))
         {
-            for (playerGroupMap::const_iterator it = proposal->groups.begin();
-                 it != proposal->groups.end(); ++it)
-            {
-                if (it->second.GetRawValue() != proposal->groupRawGuid)
-                {
-                    continue;
-                }
-
-                if (Player* pMember = sObjectAccessor.FindPlayer(it->first))
-                {
-                    pGroup = pMember->GetGroup();
-                    if (pGroup)
-                    {
-                        break;
-                    }
-                }
-            }
+            DEBUG_LOG("LFG CreateDungeonGroup: continuing group %s is gone or finished; "
+                      "forming a new group instead",
+                      ObjectGuid(proposal->groupRawGuid).GetString().c_str());
+            pGroup = nullptr;
+            proposal->groupRawGuid = 0;
+            proposal->groupLeaderGuid = 0;
         }
     }
 
@@ -938,8 +954,27 @@ void LFGMgr::CreateDungeonGroup(LFGProposal* proposal)
         }
     }
 
-    m_groupSet.insert(groupGuid);
-    m_groupStatusMap[groupGuid] = groupStatus;
+    if (proposal->groupRawGuid && GetGroupStatus(groupGuid))
+    {
+        // CONTINUING a live run: merge the roster in, leave the run itself alone.
+        //
+        // Replacing wholesale would reset state, dungeonID and madeProgress on a group
+        // that is mid-dungeon -- putting it back inside its protected opening, so anyone
+        // leaving would take Deserter for a run whose first boss was long dead, and
+        // repointing dungeonID at whatever the proposal happened to carry.
+        LFGGroupStatus* live = GetGroupStatus(groupGuid);
+        for (roleMap::const_iterator it = proposal->currentRoles.begin();
+             it != proposal->currentRoles.end(); ++it)
+        {
+            live->playerRoles[it->first] = it->second;
+        }
+        live->leaderGuid = pGroup->GetLeaderGuid();
+    }
+    else
+    {
+        m_groupSet.insert(groupGuid);
+        m_groupStatusMap[groupGuid] = groupStatus;
+    }
 
     TeleportToDungeon(dungeon->ID, pGroup);
 

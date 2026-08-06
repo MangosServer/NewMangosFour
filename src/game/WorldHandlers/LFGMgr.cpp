@@ -1229,6 +1229,23 @@ bool LFGMgr::RoleMapsAreCompatible(LFGPlayers* groupOne, LFGPlayers* groupTwo,
         return false;
     }
 
+    // At most ONE live finder run per proposal.
+    //
+    // Merging two in-progress runs has no sane resolution: whichever group were continued,
+    // the other's players would be torn out of a dungeon they are standing in and their
+    // instance abandoned. Every fork treats this as hard-incompatible -- SkyFire
+    // LFGQueue.cpp:355-360, CPP :478-483, PandariaCore :382-386, all named
+    // LFG_INCOMPATIBLES_MULTIPLE_LFG_GROUPS.
+    //
+    // Checked BEFORE the debug early-out on purpose: a `.debug dungeon` merge must not be
+    // able to build a proposal the normal path refuses.
+    uint32 liveRuns = 0;
+    ResolveContinuingGroup(combined, liveRuns);
+    if (liveRuns > 1)
+    {
+        return false;
+    }
+
     if (debugMerge)
     {
         return true;
