@@ -1325,8 +1325,25 @@ enum GroupUpdateFlags
         GROUP_UPDATE_FLAG_ZONE |
         GROUP_UPDATE_FLAG_POSITION |
         GROUP_UPDATE_FLAG_AURAS |
-        GROUP_UPDATE_FLAG_VEHICLE_SEAT |
-        GROUP_UPDATE_FLAG_PHASE,
+        GROUP_UPDATE_FLAG_VEHICLE_SEAT,
+        // GROUP_UPDATE_FLAG_PHASE is deliberately NOT advertised.
+        //
+        // The writer for it is a stub: it emits a hardcoded `uint32(8)` and an EMPTY phase
+        // list, every time, for every player, regardless of their actual phase. The client
+        // reads that as "this member shares no phases with you", so
+        // PartyMemberFrame_UpdateNotPresentIcon takes its `not UnitInPhase(partyID)` branch
+        // and paints the phasing icon over a party member standing right next to you.
+        //
+        // Because the stats packet is built per member per recipient, the icon appeared on
+        // different members on different clients. Observed live 2026-08-06 21:16 with a
+        // five-man group all inside instance 2 of Wailing Caverns, whose SMSG_GROUP_LIST
+        // was byte-identical (121 bytes) on all five sessions -- so the roster agreed and
+        // only the phase claim did not.
+        //
+        // Sending nothing is both truthful and safer: with the flag clear the client keeps
+        // its default, which is in-phase. Restore this the day the core actually models
+        // phases and the writer reports a real phase mask; the writer itself is left in
+        // place for exactly that.
 };
 
 class Roll : public LootValidatorRef
