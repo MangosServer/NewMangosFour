@@ -63,6 +63,7 @@
 #include "CinematicFlyover.h"
 #include "GuildMgr.h"
 #include "ObjectMgr.h"
+#include "LFGMgr.h"
 #include "WorldSession.h"
 #include "Auth/BigNumber.h"
 #include "Auth/Sha1.h"
@@ -951,6 +952,35 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
         // now we can resurrect player, and then check teleport requirements
         player->ResurrectPlayer(0.5f);
         player->SpawnCorpseBones();
+    }
+
+    // Leaving a dungeon finder run on foot returns the player to where they QUEUED, not to
+    // the dungeon's doorstep -- but only while they are still in the group.
+    //
+    // The rule is conditioned on group membership rather than on how the player leaves:
+    //   still in the LFD group and you exit  -> back to where you started
+    //   left or were kicked, then you exit   -> dropped outside the entrance
+    //
+    // Source is developer testimony from the getMangos community (2026-08-06) rather than a
+    // capture: the corpus contains no build-18414 episode of an on-foot exit from an LFG
+    // instance, so this cannot be settled from the wire. It is consistent with what IS
+    // proven, which is the same rule reached the other way -- in capture-000044 the
+    // CMSG_LFG_TELEPORT exits land on the player's pre-queue position on a DIFFERENT
+    // continent from the dungeon (map 974 Timeless Isle, while The Slave Pens' own entrance
+    // is map 530), and two exits in the same run are byte-identical while different queue
+    // episodes differ. Both paths returning to one recorded point is the coherent reading.
+    //
+    // It also matches what was observed live on 2026-08-06 20:12:07: two players walked out
+    // of Shadowfang Keep to the trigger's fixed target after their group had already
+    // disbanded, which is exactly the second branch.
+    //
+    // IsPlayerInLfgDungeon covers the whole condition -- it requires an LFG group, a live
+    // group status, and the player actually standing on that run's map -- so a player who
+    // has left the group, or whose run has ended, falls through to the ordinary trigger.
+    if (targetMapEntry->ID != player->GetMapId() && sLFGMgr.IsPlayerInLfgDungeon(player))
+    {
+        player->TeleportToBGEntryPoint();
+        return;
     }
 
     // teleport player (trigger requirement will be checked on TeleportTo)
