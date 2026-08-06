@@ -490,41 +490,45 @@ void LFGMgr::LeaveLFG(Player* plr, bool isGroup)
                 ObjectGuid grpPlrGuid = pGroupPlr->GetObjectGuid();
 
                 LFGPlayerStatus grpPlrStatus = GetPlayerStatus(grpPlrGuid);
-                switch (grpPlrStatus.state)
+
+                if (grpPlrStatus.state == LFG_STATE_ROLECHECK)
                 {
-                    // IN_DUNGEON and FINISHED_DUNGEON are handled with the queue states,
-                    // and leaving them out is what made "Leave Dungeon" do nothing at all.
-                    // Once the finder has placed a player their state is IN_DUNGEON, so a
-                    // leave fell through this switch, sent the client nothing, and left the
-                    // player believing they were still in an LFG session -- with no way out
-                    // short of relogging. Observed live: two CMSG_LFG_LEAVE with no effect.
-                    case LFG_STATE_IN_DUNGEON:
-                    case LFG_STATE_FINISHED_DUNGEON:
-                    case LFG_STATE_PROPOSAL:
-                    case LFG_STATE_QUEUED:
-                        // Retail answers a queue leave with TWO status packets, in
-                        // this order, both still carrying the dungeon list:
-                        //   reason 14, then reason 8 as the terminal
-                        // 26 of 28 observed leaves produce the pair (capture-000044 seq
-                        // 47667 -> 47701/47702, capture-000086 seq 1339 -> 1340/1341,
-                        // capture-000133, capture-000326, capture-000720). We sent only
-                        // the terminal, and the client left the queue on screen.
-                        //
-                        // LFG_UPDATE_PROPOSAL_BEGIN is simply the enumerator for wire
-                        // reason 14; the name is inherited and does not describe this
-                        // use. Our flag logic already yields retail's tuples for both:
-                        // 14 -> joined 1 / queued 0, 8 -> joined 0 / queued 0.
+                    // A role check in progress is aborted rather than answered with a
+                    // leave; PerformRoleCheck tells everyone and tears the check down.
+                    PerformRoleCheck(NULL, pGroup, 0);
+                }
+                else
+                {
+                    // ALWAYS answer, whatever state is recorded.
+                    //
+                    // This was a switch over four states with no default, so any other
+                    // state -- above all LFG_STATE_NONE, which is what a player holds
+                    // after declining a proposal -- fell through and sent the client
+                    // NOTHING. Observed live in an isolated repro: press I, accept the
+                    // backfill, decline the proposal, then click Leave Queue fourteen
+                    // times and receive not one packet in reply, because a player who is
+                    // in an LFG party takes this branch rather than the solo one.
+                    //
+                    // The solo path already always answers. The two must not disagree:
+                    // which branch runs depends only on whether the player happens to be
+                    // grouped, which is not something the client can reason about when it
+                    // asks to leave.
+                    //
+                    // Retail's pair is reason 14 then reason 8, but 14 carries joined = 1
+                    // and the client files a status body by category, derived from the
+                    // dungeon list -- so with an empty list it is only safe to send the
+                    // terminal. 0 of 5291 retail bodies carry an empty dungeon list.
+                    if (!grpPlrStatus.dungeonList.empty())
+                    {
                         grpPlrStatus.updateType = LFG_UPDATE_PROPOSAL_BEGIN;
                         SendLfgUpdate(grpPlrGuid, grpPlrStatus, true);
+                    }
 
-                        grpPlrStatus.updateType = LFG_UPDATE_LEAVE;
-                        grpPlrStatus.state = LFG_STATE_NONE;
-                        SendLfgUpdate(grpPlrGuid, grpPlrStatus, true);
-                        break;
-                    case LFG_STATE_ROLECHECK:
-                        PerformRoleCheck(NULL, pGroup, 0);
-                        break;
-                    //todo: other state cases after they get implemented
+                    grpPlrStatus.updateType = LFG_UPDATE_LEAVE;
+                    grpPlrStatus.state = LFG_STATE_NONE;
+                    SendLfgUpdate(grpPlrGuid, grpPlrStatus, true);
+
+                    SetPlayerState(grpPlrGuid, LFG_STATE_NONE);
                 }
 
                 // Same hazard as the solo path: a party member may be listed in an
