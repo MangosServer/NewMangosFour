@@ -987,9 +987,24 @@ void LFGMgr::CancelProposal(uint32 proposalId, std::set<ObjectGuid> const& culpr
             entry->currentRoles.erase(*bad);
         }
 
+        // isGroup derived from how this member was ANNOUNCED, not hardcoded false.
+        //
+        // The client files each status body under the whole 20-byte RideTicket, and
+        // SendLfgUpdate picks requesterGuid from this flag. A party-owned queue announced
+        // its opening bodies group-keyed (reason 24 at LFGMgrQueue.cpp, reason 14 at
+        // SendDungeonProposal), so closing with false carried a DIFFERENT ticket: the
+        // client created a second record and left the first at joined = 1, queued = 0,
+        // which UIParent.lua:3932 reports as "suspended" -- the eye stuck until relog.
+        // This is the mainline path for an ordinary decline.
+        //
+        // proposal.groups records exactly how each member was announced, so it is the
+        // authority here.
+        playerGroupMap::const_iterator badGroup = proposal.groups.find(*bad);
+        bool const badWasGroupKeyed = badGroup != proposal.groups.end() && badGroup->second;
+
         SetPlayerState(*bad, LFG_STATE_NONE);
         SetPlayerUpdateType(*bad, LFG_UPDATE_LEAVE);
-        SendLfgUpdate(*bad, GetPlayerStatus(*bad), false);
+        SendLfgUpdate(*bad, GetPlayerStatus(*bad), badWasGroupKeyed);
 
         m_playerStatusMap.erase(*bad);
 
@@ -1016,9 +1031,33 @@ void LFGMgr::CancelProposal(uint32 proposalId, std::set<ObjectGuid> const& culpr
     for (roleMap::const_iterator role = entry->currentRoles.begin();
          role != entry->currentRoles.end(); ++role)
     {
+        playerGroupMap::const_iterator roleGroup = proposal.groups.find(role->first);
+        bool const roleWasGroupKeyed = roleGroup != proposal.groups.end() && roleGroup->second;
+
         SetPlayerState(role->first, LFG_STATE_QUEUED);
         SetPlayerUpdateType(role->first, LFG_UPDATE_ADDED_TO_QUEUE);
-        SendLfgUpdate(role->first, GetPlayerStatus(role->first), false);
+        SendLfgUpdate(role->first, GetPlayerStatus(role->first), roleWasGroupKeyed);
+    }
+
+    // Anyone in the proposal who was neither blamed nor requeued still has an open
+    // reason-14 record. Without a closing body it sits at joined = 1, queued = 0 and the
+    // eye stays lit. Reachable whenever `entry` no longer lists them -- a merged queuer
+    // whose entry was folded away, or a member removed by the group branch of LeaveLFG.
+    for (proposalAnswerMap::const_iterator ans = proposal.answers.begin();
+         ans != proposal.answers.end(); ++ans)
+    {
+        if (culprits.find(ans->first) != culprits.end() ||
+            entry->currentRoles.find(ans->first) != entry->currentRoles.end())
+        {
+            continue;                   // already closed out or requeued above
+        }
+
+        playerGroupMap::const_iterator ansGroup = proposal.groups.find(ans->first);
+        bool const ansWasGroupKeyed = ansGroup != proposal.groups.end() && ansGroup->second;
+
+        SetPlayerState(ans->first, LFG_STATE_NONE);
+        SetPlayerUpdateType(ans->first, LFG_UPDATE_LEAVE);
+        SendLfgUpdate(ans->first, GetPlayerStatus(ans->first), ansWasGroupKeyed);
     }
 
     m_queueSet.insert(proposal.queueGuid);

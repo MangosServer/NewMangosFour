@@ -528,6 +528,29 @@ void LFGMgr::LeaveLFG(Player* plr, bool isGroup)
         Group* pGroup = plr->GetGroup();
         ObjectGuid grpGuid = pGroup->GetObjectGuid();
 
+        // Tear down a live proposal for ANY member before touching the queue entry.
+        //
+        // The solo branch has always done this; the group branch never did, and the queue
+        // entry is erased at the end of it -- so when the 45-second reaper finally fired,
+        // CancelProposal found a null entry and told the survivors nothing at all. Until
+        // then every member of the departing party was refused re-queue with
+        // ERR_LFG_NO_LFG_OBJECT, because JoinLFG checks HasLiveProposalFor first.
+        //
+        // Cancelling here also closes each member's status record under the key it was
+        // announced with, which is what stops the minimap eye surviving the leave.
+        bool cancelledAProposal = false;
+        for (GroupReference* itr = pGroup->GetFirstMember(); itr != NULL; itr = itr->next())
+        {
+            if (Player* pGroupPlr = itr->getSource())
+            {
+                if (HasLiveProposalFor(pGroupPlr->GetObjectGuid()))
+                {
+                    CancelProposalsFor(pGroupPlr->GetObjectGuid());
+                    cancelledAProposal = true;
+                }
+            }
+        }
+
         for (GroupReference* itr = pGroup->GetFirstMember(); itr != NULL; itr = itr->next())
         {
             if (Player* pGroupPlr = itr->getSource())
@@ -536,7 +559,13 @@ void LFGMgr::LeaveLFG(Player* plr, bool isGroup)
 
                 LFGPlayerStatus grpPlrStatus = GetPlayerStatus(grpPlrGuid);
 
-                if (grpPlrStatus.state == LFG_STATE_ROLECHECK)
+                if (cancelledAProposal)
+                {
+                    // CancelProposal already sent this member a properly keyed LEAVE.
+                    // A second one here would be a duplicate, and the queue removal below
+                    // still has to happen, so only the announce is skipped.
+                }
+                else if (grpPlrStatus.state == LFG_STATE_ROLECHECK)
                 {
                     // A role check in progress is aborted rather than answered with a
                     // leave; PerformRoleCheck tells everyone and tears the check down.
