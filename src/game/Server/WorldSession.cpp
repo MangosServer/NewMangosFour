@@ -1204,8 +1204,29 @@ void WorldSession::LogoutPlayer(bool Save)
         _player->UninviteFromGroup();
 #ifndef ENABLE_PLAYERBOTS
         // remove player from the group if he is:
-        // a) in group; b) not in raid group; c) logging out normally (not being kicked or disconnected)
-        if (_player->GetGroup() && !_player->GetGroup()->isRaidGroup() && m_Socket)
+        // a) in group; b) not in raid group; c) not in a dungeon finder group;
+        // d) logging out normally (not being kicked or disconnected)
+        //
+        // Dungeon finder groups are exempt for the same reason raids are: the group is the
+        // run. Dropping a member on logout loses the group, and with it the group's instance
+        // bind -- so the player comes back to a BRAND NEW instance of the same dungeon, with
+        // no group, standing inside an instance nobody else is in.
+        //
+        // Observed live 2026-08-06: five characters idled to the character screen between
+        // 21:58:56 and 22:01:21, each sending a normal CMSG_LOGOUT_REQUEST. Each logout
+        // stripped that member, leadership walking down the line, until `group_member` held
+        // only guid 8 -- the last to leave. Returning put them in instance 3 of Wailing
+        // Caverns where they had left instance 2.
+        //
+        // The m_Socket term is why this went unnoticed: a hard disconnect (alt-F4) leaves no
+        // socket and skips the branch entirely, so relogging that way kept the group and
+        // looked correct. Only a GRACEFUL logout destroyed it.
+        //
+        // This also makes restart restoration meaningful. There is no point rebuilding a
+        // run's LFG status at group load if one member quitting to the character screen
+        // dissolves the group it was rebuilt for.
+        if (_player->GetGroup() && !_player->GetGroup()->isRaidGroup() &&
+            !_player->GetGroup()->isLFGGroup() && m_Socket)
         {
             _player->RemoveFromGroup();
         }
