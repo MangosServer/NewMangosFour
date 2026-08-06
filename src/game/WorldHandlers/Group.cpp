@@ -2620,7 +2620,22 @@ void Group::SendUpdateToPlayer(ObjectGuid guid)
     update.hasLootMode = true;
     update.lootMethod = uint8(m_lootMethod);
     update.lootThreshold = uint8(m_lootThreshold);
-    update.isLfg = isLFGGroup();
+    // isLfg only when we can actually name the dungeon.
+    //
+    // GROUPTYPE_LFD is one-way: SetAsLfgGroup only ORs it in, it is set at PROPOSAL
+    // CREATION -- before anyone has answered -- and nothing in the tree ever clears it.
+    // So a declined or expired proposal leaves an ordinary party flagged for the rest of
+    // its life, and every SendUpdate then advertised an LFG block whose dungeon slot
+    // resolved through a group status that no longer exists, i.e. isLfg = 1 with A = 0.
+    //
+    // That is the state the note below calls worse than sending no block at all: the
+    // client copies it, party+232 becomes 0, and IsPartyLFG() goes false -- while the
+    // party keeps claiming to be a finder group in every other respect.
+    //
+    // Gating on the entry rather than clearing the flag: the flag is also what
+    // Group::Disband keys its LFG status release on, and what marks the party for the
+    // cooldown waiver, so clearing it would cost more than it fixes.
+    update.isLfg = isLFGGroup() && sLFGMgr.GetGroupDungeonEntry(GetObjectGuid()) != 0;
     if (update.isLfg)
     {
         // The LFG block has TWO dungeon slots and they are not interchangeable.
