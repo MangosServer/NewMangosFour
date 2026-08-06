@@ -964,24 +964,51 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
     // cooldown below.
     LFGGroupStatus const* runStatus = GetGroupStatus(pGroup->GetObjectGuid());
 
-    // ALWAYS the entrance trigger -- never a group member's position.
+    // Prefer a group member already INSIDE the dungeon; entrance trigger otherwise.
     //
-    // This used to drop a joining player on the group leader if the leader was already
-    // inside. Retail does not do that. Every SMSG_NEW_WORLD arrival into an instanced map
-    // in the build-18414 corpus lands on ONE fixed coordinate per map, repeated across
-    // different captures, sessions and players:
+    // A previous commit here replaced this with an unconditional entrance trigger, arguing
+    // that every instanced SMSG_NEW_WORLD arrival in the corpus lands on one fixed
+    // coordinate per map. That argument does not hold and the change is withdrawn:
     //
-    //   map 959  (3657.3, 2551.9, 767.0)   captures 000059, 000326, 000656, 000913, 000476
-    //   map 994  (-3969.7, -2542.7, 26.8)  captures 000059, 000326, 000656
-    //   map 1004 (1124.6, 512.5, 1.0)      captures 000059, 000326, 000656, 000887, 000476
-    //   map 547  (122.4, -123.6, -0.3)     captures 000044, 000187
+    //   - The rule being tested is "entrance UNLESS a member is already on the map". For
+    //     every ordinary run nobody is inside yet, so it REDUCES to the entrance trigger.
+    //     A fixed per-map coordinate is therefore what BOTH readings predict, and the
+    //     observation cannot separate them.
+    //   - The check was said to be made in the ten captures carrying a backfill offer. A
+    //     capture containing SMSG_LFG_OFFER_CONTINUE is a REMAINING member's session --
+    //     that client is already inside and receives no SMSG_NEW_WORLD for the newcomer's
+    //     arrival at all. Those captures cannot hold the observation claimed from them.
     //
-    // A fixed per-map point that never varies is an entrance trigger. Teleporting to a
-    // member would scatter arrivals by however deep the group had pushed, and no instanced
-    // map in the corpus shows any scatter at all -- only open-world maps (0, 1, 530, 571,
-    // 870) do, which is hearthstones and portals. This was checked specifically in the ten
-    // captures that contain a backfill offer, since that is the case where the leader IS
-    // inside and the old code would have diverged.
+    // Against it: Warcraft Wiki states replacements appear at the location of the players
+    // already inside, and PandariaCore (LFGMgr.cpp:2117-2150, leader then any member) and
+    // Legends-of-Azeroth implement exactly that. SkyFire's copy is dead code -- its loop
+    // condition `itr != NULL && !mapid` never fires because mapid is pre-set.
+    //
+    // Leader first, then any member on the map, entrance last. This is a no-op for a
+    // normal run and does not affect WHICH instance is used -- the group bind decides that.
+    Player* teleportTo = sObjectAccessor.FindPlayer(pGroup->GetLeaderGuid());
+    if (!teleportTo || teleportTo->GetMapId() != mapID)
+    {
+        teleportTo = NULL;
+        for (GroupReference* itr = pGroup->GetFirstMember(); itr != NULL; itr = itr->next())
+        {
+            Player* pMember = itr->getSource();
+            if (pMember && pMember->GetMapId() == mapID)
+            {
+                teleportTo = pMember;
+                break;
+            }
+        }
+    }
+
+    if (teleportTo)
+    {
+        x = teleportTo->GetPositionX();
+        y = teleportTo->GetPositionY();
+        z = teleportTo->GetPositionZ();
+        o = teleportTo->GetOrientation();
+    }
+    else
     {
         if (AreaTrigger const* at = sObjectMgr.GetMapEntranceTrigger(mapID))
         {
