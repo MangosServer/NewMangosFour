@@ -53,6 +53,7 @@
 #include "Player.h"
 #include "SpellAuras.h"
 #include "Group.h"
+#include "LFGMgr.h"
 #include "SocialMgr.h"
 #include "Util.h"
 #include "DB2Structure.h"
@@ -471,9 +472,18 @@ void WorldSession::HandleGroupSetLeaderOpcode(WorldPacket& recv_data)
  *
  * @param recv_data The received opcode packet.
  */
-void WorldSession::HandleGroupDisbandOpcode(WorldPacket& /*recv_data*/)
+void WorldSession::HandleGroupDisbandOpcode(WorldPacket& recv_data)
 {
-    if (!GetPlayer()->GetGroup())
+    // One byte, observed 0x7F. It carries no authority -- the server acts on the caller --
+    // but it must be consumed or the dispatcher logs "unprocessed tail data" on every
+    // Leave Instance Group click.
+    if (recv_data.size() - recv_data.rpos() >= 1)
+    {
+        recv_data.read_skip<uint8>();
+    }
+
+    Group* pGroup = GetPlayer()->GetGroup();
+    if (!pGroup)
     {
         return;
     }
@@ -486,6 +496,23 @@ void WorldSession::HandleGroupDisbandOpcode(WorldPacket& /*recv_data*/)
 
     /** error handling **/
     /********************/
+
+    // Leaving an LFG group from INSIDE its dungeon has to put the player back where
+    // they came from. Retail answers the disband with SMSG_GROUP_LIST (the 40-byte
+    // no-group form), SMSG_TRANSFER_PENDING (mapId 0) and SMSG_NEW_WORLD
+    // (capture-000720 seq 46746, capture-000656 seq 191821).
+    //
+    // Without this the player simply stood in the instance, group gone, and was only
+    // collected 60 seconds later by the homebind timer that fires when the instance
+    // stops being valid for them. Observed live: "leave dungeon did not relocate me".
+    //
+    // Must run BEFORE RemoveFromGroup -- TeleportPlayer resolves the dungeon through the
+    // group's LFG status, which is gone once the group is. It is a no-op unless the
+    // player is actually standing on the dungeon's map.
+    if (pGroup->isLFGGroup())
+    {
+        sLFGMgr.TeleportPlayer(GetPlayer(), true);
+    }
 
     // everything is fine, do it
     SendPartyResult(PARTY_OP_LEAVE, GetPlayer()->GetName(), ERR_PARTY_RESULT_OK);

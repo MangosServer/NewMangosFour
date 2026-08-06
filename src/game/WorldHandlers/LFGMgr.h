@@ -902,7 +902,21 @@ enum LFGTeleportError
     LFG_TELEPORTERROR_IN_VEHICLE                 = 3,
     LFG_TELEPORTERROR_FATIGUE                    = 4,
     LFG_TELEPORTERROR_INVALID_LOCATION           = 6,
-    LFG_TELEPORTERROR_CHARMING                   = 8
+    LFG_TELEPORTERROR_CHARMING                   = 8,
+
+    /// Refusing a teleport because the player is fighting.
+    ///
+    /// PROVISIONAL VALUE, and it must not be cited as derived. The client certainly has
+    /// the message -- ERR_PARTY_LFG_TELEPORT_IN_COMBAT, "You cannot teleport out of the
+    /// dungeon while in combat.", GlobalString index 712 at .data:00F5FA18 -- and 30 is
+    /// the case that pushes it in the dispatcher at .text:007AA970. But that dispatcher's
+    /// neighbouring cases are ERR_INVITE_* and ERR_PARTY_LFG_BOOT_*, so it is the PARTY
+    /// error space, which may not be the space SMSG_LFG_TELEPORT_DENIED uses. The one
+    /// captured body of that opcode carries 0x10, which is in neither reading.
+    ///
+    /// Harmless today because SendLfgTeleportError is not admitted, so nothing reaches the
+    /// client. The REFUSAL is the part that matters and that is not in doubt.
+    LFG_TELEPORTERROR_IN_COMBAT                  = 30
 };
 
 enum DungeonTypes
@@ -1282,6 +1296,11 @@ public:
     /// Given the ID of a dungeon, spit out its entry
     uint32 GetDungeonEntry(uint32 ID);
 
+    /// The resolved dungeon entry for a group that is in (or heading into) an LFG
+    /// dungeon, or 0 if it is not an LFG group. SMSG_GROUP_LIST carries this in its
+    /// LFG block; retail never sends the block with a zero entry.
+    uint32 GetGroupDungeonEntry(ObjectGuid groupGuid);
+
     /// Return the 5.4.8 LFG status category byte for a dungeon.
     uint8 GetDungeonCategory(uint32 ID);
 
@@ -1337,6 +1356,10 @@ public:
     /// Is there a proposal still awaiting this player's answer? Authoritative, unlike
     /// the LFG_STATE_PROPOSAL status flag, which several paths can leave stale.
     bool HasLiveProposalFor(ObjectGuid plrGuid) const;
+
+    /// Cancel every live proposal listing this player, counting them as the culprit.
+    /// Used when they leave the finder while a proposal is still open.
+    void CancelProposalsFor(ObjectGuid plrGuid);
 
     /**
      * @brief Take a single player out of whichever queue entry holds them, recomputing

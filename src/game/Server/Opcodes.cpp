@@ -1134,6 +1134,8 @@ void InitializeOpcodes()
     DefS(SMSG_LFG_PROPOSAL_UPDATE, "SMSG_LFG_PROPOSAL_UPDATE");
     DefS(SMSG_LFG_ROLE_CHECK_UPDATE, "SMSG_LFG_ROLE_CHECK_UPDATE");
     DefS(SMSG_LFG_TELEPORT_DENIED, "SMSG_LFG_TELEPORT_DENIED");
+    // Body is a single MSB-first bit (0x80 out, 0x00 in) -- see HandleLfgTeleportOpcode.
+    DefC(CMSG_LFG_TELEPORT, "CMSG_LFG_TELEPORT", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgTeleportOpcode);
 
     // Wave 13 talent-respec confirmation request and prompt.
     DefC(CMSG_CONFIRM_RESPEC_WIPE, "CMSG_CONFIRM_RESPEC_WIPE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTalentWipeConfirmOpcode);

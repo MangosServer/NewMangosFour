@@ -281,6 +281,36 @@ void WorldSession::HandleLfgGetStatusOpcode(WorldPacket& /*recv_data*/)
     SendLfgUpdate(GetPlayer()->GetGroup() != nullptr, status);
 }
 
+void WorldSession::HandleLfgTeleportOpcode(WorldPacket& recv_data)
+{
+    DEBUG_LOG("CMSG_LFG_TELEPORT");
+
+    // The body is ONE BIT, MSB-first, not a uint8. All 47 corpus events are a single
+    // byte carrying only 0x80 or 0x00, and the destination map of the SMSG_TRANSFER_PENDING
+    // that follows classifies them: 0x80 precedes a move to an outdoor map (0, 530, 571,
+    // 870, 974) and 0x00 precedes a move to an instance (70, 547, 556, 558, 574, 575,
+    // 599, 600, 960, 1004, 1098, 1136). So 0x80 is OUT and 0x00 is back IN -- 0x00 is not
+    // a leave. capture-000059 seqs 1038789..1040642 are all 0x00 with prevMap 960 and
+    // destMap 960, i.e. re-summons into the same instance.
+    //
+    // A reader switching on 0 and 1 would match neither value.
+    if (recv_data.size() - recv_data.rpos() != 1)
+    {
+        sLog.outError("WORLD: malformed CMSG_LFG_TELEPORT from %s", GetPlayerName());
+        return;
+    }
+
+    bool const out = recv_data.ReadBit();
+
+    Player* plr = GetPlayer();
+    if (!plr)
+    {
+        return;
+    }
+
+    sLFGMgr.TeleportPlayer(plr, out);
+}
+
 void WorldSession::HandleLfgLockInfoRequestOpcode(WorldPacket& recv_data)
 {
     bool forPlayer = false;

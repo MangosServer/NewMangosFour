@@ -54,6 +54,7 @@
 #include "ObjectMgr.h"
 #include "ObjectGuid.h"
 #include "Group.h"
+#include "LFGMgr.h"
 #include "Formulas.h"
 #include "ObjectAccessor.h"
 #include "BattleGround/BattleGround.h"
@@ -2612,6 +2613,17 @@ void Group::SendUpdateToPlayer(ObjectGuid guid)
     update.lootMethod = uint8(m_lootMethod);
     update.lootThreshold = uint8(m_lootThreshold);
     update.isLfg = isLFGGroup();
+    if (update.isLfg)
+    {
+        // Without this the LFG block went out with a ZERO dungeon entry. Retail carries
+        // the resolved dungeon there -- capture-000044 seq 6287 has 03 01 00 06, matching
+        // the entry in the same session's SMSG_LFG_UPDATE_STATUS -- and the 40-byte
+        // no-group form omits the block entirely rather than zero-filling it.
+        //
+        // Note this is the RESOLVED dungeon, not the request list: capture-000696 queued
+        // 15 dungeons and its GROUP_LIST still carries exactly one entry.
+        update.lfgDungeonEntry = sLFGMgr.GetGroupDungeonEntry(GetObjectGuid());
+    }
     update.groupType = uint8(m_groupType);
     update.partyIndex = player->GetOriginalGroup() == this ? 0 :
         uint8(isBGGroup() || isLFGGroup());

@@ -972,6 +972,13 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
             {
                 plrErr = LFG_TELEPORTERROR_IN_VEHICLE;
             }
+            // Same reasoning as the guard in TeleportPlayer: a member who is fighting
+            // is not moved. This list already refused dead, falling and in-vehicle and
+            // simply had no combat case.
+            if (pGroupPlr->IsInCombat())
+            {
+                plrErr = LFG_TELEPORTERROR_IN_COMBAT;
+            }
 
             lockedDungeons = FindRandomDungeonsNotForPlayer(pGroupPlr);
             if (lockedDungeons.find(dungeon->Entry()) != lockedDungeons.end())
@@ -1029,6 +1036,30 @@ void LFGMgr::TeleportPlayer(Player* pPlayer, bool out)
         return;
     }
 
+    // Never move a player who is fighting, in EITHER direction.
+    //
+    // Without this the dropdown was an instant combat escape -- pull a pack, teleport
+    // out, and the fight is simply over -- and Leave Instance Group yanked the player
+    // out mid-pull, leaving the rest of the group in a fight they did not choose to
+    // take alone. The client agrees this is refusable: it ships the message for it
+    // (ERR_PARTY_LFG_TELEPORT_IN_COMBAT, "You cannot teleport out of the dungeon while
+    // in combat.").
+    //
+    // Deliberately covers `in` as well. Teleporting INTO a dungeon while fighting
+    // something outside it strands the mob and drops the player into an instance still
+    // flagged in combat.
+    //
+    // This guard sits in TeleportPlayer rather than at the call sites so that the
+    // dropdown (CMSG_LFG_TELEPORT) and the leave path (CMSG_GROUP_DISBAND) are both
+    // covered by one check that cannot be forgotten by a third caller.
+    if (pPlayer->IsInCombat())
+    {
+        DEBUG_LOG("LFG TeleportPlayer: %s refused (%s) -- in combat",
+                  pPlayer->GetName(), out ? "out" : "in");
+        pPlayer->GetSession()->SendLfgTeleportError((uint8)LFG_TELEPORTERROR_IN_COMBAT);
+        return;
+    }
+
     // Get dungeon info and then teleport the player out if applicable
     if (out)
     {
@@ -1037,7 +1068,23 @@ void LFGMgr::TeleportPlayer(Player* pPlayer, bool out)
         {
             pPlayer->TeleportToBGEntryPoint();
         }
+        return;
     }
+
+    // Teleport back IN.
+    //
+    // This branch did not exist: TeleportPlayer only ever handled `out`, so the dropdown's
+    // "Teleport to dungeon" resolved the group and the status and then fell off the end of
+    // the function doing nothing. Observed live -- a player who ported out could not get
+    // back, which is worse than not offering the option at all.
+    //
+    // TeleportToDungeon is the same routine the proposal uses on group creation. It moves
+    // only members whose map is not already the dungeon's, so calling it for the whole
+    // group moves exactly the one player who left, and it carries the dead / falling /
+    // in-vehicle checks and the SMSG_LFG_TELEPORT_DENIED replies with it. It also prefers
+    // the group leader's position when the leader is already inside, which is what puts a
+    // returning player back with the group rather than at the entrance.
+    TeleportToDungeon(status->dungeonID, pGroup);
 }
 
 LFGGroupStatus* LFGMgr::GetGroupStatus(ObjectGuid guid)

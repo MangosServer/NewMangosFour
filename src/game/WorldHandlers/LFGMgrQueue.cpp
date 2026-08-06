@@ -496,6 +496,21 @@ void LFGMgr::LeaveLFG(Player* plr, bool isGroup)
                     case LFG_STATE_FINISHED_DUNGEON:
                     case LFG_STATE_PROPOSAL:
                     case LFG_STATE_QUEUED:
+                        // Retail answers a queue leave with TWO status packets, in
+                        // this order, both still carrying the dungeon list:
+                        //   reason 14, then reason 8 as the terminal
+                        // 26 of 28 observed leaves produce the pair (capture-000044 seq
+                        // 47667 -> 47701/47702, capture-000086 seq 1339 -> 1340/1341,
+                        // capture-000133, capture-000326, capture-000720). We sent only
+                        // the terminal, and the client left the queue on screen.
+                        //
+                        // LFG_UPDATE_PROPOSAL_BEGIN is simply the enumerator for wire
+                        // reason 14; the name is inherited and does not describe this
+                        // use. Our flag logic already yields retail's tuples for both:
+                        // 14 -> joined 1 / queued 0, 8 -> joined 0 / queued 0.
+                        grpPlrStatus.updateType = LFG_UPDATE_PROPOSAL_BEGIN;
+                        SendLfgUpdate(grpPlrGuid, grpPlrStatus, true);
+
                         grpPlrStatus.updateType = LFG_UPDATE_LEAVE;
                         grpPlrStatus.state = LFG_STATE_NONE;
                         SendLfgUpdate(grpPlrGuid, grpPlrStatus, true);
@@ -519,21 +534,36 @@ void LFGMgr::LeaveLFG(Player* plr, bool isGroup)
     {
         ObjectGuid plrGuid = plr->GetObjectGuid();
 
+        // Tear down a proposal the player never answered BEFORE replying, so the queue
+        // entry it was built from is released and cannot re-propose on the next tick.
+        CancelProposalsFor(plrGuid);
+
         LFGPlayerStatus plrStatus = GetPlayerStatus(plrGuid);
-        switch (plrStatus.state)
-        {
-            // Same set as the group branch above -- see the note there for why
-            // IN_DUNGEON must be handled rather than falling through.
-            case LFG_STATE_IN_DUNGEON:
-            case LFG_STATE_FINISHED_DUNGEON:
-            case LFG_STATE_PROPOSAL:
-            case LFG_STATE_QUEUED:
-                plrStatus.updateType = LFG_UPDATE_LEAVE;
-                plrStatus.state = LFG_STATE_NONE;
-                SendLfgUpdate(plrGuid, plrStatus, false);
-                break;
-            // do other states after being implemented, if applicable for a single plr
-        }
+
+        // ALWAYS answer, whatever state we have recorded.
+        //
+        // This used to switch on the recorded state and simply fall through when it
+        // matched nothing, sending the client no packet at all -- and a CMSG_LFG_LEAVE
+        // that draws no reply leaves the dungeon finder showing a queue the player
+        // cannot dismiss. Observed live: four leave requests in a row, zero packets sent,
+        // stuck until relog.
+        //
+        // The state need not be one this switch ever knew about. TryFormGroup erases the
+        // queue entry the moment a proposal goes out, so a player who ignores the popup
+        // holds a status that matched none of the old cases; GetPlayerStatus then hands
+        // back a default-constructed LFG_STATE_NONE for anyone with no record at all.
+        // Neither is a reason to say nothing -- the client asked to leave, so tell it that
+        // it has, and reconcile the server side underneath.
+        //
+        // Two packets, reason 14 then reason 8, as the group branch above.
+        plrStatus.updateType = LFG_UPDATE_PROPOSAL_BEGIN;
+        SendLfgUpdate(plrGuid, plrStatus, false);
+
+        plrStatus.updateType = LFG_UPDATE_LEAVE;
+        plrStatus.state = LFG_STATE_NONE;
+        SendLfgUpdate(plrGuid, plrStatus, false);
+
+        SetPlayerState(plrGuid, LFG_STATE_NONE);
 
         // NOT `m_playerData.erase(plrGuid)`.
         //

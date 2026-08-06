@@ -1024,6 +1024,29 @@ void LFGMgr::CancelProposal(uint32 proposalId, std::set<ObjectGuid> const& culpr
     m_queueSet.insert(proposal.queueGuid);
 }
 
+void LFGMgr::CancelProposalsFor(ObjectGuid plrGuid)
+{
+    // Same teardown the expiry reaper performs, but driven by an explicit leave instead
+    // of the clock. The player is the culprit -- they are the one walking away -- so the
+    // others are requeued without them, exactly as a decline would do.
+    std::vector<uint32> owned;
+    for (proposalMap::const_iterator it = m_proposalMap.begin(); it != m_proposalMap.end(); ++it)
+    {
+        if (it->second.answers.find(plrGuid) != it->second.answers.end())
+        {
+            owned.push_back(it->first);
+        }
+    }
+
+    // Collected first: CancelProposal erases from the map being walked.
+    for (std::vector<uint32>::const_iterator it = owned.begin(); it != owned.end(); ++it)
+    {
+        std::set<ObjectGuid> culprit;
+        culprit.insert(plrGuid);
+        CancelProposal(*it, culprit);
+    }
+}
+
 void LFGMgr::RemoveOldProposals()
 {
     time_t const now = time(NULL);
@@ -1392,6 +1415,15 @@ void LFGMgr::SendQueueStatusFor(ObjectGuid queueGuid, time_t timeNow)
             pPlayer->GetSession()->SendLfgQueueStatus(status);
         }
     }
+}
+
+uint32 LFGMgr::GetGroupDungeonEntry(ObjectGuid groupGuid)
+{
+    // The Group object itself does not know which dungeon it is for -- isLFGGroup() is
+    // only a bit in m_groupType -- so the resolved id has to come from the group status
+    // LFGMgr records when the dungeon group is created.
+    LFGGroupStatus const* status = GetGroupStatus(groupGuid);
+    return status ? GetDungeonEntry(status->dungeonID) : 0;
 }
 
 uint32 LFGMgr::GetDungeonEntry(uint32 ID)
