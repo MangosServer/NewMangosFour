@@ -615,6 +615,35 @@ void LFGMgr::ProposalUpdate(uint32 proposalID, ObjectGuid plrGuid, bool accepted
         LFGPlayerStatus proposalPlrStatus = GetPlayerStatus(proposalPlrGuid);
         proposalPlrStatus.updateType = LFG_UPDATE_GROUP_FOUND;
 
+        // The GROUP_FOUND body must advertise the dungeon the PROPOSAL chose, not the slot
+        // the player queued for. This is what closes the client's ready popup.
+        //
+        // The client decides a proposal's outcome in the SMSG_LFG_UPDATE_STATUS handler, not
+        // in the proposal packet. It keeps the active proposal's dungeon entry in a global,
+        // and on each status body it walks that body's dungeon list looking for it:
+        //
+        //     mov  esi, dword_1209400   ; active proposal's dungeon, 0 when none
+        //     mov  eax, [ebx+11Ch]      ; dungeon count in THIS body
+        //     jbe  skip                 ; empty list -> ignore the body entirely
+        //     cmp  [ecx], esi           ; the list must CONTAIN it
+        //     ...
+        //     mov  al, [ebx+15Ah]       ; reason: 1, 11 or 17 -> LFG_PROPOSAL_SUCCEEDED
+        //
+        // Miss that search and it takes no action at all -- no reset, no event -- so
+        // LFGDungeonReadyPopup is never hidden and sits on screen until relog.
+        //
+        // Observed live 2026-08-06 18:02:07. Two GROUP_FOUND bodies for one proposal on
+        // dungeon 0x01000006: the player who queued for that dungeon carried 0x01000006 and
+        // was fine, while the player who queued RANDOM carried 0x06000102 -- the category
+        // (type 6, id 258) -- and his popup stuck. dungeonList holds what the player queued
+        // for, which for a random is the category, so every random queuer hit this.
+        //
+        // Scoped to this one body deliberately. The LEAVE that follows closes the QUEUE the
+        // player actually joined, so it keeps advertising the slots they queued for.
+        std::set<uint32> const queuedDungeons = proposalPlrStatus.dungeonList;
+        proposalPlrStatus.dungeonList.clear();
+        proposalPlrStatus.dungeonList.insert(proposal->dungeonID);
+
         // ONE key, used for both packets.
         //
         // The queue entry is owned by the player's CURRENT group if they have one --
@@ -632,6 +661,7 @@ void LFGMgr::ProposalUpdate(uint32 proposalID, ObjectGuid plrGuid, bool accepted
                                           : proposalPlrGuid);
 
         proposalPlrStatus.updateType = LFG_UPDATE_LEAVE;
+        proposalPlrStatus.dungeonList = queuedDungeons;
         SendLfgUpdate(proposalPlrGuid, proposalPlrStatus, queueIsGroupOwned);
     }
 
