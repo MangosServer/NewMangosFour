@@ -1426,6 +1426,12 @@ uint32 LFGMgr::GetGroupDungeonEntry(ObjectGuid groupGuid)
     return status ? GetDungeonEntry(status->dungeonID) : 0;
 }
 
+void LFGMgr::ReleaseGroupLfgStatus(ObjectGuid groupGuid)
+{
+    m_groupStatusMap.erase(groupGuid);
+    m_groupSet.erase(groupGuid);
+}
+
 uint32 LFGMgr::GetGroupRandomDungeonEntry(ObjectGuid groupGuid)
 {
     LFGGroupStatus const* status = GetGroupStatus(groupGuid);

@@ -1723,6 +1723,14 @@ void Group::Disband(bool hideDestroy)
 {
     CompleteReadyCheck();
 
+    // Release the LFG status here rather than when the dungeon finishes: while the Group
+    // still reports GROUPTYPE_LFD, SendUpdate needs the status to fill the LFG block, and
+    // a missing status makes it emit a zero dungeon slot.
+    if (isLFGGroup())
+    {
+        sLFGMgr.ReleaseGroupLfgStatus(GetObjectGuid());
+    }
+
     Player* player;
 
     for (member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)

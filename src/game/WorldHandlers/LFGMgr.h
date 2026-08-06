@@ -1311,6 +1311,10 @@ public:
     /// LFG state of a group, for the SMSG_GROUP_LIST state byte.
     LFGState GetGroupLfgState(ObjectGuid groupGuid);
 
+    /// Drop a disbanded group's LFG status. Must run when the Group is torn down, not
+    /// when its dungeon finishes -- see the note in HandleBossKilled.
+    void ReleaseGroupLfgStatus(ObjectGuid groupGuid);
+
     /// Return the 5.4.8 LFG status category byte for a dungeon.
     uint8 GetDungeonCategory(uint32 ID);
 

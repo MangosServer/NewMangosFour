@@ -373,7 +373,13 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
                 // ROLECHECK, not NONE -- same reason as the solo path below. The update
                 // announced the join while reporting the state as NONE, and only moved to
                 // ROLECHECK for the stored copy afterwards.
-                LFGPlayerStatus overallStatus(LFG_STATE_ROLECHECK, LFG_UPDATE_JOIN, dungeons, comments);
+                // Reason 24, not 6 -- same correction the solo path already carries.
+                // Reason 6 is retail's re-queue-from-inside-a-dungeon reason (257 of 276
+                // observed joins open with 24 and none with 6), and BOTH 6 and 13 make the
+                // client display ERR_LFG_JOINED_QUEUE. Opening with 6 and then having
+                // PerformRoleCheck send 13 announced "You are now queued in the Dungeon
+                // Finder" TWICE -- once in chat and once centre-screen. Observed live.
+                LFGPlayerStatus overallStatus(LFG_STATE_ROLECHECK, LFG_UPDATE_JOIN_QUEUE_INITIAL, dungeons, comments);
 
                 pGroupPlr->GetSession()->SendLfgUpdate(true, overallStatus);
 
@@ -534,11 +540,24 @@ void LFGMgr::LeaveLFG(Player* plr, bool isGroup)
     {
         ObjectGuid plrGuid = plr->GetObjectGuid();
 
-        // Tear down a proposal the player never answered BEFORE replying, so the queue
-        // entry it was built from is released and cannot re-propose on the next tick.
-        CancelProposalsFor(plrGuid);
-
+        // Snapshot BEFORE the teardown. CancelProposal erases m_playerStatusMap for the
+        // players it blames, so reading the status afterwards handed back a default-
+        // constructed record and the reply went out with an empty dungeon list -- a shape
+        // that occurs 0 times in 5291 retail bodies.
         LFGPlayerStatus plrStatus = GetPlayerStatus(plrGuid);
+
+        // Tear down a proposal the player never answered, so the queue entry it was built
+        // from is released and cannot re-propose on the next tick. Note this may itself
+        // send the player an LFG_UPDATE_LEAVE.
+        bool const hadLiveProposal = HasLiveProposalFor(plrGuid);
+        CancelProposalsFor(plrGuid);
+        if (hadLiveProposal)
+        {
+            // CancelProposal already answered with a properly populated LEAVE. Sending a
+            // second one here only adds a duplicate, so stop.
+            RemovePlayerFromQueue(plrGuid);
+            return;
+        }
 
         // ALWAYS answer, whatever state we have recorded.
         //
@@ -555,9 +574,23 @@ void LFGMgr::LeaveLFG(Player* plr, bool isGroup)
         // Neither is a reason to say nothing -- the client asked to leave, so tell it that
         // it has, and reconcile the server side underneath.
         //
-        // Two packets, reason 14 then reason 8, as the group branch above.
-        plrStatus.updateType = LFG_UPDATE_PROPOSAL_BEGIN;
-        SendLfgUpdate(plrGuid, plrStatus, false);
+        // Retail's pair is reason 14 then reason 8 -- but ONLY when we can name the
+        // dungeons. Reason 14 carries joined = 1, and the client files a status body by
+        // category, which it derives from the dungeon list. With an empty list it cannot
+        // attribute either packet to a category, so the joined = 1 can stick where the
+        // clearing packet does not reach: GetLFGMode then answers "suspended", which is
+        // non-nil, and QueueStatusFrame_Update lights the minimap eye for any non-nil
+        // mode. Observed live -- every click played the leave sound and left the eye on.
+        //
+        // 0 of 5291 retail status bodies carry an empty dungeon list, so the empty form
+        // is outside anything the client is built to handle. When we have no record,
+        // send the terminal reason 8 alone: it still answers the request and still fires
+        // the notification, without first asserting a joined state we cannot then clear.
+        if (!plrStatus.dungeonList.empty())
+        {
+            plrStatus.updateType = LFG_UPDATE_PROPOSAL_BEGIN;
+            SendLfgUpdate(plrGuid, plrStatus, false);
+        }
 
         plrStatus.updateType = LFG_UPDATE_LEAVE;
         plrStatus.state = LFG_STATE_NONE;

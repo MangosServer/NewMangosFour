@@ -978,13 +978,19 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
             {
                 plrErr = LFG_TELEPORTERROR_IN_VEHICLE;
             }
-            // Same reasoning as the guard in TeleportPlayer: a member who is fighting
-            // is not moved. This list already refused dead, falling and in-vehicle and
-            // simply had no combat case.
-            if (pGroupPlr->IsInCombat())
-            {
-                plrErr = LFG_TELEPORTERROR_IN_COMBAT;
-            }
+            // NO combat check here, deliberately.
+            //
+            // TeleportToDungeon also runs from CreateDungeonGroup, where a proposal has
+            // just been accepted and the group formed. Refusing one member there teleports
+            // everyone else in and strands that player -- still in the group, still set to
+            // LFG_STATE_IN_DUNGEON, and with no feedback at all, because
+            // SMSG_LFG_TELEPORT_DENIED is not admitted. A proposal accept is a mandatory
+            // group form, and the client's own message for this
+            // (ERR_PARTY_LFG_TELEPORT_IN_COMBAT) is about teleporting OUT of a dungeon,
+            // not about being placed into one.
+            //
+            // The voluntary paths are still covered: CMSG_LFG_TELEPORT and the leave
+            // teleport both go through TeleportPlayer, which keeps its own combat guard.
 
             lockedDungeons = FindRandomDungeonsNotForPlayer(pGroupPlr);
             if (lockedDungeons.find(dungeon->Entry()) != lockedDungeons.end())
@@ -1322,9 +1328,19 @@ void LFGMgr::HandleBossKilled(Player* pPlayer)
         }
     }
 
-    // now we can remove the group from our maps
-    m_groupStatusMap.erase(groupGuid);
-    m_groupSet.erase(groupGuid);
+    // The status deliberately SURVIVES the final boss.
+    //
+    // It used to be erased here, while the Group object kept GROUPTYPE_LFD. From that
+    // moment every Group::SendUpdate emitted an LFG block whose dungeon slot resolved
+    // through GetGroupDungeonEntry -> GetGroupStatus -> null -> 0, i.e. isLfg = 1 with a
+    // ZERO slot A. That is the case Group.cpp warns is worse than sending no block at
+    // all: the client copies it, party+232 becomes 0, and IsPartyLFG() goes false --
+    // so the Leave Dungeon button and the minimap dungeon state vanished from the first
+    // tracked boss kill onward, mid-run.
+    //
+    // The state was already moved to LFG_STATE_FINISHED_DUNGEON above, which is what
+    // makes the block's state byte report 2 (IsLFGComplete). Release happens in
+    // ReleaseGroupLfgStatus, called when the group is actually disbanded.
 }
 
 void LFGMgr::AttemptToKickPlayer(Group* pGroup, ObjectGuid guid, ObjectGuid kicker, std::string reason)
