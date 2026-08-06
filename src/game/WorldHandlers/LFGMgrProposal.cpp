@@ -1140,10 +1140,12 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup)
             if (err == LFG_TELEPORTERROR_OK && plrErr == LFG_TELEPORTERROR_OK &&
                 pGroupPlr->GetMapId() != mapID && !pGroupPlr->IsBeingTeleported())
             {
-                if (pGroupPlr->GetMap() && !pGroupPlr->GetMap()->IsDungeon() && !pGroupPlr->GetMap()->IsRaid() && !pGroupPlr->InBattleGround())
-                {
-                    pGroupPlr->SetBattleGroundEntryPoint(); // store current position and such
-                }
+                // NO SetBattleGroundEntryPoint() here.
+                //
+                // It used to be taken on every entry, which meant walking out of the portal
+                // and teleporting back in overwrote the saved return point with the dungeon's
+                // own doorstep -- permanently losing the place the player queued from. The
+                // point is now captured once, at queue time, by LFGMgr::RecordEntryPoint.
 
                 // The 15-minute requeue cooldown is cast HERE, before the teleport, and not
                 // in the success branch below.

@@ -1611,6 +1611,157 @@ void LFGMgr::ApplyDungeonCooldown(Player* pPlayer)
     pPlayer->CastSpell(pPlayer, LFG_COOLDOWN_SPELL, true);
 }
 
+void LFGMgr::RecordEntryPoint(Player* pPlayer)
+{
+    // The return location is captured ONCE, when the player joins the queue -- not when
+    // they are teleported in.
+    //
+    // It used to be taken inside TeleportToDungeon, which runs on EVERY entry. Walk out
+    // through the instance portal and you stand at the dungeon's outdoor entrance; use the
+    // eye to teleport back in and TeleportToDungeon overwrote the saved point with that
+    // doorstep. From then on "Teleport out of dungeon" returned the player to the dungeon
+    // door forever, and the place they actually queued from was gone. Reported live:
+    // "each time i get ported outside the dungeon entrance, never have i been put back to
+    // the queue location".
+    //
+    // The corpus agrees the point is fixed for the life of a run: in capture-000044 the
+    // teleport-out at seq 150590 and a later exit at seq 151999 are byte-identical
+    // (map 974, -4046.44 6351.08) even though the player teleported back IN at seq 151132
+    // between them. Across DIFFERENT queue episodes it moves, which is what you expect from
+    // a value captured at queue time.
+    //
+    // Skipped on a dungeon or raid map on purpose: SetBattleGroundEntryPoint's dungeon
+    // branch resolves the CLOSEST GRAVEYARD rather than the player's position, which is not
+    // a place anyone queued from. A player queueing from inside a dungeon (a backfill
+    // re-queue) therefore keeps the entry point they already had, which is the correct one.
+    if (!pPlayer || !pPlayer->IsInWorld())
+    {
+        return;
+    }
+
+    Map* map = pPlayer->GetMap();
+    if (!map || map->IsDungeon() || map->IsRaid() || pPlayer->InBattleGround())
+    {
+        return;
+    }
+
+    pPlayer->SetBattleGroundEntryPoint();
+}
+
+void LFGMgr::RestoreDungeonGroup(Group* pGroup, uint32 mapId, uint32 difficulty, uint32 encountersMask)
+{
+    // Rebuild a live run's LFG status after a world restart, from state that already
+    // persists. No new table, no schema change.
+    //
+    // Nothing in LFGMgr is saved, so after a restart a party still standing in its dungeon
+    // came back with the group intact (groups.groupType keeps GROUPTYPE_LFD, and the bind
+    // reloads from group_instance) and an LFGMgr that had never heard of it. One line then
+    // took the whole feature out: Group.cpp's `update.isLfg = isLFGGroup() &&
+    // GetGroupDungeonEntry(...) != 0` resolved to 0, so login's SendUpdate emitted
+    // SMSG_GROUP_LIST with no LFG block at all.
+    //
+    // That block is the ONLY thing the 18414 client reads for an in-progress run: the
+    // group-list apply path is the sole writer of the LFG fields on its group object, and it
+    // ZEROES them when the packet's flag is clear. IsPartyLFG(), GetPartyLFGID(),
+    // HasLFGRestrictions() and IsInLFGDungeon() all hang off those fields, so with an empty
+    // block the minimap eye, "Teleport out of dungeon", "Leave Instance Group" and the Vote
+    // Kick gate simply do not exist. Observed live 2026-08-06: a player logged back into
+    // Deadmines after a restart, still grouped, with no eye.
+    //
+    // Everything needed is recoverable, so restoring the INPUTS is enough -- every existing
+    // send path then behaves normally:
+    //   dungeonID    <- the LfgDungeons row matching the bind's (map, difficulty)
+    //   madeProgress <- encountersMask != 0, which is stronger than any reference fork
+    //                   manages; none of them persist it at all
+    //   leaderGuid   <- the group
+    //   roles        <- not persisted anywhere, so LFG_ROLE_NONE (see below)
+    // randomDungeonID is genuinely lost. Its only consequence is the random-dungeon
+    // completion bonus for a run a restart interrupted, which is not worth a schema change.
+    if (!pGroup || !pGroup->isLFGGroup())
+    {
+        return;
+    }
+
+    ObjectGuid const groupGuid = pGroup->GetObjectGuid();
+
+    // A group can hold several binds; the first one that resolves wins.
+    if (GetGroupStatus(groupGuid))
+    {
+        return;
+    }
+
+    // Resolve the dungeon by (map, internal difficulty). LfgDungeons.dbc carries a RAW
+    // client DifficultyID, so it has to be translated before comparing against the bind's
+    // internal Difficulty -- comparing them directly is the key-space bug PR #81 fixed.
+    uint32 dungeonId = 0;
+    uint32 matches = 0;
+    for (uint32 id = 0; id < sLfgDungeonsStore.GetNumRows(); ++id)
+    {
+        LfgDungeonsEntry const* dungeon = sLfgDungeonsStore.LookupEntry(id);
+        if (!dungeon || uint32(dungeon->MapID) != mapId)
+        {
+            continue;
+        }
+
+        int32 const mode = ToInternalDifficulty(dungeon->DifficultyID);
+        if (mode < 0 || uint32(mode) != difficulty)
+        {
+            continue;
+        }
+
+        ++matches;
+        if (!dungeonId)
+        {
+            dungeonId = dungeon->ID;
+        }
+    }
+
+    if (!dungeonId || matches != 1)
+    {
+        // Ambiguous or absent: log once and leave the group ALONE. Do not clear
+        // GROUPTYPE_LFD and do not eject anyone -- a party that is merely missing its eye is
+        // a great deal better off than one teleported out from under itself.
+        sLog.outError("LFGMgr::RestoreDungeonGroup: group %s bound to map %u difficulty %u "
+                      "resolves to %u LfgDungeons rows; leaving its LFG status unrestored.",
+                      groupGuid.GetString().c_str(), mapId, difficulty, matches);
+        return;
+    }
+
+    LFGGroupStatus status;
+    status.state = LFG_STATE_IN_DUNGEON;
+    status.dungeonID = dungeonId;
+    status.madeProgress = (encountersMask != 0);
+    status.randomDungeonID = 0;
+    status.leaderGuid = pGroup->GetLeaderGuid();
+
+    // Member GUIDs come from the persisted slots, NOT from GroupReference: no player is in
+    // world yet at group-load time, so the live member list is empty.
+    //
+    // Roles are not persisted, so everyone comes back as PLAYER_ROLE_NONE. That is honest
+    // rather than invented: the roles are only read for backfill role matching and the UI
+    // role icons, and a wrong guess there would mis-fill a replacement slot.
+    for (Group::MemberSlotList::const_iterator itr = pGroup->GetMemberSlots().begin();
+         itr != pGroup->GetMemberSlots().end(); ++itr)
+    {
+        status.playerRoles[itr->guid] = uint8(PLAYER_ROLE_NONE);
+
+        LFGPlayerStatus plrStatus;
+        plrStatus.state = LFG_STATE_IN_DUNGEON;
+        plrStatus.updateType = LFG_UPDATE_DEFAULT;
+        plrStatus.dungeonList.insert(dungeonId);
+        m_playerStatusMap[itr->guid] = plrStatus;
+    }
+
+    m_groupSet.insert(groupGuid);
+    m_groupStatusMap[groupGuid] = status;
+
+    sLog.outString("LFGMgr: restored dungeon group %s -- dungeon %u (map %u, difficulty %u), "
+                   "%u member(s), progress %s.",
+                   groupGuid.GetString().c_str(), dungeonId, mapId, difficulty,
+                   uint32(pGroup->GetMemberSlots().size()),
+                   status.madeProgress ? "yes" : "no");
+}
+
 bool LFGMgr::IsPlayerInLfgDungeon(Player* pPlayer)
 {
     if (!pPlayer)

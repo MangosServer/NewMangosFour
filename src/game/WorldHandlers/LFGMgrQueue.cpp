@@ -425,6 +425,8 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
             if (Player* pGroupPlr = itr->getSource())
             {
                 BeginTicket(pGroupPlr->GetObjectGuid(), groupInfo.ticketId, uint32(groupInfo.joinedTime));
+                // Where each member gets returned to. Per-player, taken here and never again.
+                RecordEntryPoint(pGroupPlr);
             }
         }
 
@@ -478,6 +480,8 @@ void LFGMgr::JoinLFG(uint32 roles, std::set<uint32> dungeons, std::string commen
         playerInfo.ticketId = AllocateTicketId();
         m_playerData[guid] = playerInfo;
         BeginTicket(guid, playerInfo.ticketId, uint32(playerInfo.joinedTime));
+        // Where this player gets returned to. Taken here and never again -- see RecordEntryPoint.
+        RecordEntryPoint(plr);
 
         // set up a status struct for client requests/updates
         //

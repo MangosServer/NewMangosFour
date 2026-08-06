@@ -1346,6 +1346,14 @@ public:
     /// Applies the 15-minute requeue cooldown that retail starts when a player enters.
     void ApplyDungeonCooldown(Player* pPlayer);
 
+    /// Record where this player must be returned to when they leave the dungeon.
+    /// Called ONCE, when the queue is joined -- never on entry. See the definition.
+    void RecordEntryPoint(Player* pPlayer);
+
+    /// Rebuild a dungeon group's LFG status after a restart, from persisted state alone.
+    /// Called once per group_instance bind while groups load. See the definition.
+    void RestoreDungeonGroup(Group* pGroup, uint32 mapId, uint32 difficulty, uint32 encountersMask);
+
     /// Return the 5.4.8 LFG status category byte for a dungeon.
     uint8 GetDungeonCategory(uint32 ID);
 

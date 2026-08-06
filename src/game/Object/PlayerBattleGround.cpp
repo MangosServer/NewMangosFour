@@ -88,6 +88,29 @@
  */
 bool Player::TeleportToBGEntryPoint()
 {
+    // Refuse to teleport to an entry point that was never recorded.
+    //
+    // m_bgData.joinPos default-constructs to map 0 at (0,0,0) -- the origin of Eastern
+    // Kingdoms, which is inside the terrain. Teleporting there drops the player under the
+    // world and kills them. This is reachable whenever the return teleport runs without a
+    // matching SetBattleGroundEntryPoint(): observed live on 2026-08-06, where a player who
+    // was already standing inside an LFG dungeon when the world restarted used "Teleport out
+    // of dungeon" and was sent to SMSG_NEW_WORLD map=0 (0.00, 0.00, 0.00), fell and died.
+    //
+    // Homebind is the correct fallback -- it is where every other "we do not know where this
+    // player belongs" path in the core sends them.
+    if (!MaNGOS::IsValidMapCoord(m_bgData.joinPos.coord_x, m_bgData.joinPos.coord_y,
+                                 m_bgData.joinPos.coord_z) ||
+        (m_bgData.joinPos.coord_x == 0.0f && m_bgData.joinPos.coord_y == 0.0f &&
+         m_bgData.joinPos.coord_z == 0.0f))
+    {
+        sLog.outError("Player::TeleportToBGEntryPoint: %s has no valid entry point "
+                      "(map %u, %.2f %.2f %.2f) -- sending to homebind instead.",
+                      GetName(), m_bgData.joinPos.mapid, m_bgData.joinPos.coord_x,
+                      m_bgData.joinPos.coord_y, m_bgData.joinPos.coord_z);
+        return TeleportToHomebind();
+    }
+
     ScheduleDelayedOperation(DELAYED_BG_MOUNT_RESTORE);
     ScheduleDelayedOperation(DELAYED_BG_TAXI_RESTORE);
     return TeleportTo(m_bgData.joinPos);

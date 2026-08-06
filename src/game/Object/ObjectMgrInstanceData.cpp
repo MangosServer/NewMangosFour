@@ -38,6 +38,7 @@
 #include "SQLStorages.h"
 #include "DBCStores.h"
 #include "Group.h"
+#include "LFGMgr.h"
 
 /**
  * @brief Gets instance template data by map id.
@@ -216,6 +217,13 @@ void ObjectMgr::LoadGroups()
 
             DungeonPersistentState* state = (DungeonPersistentState*)sMapPersistentStateMgr.AddPersistentState(mapEntry, fields[2].GetUInt32(), Difficulty(diff), (time_t)fields[5].GetUInt64(), (fields[6].GetUInt32() == 0), true, true, fields[8].GetUInt32());
             group->BindToInstance(state, fields[3].GetBool(), true);
+
+            // Nothing in LFGMgr is persisted, so a dungeon-finder party that was inside its
+            // instance when the world went down comes back with the group and the bind but
+            // no LFG status -- which empties SMSG_GROUP_LIST's LFG block and takes the eye,
+            // both teleport options and the Vote Kick gate away from the client. Rebuild it
+            // here, where the bind's map, difficulty and encounter mask are all in hand.
+            sLFGMgr.RestoreDungeonGroup(group, mapId, uint32(diff), fields[8].GetUInt32());
         }
         while (result->NextRow());
         delete result;
