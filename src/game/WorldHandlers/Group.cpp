@@ -1337,6 +1337,32 @@ bool Group::LoadMemberFromDB(uint32 guidLow, uint8 subgroup, bool assistant)
 /**
  * @brief Converts the group to raid mode and refreshes related state.
  */
+void Group::SetAsLfgGroup()
+{
+    // GROUPTYPE_LFD has to reach the DATABASE, not just m_groupType.
+    //
+    // This used to be a one-line header inline that only ORed the bit into the in-memory
+    // group type. Nothing ever wrote it out, so `groups`.`groupType` stayed at whatever it
+    // was when the group was created -- 0 for a group the finder built. Confirmed against
+    // the live database on 2026-08-06: an active dungeon finder group's row read
+    // groupType = 0 while the run was in progress.
+    //
+    // Everything that tries to recognise a finder run after a restart keys off
+    // isLFGGroup(), so with the bit unsaved the group came back as an ORDINARY PARTY: no
+    // LFG block in SMSG_GROUP_LIST, no eye, no teleport options, no Vote Kick gate, and
+    // LFGMgr::RestoreDungeonGroup refusing the group on its very first line.
+    //
+    // ConvertToRaid two functions down is the pattern; this now matches it. The isBGGroup
+    // guard is the same one every other group persist path uses -- battleground groups have
+    // no row to update.
+    m_groupType = GroupType(m_groupType | GROUPTYPE_LFD);
+
+    if (!isBGGroup())
+    {
+        CharacterDatabase.PExecute("UPDATE `groups` SET `groupType` = %u WHERE `groupId`='%u'", uint8(m_groupType), m_Id);
+    }
+}
+
 void Group::ConvertToRaid()
 {
     m_groupType = GroupType(m_groupType | GROUPTYPE_RAID);
