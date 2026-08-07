@@ -1799,8 +1799,17 @@ void LFGMgr::AttemptToKickPlayer(Group* pGroup, ObjectGuid guid, ObjectGuid kick
     time_t now = time(NULL);
     proposalAnswerMap votes;
 
-    // safe to say the person attempting to kick them will vote yes, the kick-ee will vote no
-    votes[guid] = LFG_ANSWER_DENY;
+    // The initiator's own vote counts as agree. The VICTIM is deliberately not polled.
+    //
+    // They used to be seeded with LFG_ANSWER_DENY, which the tally counted toward `nay`.
+    // With REQUIRED_VOTES_FOR_BOOT = 3 that let a five-man kick fail on only TWO genuine
+    // denies, because the victim supplied the third for free, and it inflated the
+    // voteCount the client displays by a vote nobody cast. Retail does not poll the
+    // player being voted on.
+    //
+    // Leaving them out of the map entirely is also what CastVote's membership check
+    // keys off, so the victim cannot vote on their own removal by any route, and
+    // SendLfgBootUpdate tolerates the missing entry.
     votes[kicker] = LFG_ANSWER_AGREE;
 
     // set group state to boot vote, same for player states until it's over
