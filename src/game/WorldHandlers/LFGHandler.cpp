@@ -823,32 +823,56 @@ void WorldSession::SendLfgTeleportError(uint8 error)
 
 void WorldSession::SendLfgRewards(LFGRewards const& rewards)
 {
-    DEBUG_LOG("SMSG_LFG_PLAYER_REWARD");
+    DEBUG_LOG("SMSG_LFG_PLAYER_REWARD: money %u xp %u item %u x%u",
+              rewards.moneyReward, rewards.expReward, rewards.itemID, rewards.itemAmount);
 
-    WorldPacket data(SMSG_LFG_PLAYER_REWARD, 42);
-    data << uint32(rewards.randomDungeonEntry);
-    data << uint32(rewards.groupDungeonEntry);
-    data << uint8(rewards.hasDoneDaily);
-    data << uint32(1);
+    // The inherited body shared no field order with 18414 and carried a uint8 flag the
+    // client never reads. It never mattered, because this opcode was not admitted
+    // through the send gate, so the wrong bytes were discarded before reaching anyone.
+    //
+    // Field MEANINGS are binary-derived, from the consumer at 0x989771 and the Lua
+    // accessor sub_986CDD behind GetLFGCompletionRewardItem. Its own log lines name
+    // them: "LFG_PLAYER_REWARD - Queued Slot: %u, Actual Slot: %u, Base Money: %d,
+    // Base XP: %d" and "Receiving Item %u, Display %u, Quantity: %u".
+    //
+    // Field ORDER is corpus-derived, not reader-derived: 0x989771 is reached through a
+    // runtime-computed pointer and has no xrefs to walk back from, so the deserialiser
+    // could not be read. Thirteen corpus payloads decode with zero leftover under the
+    // order below.
+    //
+    // Layout: money, queued slot, xp, actual slot, then a bit block of a 20-bit reward
+    // count followed by one is-currency bit per reward, then 16 bytes per reward.
+    //
+    // ActualSlot is the concrete dungeon; the client masks it (& 0xFFFFF) to look up the
+    // row it names and textures the alert frame from. QueuedSlot is what was queued for,
+    // which for a random run is the category row, so the two legitimately differ.
+    ItemPrototype const* proto = rewards.itemID ? ObjectMgr::GetItemPrototype(rewards.itemID) : NULL;
+    bool const hasItem = proto != NULL && rewards.itemAmount != 0;
+    uint32 const rewardCount = hasItem ? 1 : 0;
+
+    WorldPacket data(SMSG_LFG_PLAYER_REWARD, 19 + 16 * rewardCount);
     data << uint32(rewards.moneyReward);
+    data << uint32(rewards.randomDungeonEntry ? rewards.randomDungeonEntry : rewards.groupDungeonEntry);
     data << uint32(rewards.expReward);
-    data << uint32(0);
-    data << uint32(0);
-    if (rewards.itemID != 0)
+    data << uint32(rewards.groupDungeonEntry);
+
+    data.WriteBits(rewardCount, 20);
+    for (uint32 i = 0; i < rewardCount; ++i)
     {
-        ItemPrototype const* pProto = ObjectMgr::GetItemPrototype(rewards.itemID);
-        if (pProto)
-        {
-            data << uint8(1);
-            data << uint32(rewards.itemID);
-            data << uint32(pProto->DisplayInfoID);
-            data << uint32(rewards.itemAmount);
-        }
+        // Item, not currency. The currency branch divides quantity by 100 for
+        // high-precision currencies, so mislabelling one would misreport the amount.
+        data.WriteBit(0);
     }
-    else
+    data.FlushBits();
+
+    if (hasItem)
     {
-        data << uint8(0);
+        data << uint32(rewards.itemID);
+        data << uint32(0);                  // stored at struct+0xC and never read back
+        data << uint32(proto->DisplayInfoID); // drives the reward frame's icon
+        data << uint32(rewards.itemAmount);
     }
+
     SendPacket(&data);
 }
 

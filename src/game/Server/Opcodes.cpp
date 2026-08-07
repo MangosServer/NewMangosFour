@@ -1164,6 +1164,9 @@ void InitializeOpcodes()
     // `accepted` rather than a guid bit, then guid bytes 0,3,6, the roles dword, then
     // 5,1,4,2,7. Confirmed against eight corpus packets across seven captures.
     DefS(SMSG_ROLE_CHOSEN, "SMSG_ROLE_CHOSEN");
+    // Completion reward. Meanings from the consumer at 0x989771 and Lua sub_986CDD;
+    // field order from 13 corpus payloads that decode with zero leftover.
+    DefS(SMSG_LFG_PLAYER_REWARD, "SMSG_LFG_PLAYER_REWARD");
 
     // Wave 13 talent-respec confirmation request and prompt.
     DefC(CMSG_CONFIRM_RESPEC_WIPE, "CMSG_CONFIRM_RESPEC_WIPE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTalentWipeConfirmOpcode);

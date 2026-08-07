@@ -618,6 +618,7 @@ static bool IsEnterWorldConverted(uint16 opcode)
                                               // capture-000044 seq 1547 (23B) and capture-000075 seq 891753 (24B)
         case SMSG_LFG_PLAYER_INFO:            // MopLfgPackets::BuildEmptyPlayerInfo
         case SMSG_LFG_PARTY_INFO:             // MopLfgPackets::BuildEmptyPartyInfo
+        case SMSG_LFG_PLAYER_REWARD:          // money/queuedSlot/xp/actualSlot + 20-bit count + per-reward is-currency bit + 16B entries
         case SMSG_ROLE_CHOSEN:                // nine mask bits (6th is `accepted`), guid 0/3/6, roles u32, guid 5/1/4/2/7;
                                               // derived from sub_6E921A, byte-exact vs 8 corpus packets over 7 captures
         case SMSG_LFG_TELEPORT_DENIED:        // WriteBits(reason & 0xF, 4) + FlushBits; corpus 0x10 and 0x90 are reasons 1 and 9
