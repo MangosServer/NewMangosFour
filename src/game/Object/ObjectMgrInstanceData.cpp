@@ -232,6 +232,51 @@ void ObjectMgr::LoadGroups()
     sLog.outString(">> Loaded %u group-instance binds total", count);
     sLog.outString();
 
+    // Any group still flagged as a finder run but WITHOUT a restored status has outlived
+    // its instance, and must be demoted rather than left in between.
+    //
+    // RestoreDungeonGroup above rebuilds a run's LFG status from its bind. A group whose
+    // bind is gone -- an ordinary dungeon instance expires two hours after it is created,
+    // so this is the normal outcome of leaving a party assembled overnight -- never
+    // reaches that call at all, because the loop iterates binds. It comes back with
+    // GROUPTYPE_LFD set and no status behind it.
+    //
+    // Left alone the client gets neither behaviour: SMSG_GROUP_LIST omits the LFG block,
+    // so the eye and the teleport options disappear, while every server-side
+    // isLFGGroup() test still says finder group -- which is why TeleportPlayer refuses
+    // with "has no LFG status" instead of moving anyone. Demote here, once, where the
+    // binds have all been processed and the answer is finally knowable.
+    {
+        uint32 demoted = 0;
+        for (GroupMap::const_iterator itr = mGroupMap.begin(); itr != mGroupMap.end(); ++itr)
+        {
+            Group* group = itr->second;
+            if (!group || !group->isLFGGroup())
+            {
+                continue;
+            }
+
+            // Exactly the predicate Group::SendUpdate uses to decide whether to emit an
+            // LFG block, so a group is demoted precisely when the client would otherwise
+            // have been sent nothing and left in the half-state.
+            if (sLFGMgr.GetGroupDungeonEntry(group->GetObjectGuid()) != 0)
+            {
+                continue;                                   // a live run, restored above
+            }
+
+            sLog.outString("Group %u was a dungeon finder group whose instance no longer "
+                           "exists; converting it to an ordinary party.", group->GetId());
+            group->ClearLfgGroup();
+            ++demoted;
+        }
+
+        if (demoted)
+        {
+            sLog.outString(">> Demoted %u finder group(s) with no surviving instance", demoted);
+            sLog.outString();
+        }
+    }
+
     sLog.outString(">> Loaded %u group members total", count);
     sLog.outString();
 }

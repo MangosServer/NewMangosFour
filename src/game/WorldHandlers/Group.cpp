@@ -1337,6 +1337,35 @@ bool Group::LoadMemberFromDB(uint32 guidLow, uint8 subgroup, bool assistant)
 /**
  * @brief Converts the group to raid mode and refreshes related state.
  */
+void Group::ClearLfgGroup()
+{
+    // The counterpart to SetAsLfgGroup, and it persists for the same reason.
+    //
+    // A dungeon finder group outlives its instance: the bind in group_instance is removed
+    // when the instance expires -- two hours after creation for a normal dungeon -- while
+    // the group row survives with GROUPTYPE_LFD still set. LFGMgr persists nothing, and
+    // RestoreDungeonGroup rebuilds the run's status FROM that bind, so once the bind is
+    // gone there is nothing to rebuild from and the group comes back flagged as a finder
+    // run with no run behind it.
+    //
+    // That half-state is worse than either end of it. Group.cpp's
+    // `update.isLfg = isLFGGroup() && GetGroupDungeonEntry(...) != 0` goes false, so
+    // SMSG_GROUP_LIST carries no LFG block, the client zeroes its LFG fields, and the eye,
+    // both teleport options and the Vote Kick gate vanish -- while the group still claims
+    // to be a finder group to every server-side isLFGGroup() test. Observed live
+    // 2026-08-07: a player logged into Wailing Caverns still grouped, with no eye, and
+    // "LFG TeleportPlayer: refused (out) -- group has no LFG status" in the log. Only the
+    // portrait's Leave Instance Group entry got them out.
+    //
+    // Demoting to an ordinary party is honest: the run really is over.
+    m_groupType = GroupType(m_groupType & ~GROUPTYPE_LFD);
+
+    if (!isBGGroup())
+    {
+        CharacterDatabase.PExecute("UPDATE `groups` SET `groupType` = %u WHERE `groupId`='%u'", uint8(m_groupType), m_Id);
+    }
+}
+
 void Group::SetAsLfgGroup()
 {
     // GROUPTYPE_LFD has to reach the DATABASE, not just m_groupType.

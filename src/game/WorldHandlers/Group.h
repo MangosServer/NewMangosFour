@@ -1509,6 +1509,7 @@ class Group
         /// Flag this group as a dungeon finder group AND persist it. Defined out of line
         /// because it writes to `groups`.`groupType` -- see the definition for why.
         void SetAsLfgGroup();
+        void ClearLfgGroup();
         bool IsMember(ObjectGuid guid) const
         {
             return _getMemberCSlot(guid) != m_memberSlots.end();
