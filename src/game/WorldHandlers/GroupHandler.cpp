@@ -537,9 +537,9 @@ void WorldSession::HandleGroupDisbandOpcode(WorldPacket& recv_data)
         //
         // The teleport out is refused in combat, but the removal used to run anyway, so a
         // player who clicked Leave Instance Group mid-fight was taken out of the group and
-        // left standing in the instance -- and at the time the refusal was mute, because
-        // SMSG_LFG_TELEPORT_DENIED was not admitted. It is admitted now, so the player is
-        // told; the removal-without-teleport is what this guard exists to stop. Observed live: "i did leave instance
+        // left standing in the instance, and the refusal itself was mute: it reported
+        // ERR_PARTY_RESULT_OK, the same code as success. The removal-without-teleport is
+        // what this guard exists to stop; the party-result code below now says so. Observed live: "i did leave instance
         // group on the leader, i just got removed but not teleported out", while stuck in
         // a combat stance.
         //
@@ -553,7 +553,15 @@ void WorldSession::HandleGroupDisbandOpcode(WorldPacket& recv_data)
         // player stays in the group, still able to leave once combat ends.
         if (GetPlayer()->IsInCombat() && sLFGMgr.IsPlayerInLfgDungeon(GetPlayer()))
         {
-            SendPartyResult(PARTY_OP_LEAVE, GetPlayer()->GetName(), ERR_PARTY_RESULT_OK);
+            // Tell them it was REFUSED, and why. This used to send ERR_PARTY_RESULT_OK --
+            // the identical response the success path sends -- so a player who clicked
+            // Leave Instance Group in combat got an "OK" and stayed in the group, with
+            // nothing to explain the contradiction.
+            //
+            // The client owns the right message: ERR_PARTY_LFG_TELEPORT_IN_COMBAT, "You
+            // cannot teleport out of the dungeon while in combat." That is exactly this
+            // refusal, since the teleport is the half that cannot happen.
+            SendPartyResult(PARTY_OP_LEAVE, GetPlayer()->GetName(), ERR_PARTY_LFG_TELEPORT_IN_COMBAT);
             DEBUG_LOG("HandleGroupDisbandOpcode: %s refused -- in combat inside an LFG dungeon",
                       GetPlayer()->GetName());
             return;

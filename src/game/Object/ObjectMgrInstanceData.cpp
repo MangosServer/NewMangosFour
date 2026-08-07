@@ -146,7 +146,24 @@ void ObjectMgr::LoadGroups()
     // TODO: maybe delete from the DB before loading in this case
     for (GroupMap::iterator itr = mGroupMap.begin(); itr != mGroupMap.end();)
     {
-        if (itr->second->GetMembersCount() < 2)
+        // Mirror RemoveMember's own survival threshold rather than assuming two.
+        //
+        // This loop predates the branch and was correct while a one-member group could
+        // never reach startup: the logout path dissolved it. It no longer does -- an LFG
+        // group survives logout deliberately, so a run that bled down to a single member
+        // persists to the database and loads here.
+        //
+        // Disbanding it at this point defeats the whole restart-survival feature, and
+        // silently: it runs BEFORE the instance-bind loop, so RestoreDungeonGroup is
+        // never called for the group, and before the demotion sweep, which then cannot
+        // see it either. The player logs back in inside the instance with no group, no
+        // LFG block, no eye and no teleport out -- exactly the stranding this branch
+        // exists to prevent.
+        //
+        // 1 < 1 is false, so a single-member LFG or battleground group now survives to
+        // the bind loop and is either restored or demoted there.
+        uint32 const minMembers = (itr->second->isBGGroup() || itr->second->isLFGGroup()) ? 1u : 2u;
+        if (itr->second->GetMembersCount() < minMembers)
         {
             itr->second->Disband();
             delete itr->second;

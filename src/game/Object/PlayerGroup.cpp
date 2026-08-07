@@ -149,7 +149,27 @@ void Player::RemoveFromGroup(Group* group, ObjectGuid guid)
 {
     if (group)
     {
-        if (group->RemoveMember(guid, 0) <= 1)
+        // Test for ZERO. RemoveMember returns the SURVIVING member count, and this
+        // branch frees the group on the assumption that a return of 1 or less means
+        // RemoveMember already disbanded it. That assumption is no longer true.
+        //
+        // LFG groups are now allowed to live on with a single member -- RemoveMember's
+        // threshold is `GetMembersCount() > (isBGGroup() || isLFGGroup() ? 1 : 2)` -- so
+        // removing one of two members takes the ordinary removal branch, returns 1, and
+        // Disband is never called. The old `<= 1` then deleted a group that was still in
+        // play, leaving the survivor holding a dangling m_group (only Disband nulls it),
+        // the `groups` and `group_instance` rows undeleted (only Disband removes them),
+        // and the LFG status leaked (ReleaseGroupLfgStatus is called from Disband).
+        // The next touch of GetGroup() -- the very next world tick -- reads freed memory.
+        //
+        // Reachable on the most ordinary path there is: a dungeon run down to two
+        // players and one of them clicks Leave Instance Group. Also from proposal
+        // creation dissolving a finished two-member group, from character deletion, and
+        // from Eluna's player:RemoveFromGroup().
+        //
+        // The same defect was found and fixed in LFGMgr::CastVote; this caller was
+        // missed, and it is the high-traffic one.
+        if (group->RemoveMember(guid, 0) == 0)
         {
             // group->Disband(); already disbanded in RemoveMember
             sObjectMgr.RemoveGroup(group);
