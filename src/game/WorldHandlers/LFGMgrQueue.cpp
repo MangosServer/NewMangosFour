@@ -615,6 +615,29 @@ void LFGMgr::LeaveLFG(Player* plr, bool isGroup)
             }
         }
 
+        // Tear the entry down ONLY if nobody is left in it.
+        //
+        // RemovePlayerFromQueue already erases the entry when currentRoles empties, so
+        // this was redundant in the ordinary case -- and destructive in the one that
+        // matters. MergeGroups can absorb a solo queuer into a party's entry, and that
+        // player is still in currentRoles after every party member has been removed
+        // above. Erasing unconditionally deleted their queue with the party's: their
+        // m_playerStatusMap still said LFG_STATE_QUEUED, but they were gone from
+        // m_queueSet and m_playerData, so no match and no queue-status update could ever
+        // reach them again. They sat believing they were queued until they manually left
+        // and re-queued.
+        //
+        // Reachable: a party of fewer than five queues, a solo player queues, the
+        // matchmaker merges the solo into the party's entry without completing a group,
+        // then the party cancels.
+        if (LFGPlayers const* remaining = GetPlayerOrPartyData(grpGuid))
+        {
+            if (!remaining->currentRoles.empty())
+            {
+                return;                                     // absorbed queuers still hold it
+            }
+        }
+
         m_queueSet.erase(grpGuid);
         m_playerData.erase(grpGuid);
     }

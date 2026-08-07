@@ -563,6 +563,11 @@ void WorldSession::HandleGroupDisbandOpcode(WorldPacket& recv_data)
         // is still in a live run, and the teleport is about to move them out of it.
         sLFGMgr.OnPlayerLeftDungeonGroup(GetPlayer());
         sLFGMgr.TeleportPlayer(GetPlayer(), true);
+
+        // Clear their own LFG state and withdraw any boot vote. Must run for every
+        // leaver, which is why it is not folded into OnPlayerLeftDungeonGroup -- that
+        // one returns early in several cases that are right for Deserter and wrong here.
+        sLFGMgr.OnPlayerLeftLfgGroup(GetPlayer(), pGroup);
     }
 
     // everything is fine, do it

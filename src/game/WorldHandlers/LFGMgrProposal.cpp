@@ -1979,7 +1979,14 @@ void LFGMgr::CastVote(Player* pPlayer, bool vote)
         }
 
         // kick player from group
-        if (pGroup->RemoveMember(boot.playerVotedOn, 1) <= 1)
+        // Test for ZERO, not <= 1. Group::RemoveMember returns the surviving member
+        // count, and an LFG group is now allowed to live on with a single member, so 1
+        // no longer means "disbanded". Deleting there would free a group that is still
+        // in play. Unreachable today -- REQUIRED_VOTES_FOR_BOOT = 3 means a vote cannot
+        // start below five members, leaving at least three after a kick -- but it is a
+        // use-after-free the moment that constant is lowered, which the LFR work will
+        // want to do.
+        if (pGroup->RemoveMember(boot.playerVotedOn, 1) == 0)
         {
             // group->Disband(); already disbanded in RemoveMember
             sObjectMgr.RemoveGroup(pGroup);

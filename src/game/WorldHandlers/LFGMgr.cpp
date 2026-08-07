@@ -1873,6 +1873,46 @@ bool LFGMgr::IsPlayerInLfgDungeon(Player* pPlayer)
     return dungeon && pPlayer->GetMapId() == uint32(dungeon->MapID);
 }
 
+/// Drop a departing player's own LFG state, and their vote if one is in flight.
+///
+/// Distinct from OnPlayerLeftDungeonGroup, which decides Deserter and returns early in
+/// several cases -- a finished run, a run past its protected opening, a group with no
+/// status. Those early returns are correct for Deserter and wrong for cleanup, so the
+/// cleanup lives here and always runs.
+///
+/// Without it a voluntary leaver keeps whatever state they held. That matters most for
+/// LFG_STATE_BOOT: ReleaseGroupLfgStatus clears the members of a group that DISBANDS, and
+/// RemoveOldBoots clears the polled players when the group is GONE, but someone who simply
+/// walks out mid-vote is in neither set. They kept LFG_STATE_BOOT across relog, and
+/// HandleLfgGetStatusOpcode would hand their client a boot dialog for a vote that no
+/// longer existed.
+///
+/// Their vote is withdrawn too. Leaving it in `answers` counts an absent player toward a
+/// threshold they can no longer be persuaded to change.
+void LFGMgr::OnPlayerLeftLfgGroup(Player* pPlayer, Group* pGroup)
+{
+    if (!pPlayer || !pGroup)
+    {
+        return;
+    }
+
+    ObjectGuid const plrGuid = pPlayer->GetObjectGuid();
+
+    bootStatusMap::iterator bootIt = m_bootStatusMap.find(pGroup->GetObjectGuid());
+    if (bootIt != m_bootStatusMap.end())
+    {
+        bootIt->second.answers.erase(plrGuid);
+
+        // If the leaver WAS the target, the vote has nothing left to decide.
+        if (bootIt->second.playerVotedOn == plrGuid)
+        {
+            m_bootStatusMap.erase(bootIt);
+        }
+    }
+
+    SetPlayerState(plrGuid, LFG_STATE_NONE);
+}
+
 void LFGMgr::OnPlayerLeftDungeonGroup(Player* pPlayer)
 {
     if (!pPlayer)

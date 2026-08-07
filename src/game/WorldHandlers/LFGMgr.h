@@ -1350,6 +1350,10 @@ public:
     /// not yet made progress.
     void OnPlayerLeftDungeonGroup(Player* pPlayer);
 
+    /// Always-runs cleanup for a player leaving an LFG group: clears their LFG state
+    /// and withdraws any vote they had cast.
+    void OnPlayerLeftLfgGroup(Player* pPlayer, Group* pGroup);
+
     /// Is this player standing inside the dungeon of a live LFG run?
     bool IsPlayerInLfgDungeon(Player* pPlayer);
 
