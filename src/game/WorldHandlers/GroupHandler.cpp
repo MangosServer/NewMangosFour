@@ -394,16 +394,38 @@ void WorldSession::HandleGroupUninviteGuidOpcode(WorldPacket& recv_data)
         return;
     }
 
+    Group* grp = GetPlayer()->GetGroup();
+    if (!grp)
+    {
+        return;
+    }
+
+    // In a dungeon-finder group nobody may remove anybody unilaterally; the request
+    // becomes a vote kick instead. That is why the client bothers to collect
+    // `reason` here -- it is the free text shown in the boot dialog and it has no
+    // other consumer.
+    //
+    // Deliberately BEFORE CanUninviteFromGroup, which requires leader or assistant.
+    // An LFD group has no meaningful leadership for this purpose: any member may
+    // start a vote, including against the leader, and the vote is what decides it.
+    // Routing through the normal path would both refuse ordinary members and, for a
+    // leader, silently perform a real removal that no one voted on.
+    if (grp->isLFGGroup())
+    {
+        if (!grp->IsMember(guid))
+        {
+            SendPartyResult(PARTY_OP_LEAVE, "", ERR_TARGET_NOT_IN_GROUP_S);
+            return;
+        }
+
+        sLFGMgr.AttemptToKickPlayer(grp, guid, GetPlayer()->GetObjectGuid(), request.reason);
+        return;
+    }
+
     PartyResult res = GetPlayer()->CanUninviteFromGroup();
     if (res != ERR_PARTY_RESULT_OK)
     {
         SendPartyResult(PARTY_OP_LEAVE, "", res);
-        return;
-    }
-
-    Group* grp = GetPlayer()->GetGroup();
-    if (!grp)
-    {
         return;
     }
 

@@ -281,6 +281,44 @@ void WorldSession::HandleLfgGetStatusOpcode(WorldPacket& /*recv_data*/)
     SendLfgUpdate(GetPlayer()->GetGroup() != nullptr, status);
 }
 
+/**
+ * @brief A player's answer to an in-progress vote kick.
+ *
+ * The body is ONE BIT and nothing else, derived from the 18414 writer: the packet
+ * class at vtable 0xD63364, whose header virtual sub_661F56 writes opcode 6078
+ * (0x17BE) and whose body writer sub_688B4B is exactly
+ *
+ *     WriteBit(this->agree); FlushBits();
+ *
+ * One byte on the wire, 0x80 for agree and 0x00 for deny, because ReadBit is
+ * MSB-first. There is no GUID, no length and no second field, so the client tells
+ * us only HOW the player voted. WHICH boot it belongs to has to come entirely from
+ * server state: the sending session identifies the voter, and the voter's group
+ * identifies the boot.
+ *
+ * @param recv_data The received opcode packet.
+ */
+void WorldSession::HandleLfgBootPlayerVoteOpcode(WorldPacket& recv_data)
+{
+    if (recv_data.size() - recv_data.rpos() != 1)
+    {
+        sLog.outError("WORLD: malformed CMSG_LFG_BOOT_PLAYER_VOTE from %s", GetPlayerName());
+        return;
+    }
+
+    bool const agree = recv_data.ReadBit();
+
+    if (!GetPlayer())
+    {
+        return;
+    }
+
+    DEBUG_LOG("CMSG_LFG_BOOT_PLAYER_VOTE: %s voted %s",
+              GetPlayer()->GetGuidStr().c_str(), agree ? "agree" : "deny");
+
+    sLFGMgr.CastVote(GetPlayer(), agree);
+}
+
 void WorldSession::HandleLfgTeleportOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("CMSG_LFG_TELEPORT");
@@ -795,7 +833,13 @@ void WorldSession::SendLfgBootUpdate(LFGBoot const& boot)
     DEBUG_LOG("SMSG_LFG_BOOT_PLAYER (5.4.8)");
 
     ObjectGuid plrGuid = GetPlayer()->GetObjectGuid();
-    LFGProposalAnswer plrAnswer = boot.answers.find(plrGuid)->second;
+
+    // The recipient is not guaranteed to have a vote recorded. The player being
+    // voted on is deliberately skipped when the result is broadcast, and a member
+    // who joined after the vote started never had an entry, so find() can and does
+    // return end(). Dereferencing it was an unchecked crash on the boot path.
+    proposalAnswerMap::const_iterator plrIt = boot.answers.find(plrGuid);
+    LFGProposalAnswer plrAnswer = plrIt != boot.answers.end() ? plrIt->second : LFG_ANSWER_PENDING;
 
     uint32 voteCount = 0, yayCount = 0;
     for (proposalAnswerMap::const_iterator it = boot.answers.begin(); it != boot.answers.end(); ++it)

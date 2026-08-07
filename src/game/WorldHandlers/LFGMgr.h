@@ -1559,6 +1559,9 @@ public:
     /// Group kick hook
     void AttemptToKickPlayer(Group* pGroup, ObjectGuid guid, ObjectGuid kicker, std::string reason);
 
+    /// Expire boot votes that ran past LFG_TIME_BOOT. An expired vote always fails.
+    void RemoveOldBoots();
+
     // Called when a player votes yes or no on a boot vote
     void CastVote(Player* pPlayer, bool vote);
 

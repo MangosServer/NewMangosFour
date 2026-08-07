@@ -76,13 +76,16 @@ LFGMgr::~LFGMgr()
 
 void LFGMgr::Update()
 {
-    //todo: remove old queues, proposals & boot votes
+    //todo: remove old queues
 
     // remove old role checks
     RemoveOldRoleChecks();
 
     // and proposals nobody answered
     RemoveOldProposals();
+
+    // and boot votes that ran out of time
+    RemoveOldBoots();
 
     // go through a waitTimeMap::iterator for each wait map and update times based on player count
     for (waitTimeMap::iterator tankItr = m_tankWaitTime.begin(); tankItr != m_tankWaitTime.end(); ++tankItr)
@@ -1083,6 +1086,78 @@ void LFGMgr::CancelProposalsFor(ObjectGuid plrGuid)
         std::set<ObjectGuid> culprit;
         culprit.insert(plrGuid);
         CancelProposal(*it, culprit);
+    }
+}
+
+/// Expire boot votes nobody finished answering.
+///
+/// LFG_TIME_BOOT is 30 seconds, measured across all 14 observed retail boot
+/// sessions, and the client counts down against the timeLeft we send. Nothing
+/// cleared the vote when that ran out, so a boot that never reached the threshold
+/// pinned the whole group in LFG_STATE_BOOT permanently: CastVote refuses any
+/// other state, AttemptToKickPlayer now refuses a boot already in progress, and
+/// the state only ever moved again on a completed vote. One ignored popup
+/// disabled vote kick for the rest of the run.
+///
+/// An expired vote FAILS. A kick needs REQUIRED_VOTES_FOR_BOOT explicit agrees,
+/// so silence must never remove anybody.
+void LFGMgr::RemoveOldBoots()
+{
+    time_t const now = time(NULL);
+
+    std::vector<ObjectGuid> expired;
+    for (bootStatusMap::const_iterator it = m_bootStatusMap.begin(); it != m_bootStatusMap.end(); ++it)
+    {
+        if (it->second.inProgress && it->second.startTime &&
+            (now - it->second.startTime) >= LFG_TIME_BOOT)
+        {
+            expired.push_back(it->first);
+        }
+    }
+
+    // Collected first, because the loop below erases from the map being walked.
+    for (std::vector<ObjectGuid>::const_iterator it = expired.begin(); it != expired.end(); ++it)
+    {
+        ObjectGuid const groupGuid = *it;
+
+        bootStatusMap::iterator bootIt = m_bootStatusMap.find(groupGuid);
+        if (bootIt == m_bootStatusMap.end())
+        {
+            continue;
+        }
+
+        LFGBoot boot = bootIt->second;
+        boot.inProgress = false;
+
+        if (LFGGroupStatus* status = GetGroupStatus(groupGuid))
+        {
+            if (status->state == LFG_STATE_BOOT)
+            {
+                status->state = LFG_STATE_IN_DUNGEON;
+                m_groupStatusMap[groupGuid] = *status;
+            }
+        }
+
+        // Tell everyone the vote lapsed and put their state back, including the
+        // player it was aimed at -- leaving the target in LFG_STATE_BOOT would block
+        // every later vote in the group just as surely as the stale entry did.
+        if (Group* pGroup = sObjectMgr.GetGroupById(groupGuid.GetCounter()))
+        {
+            for (GroupReference* ref = pGroup->GetFirstMember(); ref != NULL; ref = ref->next())
+            {
+                if (Player* pGroupPlr = ref->getSource())
+                {
+                    SetPlayerState(pGroupPlr->GetObjectGuid(), LFG_STATE_IN_DUNGEON);
+                    pGroupPlr->GetSession()->SendLfgBootUpdate(boot);
+                }
+            }
+        }
+
+        m_bootStatusMap.erase(groupGuid);
+
+        DEBUG_LOG("LFG RemoveOldBoots: vote against %s in group %s expired after %u s; nobody removed",
+                  boot.playerVotedOn.GetString().c_str(), groupGuid.GetString().c_str(),
+                  uint32(LFG_TIME_BOOT));
     }
 }
 

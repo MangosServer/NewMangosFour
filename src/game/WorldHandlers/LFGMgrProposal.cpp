@@ -1723,12 +1723,53 @@ void LFGMgr::HandleBossKilled(Player* pPlayer)
 
 void LFGMgr::AttemptToKickPlayer(Group* pGroup, ObjectGuid guid, ObjectGuid kicker, std::string reason)
 {
+    if (!pGroup)
+    {
+        return;
+    }
+
     ObjectGuid groupGuid = pGroup->GetObjectGuid();
     LFGGroupStatus* status = GetGroupStatus(groupGuid);
-
-    bootStatusMap::iterator bIt = m_bootStatusMap.find(groupGuid);
     if (!status)
     {
+        return;
+    }
+
+    Player* pKicker = sObjectAccessor.FindPlayer(kicker);
+
+    // Refusals below are reported with SMSG_PARTY_COMMAND_RESULT, whose flat 18414
+    // body is already verified and admitted. Without them the initiator gets no
+    // response at all and the client leaves the Remove entry looking broken.
+    if (status->state == LFG_STATE_BOOT)
+    {
+        if (pKicker)
+        {
+            pKicker->GetSession()->SendPartyResult(PARTY_OP_LEAVE, "", ERR_PARTY_LFG_BOOT_IN_PROGRESS);
+        }
+        return;
+    }
+
+    if (status->state == LFG_STATE_FINISHED_DUNGEON)
+    {
+        // Nothing left to protect the group from once the run is done, and the
+        // client ships a dedicated message for exactly this.
+        if (pKicker)
+        {
+            pKicker->GetSession()->SendPartyResult(PARTY_OP_LEAVE, "", ERR_PARTY_LFG_BOOT_DUNGEON_COMPLETE);
+        }
+        return;
+    }
+
+    // A vote that cannot possibly reach the threshold must not be started: it would
+    // freeze the group in LFG_STATE_BOOT until the timer expired, blocking any
+    // further attempt for the whole window. Everyone except the target may vote
+    // yes, so the group needs REQUIRED_VOTES_FOR_BOOT + 1 members to succeed at all.
+    if (int32(pGroup->GetMembersCount()) <= REQUIRED_VOTES_FOR_BOOT)
+    {
+        if (pKicker)
+        {
+            pKicker->GetSession()->SendPartyResult(PARTY_OP_LEAVE, "", ERR_PARTY_LFG_BOOT_TOO_FEW_PLAYERS);
+        }
         return;
     }
 
@@ -1779,6 +1820,14 @@ void LFGMgr::CastVote(Player* pPlayer, bool vote)
     }
 
     Group* pGroup = pPlayer->GetGroup();
+    if (!pGroup)
+    {
+        // The vote body carries no group and no target, so a client that votes with
+        // no group at all reaches here. Dereferencing was an unchecked crash on a
+        // packet any client can send.
+        return;
+    }
+
     ObjectGuid groupGuid = pGroup->GetObjectGuid();
 
     LFGGroupStatus* status = GetGroupStatus(groupGuid);
@@ -1795,6 +1844,20 @@ void LFGMgr::CastVote(Player* pPlayer, bool vote)
     }
 
     LFGBoot boot = it->second;
+
+    // The player being voted on does not get a say in their own removal.
+    if (pPlayer->GetObjectGuid() == boot.playerVotedOn)
+    {
+        return;
+    }
+
+    // Nor does anyone who was not part of the vote when it started -- otherwise a
+    // member who joined mid-vote could tip a tally they were never counted in.
+    if (boot.answers.find(pPlayer->GetObjectGuid()) == boot.answers.end())
+    {
+        return;
+    }
+
     boot.answers[pPlayer->GetObjectGuid()] = LFGProposalAnswer(vote);
 
     int32 yay = 0, nay = 0; // keep a count of votes
@@ -1823,6 +1886,9 @@ void LFGMgr::CastVote(Player* pPlayer, bool vote)
 
     boot.inProgress = false;
     status->state = LFG_STATE_IN_DUNGEON;
+    m_groupStatusMap[groupGuid] = *status;
+
+    bool const passed = yay >= REQUIRED_VOTES_FOR_BOOT;
 
     for (GroupReference* itr = pGroup->GetFirstMember(); itr != NULL; itr = itr->next())
     {
@@ -1838,8 +1904,36 @@ void LFGMgr::CastVote(Player* pPlayer, bool vote)
         }
     }
 
-    if (yay == REQUIRED_VOTES_FOR_BOOT)
+    // The target is told the outcome too, and their state is restored either way.
+    // Skipping them entirely left a survivor of a failed vote stuck in
+    // LFG_STATE_BOOT for the rest of the run, which blocks the next vote against
+    // anyone and is invisible until someone tries.
+    if (Player* pVictim = sObjectAccessor.FindPlayer(boot.playerVotedOn))
     {
+        SetPlayerState(boot.playerVotedOn, LFG_STATE_IN_DUNGEON);
+        pVictim->GetSession()->SendLfgBootUpdate(boot);
+    }
+
+    // The vote is over however it went; drop it before acting on the result so a
+    // rejected target can be voted on again later, and so RemoveMember below cannot
+    // re-enter this function against a boot that no longer exists. Nothing erased
+    // this map before, so one vote per group per session was the real behaviour.
+    m_bootStatusMap.erase(groupGuid);
+
+    if (passed)
+    {
+        // Put them back where they queued from BEFORE removing them from the group.
+        // Once the group is gone so is the LFG status this reads, and a booted
+        // player left standing inside the instance can simply walk back to the
+        // group -- the removal is meaningless without the teleport.
+        if (Player* pVictim = sObjectAccessor.FindPlayer(boot.playerVotedOn))
+        {
+            if (pVictim->IsInWorld())
+            {
+                pVictim->TeleportToBGEntryPoint();
+            }
+        }
+
         // kick player from group
         if (pGroup->RemoveMember(boot.playerVotedOn, 1) <= 1)
         {

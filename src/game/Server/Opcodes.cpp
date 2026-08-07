@@ -1153,6 +1153,12 @@ void InitializeOpcodes()
     DefS(SMSG_LFG_TELEPORT_DENIED, "SMSG_LFG_TELEPORT_DENIED");
     // Body is a single MSB-first bit (0x80 out, 0x00 in) -- see HandleLfgTeleportOpcode.
     DefC(CMSG_LFG_TELEPORT, "CMSG_LFG_TELEPORT", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgTeleportOpcode);
+    // Vote on an in-progress kick. Body is a single MSB-first bit and nothing else:
+    // the 18414 writer sub_688B4B (packet class vtable 0xD63364, header virtual
+    // sub_661F56 writing 6078) is exactly WriteBit(agree) + FlushBits. The client
+    // does not say WHICH boot -- the session identifies the voter and the voter's
+    // group identifies the vote.
+    DefC(CMSG_LFG_BOOT_PLAYER_VOTE, "CMSG_LFG_BOOT_PLAYER_VOTE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgBootPlayerVoteOpcode);
 
     // Wave 13 talent-respec confirmation request and prompt.
     DefC(CMSG_CONFIRM_RESPEC_WIPE, "CMSG_CONFIRM_RESPEC_WIPE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTalentWipeConfirmOpcode);
