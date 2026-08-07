@@ -95,8 +95,16 @@ namespace
         WorldPacket packet(SMSG_LFG_PLAYER_INFO, 5 + locks.size() * 16);
         MopLfgPackets::BuildPlayerInfo(packet, locks);
 
-        CHECK(packet.size() == 5 + expected.size());       // 5-byte header, then the array
-        AssertBytes(packet.contents(), expected, 5, "lock_records");
+        // Gate the byte comparison on the size. AssertBytes bounds-checks nothing and
+        // reads actual[5 .. 4 + expected.size()], so a short packet is read past its
+        // end. CHECK records a failure without aborting, so without this gate the
+        // comparison ran anyway.
+        bool const sized = (packet.size() == 5 + expected.size());
+        CHECK(sized);                                      // 5-byte header, then the array
+        if (sized)
+        {
+            AssertBytes(packet.contents(), expected, 5, "lock_records");
+        }
     }
 
     /// The 20/1/17 bit header, checked against the reference packet's own first five bytes.

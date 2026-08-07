@@ -57,6 +57,14 @@ namespace
             std::printf("%s: size %u, expected %u\n", label,
                         unsigned(packet.size()), unsigned(expected.size()));
             CHECK(false);
+
+            // Stop here. CHECK records the failure but does not abort, and the loop
+            // below indexes packet.contents() by expected.size() -- past the end of a
+            // packet that is short. The vector's spare capacity usually absorbs that,
+            // which is worse than a crash: it prints a wall of byte mismatches for
+            // bytes that do not exist, so a size bug reads as a content bug at exactly
+            // the moment someone is trying to diagnose it.
+            return;
         }
 
         for (size_t i = 0; i < expected.size(); ++i)
