@@ -30,6 +30,8 @@
 #include "DBCStores.h"
 #include "DBCStructure.h"
 #include "GameEventMgr.h"
+#include "Item.h"
+#include "Mail.h"
 #include "Group.h"
 #include "LFGMgr.h"
 #include "Object.h"
@@ -1521,6 +1523,55 @@ void LFGMgr::UpdateWaitMap(LFGRoles role, uint32 dungeonID, time_t waitTime)
 
 }
 
+/// Hand a completion reward item to a player, falling back to mail when the bags are full.
+///
+/// A dungeon reward must not be silently dropped because the player finished the run with no
+/// free slot -- that is precisely when it is most likely, since they have just looted a boss.
+/// Mailing it is what retail does and what the rest of this server already does for
+/// achievement rewards (AchievementMgr.cpp:2219).
+void LFGMgr::GiveDungeonRewardItem(Player* pPlayer, uint32 itemId, uint32 amount)
+{
+    ItemPrototype const* proto = ObjectMgr::GetItemPrototype(itemId);
+    if (!proto)
+    {
+        sLog.outError("LFG GiveDungeonRewardItem: reward item %u does not exist; %s paid nothing",
+                      itemId, pPlayer->GetGuidStr().c_str());
+        return;
+    }
+
+    ItemPosCountVec dest;
+    uint32 noSpaceCount = 0;
+    InventoryResult msg = pPlayer->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, itemId, amount, &noSpaceCount);
+
+    uint32 stored = amount - noSpaceCount;
+    if (msg == EQUIP_ERR_OK && stored)
+    {
+        if (Item* item = pPlayer->StoreNewItem(dest, itemId, true))
+        {
+            pPlayer->SendNewItem(item, stored, true, false);
+        }
+    }
+
+    // Whatever did not fit goes in the post.
+    if (noSpaceCount)
+    {
+        if (Item* mailItem = Item::CreateItem(itemId, noSpaceCount, pPlayer))
+        {
+            mailItem->SaveToDB();                           // persist before send, or a failed send loses it
+
+            std::string const subject = proto->Name1 ? proto->Name1 : "";
+            MailDraft draft(subject, "");
+            draft.AddItem(mailItem);
+            draft.SendMailTo(MailReceiver(pPlayer), MailSender(MAIL_CREATURE, uint32(0)));
+        }
+        else
+        {
+            sLog.outError("LFG GiveDungeonRewardItem: could not create %u x%u for mail to %s",
+                          itemId, noSpaceCount, pPlayer->GetGuidStr().c_str());
+        }
+    }
+}
+
 void LFGMgr::HandleBossKilled(Player* pPlayer)
 {
     Group* pGroup = pPlayer->GetGroup();
@@ -1615,6 +1666,38 @@ void LFGMgr::HandleBossKilled(Player* pPlayer)
                 itemReward = itemRewards.itemId;
                 itemAmount = itemRewards.itemAmount;
             }
+
+            // Actually pay the player.
+            //
+            // Everything above computed a reward and then only ever announced it. Nothing
+            // in the LFG code granted money, experience or the satchel -- a grep for
+            // ModifyMoney, GiveXP or StoreNewItem across the LFG sources returned nothing
+            // -- so finishing a dungeon paid exactly zero, and the announcement was
+            // dropped by the enter-world send gate on top of that.
+            if (moneyReward)
+            {
+                pGroupPlr->ModifyMoney(int64(moneyReward));
+            }
+
+            if (xpReward)
+            {
+                // GiveXP is a no-op at max level, which is the correct behaviour here:
+                // the money component above is what a level-capped character keeps.
+                pGroupPlr->GiveXP(xpReward, NULL);
+            }
+
+            if (itemReward && itemAmount)
+            {
+                GiveDungeonRewardItem(pGroupPlr, itemReward, itemAmount);
+            }
+
+            // Record the run against the daily allowance AFTER the reward is decided.
+            //
+            // RegisterPlayerDaily had no callers at all, so HasPlayerDoneDaily was
+            // permanently false: every run took the first-of-the-day branch and paid the
+            // doubled reward plus the satchel, for ever. It has to be set here, once the
+            // multiplier and the item have already been chosen from the pre-run value.
+            RegisterPlayerDaily(pGroupPlr->GetGUIDLow(), type);
 
             // and then fill a structure corresponding to SMSG_LFG_PLAYER_REWARD and
             // send one of these to each player

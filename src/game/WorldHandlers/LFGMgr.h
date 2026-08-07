@@ -1620,6 +1620,9 @@ protected:
     /// moves every eligible member, which is what a proposal accept needs.
     void TeleportToDungeon(uint32 dungeonID, Group* pGroup, Player* onlyPlayer = NULL);
 
+    /// Grant a completion reward item, mailing whatever does not fit in the bags.
+    void GiveDungeonRewardItem(Player* pPlayer, uint32 itemId, uint32 amount);
+
     /**
      * @brief Merges two players/groups/etc into one for dungeon assignment.
      *
