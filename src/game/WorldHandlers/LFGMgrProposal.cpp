@@ -1783,6 +1783,15 @@ void LFGMgr::AttemptToKickPlayer(Group* pGroup, ObjectGuid guid, ObjectGuid kick
     // freeze the group in LFG_STATE_BOOT until the timer expired, blocking any
     // further attempt for the whole window. Everyone except the target may vote
     // yes, so the group needs REQUIRED_VOTES_FOR_BOOT + 1 members to succeed at all.
+    // Note the asymmetry this leaves, and why it is tolerable ONLY because expiry
+    // exists. The victim does not vote, so a group of N has N-1 voters and the
+    // initiator's is already AGREE. At N = 4 that means at most 2 denies, which can
+    // never reach the threshold: such a vote can PASS on votes but can only FAIL by
+    // running out the LFG_TIME_BOOT window. That is a correct outcome, and
+    // RemoveOldBoots delivers it -- but if the reaper is ever removed, a four-man
+    // group is wedged in LFG_STATE_BOOT permanently. Retail avoids the corner by
+    // scaling votesNeeded with group size (the corpus shows 13 for a 25-man LFR);
+    // we do not, so the reaper is load-bearing rather than belt-and-braces.
     if (int32(pGroup->GetMembersCount()) <= REQUIRED_VOTES_FOR_BOOT)
     {
         if (pKicker)
