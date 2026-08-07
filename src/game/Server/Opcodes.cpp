@@ -1159,6 +1159,11 @@ void InitializeOpcodes()
     // does not say WHICH boot -- the session identifies the voter and the voter's
     // group identifies the vote.
     DefC(CMSG_LFG_BOOT_PLAYER_VOTE, "CMSG_LFG_BOOT_PLAYER_VOTE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleLfgBootPlayerVoteOpcode);
+    // The role-check confirmation each member receives as others answer. Layout from
+    // the 18414 reader sub_6E921A (handler 0x985605): nine mask bits whose SIXTH is
+    // `accepted` rather than a guid bit, then guid bytes 0,3,6, the roles dword, then
+    // 5,1,4,2,7. Confirmed against eight corpus packets across seven captures.
+    DefS(SMSG_ROLE_CHOSEN, "SMSG_ROLE_CHOSEN");
 
     // Wave 13 talent-respec confirmation request and prompt.
     DefC(CMSG_CONFIRM_RESPEC_WIPE, "CMSG_CONFIRM_RESPEC_WIPE", STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleTalentWipeConfirmOpcode);

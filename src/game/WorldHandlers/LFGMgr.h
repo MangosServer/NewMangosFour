@@ -894,30 +894,39 @@ enum LFGRoleCount
 };
 
 /// Teleport errors
+/// Reason codes for SMSG_LFG_TELEPORT_DENIED.
+///
+/// Derived from the 18414 client, not from a fork. The body is a FOUR BIT field
+/// (WriteBits(reason & 0xF, 4) then FlushBits), which is why every captured body
+/// is one byte and why the single observed value looked unmappable: MSB-first, a
+/// reason of 1 occupies the high nibble and lands as 0x10, and the corpus also
+/// carries 0x90 for reason 9. Both are ordinary codes, not an unknown space.
+///
+/// Only the low nibble reaches the wire, so every value here must be 0-15.
 enum LFGTeleportError
 {
-    // 7 = "You can't do that right now" | 5 = No client reaction
     LFG_TELEPORTERROR_OK                         = 0,
-    LFG_TELEPORTERROR_PLAYER_DEAD                = 1,
-    LFG_TELEPORTERROR_FALLING                    = 2,
-    LFG_TELEPORTERROR_IN_VEHICLE                 = 3,
-    LFG_TELEPORTERROR_FATIGUE                    = 4,
-    LFG_TELEPORTERROR_INVALID_LOCATION           = 6,
-    LFG_TELEPORTERROR_CHARMING                   = 8,
+    LFG_TELEPORTERROR_FALLING                    = 7,
+    LFG_TELEPORTERROR_PLAYER_DEAD                = 9,
+    LFG_TELEPORTERROR_FATIGUE                    = 12,
+    LFG_TELEPORTERROR_INVALID_LOCATION           = 15,
 
-    /// Refusing a teleport because the player is fighting.
+    /// The three refusals with no dedicated client message.
     ///
-    /// PROVISIONAL VALUE, and it must not be cited as derived. The client certainly has
-    /// the message -- ERR_PARTY_LFG_TELEPORT_IN_COMBAT, "You cannot teleport out of the
-    /// dungeon while in combat.", GlobalString index 712 at .data:00F5FA18 -- and 30 is
-    /// the case that pushes it in the dispatcher at .text:007AA970. But that dispatcher's
-    /// neighbouring cases are ERR_INVITE_* and ERR_PARTY_LFG_BOOT_*, so it is the PARTY
-    /// error space, which may not be the space SMSG_LFG_TELEPORT_DENIED uses. The one
-    /// captured body of that opcode carries 0x10, which is in neither reading.
+    /// 5 and 10 both route to ERR_CLIENT_LOCKED_OUT ("You can't do that right
+    /// now"), which is vague but true and, crucially, VISIBLE. 6 and 13 are
+    /// silent in the client, so sending either would put the player back exactly
+    /// where they were before this opcode was admitted: a click that does
+    /// nothing and explains nothing.
     ///
-    /// Harmless today because SendLfgTeleportError is not admitted, so nothing reaches the
-    /// client. The REFUSAL is the part that matters and that is not in doubt.
-    LFG_TELEPORTERROR_IN_COMBAT                  = 30
+    /// IN_COMBAT deliberately shares that generic code rather than using 30. The
+    /// client does own ERR_PARTY_LFG_TELEPORT_IN_COMBAT, but 30 was recovered
+    /// from the PARTY error dispatcher, and this opcode's four-bit field cannot
+    /// carry 30 at all -- it would truncate to 14. A vague visible message beats
+    /// a wrong one.
+    LFG_TELEPORTERROR_IN_VEHICLE                 = 5,
+    LFG_TELEPORTERROR_CHARMING                   = 5,
+    LFG_TELEPORTERROR_IN_COMBAT                  = 5
 };
 
 enum DungeonTypes

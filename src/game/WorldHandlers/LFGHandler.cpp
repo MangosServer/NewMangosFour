@@ -678,10 +678,31 @@ void WorldSession::SendLfgRoleCheckUpdate(LFGRoleCheck const& roleCheck)
 
 void WorldSession::SendLfgRoleChosen(uint64 rawGuid, uint8 roles)
 {
-    WorldPacket data(SMSG_ROLE_CHOSEN, 13);
-    data << uint64(rawGuid);
-    data << uint8(roles > 0);
+    // Derived from the 18414 reader sub_6E921A (handler 0x985605, whose own log line
+    // is "ROLE_CHOSEN - GUID: %016llX, Accepted: %s, Roles Desired: %x") and confirmed
+    // by decoding eight corpus packets across seven captures, all of which reconstruct
+    // byte for byte.
+    //
+    // The previous body -- uint64, uint8, uint32 -- was flat, and this opcode is not.
+    // It never mattered because SMSG_ROLE_CHOSEN was not admitted through the send
+    // gate, so the wrong bytes were discarded before reaching anyone.
+    //
+    // Nine mask bits, and the SIXTH is not a guid bit: it is `accepted`. Then three
+    // guid bytes, the roles dword, then the remaining five guid bytes.
+    ObjectGuid const guid(rawGuid);
+    bool const accepted = roles > 0;
+
+    WorldPacket data(SMSG_ROLE_CHOSEN, 2 + 8 + 4);
+
+    data.WriteGuidMask<6, 2, 1, 7, 0>(guid);
+    data.WriteBit(accepted);
+    data.WriteGuidMask<3, 5, 4>(guid);
+    data.FlushBits();
+
+    data.WriteGuidBytes<0, 3, 6>(guid);
     data << uint32(roles);
+    data.WriteGuidBytes<5, 1, 4, 2, 7>(guid);
+
     SendPacket(&data);
 }
 
@@ -780,20 +801,23 @@ void WorldSession::SendLfgOfferContinue(uint32 dungeonEntry)
 
 void WorldSession::SendLfgTeleportError(uint8 error)
 {
-    DEBUG_LOG("SMSG_LFG_TELEPORT_DENIED");
+    DEBUG_LOG("SMSG_LFG_TELEPORT_DENIED: reason %u", uint32(error));
 
-    // One byte, not four. Every 18414 capture of this opcode in the corpus is exactly
-    // 1 byte (capture-000044 seq 70879 and 219256, capture-000465 seq 283035,
-    // capture-000628 seq 31349, capture-000873 seq 154730).
+    // FOUR BITS, not a byte. The 18414 body is WriteBits(reason & 0xF, 4) followed by
+    // FlushBits, which is why every captured body is exactly one byte.
     //
-    // NOT admitted by IsEnterWorldConverted, deliberately. The size is settled but the
-    // VALUE space is not: the one captured body carries 0x10 (16), while our
-    // LFGTeleportError enum stops at 8, so our codes are provably not the client's.
-    // Sending a correctly sized packet with a wrong code would show the player a
-    // confidently wrong reason, which is worse than the current silence. Admit this
-    // once the enum is derived from the client.
+    // That also explains the value that previously blocked admission. The old comment
+    // here reasoned that the captured 0x10 lay outside our enum and so our codes must
+    // be wrong. The size was right and the reading was wrong: bits are MSB-first, so a
+    // reason of 1 sits in the HIGH nibble and lands as 0x10. The corpus also carries
+    // 0x90, which is reason 9. Both are ordinary codes.
+    //
+    // Only the low nibble is transmitted, so a value above 15 would silently truncate
+    // into a different reason -- hence the enum is now constrained to 0-15 and this
+    // masks defensively rather than trusting callers.
     WorldPacket data(SMSG_LFG_TELEPORT_DENIED, 1);
-    data << uint8(error);
+    data.WriteBits(error & 0xF, 4);
+    data.FlushBits();
     SendPacket(&data);
 }
 
