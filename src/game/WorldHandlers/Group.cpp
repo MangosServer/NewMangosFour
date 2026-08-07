@@ -1335,7 +1335,7 @@ bool Group::LoadMemberFromDB(uint32 guidLow, uint8 subgroup, bool assistant)
 }
 
 /**
- * @brief Converts the group to raid mode and refreshes related state.
+ * @brief Clears the dungeon finder flag, turning the group back into an ordinary party.
  */
 void Group::ClearLfgGroup()
 {
@@ -1366,6 +1366,9 @@ void Group::ClearLfgGroup()
     }
 }
 
+/**
+ * @brief Marks the group as a dungeon finder group and persists the flag.
+ */
 void Group::SetAsLfgGroup()
 {
     // GROUPTYPE_LFD has to reach the DATABASE, not just m_groupType.
