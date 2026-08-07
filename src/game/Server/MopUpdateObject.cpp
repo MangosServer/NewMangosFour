@@ -736,8 +736,12 @@ namespace
     /// sub_79E087 BREAK: the object is lost and so is every later block in the
     /// same packet, silently and with no reply.
     ///
-    /// The floor sits an order of magnitude clear of the bound so no rounding can
-    /// walk back across it. Speeds are conceptually non-negative, so this floors
+    /// The floor is 1e-6, about 4.2x the 2^-22 bound rather than the order of magnitude
+    /// an earlier version of this comment claimed. That is ample -- the comparison is
+    /// exclusive and no representable speed below the floor can reach the wire -- but the
+    /// real margin is stated here so nobody lowers the floor toward 3e-7 believing there
+    /// is ten times the headroom there actually is.
+    /// Speeds are conceptually non-negative, so this floors
     /// rather than preserving sign -- creature_template ships negative denormals
     /// which are meaningless as speeds and would be rejected on magnitude anyway.
     float SanitizeSpeed(float speed)
