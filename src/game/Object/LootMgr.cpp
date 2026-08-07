@@ -1286,7 +1286,11 @@ bool BuildMopLootResponse(WorldPacket& out, LootView const& view,
                     currency.amount = item.count;
                     currency.currencyId = item.itemid;
                     currency.lootListId = itr->index;
-                    currency.slotType = uint8(personalSlotType);
+                    // Same translation as the item rows: a raw LOOT_SLOT_NORMAL
+                    // puts 0 on the wire, which the auto-loot pass skips and which
+                    // raises a bind confirmation. Missed when the item paths were
+                    // converted; caught in review.
+                    currency.slotType = ToWireLootSlotType(personalSlotType);
                     response.currencies.push_back(currency);
                 }
             }

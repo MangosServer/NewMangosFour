@@ -123,7 +123,11 @@ inline uint8 ToWireLootSlotType(LootSlotType slotType)
         case LOOT_SLOT_MASTER: return 2;    // opens the master looter list
         case LOOT_SLOT_VIEW:                // visible but not takeable by this player
         case LOOT_SLOT_REQS:   return 7;    // refused: requirements not met
-        default:               return 3;    // never 0/1/5/6; 3 is the client's own default
+        // Only reachable from MAX_LOOT_SLOT_TYPE -- the sentinel meaning "skip this
+        // row" -- or from a corrupt value. Refuse rather than offer: 3 would make a
+        // row the server already decided not to show look takeable and auto-lootable,
+        // leaving the server to reject the click it invited. 7 fails closed.
+        default:               return 7;
     }
 }
 
