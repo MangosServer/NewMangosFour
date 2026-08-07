@@ -91,6 +91,42 @@ enum LootSlotType
     MAX_LOOT_SLOT_TYPE                                      // custom, use for mark skipped from show items
 };
 
+/// Translate the server's pre-MoP LootSlotType onto the value the 18414 client reads.
+///
+/// The internal enum below is inherited and predates this build. Casting it straight onto
+/// the wire ships values the client never receives from a retail server: a corpus sweep of
+/// 9437 SMSG_LOOT_RESPONSE packets at build 18414 finds the 3-bit field takes exactly
+/// {3, 4, 7} -- 4 on 1809 ordinary drops, 3 on 542, 7 on 34 -- and 0, 1, 2, 5 and 6 never
+/// appear at all. Our LOOT_SLOT_NORMAL is 0.
+///
+/// It matters because the client branches on this value (record offset +24, built by
+/// sub_9D5F3D):
+///   * the auto-loot pass (sub_9387D6, 0x938824) takes a slot ONLY when it is 3 or 4, so a
+///     0 is silently skipped and never auto-looted;
+///   * only 4 suppresses the bind-on-pickup confirmation (sub_937CB8, 0x937DCB), so a 0
+///     raises a BoP prompt where retail shows none;
+///   * 2 opens the master-loot list instead of looting, 5 reports the slot locked, and 7
+///     refuses the click outright.
+///
+/// It only misfires in a GROUP. A solo kill already resolves OWNER_PERMISSION to
+/// LOOT_SLOT_OWNER, which is 4 and happens to be correct; shared loot resolves
+/// LOOT_SLOT_NORMAL, which is 0 and is not.
+///
+/// 2 is deliberately reachable only from LOOT_SLOT_MASTER. It has no corpus support, but a
+/// master-loot row has to say so somehow and every other value would misrepresent it.
+inline uint8 ToWireLootSlotType(LootSlotType slotType)
+{
+    switch (slotType)
+    {
+        case LOOT_SLOT_OWNER:  return 4;    // takeable now, no bind confirmation
+        case LOOT_SLOT_NORMAL: return 3;    // takeable, ordinary shared-loot rules
+        case LOOT_SLOT_MASTER: return 2;    // opens the master looter list
+        case LOOT_SLOT_VIEW:                // visible but not takeable by this player
+        case LOOT_SLOT_REQS:   return 7;    // refused: requirements not met
+        default:               return 3;    // never 0/1/5/6; 3 is the client's own default
+    }
+}
+
 namespace MopLootPackets
 {
     constexpr size_t MAX_TAKE_ENTRIES = 50;

@@ -1936,7 +1936,10 @@ static bool BuildMopGroupLootItem(Roll const& roll,
     item.randomSuffix = int32(roll.itemRandomSuffix);
     item.lootListId = roll.itemSlot;
     item.hasLootListId = true;
-    item.slotType = LOOT_SLOT_NORMAL;
+    // See ToWireLootSlotType: the client never receives 0 here from a retail server,
+    // and a 0 is skipped by the auto-loot pass and raises a bind confirmation.
+    item.slotType = ToWireLootSlotType(LOOT_SLOT_NORMAL);
+    item.unknown = 3;                                       // retail's constant; the client discards it
     item.situ.assign(4, 0); // Client-compatible empty item-modifier block.
     return true;
 }

@@ -1137,6 +1137,17 @@ bool BuildMopLootResponse(WorldPacket& out, LootView const& view,
     response.lootType = uint8(lootType);
     response.success = true;
 
+    // The trailing optional byte. It is NOT a failure reason despite the field name:
+    // the client reads it into msg+40 and only consults it on the success == 0 branch
+    // (0x936FDE), where it selects an error string. On success it is dead.
+    //
+    // Retail nevertheless always ships it -- the gating bit is 0 on all 32 successful
+    // responses decoded from the corpus, and set in only 3 of 9437 packets, all of them
+    // failures. The value is 17 on success and 18 on failure. Emitting it costs one byte
+    // and removes the last shape difference between our response and retail's.
+    response.hasFailureReason = true;
+    response.failureReason = 17;
+
     if (view.permission != NONE_PERMISSION)
     {
         response.money = loot.gold;
@@ -1160,7 +1171,14 @@ bool BuildMopLootResponse(WorldPacket& out, LootView const& view,
         wireItem.situ.assign(4, 0); // Client-compatible empty item-modifier block.
         wireItem.randomPropertyId = item.randomPropertyId;
         wireItem.lootListId = lootListId;
-        wireItem.slotType = uint8(slotType);
+        wireItem.slotType = ToWireLootSlotType(slotType);
+
+        // Retail sets this 2-bit field to 3 on every one of the 67 item records
+        // decoded from the corpus, and 0/1/2 never appear. The 18414 client parses
+        // it into msgItem+24 and never reads it back -- the only consumer of the
+        // item array, sub_9D5F3D, touches +0,+4,+8,+12,+16,+28,+32,+36 only -- so
+        // this is byte fidelity rather than behaviour.
+        wireItem.unknown = 3;
         if (ItemPrototype const* prototype =
                 ObjectMgr::GetItemPrototype(item.itemid))
         {
