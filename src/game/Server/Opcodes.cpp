@@ -221,6 +221,10 @@ void InitializeOpcodes()
     // We have no Store backend, so we answer the same thing retail answers a player who has
     // bought nothing -- an empty list -- rather than dropping the request on the floor.
     DefC(CMSG_BATTLE_PAY_GET_PURCHASE_LIST, "CMSG_BATTLE_PAY_GET_PURCHASE_LIST", STATUS_AUTHED, PROCESS_INPLACE, &WorldSession::HandleBattlePayGetPurchaseListOpcode);
+    // Its partner: the client sends both on login, one after the other. We answered
+    // the purchase list and left this one to fall through as "UNKNOWN (0x0DE0)" in
+    // the log, which is noise that masks a genuinely unrecognised opcode.
+    DefC(CMSG_BATTLE_PAY_GET_PRODUCT_LIST, "CMSG_BATTLE_PAY_GET_PRODUCT_LIST", STATUS_AUTHED, PROCESS_INPLACE, &WorldSession::HandleBattlePayGetProductListOpcode);
     DefS(SMSG_BATTLE_PAY_GET_PURCHASE_LIST_RESPONSE, "SMSG_BATTLE_PAY_GET_PURCHASE_LIST_RESPONSE");
 
     // The character-creation randomise button. CharacterCreate.lua's RequestRandomName()

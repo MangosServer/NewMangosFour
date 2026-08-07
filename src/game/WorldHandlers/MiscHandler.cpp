@@ -2230,6 +2230,31 @@ void WorldSession::HandleBattlePayGetPurchaseListOpcode(WorldPacket& /*recvPacke
     SendPacket(&data);
 }
 
+/**
+ * @brief The client asking for the in-game store catalogue.
+ *
+ * Body is empty -- all thirteen corpus occurrences at build 18414 are zero bytes --
+ * and the client sends it immediately after CMSG_BATTLE_PAY_GET_PURCHASE_LIST on
+ * login, so the two arrive as a pair.
+ *
+ * Deliberately NOT answered. Retail replies with SMSG_BATTLE_PAY_GET_PRODUCT_LIST_
+ * RESPONSE carrying the whole catalogue -- 3517 bytes in capture-000234 seq 28146 --
+ * and we have no store to describe. Sending a guessed empty catalogue would put an
+ * underived layout on the wire for a feature that does not exist here; saying nothing
+ * simply leaves the store unavailable, which is true.
+ *
+ * Registered rather than left to fall through so it stops appearing as
+ * "received not handled opcode UNKNOWN (0x0DE0)". That line is how a genuinely
+ * unrecognised opcode gets noticed, and a known one repeating in it is noise that
+ * hides the signal.
+ *
+ * @param recvPacket The received opcode packet.
+ */
+void WorldSession::HandleBattlePayGetProductListOpcode(WorldPacket& /*recvPacket*/)
+{
+    DEBUG_LOG("WORLD: Received opcode CMSG_BATTLE_PAY_GET_PRODUCT_LIST (no store; not answered)");
+}
+
 void WorldSession::HandleHearthandResurrect(WorldPacket& /*recv_data*/)
 {
     DEBUG_LOG("WORLD: Received opcode CMSG_HEARTH_AND_RESURRECT");
