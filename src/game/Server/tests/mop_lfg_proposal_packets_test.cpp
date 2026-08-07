@@ -20,29 +20,42 @@
 #include "LFGMgr.h"
 #include "WorldPacket.h"
 
-#include <cassert>
 #include <cstdio>
 #include <vector>
 
 namespace
 {
+    /// Set by AssertBytes on any mismatch; main() returns non-zero if it is set.
+    ///
+    /// This used to call assert(false), which expands to nothing under NDEBUG. These
+    /// tests build in Release, so a mismatch printed its diagnostic and then exited 0 --
+    /// the harness reported "OK" while the bytes disagreed, which is the one thing a
+    /// byte-exactness test exists to prevent.
+    ///
+    /// It had in fact been failing. raid_finder_proposal's INPUT role array carried 0x09
+    /// one slot late, so the writer was fed the wrong roles for players 15 and 16. The
+    /// captured expected[] bytes were right all along and so was the writer -- only the
+    /// hand-transcribed input was wrong, and nothing could surface it.
+    bool g_failed = false;
+
     void AssertBytes(WorldPacket const& packet, std::vector<uint8> const& expected,
                      char const* label)
     {
         if (packet.size() != expected.size())
         {
-            std::printf("%s: size %u, expected %u\n", label,
+            std::printf("%s: FAIL size %u, expected %u\n", label,
                         unsigned(packet.size()), unsigned(expected.size()));
-            assert(false);
+            g_failed = true;
+            return;
         }
 
         for (size_t i = 0; i < expected.size(); ++i)
         {
             if (packet.contents()[i] != expected[i])
             {
-                std::printf("%s: byte %u is 0x%02X, expected 0x%02X\n", label,
+                std::printf("%s: FAIL byte %u is 0x%02X, expected 0x%02X\n", label,
                             unsigned(i), packet.contents()[i], expected[i]);
-                assert(false);
+                g_failed = true;
             }
         }
     }
@@ -124,7 +137,7 @@ namespace
 
         static uint32 const roles[25] = {
             0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x32, 0x08, 0x32, 0x08,
-            0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x09, 0x08, 0x08, 0x08,
+            0x08, 0x08, 0x08, 0x08, 0x08, 0x09, 0x08, 0x08, 0x08, 0x08,
             0x08, 0x08, 0x08, 0x08, 0x08
         };
 
@@ -156,6 +169,12 @@ int main()
 {
     test_five_man_proposal();
     test_raid_finder_proposal();
+
+    if (g_failed)
+    {
+        std::printf("mop_lfg_proposal_packets_test: FAILED\n");
+        return 1;
+    }
 
     std::printf("mop_lfg_proposal_packets_test: OK\n");
     return 0;
