@@ -31,9 +31,21 @@
 #include "LFGMgr.h"
 #include "WorldPacket.h"
 
-#include <cassert>
+#include "Database/DatabaseEnv.h"
 #include <cstdio>
 #include <vector>
+
+// Linker stubs. The server defines these in mangosd; a test binary that reaches any
+// game.lib translation unit needs them. This test did not need them before only
+// because its checks lived inside assert(), which is not compiled under NDEBUG --
+// so it never actually referenced the code under test.
+DatabaseType WorldDatabase;
+DatabaseType CharacterDatabase;
+DatabaseType LoginDatabase;
+uint32 realmID = 0;
+
+static int g_fail = 0;
+#define CHECK(c) do { if (!(c)) { std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); ++g_fail; } } while (0)
 
 namespace
 {
@@ -44,7 +56,7 @@ namespace
         {
             std::printf("%s: size %u, expected %u\n", label,
                         unsigned(packet.size()), unsigned(expected.size()));
-            assert(false);
+            CHECK(false);
         }
 
         for (size_t i = 0; i < expected.size(); ++i)
@@ -53,7 +65,7 @@ namespace
             {
                 std::printf("%s: byte %u is 0x%02X, expected 0x%02X\n", label,
                             unsigned(i), packet.contents()[i], expected[i]);
-                assert(false);
+                CHECK(false);
             }
         }
     }
@@ -150,7 +162,6 @@ int main()
 {
     test_two_member_role_check();
     test_five_member_role_check();
-
-    std::printf("mop_lfg_role_check_packets_test: OK\n");
-    return 0;
+    std::printf(g_fail ? "mop_lfg_role_check_packets_test: FAILED (%d)\n" : "mop_lfg_role_check_packets_test: OK\n", g_fail);
+    return g_fail ? 1 : 0;
 }

@@ -27,9 +27,21 @@
 #include "Group.h"
 #include "WorldPacket.h"
 
-#include <cassert>
+#include "Database/DatabaseEnv.h"
 #include <cstdio>
 #include <vector>
+
+// Linker stubs. The server defines these in mangosd; a test binary that reaches any
+// game.lib translation unit needs them. This test did not need them before only
+// because its checks lived inside assert(), which is not compiled under NDEBUG --
+// so it never actually referenced the code under test.
+DatabaseType WorldDatabase;
+DatabaseType CharacterDatabase;
+DatabaseType LoginDatabase;
+uint32 realmID = 0;
+
+static int g_fail = 0;
+#define CHECK(c) do { if (!(c)) { std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); ++g_fail; } } while (0)
 
 namespace
 {
@@ -51,19 +63,19 @@ namespace
 
         WorldPacket packet = MakeBody(body);
         MopLfgProposalResponsePackets::Request request;
-        assert(MopLfgProposalResponsePackets::ParseRequest(packet, request));
+        CHECK(MopLfgProposalResponsePackets::ParseRequest(packet, request));
 
-        assert(request.accepted);
-        assert(request.proposalId == 11132);
-        assert(request.clientQueueId == 37743);
-        assert(request.flags == 3);
-        assert(request.joinTime == 1409232359u);
+        CHECK(request.accepted);
+        CHECK(request.proposalId == 11132);
+        CHECK(request.clientQueueId == 37743);
+        CHECK(request.flags == 3);
+        CHECK(request.joinTime == 1409232359u);
 
         // Both GUIDs match the SMSG_LFG_PROPOSAL_UPDATE this is answering.
-        assert(request.guidA.GetRawValue() == 0x0400000005FE4CD4ULL);
-        assert(request.guidB.GetRawValue() == 0x1F440000114CF200ULL);
+        CHECK(request.guidA.GetRawValue() == 0x0400000005FE4CD4ULL);
+        CHECK(request.guidB.GetRawValue() == 0x1F440000114CF200ULL);
 
-        assert(packet.rpos() == packet.size());     // no tail left unread
+        CHECK(packet.rpos() == packet.size());     // no tail left unread
     }
 
     /// A body truncated inside its GUID run must be refused, not read past its end.
@@ -76,7 +88,7 @@ namespace
 
         WorldPacket packet = MakeBody(body);
         MopLfgProposalResponsePackets::Request request;
-        assert(!MopLfgProposalResponsePackets::ParseRequest(packet, request));
+        CHECK(!MopLfgProposalResponsePackets::ParseRequest(packet, request));
     }
 
     /// Shorter than the fixed header plus its mask bytes.
@@ -86,7 +98,7 @@ namespace
 
         WorldPacket packet = MakeBody(body);
         MopLfgProposalResponsePackets::Request request;
-        assert(!MopLfgProposalResponsePackets::ParseRequest(packet, request));
+        CHECK(!MopLfgProposalResponsePackets::ParseRequest(packet, request));
     }
 }
 
@@ -95,7 +107,6 @@ int main()
     test_accept_body();
     test_truncated_body_is_refused();
     test_short_body_is_refused();
-
-    std::printf("mop_lfg_proposal_response_packets_test: OK\n");
-    return 0;
+    std::printf(g_fail ? "mop_lfg_proposal_response_packets_test: FAILED (%d)\n" : "mop_lfg_proposal_response_packets_test: OK\n", g_fail);
+    return g_fail ? 1 : 0;
 }

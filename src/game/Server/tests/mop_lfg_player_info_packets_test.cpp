@@ -30,9 +30,21 @@
 #include "LFGMgr.h"
 #include "WorldPacket.h"
 
-#include <cassert>
+#include "Database/DatabaseEnv.h"
 #include <cstdio>
 #include <vector>
+
+// Linker stubs. The server defines these in mangosd; a test binary that reaches any
+// game.lib translation unit needs them. This test did not need them before only
+// because its checks lived inside assert(), which is not compiled under NDEBUG --
+// so it never actually referenced the code under test.
+DatabaseType WorldDatabase;
+DatabaseType CharacterDatabase;
+DatabaseType LoginDatabase;
+uint32 realmID = 0;
+
+static int g_fail = 0;
+#define CHECK(c) do { if (!(c)) { std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); ++g_fail; } } while (0)
 
 namespace
 {
@@ -45,7 +57,7 @@ namespace
             {
                 std::printf("%s: byte %u is 0x%02X, expected 0x%02X\n", label,
                             unsigned(offset + i), actual[offset + i], expected[i]);
-                assert(false);
+                CHECK(false);
             }
         }
     }
@@ -83,7 +95,7 @@ namespace
         WorldPacket packet(SMSG_LFG_PLAYER_INFO, 5 + locks.size() * 16);
         MopLfgPackets::BuildPlayerInfo(packet, locks);
 
-        assert(packet.size() == 5 + expected.size());       // 5-byte header, then the array
+        CHECK(packet.size() == 5 + expected.size());       // 5-byte header, then the array
         AssertBytes(packet.contents(), expected, 5, "lock_records");
     }
 
@@ -102,8 +114,25 @@ namespace
         packet.WriteBits(35, 17);
         packet.FlushBits();
 
-        assert(packet.size() == expectedHeader.size());
-        AssertBytes(packet.contents(), expectedHeader, 0, "header");
+        CHECK(packet.size() == expectedHeader.size());
+
+        // Compare 38 BITS, not 5 whole bytes.
+        //
+        // The header is 20 + 1 + 17 = 38 bits, so byte 4 carries only 6 header bits.
+        // In our standalone packet FlushBits pads the last two with zeros, giving
+        // 0x8C. The capture's 0x8D has the next bit set because in the real packet
+        // those two bits are not padding at all -- they are the start of the 206 lock
+        // records that follow the header.
+        //
+        // Comparing the whole byte therefore asserted that a flushed header equals a
+        // byte containing someone else's data, and it had been failing:
+        //     header: byte 4 is 0x8C, expected 0x8D
+        // Nothing surfaced it because the check lived inside assert(), which is not
+        // compiled under NDEBUG. The writer is right; the comparison was too wide.
+        AssertBytes(packet.contents(), std::vector<uint8>(expectedHeader.begin(),
+                                                          expectedHeader.begin() + 4),
+                    0, "header");
+        CHECK((packet.contents()[4] & 0xFC) == (expectedHeader[4] & 0xFC));
     }
 
     /// Our own locks-only header: same widths, random count zero.
@@ -115,14 +144,14 @@ namespace
         WorldPacket packet(SMSG_LFG_PLAYER_INFO, 5 + 16);
         MopLfgPackets::BuildPlayerInfo(packet, locks);
 
-        assert(packet.size() == 5 + 16);
+        CHECK(packet.size() == 5 + 16);
 
         // Decode the header back out and confirm the counts survive the round trip.
         uint8 const* b = packet.contents();
         uint32 const bits = (uint32(b[0]) << 24) | (uint32(b[1]) << 16) |
                             (uint32(b[2]) << 8) | uint32(b[3]);
-        assert((bits >> 12) == 1);                          // 20-bit lock count
-        assert(((bits >> 11) & 1) == 0);                    // hasPlayerGuid
+        CHECK((bits >> 12) == 1);                          // 20-bit lock count
+        CHECK(((bits >> 11) & 1) == 0);                    // hasPlayerGuid
     }
 
     /// An empty lock list must still emit a well-formed 5-byte header, because that is
@@ -134,10 +163,10 @@ namespace
         WorldPacket packet(SMSG_LFG_PLAYER_INFO, 5);
         MopLfgPackets::BuildPlayerInfo(packet, locks);
 
-        assert(packet.size() == 5);
+        CHECK(packet.size() == 5);
         for (size_t i = 0; i < packet.size(); ++i)
         {
-            assert(packet.contents()[i] == 0x00);
+            CHECK(packet.contents()[i] == 0x00);
         }
     }
 }
@@ -148,7 +177,6 @@ int main()
     test_header_matches_capture();
     test_locks_only_header();
     test_empty_lock_list();
-
-    std::printf("mop_lfg_player_info_packets_test: OK\n");
-    return 0;
+    std::printf(g_fail ? "mop_lfg_player_info_packets_test: FAILED (%d)\n" : "mop_lfg_player_info_packets_test: OK\n", g_fail);
+    return g_fail ? 1 : 0;
 }
