@@ -725,11 +725,49 @@ void MopUpdateObject::AppendStationaryGameObjectCreateBlock(ByteBuffer& out, uin
     AppendStaticValuesNoDynamic(out, fields, fieldCount);
 }
 
+namespace
+{
+    /// Smallest speed magnitude the 18414 create validator accepts.
+    ///
+    /// sub_768D2F tests all nine speeds with an approximately-equal-to-zero
+    /// comparison (sub_45B733 -> sub_409DD6 at epsilon 0.00000023841858 = 2^-22)
+    /// and rejects the object when any of them is nearer to zero than that. A
+    /// rejected create returns 0 from sub_79DC30, which makes the block loop in
+    /// sub_79E087 BREAK: the object is lost and so is every later block in the
+    /// same packet, silently and with no reply.
+    ///
+    /// The floor sits an order of magnitude clear of the bound so no rounding can
+    /// walk back across it. Speeds are conceptually non-negative, so this floors
+    /// rather than preserving sign -- creature_template ships negative denormals
+    /// which are meaningless as speeds and would be rejected on magnitude anyway.
+    float SanitizeSpeed(float speed)
+    {
+        float const minWireSpeed = 0.000001f;
+        return speed < minWireSpeed ? minWireSpeed : speed;
+    }
+}
+
 void MopUpdateObject::AppendSimpleLivingMovement(ByteBuffer& out, SimpleLivingMovement const& movement)
 {
     const uint64 g = movement.guid;
     const uint64 transportGuid = movement.transportGuid;
     const bool hasTransport = transportGuid != 0;
+
+    // Sanitised HERE rather than at the callers, because there is more than one
+    // caller and a bypass is silent. ObjectUpdate.cpp builds the observer create
+    // and Map::SendInitSelf builds the player's own create; both funnel through
+    // this writer, and the self path was missed when the clamp lived at the
+    // observer call site. A rejected SELF create is worse than a rejected
+    // observer create -- the player does not exist on their own client at all.
+    float const speedWalk = SanitizeSpeed(movement.speedWalk);
+    float const speedRun = SanitizeSpeed(movement.speedRun);
+    float const speedRunBack = SanitizeSpeed(movement.speedRunBack);
+    float const speedSwim = SanitizeSpeed(movement.speedSwim);
+    float const speedSwimBack = SanitizeSpeed(movement.speedSwimBack);
+    float const speedFlight = SanitizeSpeed(movement.speedFlight);
+    float const speedFlightBack = SanitizeSpeed(movement.speedFlightBack);
+    float const speedTurn = SanitizeSpeed(movement.speedTurn);
+    float const speedPitch = SanitizeSpeed(movement.speedPitch);
 
     out.WriteBit(0);                     // game-object data
     out.WriteBit(0);                     // animation kits
@@ -818,26 +856,26 @@ void MopUpdateObject::AppendSimpleLivingMovement(ByteBuffer& out, SimpleLivingMo
     }
 
     out.WriteByteSeq(GuidByte(g, 4));
-    out << movement.speedFlight;
+    out << speedFlight;
     out.WriteByteSeq(GuidByte(g, 2));
     out.WriteByteSeq(GuidByte(g, 1));
-    out << movement.speedTurn;
+    out << speedTurn;
     out << movement.moveTime;
-    out << movement.speedRunBack;
+    out << speedRunBack;
     out.WriteByteSeq(GuidByte(g, 7));
-    out << movement.speedPitch;
+    out << speedPitch;
     out << movement.x;
     out << movement.o;
-    out << movement.speedWalk;
+    out << speedWalk;
     out << movement.y;
-    out << movement.speedFlightBack;
+    out << speedFlightBack;
     out.WriteByteSeq(GuidByte(g, 3));
     out.WriteByteSeq(GuidByte(g, 5));
     out.WriteByteSeq(GuidByte(g, 6));
     out.WriteByteSeq(GuidByte(g, 0));
-    out << movement.speedSwimBack;
-    out << movement.speedRun;
-    out << movement.speedSwim;
+    out << speedSwimBack;
+    out << speedRun;
+    out << speedSwim;
     out << movement.z;
 }
 

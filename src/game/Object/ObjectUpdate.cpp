@@ -68,27 +68,6 @@
 
 namespace
 {
-    /// Smallest magnitude the 18414 client will accept for a movement speed.
-    ///
-    /// sub_45B733 compares with sub_409DD6(a, b, 0.00000023841858), i.e. an
-    /// approximately-equal test at 2^-22, and sub_768D2F rejects the create when
-    /// any of the nine speeds is approximately equal to zero. The bound is
-    /// exclusive (`eps > fabs(a - b)` fails the comparison), so exactly epsilon
-    /// is already accepted; the floor below sits an order of magnitude clear of
-    /// it so no later rounding can walk back across.
-    float const MIN_WIRE_SPEED = 0.000001f;
-
-    /// Force a speed into the range the client's create validator accepts.
-    ///
-    /// Speeds are conceptually non-negative, so this floors rather than
-    /// preserving the sign: creature_template ships negative denormals
-    /// (-3.72738e-21 on 55151, -2.97773e-20 on 61928) which are meaningless as
-    /// speeds and would be rejected on magnitude anyway.
-    float SanitizeWireSpeed(float speed)
-    {
-        return speed < MIN_WIRE_SPEED ? MIN_WIRE_SPEED : speed;
-    }
-
     static_assert(ITEM_END == MopUpdateObject::ItemFieldCount,
         "18414 Item direct-copy range must remain fields 0..68");
     static_assert(CONTAINER_END == MopUpdateObject::ContainerFieldCount,
@@ -549,44 +528,22 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
         movement.o = unit->GetOrientation();
         movement.moveTime = GameTime::GetGameTimeMS();
 
-        // Every speed on the wire must be far enough from zero for the client to
-        // accept the block. Its create validator (sub_768D2F, reached from
-        // sub_769816 via sub_7691A4 when the LIVING bit is set) tests all nine
-        // speeds with an approximately-equal-to-zero comparison at epsilon
-        // 2.3841858e-7 = 2^-22, and rejects the object if any of them is nearer
-        // to zero than that. A rejected create returns 0 from sub_79DC30, which
-        // makes the block loop in sub_79E087 BREAK -- so the object is lost and
-        // so is every later block in the same packet, silently, with no reply.
-        //
-        // Zero is not hypothetical and is not always wrong data. A totem SHOULD
-        // have SpeedWalk 0, because a totem does not walk, and Unit::UpdateSpeed
-        // multiplies straight through it (UnitSpeed.cpp:246) with no validation:
-        //
-        //     3968 Sentry Totem, 5923/5924 Cleansing Totem, 5926 Frost
-        //     Resistance Totem, 7467 Nature Resistance Totem, 15803 Tranquil Air
-        //     Totem, 17539 Totem of Wrath, 30527 Training Dummy -- SpeedWalk 0
-        //
-        // plus 55151 Rumpus Brute, 57421 Mothran and 61928 Sik'thik Guardian,
-        // which carry corrupt denormals (-3.7e-21, 3.1e-30). 64 rows in
-        // creature_template have a non-positive walk or run speed. A player
-        // gaining sight of any of them lost the rest of that update packet.
-        //
-        // SetSpeedRate also clamps a negative rate to exactly 0.0f
-        // (UnitSpeed.cpp:284), so a -100% snare reaches here as a true zero too.
-        //
-        // Clamping HERE rather than in UpdateSpeed is deliberate: the unit keeps
-        // its real speed rate and still does not move, and the correction cannot
-        // be bypassed by a future producer, because this is the only place the
-        // create block is filled in.
-        movement.speedWalk = SanitizeWireSpeed(unit->GetSpeed(MOVE_WALK));
-        movement.speedRun = SanitizeWireSpeed(unit->GetSpeed(MOVE_RUN));
-        movement.speedRunBack = SanitizeWireSpeed(unit->GetSpeed(MOVE_RUN_BACK));
-        movement.speedSwim = SanitizeWireSpeed(unit->GetSpeed(MOVE_SWIM));
-        movement.speedSwimBack = SanitizeWireSpeed(unit->GetSpeed(MOVE_SWIM_BACK));
-        movement.speedFlight = SanitizeWireSpeed(unit->GetSpeed(MOVE_FLIGHT));
-        movement.speedFlightBack = SanitizeWireSpeed(unit->GetSpeed(MOVE_FLIGHT_BACK));
-        movement.speedTurn = SanitizeWireSpeed(unit->GetSpeed(MOVE_TURN_RATE));
-        movement.speedPitch = SanitizeWireSpeed(unit->GetSpeed(MOVE_PITCH_RATE));
+        // The nine speeds are sanitised inside AppendSimpleLivingMovement rather
+        // than here. The client's create validator rejects any object whose speed
+        // is approximately zero, and a rejected create discards the whole rest of
+        // the packet -- but this is NOT the only writer that fills a create block:
+        // Map::SendInitSelf builds the player's own create through the same
+        // emitter. Clamping at this call site left that path uncovered, and a
+        // rejected SELF create is worse than a rejected observer create.
+        movement.speedWalk = unit->GetSpeed(MOVE_WALK);
+        movement.speedRun = unit->GetSpeed(MOVE_RUN);
+        movement.speedRunBack = unit->GetSpeed(MOVE_RUN_BACK);
+        movement.speedSwim = unit->GetSpeed(MOVE_SWIM);
+        movement.speedSwimBack = unit->GetSpeed(MOVE_SWIM_BACK);
+        movement.speedFlight = unit->GetSpeed(MOVE_FLIGHT);
+        movement.speedFlightBack = unit->GetSpeed(MOVE_FLIGHT_BACK);
+        movement.speedTurn = unit->GetSpeed(MOVE_TURN_RATE);
+        movement.speedPitch = unit->GetSpeed(MOVE_PITCH_RATE);
         movement.self = false;
 
         MovementInfo const& movementInfo = unit->m_movementInfo;

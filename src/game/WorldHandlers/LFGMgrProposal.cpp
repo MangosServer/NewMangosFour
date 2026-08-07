@@ -1541,10 +1541,18 @@ void LFGMgr::GiveDungeonRewardItem(Player* pPlayer, uint32 itemId, uint32 amount
 
     ItemPosCountVec dest;
     uint32 noSpaceCount = 0;
-    InventoryResult msg = pPlayer->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, itemId, amount, &noSpaceCount);
+    pPlayer->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, itemId, amount, &noSpaceCount);
 
-    uint32 stored = amount - noSpaceCount;
-    if (msg == EQUIP_ERR_OK && stored)
+    // Driven off `dest` and `noSpaceCount`, NOT off the return code.
+    //
+    // On a PARTIAL fit _CanStoreItem fills `dest` with the portion that does fit,
+    // reports the remainder through noSpaceCount, and still returns an error.
+    // Gating the store on EQUIP_ERR_OK therefore threw the storable portion away
+    // and mailed only the overflow, so the player silently lost part of the
+    // reward. That is the ordinary case for a two-item reward with one free slot,
+    // not an exotic one.
+    uint32 const stored = amount > noSpaceCount ? amount - noSpaceCount : 0;
+    if (stored && !dest.empty())
     {
         if (Item* item = pPlayer->StoreNewItem(dest, itemId, true))
         {
@@ -1552,23 +1560,34 @@ void LFGMgr::GiveDungeonRewardItem(Player* pPlayer, uint32 itemId, uint32 amount
         }
     }
 
-    // Whatever did not fit goes in the post.
-    if (noSpaceCount)
+    // Whatever did not fit goes in the post, in as many stacks as it takes.
+    //
+    // Item::CreateItem clamps count to the item's maximum stack size and creates
+    // exactly ONE stack, so a single call silently discarded anything above it.
+    // Today's rewards are 1-2 and fit any stack, but a larger one would have lost
+    // the excess without a trace.
+    uint32 remaining = noSpaceCount;
+    uint32 const maxStack = proto->GetMaxStackSize() ? proto->GetMaxStackSize() : 1;
+    while (remaining)
     {
-        if (Item* mailItem = Item::CreateItem(itemId, noSpaceCount, pPlayer))
-        {
-            mailItem->SaveToDB();                           // persist before send, or a failed send loses it
+        uint32 const thisStack = remaining < maxStack ? remaining : maxStack;
 
-            std::string const subject = proto->Name1 ? proto->Name1 : "";
-            MailDraft draft(subject, "");
-            draft.AddItem(mailItem);
-            draft.SendMailTo(MailReceiver(pPlayer), MailSender(MAIL_CREATURE, uint32(0)));
-        }
-        else
+        Item* mailItem = Item::CreateItem(itemId, thisStack, pPlayer);
+        if (!mailItem)
         {
-            sLog.outError("LFG GiveDungeonRewardItem: could not create %u x%u for mail to %s",
-                          itemId, noSpaceCount, pPlayer->GetGuidStr().c_str());
+            sLog.outError("LFG GiveDungeonRewardItem: could not create %u x%u for mail to %s; %u lost",
+                          itemId, thisStack, pPlayer->GetGuidStr().c_str(), remaining);
+            return;
         }
+
+        mailItem->SaveToDB();                               // persist before send, or a failed send loses it
+
+        std::string const subject = proto->Name1 ? proto->Name1 : "";
+        MailDraft draft(subject, "");
+        draft.AddItem(mailItem);
+        draft.SendMailTo(MailReceiver(pPlayer), MailSender(MAIL_CREATURE, uint32(0)));
+
+        remaining -= thisStack;
     }
 }
 
