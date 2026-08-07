@@ -1152,6 +1152,19 @@ void LFGMgr::RemoveOldBoots()
                 }
             }
         }
+        else
+        {
+            // The group went away while the vote was running. Everyone who was polled is
+            // still carrying LFG_STATE_BOOT, and with no group to walk there is nothing
+            // to restore them to a dungeon state -- so clear them outright. Skipping this
+            // is what left players holding a phantom boot state across relog.
+            for (proposalAnswerMap::const_iterator ans = boot.answers.begin();
+                 ans != boot.answers.end(); ++ans)
+            {
+                SetPlayerState(ans->first, LFG_STATE_NONE);
+            }
+            SetPlayerState(boot.playerVotedOn, LFG_STATE_NONE);
+        }
 
         m_bootStatusMap.erase(groupGuid);
 
@@ -1911,8 +1924,42 @@ void LFGMgr::OnPlayerLeftDungeonGroup(Player* pPlayer)
     pPlayer->CastSpell(pPlayer, LFG_DESERTER_SPELL, true);
 }
 
-void LFGMgr::ReleaseGroupLfgStatus(ObjectGuid groupGuid)
+void LFGMgr::ReleaseGroupLfgStatus(Group* pGroup)
 {
+    if (!pGroup)
+    {
+        return;
+    }
+
+    ObjectGuid const groupGuid = pGroup->GetObjectGuid();
+
+    // Reset the MEMBERS too, not just the group maps.
+    //
+    // m_playerStatusMap is keyed by player guid and outlives the group entirely: nothing
+    // on the leave or disband path ever cleared it, because until vote kick landed no
+    // player state survived long enough to matter. LFG_STATE_BOOT changed that. A boot
+    // vote sets every member to LFG_STATE_BOOT, and if the group then disbands -- members
+    // leaving one by one, or the last one quitting -- the group maps go and the player
+    // states stay.
+    //
+    // They stay across relog, because the map is never cleared on login or logout, and
+    // HandleLfgGetStatusOpcode ships whatever it finds: the client is handed
+    // LFG_STATE_BOOT for a vote that no longer exists, in a group the player has left,
+    // and can raise a boot dialog nothing can ever resolve. It only clears if the player
+    // happens to re-queue, or the world restarts.
+    //
+    // Found by a whole-branch review; the range reviews could not see it, because the
+    // commit that made the leak reachable and the code that leaks are far apart.
+    for (Group::MemberSlotList::const_iterator itr = pGroup->GetMemberSlots().begin();
+         itr != pGroup->GetMemberSlots().end(); ++itr)
+    {
+        SetPlayerState(itr->guid, LFG_STATE_NONE);
+    }
+
+    // A vote in flight dies with the group. Leaving it for the reaper is not enough: its
+    // recovery path resolves the group to restore state, and by then there is no group.
+    m_bootStatusMap.erase(groupGuid);
+
     m_groupStatusMap.erase(groupGuid);
     m_groupSet.erase(groupGuid);
 }

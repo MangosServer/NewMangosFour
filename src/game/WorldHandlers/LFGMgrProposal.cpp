@@ -1158,8 +1158,9 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup, Player* onlyPlay
             // TeleportToDungeon also runs from CreateDungeonGroup, where a proposal has
             // just been accepted and the group formed. Refusing one member there teleports
             // everyone else in and strands that player -- still in the group, still set to
-            // LFG_STATE_IN_DUNGEON, and with no feedback at all, because
-            // SMSG_LFG_TELEPORT_DENIED is not admitted. A proposal accept is a mandatory
+            // LFG_STATE_IN_DUNGEON. When this was written they also got no feedback at
+            // all, because SMSG_LFG_TELEPORT_DENIED was not admitted; it is now, but
+            // being stranded silently is not much improved by being told why. A proposal accept is a mandatory
             // group form, and the client's own message for this
             // (ERR_PARTY_LFG_TELEPORT_IN_COMBAT) is about teleporting OUT of a dungeon,
             // not about being placed into one.
@@ -1261,10 +1262,12 @@ void LFGMgr::TeleportToDungeon(uint32 dungeonID, Group* pGroup, Player* onlyPlay
 void LFGMgr::TeleportPlayer(Player* pPlayer, bool out)
 {
     // Fetch necessary data first
-    // Every refusal below is INVISIBLE to the player: SMSG_LFG_TELEPORT_DENIED is not
-    // admitted (its value space is not derived -- see SendLfgTeleportError), so a refused
-    // teleport produces no packet at all. Log every one of them, or a player reporting
-    // "teleport out did nothing" leaves nothing behind to diagnose. Observed live
+    // Every refusal below now REACHES the player: SMSG_LFG_TELEPORT_DENIED carries a
+    // derived four-bit reason and is admitted through the send gate. It was not, when this
+    // logging was added -- a refused teleport then produced no packet at all, and the log
+    // line was the only trace. Keep logging anyway: the reason codes are coarse, and a
+    // player reporting "teleport out did nothing" is still far easier to diagnose with the
+    // branch recorded server-side. Observed live
     // 2026-08-06 21:04: two CMSG_LFG_TELEPORT from a player alone in Shadowfang Keep, no
     // reply, no log line, and no way to tell which branch refused.
     Group* pGroup = pPlayer->GetGroup();

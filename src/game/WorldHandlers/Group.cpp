@@ -1828,7 +1828,7 @@ void Group::Disband(bool hideDestroy)
     // a missing status makes it emit a zero dungeon slot.
     if (isLFGGroup())
     {
-        sLFGMgr.ReleaseGroupLfgStatus(GetObjectGuid());
+        sLFGMgr.ReleaseGroupLfgStatus(this);
     }
 
     Player* player;

@@ -537,8 +537,9 @@ void WorldSession::HandleGroupDisbandOpcode(WorldPacket& recv_data)
         //
         // The teleport out is refused in combat, but the removal used to run anyway, so a
         // player who clicked Leave Instance Group mid-fight was taken out of the group and
-        // left standing in the instance -- and the refusal is mute, because
-        // SMSG_LFG_TELEPORT_DENIED is not admitted. Observed live: "i did leave instance
+        // left standing in the instance -- and at the time the refusal was mute, because
+        // SMSG_LFG_TELEPORT_DENIED was not admitted. It is admitted now, so the player is
+        // told; the removal-without-teleport is what this guard exists to stop. Observed live: "i did leave instance
         // group on the leader, i just got removed but not teleported out", while stuck in
         // a combat stance.
         //

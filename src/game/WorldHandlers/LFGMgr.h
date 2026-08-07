@@ -1338,7 +1338,8 @@ public:
 
     /// Drop a disbanded group's LFG status. Must run when the Group is torn down, not
     /// when its dungeon finishes -- see the note in HandleBossKilled.
-    void ReleaseGroupLfgStatus(ObjectGuid groupGuid);
+    /// Drop a group's LFG state AND reset its members' player states.
+    void ReleaseGroupLfgStatus(Group* pGroup);
 
     /// A dungeon encounter was credited on this map. Marks every LFG group with players
     /// present as having made progress, so leaving no longer earns Dungeon Deserter, and
